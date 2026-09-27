@@ -25,12 +25,16 @@ Your data never leaves your machine. Every other decision — architecture, libr
 - [ ] Player_statistics: per-vehicle battle stats (win rate, damage, battles, etc.) across WoT, WoT Blitz, World of Warships, and World of Warplanes
 - [ ] Financial_data: premium-time operations and virtual-currency flow timelines
 - [ ] Parsed data is cached in IndexedDB so re-uploading isn't needed on repeat visits; re-uploading the same zip is detected (hash) and skipped; uploading a *different* zip replaces the current dataset (single active dataset, not multi-account storage)
-- [ ] Export categories outside v1 scope (Bans, Bonus_codes, Customer_support_tickets, Device_info, Payment_history, Personal_coupons, Subscriptions, Tracking_data, User_Info, Authorized_Third_Parties) are listed in the UI as detected-but-not-yet-supported, not hidden and not silently dropped
+- [ ] Categories are classified 3-way — supported / known-deferred (Chat_history, Clans) / unknown (any folder never seen before, e.g. a future Wargaming export-format addition) — all three render the same "detected but not yet supported" banner, not hidden and not silently dropped or crashed on
 - [ ] A category folder missing from a given user's export (e.g. no Financial_data, no Warplanes data) shows that dashboard section empty/greyed-out rather than removing it
 - [ ] A zip that isn't a recognizable Wargaming export (wrong file, corrupt archive) shows a generic failure state
 - [ ] Dashboard is responsive and usable at phone width, not desktop-only
 - [ ] Zero network requests after initial page load — enforced by an automated CI check, backed by a CSP as defense-in-depth
 - [ ] Deployed as a static site to GitHub Pages via GitHub Actions
+- [ ] Account identity header at the top of the dashboard (nickname, region, account-created date from `User_Info`) — email address (the `LOGIN` field) is deliberately omitted from display even though it never leaves the device
+- [ ] Financial_data includes a real-money spend summary from `Payment_history`, totaled **per currency** (the real data spans USD/RUB/UAH in one account) — never blended into one converted number, since any conversion needs a live or hardcoded FX rate, both rejected
+- [ ] Login-IP history table is masked by default (e.g. last octet hidden) with a click-to-reveal toggle, not shown plaintext by default
+- [ ] A discoverable "clear my cached data" control ships in the same phase as IndexedDB caching, not bolted on later — nothing currently wipes the unencrypted-on-disk cache otherwise
 
 ### Out of Scope
 
@@ -52,6 +56,8 @@ Your data never leaves your machine. Every other decision — architecture, libr
 - Some CSVs (e.g. clan data) contain Cyrillic/Ukrainian text that's double-UTF8-encoded (mojibake) — needs a small hand-rolled byte-roundtrip fix (decode as Latin-1, re-decode as UTF-8), no library needed.
 - World of Warplanes data (`WOWP_19`/`WOWP_20` stats) showed up in Player_statistics despite not being mentioned anywhere in the original project idea — included in v1 scope.
 - The inspected sample is 5 years old; the current (2026) export format may have drifted. Parsing is built defensively (tolerate unexpected/missing columns) rather than assuming the 2021 sample's exact schema.
+- `Payment_history/Orders.csv` verified structure: `ACTION_DT;GAME_CODE;ITEM_CNT;PAYMENT_CURRENCY;PAYED_IN_CURR_AMT;IS_GIFT;ORDER_UUID;PAY_COUPON_NAME;PAY_ORDER_STATUS_CODE;...` — real sample spans USD, RUB, and UAH with PAID/FAILED/NEW statuses, confirming a per-currency spend summary is buildable (sum `PAYED_IN_CURR_AMT` where status is PAID, grouped by `PAYMENT_CURRENCY`).
+- `User_Info/Account_Info.csv` verified structure: `ID;NAME;CREATED_AT;ACTIVATED_AT;IP;COUNTRY_CODE;REGION;CITY;LOGIN;USER_LANGUAGE;USER_STATED_COUNTRY;BIRTH_DATE;BIRTH_DATE_SRC` — `LOGIN` is a literal email address, deliberately excluded from the identity header display.
 
 **Repo state at project start:** fully greenfield — only `README.md`, `LICENSE`, `.gitignore` existed; nothing built yet. The README's own feature checkboxes describe the target, not current state.
 
@@ -67,6 +73,14 @@ Your data never leaves your machine. Every other decision — architecture, libr
 - **Scale**: designed for scale from day one (Web Worker pipeline, table/chart virtualization) — a large veteran-player export is assumed plausible even though unverified, because retrofitting worker/virtualization boundaries later is expensive.
 - **Browser target**: Chrome-first; Safari and Firefox are best-effort, not actively tested (though Dexie 4 was chosen partly for its Safari IndexedDB fixes).
 - **Mobile**: must be responsive/usable at phone width.
+- **TypeScript**: pinned to `^6` — TypeScript 7's native `tsgo` compiler (GA July 2026) isn't yet supported by `typescript-eslint`/`svelte-check`; revisit once TS 7.1 ships (~Nov 2026 target).
+- **Scaffolding**: `pnpm dlx sv create` using the **minimal** (non-SvelteKit) template — SvelteKit's router would reintroduce the GitHub Pages refresh-404 problem already avoided by having no router.
+- **Linting**: ESLint + Prettier + `eslint-plugin-svelte` + `typescript-eslint`, not Biome — Biome's Svelte-file linting is still catching up as of 2026.
+- **Matched peer-dependency pairs to bump together, never independently**: `@sveltejs/vite-plugin-svelte@^7` requires Vite `^8` as a hard peer dependency; `actions/upload-pages-artifact@v4` pairs with `actions/deploy-pages@v4`.
+- **Web Worker lifecycle**: one long-lived Worker instance reused across uploads, not spawned per upload — required for the "single active dataset, replace on new upload" model to be race-free; paired with a main-thread busy-guard while a parse is in flight.
+- **Inside the pipeline worker**: use `Papa.parse({ worker: false })` and fflate's `unzipSync` — both PapaParse's own `worker: true` mode and fflate's async unzip spawn a *nested* worker, which is redundant (already off the main thread) and has documented friction (script-path resolution under bundlers, IPC stalls).
+- **Geo-map assets are build-time only**: `world-atlas` + `d3-geo`/`topojson-client` run in a Node build script to pre-generate static SVG/lookup assets; none of the three ship as runtime dependencies. Concrete geo-IP package: `@ip-location-db/dbip-country`.
+- **Chart aggregation at scale**: heatmaps/histograms must aggregate per-bucket (e.g. per-day, per-hour-cell), never render one SVG node per raw session/row — hundreds of thousands of individual nodes is a documented browser-freeze risk. Verify against a synthetic large-export fixture, since the only real sample inspected is small (~4,200 rows).
 
 ## Key Decisions
 
