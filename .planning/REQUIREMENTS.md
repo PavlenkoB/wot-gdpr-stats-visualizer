@@ -79,23 +79,41 @@ Explicitly excluded. Documented to prevent scope creep.
 
 ## Traceability
 
-Populated during roadmap creation.
+Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| IMPORT-01..06 | TBD | Pending |
-| DATA-01..04 | TBD | Pending |
-| IDENTITY-01 | TBD | Pending |
-| ACTIVITY-01..06 | TBD | Pending |
-| STATS-01 | TBD | Pending |
-| FINANCE-01..03 | TBD | Pending |
-| PLATFORM-01..03 | TBD | Pending |
+| IMPORT-01 | Phase 2 | Pending |
+| IMPORT-02 | Phase 1 | Pending |
+| IMPORT-03 | Phase 2 | Pending |
+| IMPORT-04 | Phase 2 | Pending |
+| IMPORT-05 | Phase 1 | Pending |
+| IMPORT-06 | Phase 2 | Pending |
+| DATA-01 | Phase 2 | Pending |
+| DATA-02 | Phase 2 | Pending |
+| DATA-03 | Phase 3 | Pending |
+| DATA-04 | Phase 3 | Pending |
+| IDENTITY-01 | Phase 3 | Pending |
+| ACTIVITY-01 | Phase 4 | Pending |
+| ACTIVITY-02 | Phase 4 | Pending |
+| ACTIVITY-03 | Phase 4 | Pending |
+| ACTIVITY-04 | Phase 4 | Pending |
+| ACTIVITY-05 | Phase 6 | Pending |
+| ACTIVITY-06 | Phase 6 | Pending |
+| ACTIVITY-07 | Phase 6 | Pending |
+| STATS-01 | Phase 5 | Pending |
+| FINANCE-01 | Phase 5 | Pending |
+| FINANCE-02 | Phase 5 | Pending |
+| FINANCE-03 | Phase 5 | Pending |
+| PLATFORM-01 | Phase 7 | Pending |
+| PLATFORM-02 | Phase 1 | Pending |
+| PLATFORM-03 | Phase 7 | Pending |
 
 **Coverage:**
-- v1 requirements: 24 total
-- Mapped to phases: 0
-- Unmapped: 24 ⚠️ (roadmap not yet created)
+- v1 requirements: 25 total (corrected from 24 — ACTIVITY-07 was added after the initial count)
+- Mapped to phases: 25
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-09-27*
-*Last updated: 2026-09-27 after initial definition*
+*Last updated: 2026-09-27 after roadmap creation (traceability populated)*
