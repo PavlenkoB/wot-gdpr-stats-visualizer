@@ -21,7 +21,7 @@ Your data never leaves your machine. Every other decision — architecture, libr
 - [ ] User can drag-and-drop a Wargaming GDPR export `.zip` and have it parsed entirely client-side
 - [ ] App auto-detects the zip's root/category-folder structure rather than assuming a fixed layout
 - [ ] Activity_history: total hours/sessions/active days, calendar heatmap (year-by-year), day-of-week × hour-of-day heatmap, session-duration distribution
-- [ ] Activity_history: login-IP history table with country-level geolocation (offline, bundled dataset — no live geo API) and a world-map visualization
+- [ ] Activity_history: login-IP history table with country-level geolocation (offline, bundled dataset — no live geo API) and a world-map visualization; city-level geolocation available as an explicit opt-in lazy-load (much larger dataset, never downloaded by default)
 - [ ] Player_statistics: per-vehicle battle stats (win rate, damage, battles, etc.) across WoT, WoT Blitz, World of Warships, and World of Warplanes
 - [ ] Financial_data: premium-time operations and virtual-currency flow timelines
 - [ ] Parsed data is cached in IndexedDB so re-uploading isn't needed on repeat visits; re-uploading the same zip is detected (hash) and skipped; uploading a *different* zip replaces the current dataset (single active dataset, not multi-account storage)
@@ -41,7 +41,7 @@ Your data never leaves your machine. Every other decision — architecture, libr
 - Comparing two exports taken months apart — explicitly not wanted; too much work relative to value for this project
 - i18n / Ukrainian translation — English-only for v1
 - Chat_history, Clans dashboards — real data categories, deliberately deferred past v1
-- City-level IP geolocation — ruled out as technically unshippable client-side (city-level databases run tens of MB); country-level only, permanently, not just for v1
+- City-level IP geolocation *bundled by default* — ruled out as a default-load cost (databases run tens of MB); available instead as an explicit opt-in lazy-load the user must trigger
 - Multiple simultaneously-stored exports / switching between accounts — single active dataset only; re-architecting to a keyed multi-export store is a possible future direction, not v1
 - Accessibility work beyond incidental — no WCAG target for hand-rolled SVG charts in v1
 - Safari/Firefox active verification — Chrome-first target; other browsers get best-effort compatibility, not dedicated testing
@@ -92,7 +92,7 @@ Your data never leaves your machine. Every other decision — architecture, libr
 | Web Worker pipeline (unzip → parse → Dexie writes) from day one | Cheap to design now (Vite has built-in worker support); expensive to retrofit later (would mean rewriting data-flow/message-passing boundaries) | — Pending |
 | Dexie 4 + bulkPut + zip-hash dedup + navigator.storage.persist() | Dexie 4 has Safari IndexedDB fixes; bulkPut avoids main-thread blocking on large inserts; hash-dedup skips re-parsing an already-loaded archive; storage.persist() reduces eviction risk | — Pending |
 | Hand-rolled SVG for all charts (no charting library) | All v1 chart types (heatmaps, histograms, per-vehicle bars, a currency timeline) are simple enough that libraries evaluated (uPlot, LayerChart, Chart.js) added bundle weight without saving meaningful boilerplate | — Pending |
-| Country-level-only offline geo-IP via DB-IP Lite (`ip-location-db` mirror), pre-converted to a binary range table at build time, rendered on a bundled world-atlas SVG map | City-level databases are tens of MB, unshippable client-side; DB-IP Lite is CC BY 4.0 (one-line attribution, no account/key), cleaner than MaxMind GeoLite2's EULA (account-gated, 30-day destroy-old-versions obligation, redistribution flow-down clauses) | — Pending |
+| Country-level offline geo-IP bundled by default (DB-IP Lite via `ip-location-db` mirror, pre-converted to a binary range table at build time, rendered on a bundled world-atlas SVG map); city-level offered as an explicit opt-in lazy-load (`dbip-city-lite`, same CC BY 4.0 license) rather than bundled or omitted | City-level databases run tens of MB — too large to force on every visitor by default, but the user explicitly wants the capability available; DB-IP Lite is CC BY 4.0 (one-line attribution, no account/key) at both tiers, cleaner than MaxMind GeoLite2's EULA (account-gated, 30-day destroy-old-versions obligation, redistribution flow-down clauses) | — Pending |
 | Bits UI for accessibility-heavy primitives (tabs, tooltip, popover); hand-roll buttons/layout/tables/dropzone | Bits UI is Svelte-5-native and headless (no Tailwind lock-in); the Svelte dropzone ecosystem is stale/not Svelte-5-ready, so hand-rolling beats adopting an unmaintained dependency | — Pending |
 | Vitest (unit/component) + Playwright (thin E2E smoke layer) | Vitest carries the real correctness burden (CSV-parsing quirks, component rendering); Playwright covers a handful of critical-path flows including a dedicated zero-network-requests CI assertion | — Pending |
 | Unscoped export categories shown as "detected but not supported yet" | Keeps them visible/honest without committing to building 10+ more dashboard sections in v1 | — Pending |

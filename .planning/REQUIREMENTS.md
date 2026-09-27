@@ -32,7 +32,8 @@
 - [ ] **ACTIVITY-03**: Day-of-week × hour-of-day heatmap, aggregated per-bucket
 - [ ] **ACTIVITY-04**: Session-duration distribution
 - [ ] **ACTIVITY-05**: Login-IP history table, masked by default (e.g. last octet hidden) with a click-to-reveal toggle
-- [ ] **ACTIVITY-06**: Country-level geolocation of login IPs, rendered on a bundled world-map SVG — offline lookup only (DB-IP Lite data via `@ip-location-db/dbip-country`, pre-converted to a binary range table at build time), no live geo API, one-line attribution credit in the UI
+- [ ] **ACTIVITY-06**: Country-level geolocation of login IPs, rendered on a bundled world-map SVG — offline lookup only (DB-IP Lite data via `@ip-location-db/dbip-country`, pre-converted to a binary range table at build time), no live geo API, one-line attribution credit in the UI, bundled by default (small: ~1-2MB)
+- [ ] **ACTIVITY-07**: City-level geolocation available as an explicit opt-in ("load city-level detail") that lazy-loads a separate, much larger (~60-70MB) offline city-level database on demand — never bundled/downloaded by default, no live geo API
 
 ### Player Statistics
 
@@ -70,7 +71,6 @@ Explicitly excluded. Documented to prevent scope creep.
 | Feature | Reason |
 |---------|--------|
 | Comparing two exports taken months apart | Explicitly rejected by project owner — too much work relative to value |
-| City-level IP geolocation | Technically unshippable client-side (tens of MB database); country-level only, permanently |
 | Multiple simultaneously-stored exports / multi-account switching | Single active dataset only; re-architecting to a keyed multi-export store is a possible future direction, not a v1/v2 commitment |
 | Live API polling / enrichment of any kind | Structural violation of Core Value (zero network requests) — never miscategorize this as an ordinary backlog item |
 | WCAG/accessibility target for hand-rolled SVG charts | No a11y bar set for v1 |
@@ -92,9 +92,9 @@ Populated during roadmap creation.
 | PLATFORM-01..03 | TBD | Pending |
 
 **Coverage:**
-- v1 requirements: 23 total
+- v1 requirements: 24 total
 - Mapped to phases: 0
-- Unmapped: 23 ⚠️ (roadmap not yet created)
+- Unmapped: 24 ⚠️ (roadmap not yet created)
 
 ---
 *Requirements defined: 2026-09-27*
