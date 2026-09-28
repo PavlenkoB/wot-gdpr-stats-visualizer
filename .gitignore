@@ -45,8 +45,20 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
+# GSD runtime artifacts (dispatch-isolation sentinels, scratch state)
+.gsd/
+
 # Editors
 .vscode/*
 !.vscode/extensions.json
 .idea
 *.iml
+
+# Test fixtures (PII policy from tests/fixtures/README.md)
+# Local-only real exports MUST never be committed. Synthetic fixtures
+# are generated in memory by tests/fixtures/export-fixtures.ts.
+tests/fixtures/private/
+# Root-level zips: a real export dropped at the repo root must never
+# be staged. Anchored with leading slash so it does not match
+# node_modules-style nested paths.
+/*.zip

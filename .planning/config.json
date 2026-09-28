@@ -1,5 +1,5 @@
 {
-  "model_profile": "adaptive",
+  "model_profile": "inherit",
   "commit_docs": true,
   "parallelization": false,
   "search_gitignored": false,
@@ -11,8 +11,8 @@
   "perplexity": false,
   "jina": false,
   "git": {
-    "branching_strategy": "none",
-    "create_tag": true,
+    "branching_strategy": "phase",
+    "create_tag": false,
     "phase_branch_template": "gsd/phase-{phase}-{slug}",
     "milestone_branch_template": "gsd/{milestone}-{slug}",
     "quick_branch_template": null
@@ -46,7 +46,10 @@
     "post_planning_gaps": true,
     "security_enforcement": true,
     "security_asvs_level": 1,
-    "security_block_on": "high"
+    "security_block_on": "high",
+    "ui_review": true,
+    "tdd_mode": true,
+    "use_worktrees": true
   },
   "ship": {
     "pr_body_sections": [
@@ -87,5 +90,9 @@
     "source_grounding_authority": "grep"
   },
   "mode": "yolo",
-  "granularity": "standard"
+  "granularity": "standard",
+  "graphify": {
+    "enabled": true,
+    "auto_update": true
+  }
 }

@@ -1,0 +1,109 @@
+name: CI
+
+# Triggers: push is restricted to main (post-merge verification only) and
+# pull_request is bare (every PR, from any branch, is in scope). Standard
+# industry pattern to avoid double-running the same commit's gates once for
+# `push` and once for `pull_request: synchronize` on every PR update —
+# deliberately revisits the prior "bare push, no filters" decision (see git
+# history) in favor of this trade-off. Every PR still sees the full set of
+# gates before merge; the zero-network spec is part of those gates.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Least-privilege: no secrets needed by any step. The least the workflow
+# could be granted is contents: read; never request more.
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Lint, typecheck, unit + e2e (incl. zero-network)
+    runs-on: self-hosted
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        # No `with: version:` here — package.json's `packageManager` field
+        # pins pnpm@12.6.0 and that is what pnpm/action-setup reads.
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Cache Vite pre-bundled deps (~30-60s saved on cold installs when
+      # Vite re-pre-bundles ESM deps for vitest / vite). Keyed off
+      # pnpm-lock.yaml so the cache invalidates whenever a dep version
+      # changes (including Vite itself).
+      - name: Cache Vite pre-bundled deps
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        with:
+          path: node_modules/.vite
+          key: vite-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            vite-${{ runner.os }}-
+
+      # Cache TypeScript incremental build info. Each tsconfig.{app,node,test}
+      # is configured with tsBuildInfoFile writing into node_modules/.tmp/
+      # and `incremental: true` enabled — tsc and svelte-check then skip
+      # re-checking unchanged files on the next run.
+      - name: Cache TypeScript build info
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        with:
+          path: node_modules/.tmp
+          key: tsbuildinfo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'tsconfig.app.json', 'tsconfig.node.json', 'tsconfig.test.json') }}
+          restore-keys: |
+            tsbuildinfo-${{ runner.os }}-
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Typecheck
+        run: pnpm run check
+
+      - name: Unit tests
+        run: pnpm run test:unit
+
+      # Cache Playwright browsers (~150MB download per run otherwise).
+      # Both paths listed because the self-hosted runner's OS is not pinned in
+      # this workflow: ~/Library/Caches is macOS, ~/.cache is Linux. Playwright
+      # writes to whichever exists on the runner, and `actions/cache` happily
+      # no-ops on a missing path.
+      - name: Cache Playwright browsers
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        with:
+          path: |
+            ~/.cache/ms-playwright
+            ~/Library/Caches/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: E2E and zero-network guard
+        run: pnpm exec timeout 10m playwright test
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore

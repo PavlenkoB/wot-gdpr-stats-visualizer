@@ -1,0 +1,48 @@
+{
+  "contract": "1.0.0",
+  "flavor": "core",
+  "milestone": null,
+  "phases": [
+    {
+      "number": "1",
+      "name": "Ingest Foundation & Zero-Network Guard",
+      "status": "complete"
+    },
+    {
+      "number": "2",
+      "name": "Defensive Parsing & Persistent Dataset",
+      "status": "pending"
+    },
+    {
+      "number": "3",
+      "name": "Dashboard Shell & Account Identity",
+      "status": "pending"
+    },
+    {
+      "number": "4",
+      "name": "Activity Time Dashboards",
+      "status": "pending"
+    },
+    {
+      "number": "5",
+      "name": "Vehicle Stats & Financial Dashboards",
+      "status": "pending"
+    },
+    {
+      "number": "6",
+      "name": "Login-IP History & Offline Geolocation",
+      "status": "pending"
+    },
+    {
+      "number": "7",
+      "name": "Mobile Layout & Public Deploy",
+      "status": "pending"
+    }
+  ],
+  "next": {
+    "command": "/gsd:progress --next",
+    "label": "Advance to the next step (plan phase 2)",
+    "reason": "Phase 2 of 7 — needs a plan"
+  },
+  "updated_at": "2026-09-28T10:10:55.714Z"
+}

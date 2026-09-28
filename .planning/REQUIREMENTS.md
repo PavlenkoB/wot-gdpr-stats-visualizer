@@ -11,7 +11,7 @@
 - [ ] **IMPORT-02**: App auto-detects the zip's root/category-folder structure rather than assuming a fixed layout or naming
 - [ ] **IMPORT-03**: CSV parsing tolerates unexpected/missing columns and mixed line terminators (CRLF and bare-CR) rather than assuming the 2021 reference sample's exact schema
 - [ ] **IMPORT-04**: Double-UTF8-encoded (mojibake) text fields are corrected on parse
-- [ ] **IMPORT-05**: A zip that isn't a recognizable Wargaming export (wrong file, corrupt archive) shows a generic failure state
+- [x] **IMPORT-05**: A zip that isn't a recognizable Wargaming export (wrong file, corrupt archive) shows a generic failure state
 - [ ] **IMPORT-06**: Uploading a new zip replaces the current dataset (single active dataset); re-uploading the identical zip is detected via hash and skipped rather than re-parsed
 
 ### Data Management
@@ -84,10 +84,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | IMPORT-01 | Phase 2 | Pending |
-| IMPORT-02 | Phase 1 | Pending |
+| IMPORT-02 | Phase 1 | Complete |
 | IMPORT-03 | Phase 2 | Pending |
 | IMPORT-04 | Phase 2 | Pending |
-| IMPORT-05 | Phase 1 | Pending |
+| IMPORT-05 | Phase 1 | Complete |
 | IMPORT-06 | Phase 2 | Pending |
 | DATA-01 | Phase 2 | Pending |
 | DATA-02 | Phase 2 | Pending |
@@ -106,7 +106,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FINANCE-02 | Phase 5 | Pending |
 | FINANCE-03 | Phase 5 | Pending |
 | PLATFORM-01 | Phase 7 | Pending |
-| PLATFORM-02 | Phase 1 | Pending |
+| PLATFORM-02 | Phase 1 | Complete |
 | PLATFORM-03 | Phase 7 | Pending |
 
 **Coverage:**
@@ -116,4 +116,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-09-27*
-*Last updated: 2026-09-27 after roadmap creation (traceability populated)*
+*Last updated: 2026-09-28 — IMPORT-02 + IMPORT-05 marked Complete by 01-03 (hardened classifier, reasoned outcome, A2 + no-inflation tests locked)*
