@@ -6,6 +6,7 @@ import {
   buildSampleExport,
   buildTruncatedExport,
 } from '../fixtures/export-fixtures.ts';
+import { SAMPLE_NICKNAME } from '../fixtures/export-fixtures.ts';
 import { GENERIC_FAILURE_MESSAGE } from '../../src/lib/ui-copy.ts';
 import { dropFiles } from './helpers.ts';
 
@@ -34,6 +35,13 @@ import { dropFiles } from './helpers.ts';
 //     is asynchronous.
 //   - Buffer.from(...) wraps the Uint8Array fixture for setInputFiles;
 //     dropFiles is the synthetic-drag equivalent.
+//
+//   "No identity was ever loaded" is asserted as `identity-nickname`
+// having count 0 plus the bar being the FULL variant. It used to be a
+// level-2 heading count, but the skeleton itself renders six `<h2>`
+// (the header title plus one per section), so that count is no longer
+// a meaningful "nothing loaded" signal — and a heading text assertion
+// would be ambiguous for the same reason.
 //
 // All console errors observed during each test are collected by the
 // beforeEach handler so individual tests can assert specific causes
@@ -75,12 +83,16 @@ test('(a) a notes.txt set on the file input shows the failure banner; no worker 
   });
 
   const banner = page.getByTestId('failure-banner');
-  await expect(banner).toBeVisible();
+  // The banner is announced from the import bar's notice slot — the
+  // single live region (D-26) — not rendered loose on the page.
+  const slotBanner = page.getByTestId('notice-slot').getByTestId('failure-banner');
+  await expect(slotBanner).toBeVisible();
   await expect(banner).toHaveText(GENERIC_FAILURE_MESSAGE);
 
-  // The on-screen heading never changes to "Account: ..." because no
-  // successful classify ever ran.
-  await expect(page.getByRole('heading', { level: 2 })).toHaveCount(0);
+  // No successful classify ever ran, so the identity header is still
+  // the skeleton and the bar is still the full variant.
+  await expect(page.getByTestId('identity-nickname')).toHaveCount(0);
+  await expect(page.getByTestId('import-bar')).toHaveAttribute('data-variant', 'full');
 
   // The banner carries no reporting affordance — no link, no button
   // (prohibition P3: never offer to ship the failure detail off-device).
@@ -170,7 +182,7 @@ test('(d) a photos zip with no recognized category shows the banner; then a mult
 // (e) Two .zip files dropped together — pre-check rejects (D-16)
 // -----------------------------------------------------------------------------
 
-test('(e) dropping two zips at once shows the banner; no Account heading appears', async ({
+test('(e) dropping two zips at once shows the banner; no identity header appears', async ({
   page,
 }) => {
   const sample = Array.from(buildSampleExport());
@@ -184,15 +196,16 @@ test('(e) dropping two zips at once shows the banner; no Account heading appears
   await expect(banner).toHaveText(GENERIC_FAILURE_MESSAGE);
   await expect.poll(() => bannerTextContaining('pre-check')).toBe(true);
 
-  // No "Account: ..." heading — the worker never saw a submission.
-  await expect(page.getByRole('heading', { level: 2 })).toHaveCount(0);
+  // No identity header — the worker never saw a submission.
+  await expect(page.getByTestId('identity-nickname')).toHaveCount(0);
+  await expect(page.getByTestId('import-bar')).toHaveAttribute('data-variant', 'full');
 });
 
 // -----------------------------------------------------------------------------
 // (f) Recovery — failure followed by a valid export shows the heading
 // -----------------------------------------------------------------------------
 
-test('(f) after a failure, dropping a valid export shows the Account heading and clears the banner', async ({
+test('(f) after a failure, dropping a valid export loads the identity header and clears the banner', async ({
   page,
 }) => {
   // First, fail.
@@ -210,7 +223,7 @@ test('(f) after a failure, dropping a valid export shows the Account heading and
     buffer: Buffer.from(buildSampleExport()),
   });
 
-  await expect(page.getByRole('heading', { level: 2 })).toHaveText('Account: 123456789');
+  await expect(page.getByTestId('identity-nickname')).toHaveText(SAMPLE_NICKNAME);
   await expect(page.getByTestId('failure-banner')).toHaveCount(0);
 });
 
@@ -238,7 +251,7 @@ test('(g) after a failure the banner is still visible 1500 ms later (no auto-dis
 // (h) Click-to-browse path opens a single-file picker with .zip accept
 // -----------------------------------------------------------------------------
 
-test('(h) clicking the dropzone opens a single-file picker filtered to .zip; setting a valid file shows the heading', async ({
+test('(h) clicking the dropzone opens a single-file picker filtered to .zip; setting a valid file loads the identity header', async ({
   page,
 }) => {
   const [chooser] = await Promise.all([
@@ -256,27 +269,29 @@ test('(h) clicking the dropzone opens a single-file picker filtered to .zip; set
     buffer: Buffer.from(buildSampleExport()),
   });
 
-  await expect(page.getByRole('heading', { level: 2 })).toHaveText('Account: 123456789');
+  await expect(page.getByTestId('identity-nickname')).toHaveText(SAMPLE_NICKNAME);
 });
 
 // -----------------------------------------------------------------------------
 // (i) Drag-and-drop path with a single valid export
 // -----------------------------------------------------------------------------
 
-test('(i) dropping a single valid export via dropFiles shows the heading', async ({ page }) => {
+test('(i) dropping a single valid export via dropFiles loads the identity header', async ({
+  page,
+}) => {
   const sample = Array.from(buildSampleExport());
   await dropFiles(page, page.getByTestId('dropzone'), [
     { name: 'sample-export.zip', mimeType: 'application/zip', bytes: sample },
   ]);
 
-  await expect(page.getByRole('heading', { level: 2 })).toHaveText('Account: 123456789');
+  await expect(page.getByTestId('identity-nickname')).toHaveText(SAMPLE_NICKNAME);
 });
 
 // -----------------------------------------------------------------------------
 // (j) A drop OUTSIDE the dropzone is prevented at the window level
 // -----------------------------------------------------------------------------
 
-test('(j) a stray drop / dragover on document.body is prevented; no banner or heading appears', async ({
+test('(j) a stray drop / dragover on document.body is prevented; no banner or identity header appears', async ({
   page,
 }) => {
   const observed = await page.evaluate(() => {
@@ -327,5 +342,6 @@ test('(j) a stray drop / dragover on document.body is prevented; no banner or he
 
   // Nothing was submitted; the page is still in its idle state.
   await expect(page.getByTestId('failure-banner')).toHaveCount(0);
-  await expect(page.getByRole('heading', { level: 2 })).toHaveCount(0);
+  await expect(page.getByTestId('identity-nickname')).toHaveCount(0);
+  await expect(page.getByTestId('import-bar')).toHaveAttribute('data-variant', 'full');
 });

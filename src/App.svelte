@@ -1,9 +1,8 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import { ingestClient } from './lib/ingest-client.ts';
   import {
     CACHE_CHECK_TEXT,
-    CLEARED_ACK_MESSAGE,
-    CLEAR_DATA_LABEL,
     CONFIRM_CLEAR_MESSAGE,
     CONFIRM_REPLACE_MESSAGE,
     DELETE_CACHED_DATA_LABEL,
@@ -11,19 +10,32 @@
     KEEP_CURRENT_DATA_LABEL,
     REPLACE_DATASET_LABEL,
     STAGE_TEXT,
+    formatImportedOn,
     formatParsingProgress,
   } from './lib/ui-copy.ts';
   import type { PendingAction } from './lib/worker-client.svelte.ts';
   import ConfirmPanel from './lib/components/ConfirmPanel.svelte';
-  import Dropzone from './lib/components/Dropzone.svelte';
-  import FailureBanner from './lib/components/FailureBanner.svelte';
-  import ResultsView from './lib/components/ResultsView.svelte';
+  import Dashboard from './lib/components/Dashboard.svelte';
+  import ImportBar from './lib/components/ImportBar.svelte';
+
+  let importBar: ReturnType<typeof ImportBar> | undefined = $state();
+
+  /**
+   * The element that opened the confirm panel, so a dismissal can put focus
+   * back where the user left it (UI-SPEC focus management). Cleared when the
+   * panel closes, and when the dataset is replaced by a drop rather than by
+   * a button.
+   */
+  let confirmTrigger: HTMLElement | null = null;
 
   function onDropFiles(files: ArrayLike<File>): void {
+    // Replace-on-drop has no button to come back to, so the focus target
+    // recorded by the last trigger click is stale from here on.
+    confirmTrigger = null;
     ingestClient.submitFiles(files);
   }
 
-  function onStartOver(): void {
+  function onStartOver(event: MouseEvent): void {
     // D-15/D-16: Start Over is now destructive (wipes the cached
     // IndexedDB dataset, not just the view state). Routes through
     // the shared in-app ConfirmPanel — calling requestStartOver
@@ -33,6 +45,7 @@
     // 'clear-data' message and the worker wipes the dataset. reset()
     // is now internal-only — the public user-visible path is
     // requestStartOver() / confirmPending() / cancelPending().
+    confirmTrigger = event.currentTarget as HTMLElement;
     ingestClient.requestStartOver();
   }
 
@@ -41,11 +54,12 @@
    * click handler. Identical underlying flow to onStartOver per
    * D-22 (one shared confirm component, one shared underlying
    * clear action) — only the `pendingAction.kind` differs, which
-   * lets App.svelte's confirm-panel branch apply the same copy
+   * lets this file's confirm-panel branch apply the same copy
    * pair (CONFIRM_CLEAR_MESSAGE / KEEP_CACHED_DATA_LABEL /
    * DELETE_CACHED_DATA_LABEL) without any per-trigger copy drift.
    */
-  function onClearData(): void {
+  function onClearData(event: MouseEvent): void {
+    confirmTrigger = event.currentTarget as HTMLElement;
     ingestClient.requestClearData();
   }
 
@@ -70,12 +84,11 @@
   }
 
   /**
-   * The dropzone's statusText prop. While busy, derive from
-   * STAGE_TEXT[stage] (D-08). When stage is momentarily null
-   * (between submitFiles and the worker's first stage message) the
-   * STAGE_TEXT lookup is type-safe only when the key exists; we
-   * therefore use a small lookup with a fallback to the unzipping
-   * copy so the user always sees a spinner with words.
+   * The notice slot's text while busy. Derived from STAGE_TEXT[stage]
+   * (D-08). When stage is momentarily null (between submitFiles and the
+   * worker's first stage message) the STAGE_TEXT lookup is type-safe only
+   * when the key exists; we therefore use a small lookup with a fallback to
+   * the unzipping copy so the user always sees a spinner with words.
    *
    * D-11: when stage is 'parsing' AND the worker has posted a
    * `progress` object for the current category, override the
@@ -128,6 +141,75 @@
       cancelLabel: KEEP_CACHED_DATA_LABEL,
     };
   });
+
+  /**
+   * A dataset is DISPLAYED, not merely imported: this is the last known
+   * cached result, which by design outlives processing, a duplicate drop and
+   * a failed import (D-27). It is the only thing that picks the import
+   * region's variant, so the bar and the dashboard below it can never
+   * disagree about whether an export is loaded.
+   */
+  const hasResult = $derived(ingestClient.result !== null);
+
+  /**
+   * The one transient message the import region shows, derived rather than
+   * stored (RESEARCH Pattern 4 / UI-SPEC notice slot). At most one notice
+   * can be live at a time, and 'checking-cache' and 'confirm-pending' carry
+   * none — the former is the whole page body, the latter must not speak over
+   * the panel the user is being asked to answer.
+   */
+  const notice = $derived.by<'processing' | 'error' | 'duplicate' | 'cleared' | null>(() => {
+    switch (ingestClient.state) {
+      case 'processing':
+        return 'processing';
+      case 'error':
+        return ingestClient.errorMessage === null ? null : 'error';
+      case 'duplicate':
+        return 'duplicate';
+      case 'idle':
+        return ingestClient.justCleared ? 'cleared' : null;
+      default:
+        return null;
+    }
+  });
+
+  /** "Imported on {date}", or null while no dataset is displayed. */
+  const importedOn = $derived.by<string | null>(() => {
+    const result = ingestClient.result;
+    return result === null ? null : formatImportedOn(result.importedAt ?? '');
+  });
+
+  /**
+   * Dismiss the confirm panel and hand focus back to whatever opened it
+   * (UI-SPEC focus management). The trigger is checked for `isConnected`
+   * because the clear flow removes it; falling through to the dropzone keeps
+   * focus inside the app rather than dropping it on <body>.
+   */
+  async function onCancelConfirm(): Promise<void> {
+    ingestClient.cancelPending();
+    const trigger = confirmTrigger;
+    confirmTrigger = null;
+    await tick();
+    if (trigger !== null && trigger.isConnected) {
+      trigger.focus();
+    } else {
+      importBar?.focusDropzone();
+    }
+  }
+
+  /**
+   * After a CONFIRMED clear the button that opened the panel is gone, so
+   * there is nothing to return focus to. The full-size dropzone is the only
+   * sensible landing spot (UI-SPEC). The effect reads justCleared and nothing
+   * else, so it runs once per clear rather than on every state change.
+   */
+  $effect(() => {
+    if (!ingestClient.justCleared) return;
+    void (async () => {
+      await tick();
+      importBar?.focusDropzone();
+    })();
+  });
 </script>
 
 <svelte:window ondragover={onWindowDragOver} ondrop={onWindowDrop} />
@@ -135,153 +217,73 @@
 <main data-worker-ready={ingestClient.workerReady ? 'true' : 'false'}>
   <h1>WG Data Export Viewer</h1>
 
+  <!--
+    D-28: during the on-load cache check this block IS the page body. It
+    renders alone so a returning user never sees a flash of the empty
+    skeleton before their dataset appears, and so the section ids the
+    scroll-spy observes exist by the time its effect runs.
+  -->
   {#if ingestClient.state === 'checking-cache'}
-    <!--
-      D-07/D-08: the brief loading spinner between page init and the
-      cache check resolving. The spinner CSS mirrors Dropzone.svelte's
-      `.spinner` exactly — duplicated here intentionally per UI-SPEC's
-      note that the spinner is not extracted into a shared component.
-    -->
     <p class="cache-check-status" data-testid="cache-check-status" role="status">
       <span class="spinner" data-testid="cache-check-spinner" aria-hidden="true"></span>
       <span class="cache-check-text">{CACHE_CHECK_TEXT}</span>
     </p>
-  {:else if ingestClient.state === 'confirm-pending' && ingestClient.pendingAction && confirmCopy}
-    <!--
-      D-13/D-16/D-22: ONE shared ConfirmPanel renders above any
-      other content when state === 'confirm-pending'. The pending
-      drop's results view (or dropzone) is NOT swapped out — the
-      panel overlays it so the existing dataset remains visible
-      behind the panel until the user confirms or cancels
-      (must_haves: "the old dataset remains visible and unchanged
-      until the user confirms"). Copy/labels selected by
-      pendingAction.kind (D-22's single-mechanism rule).
-    -->
-    <ConfirmPanel
-      message={confirmCopy.message}
-      confirmLabel={confirmCopy.confirmLabel}
-      cancelLabel={confirmCopy.cancelLabel}
-      onconfirm={() => ingestClient.confirmPending()}
-      oncancel={() => ingestClient.cancelPending()}
-    />
-  {/if}
-
-  {#if ingestClient.state === 'done' && ingestClient.result}
-    <!--
-      D-13: <Dropzone> co-renders alongside <ResultsView> when a
-      dataset is cached so the user can drop a DIFFERENT zip to
-      trigger the replace-on-drop confirm flow. The existing
-      submitFiles() guard at worker-client.svelte.ts:341-347
-      intercepts the drop, sets pendingAction={kind:'replace', file},
-      and transitions to 'confirm-pending' — no worker message
-      posts until the user confirms. The <ResultsView> stays
-      visible behind the ConfirmPanel overlay so the cached
-      dataset is preserved until confirm.
-    -->
-    <ResultsView result={ingestClient.result} onstartover={onStartOver} />
-    <Dropzone
-      disabled={ingestClient.busy}
-      statusText={ingestClient.busy ? statusTextFor : null}
-      onfiles={onDropFiles}
-    />
-  {:else if ingestClient.state === 'duplicate' && ingestClient.result}
-    <!--
-      D-12: the duplicate-loaded banner is rendered alongside the
-      results view (the cached dataset is still the active one).
-      Kept inline here for the same reason FailureBanner lives in
-      App.svelte rather than ResultsView — the banner is part of
-      the page-level state, not the results view's render.
-
-      D-13: <Dropzone> co-renders so the user can drop a different
-      zip to trigger the replace-on-drop confirm flow, identical
-      mechanism to the 'done' branch above.
-    -->
-    <ResultsView result={ingestClient.result} onstartover={onStartOver} />
-    <Dropzone
-      disabled={ingestClient.busy}
-      statusText={ingestClient.busy ? statusTextFor : null}
-      onfiles={onDropFiles}
-    />
-  {:else if ingestClient.state === 'confirm-pending' && ingestClient.pendingAction?.kind === 'replace' && ingestClient.result}
-    <!--
-      D-13: keep <ResultsView> mounted during the replace-on-drop
-      confirm so the existing dataset remains visible behind the
-      <ConfirmPanel> overlay. Before this branch existed, the
-      'done' → 'confirm-pending' transition fell through to the
-      {:else} branch (which only renders <Dropzone>), unmounting
-      <ResultsView> — a latent 02-03 bug that was unreachable until
-      02-04 co-rendered <Dropzone> in the 'done' branch and so made
-      it possible for a drop to reach submitFiles() → 'confirm-pending'
-      with pendingAction.kind === 'replace'. The confirm panel
-      overlay at lines 149-166 sits on TOP of this <ResultsView>.
-
-      Only the 'replace' kind reaches this branch — 'start-over'
-      and 'clear-data' kinds fall through to the {:else} branch
-      (no result to keep visible behind an empty-state confirm;
-      D-16/D-22 destructive confirmation before an empty dropzone).
-    -->
-    <ResultsView result={ingestClient.result} onstartover={onStartOver} />
   {:else}
-    {#if ingestClient.state === 'error' && ingestClient.errorMessage}
-      <FailureBanner message={ingestClient.errorMessage} />
-    {/if}
-
-    {#if ingestClient.state === 'idle' && ingestClient.justCleared}
-      <!--
-        D-20: one-shot "Cached data cleared" acknowledgment, shown
-        above the dropzone in the idle state right after a
-        confirmed clear. Rendered here (NOT in ResultsView) because
-        the dropzone is the post-clear view. The justCleared flag
-        is cleared by IngestClient itself on the next submitFiles()
-        or reset() call — never by a timer (D-06). If the user
-        immediately drops a new file after seeing the banner, the
-        flag resets and the banner does not follow them into the
-        processing view.
-      -->
-      <p class="cleared-ack" data-testid="cleared-ack" role="status">{CLEARED_ACK_MESSAGE}</p>
-    {/if}
-
-    <Dropzone
-      disabled={ingestClient.busy}
-      statusText={ingestClient.busy ? statusTextFor : null}
+    <ImportBar
+      bind:this={importBar}
+      variant={hasResult ? 'slim' : 'full'}
+      {notice}
+      statusText={statusTextFor}
+      errorMessage={ingestClient.errorMessage}
+      {importedOn}
+      busy={ingestClient.busy}
       onfiles={onDropFiles}
-    />
-  {/if}
+      onstartover={onStartOver}
+      onclear={onClearData}
+    >
+      <!--
+        The one shared ConfirmPanel (Phase 2 D-22), rendered by the import
+        bar below its controls so the destructive answer sits next to the
+        controls it is about. The dataset behind it is NOT swapped out — the
+        user's data stays on screen until they confirm or cancel.
+      -->
+      {#snippet confirm()}
+        {#if ingestClient.state === 'confirm-pending' && ingestClient.pendingAction && confirmCopy}
+          <ConfirmPanel
+            message={confirmCopy.message}
+            confirmLabel={confirmCopy.confirmLabel}
+            cancelLabel={confirmCopy.cancelLabel}
+            onconfirm={() => ingestClient.confirmPending()}
+            oncancel={() => void onCancelConfirm()}
+          />
+        {/if}
+      {/snippet}
+    </ImportBar>
 
-  <!--
-    D-17/D-18/D-19: the persistent "Clear my cached data" control.
-    Rendered OUTSIDE the state-branching conditional so it appears
-    alongside BOTH the results view AND the dropzone — visible on
-    every state that has a cached dataset (D-18). Gated by an
-    {#if} on (state === 'done' || state === 'duplicate') so the
-    control is hidden ENTIRELY (not shown-disabled) when nothing is
-    cached (D-19). The button is bound to ingestClient.requestClearData()
-    which sets pendingAction={kind:'clear-data'} and transitions to
-    'confirm-pending' — the same ConfirmPanel as Start Over (D-22).
-  -->
-  {#if ingestClient.state === 'done' || ingestClient.state === 'duplicate'}
-    <div class="persistent-bar" data-testid="persistent-bar">
-      <button
-        type="button"
-        class="clear-data-control"
-        data-testid="clear-data-control"
-        onclick={onClearData}>{CLEAR_DATA_LABEL}</button
-      >
-    </div>
+    <!--
+      The dashboard is driven by `ingestClient.result`, the LAST KNOWN
+      dataset, not by the current view state (D-27). A failed replace or
+      a duplicate drop therefore leaves the user's data on screen
+      instead of blanking the page (RESEARCH Pitfall 3), and a `null`
+      result renders the first-visit skeleton (D-24).
+    -->
+    <Dashboard result={ingestClient.result} />
   {/if}
 </main>
 
 <style>
+  /* One flex column, the spacing scale's lg (24px) between top-level
+     blocks. The gap lives here rather than on each block so the document
+     order below is the only thing that decides what sits where. */
   main {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
     padding: 24px;
   }
 
-  h1 {
-    margin: 0 0 16px;
-  }
-
-  /* D-07/D-08 cache-check loading block. Layout matches Dropzone's
-     .processing-status (flex, centered, spinner-then-text) so the
+  /* D-07/D-08 cache-check loading block. Layout matches the import bar's
+     processing notice (flex, centered, spinner-then-text) so the
      loading feedback reads as one family — only the literal text
      and the data-testid differ. */
   .cache-check-status {
@@ -299,7 +301,7 @@
     text-align: center;
   }
 
-  /* CSS-only spinner, identical to Dropzone.svelte's `.spinner` —
+  /* CSS-only spinner, identical to ImportBar.svelte's `.spinner` —
      1.25em circular border with one quarter coloured, rotated
      continuously. prefers-reduced-motion disables the animation. */
   .spinner {
@@ -324,56 +326,5 @@
       animation: none;
       border-top-color: rgba(26, 115, 232, 0.6);
     }
-  }
-
-  /* D-20 one-shot acknowledgment above the post-clear dropzone.
-     Neutral-info palette (UI-SPEC Color table) — same family as
-     the duplicate-loaded banner and the "Imported on ..." timestamp.
-     No timer to dismiss; justCleared is cleared on the next action. */
-  .cleared-ack {
-    margin: 0 0 16px;
-    padding: 12px 16px;
-    border: 1px solid #80868b;
-    border-radius: 6px;
-    background: #f1f3f4;
-    color: #3c4043;
-    font-size: 16px;
-    line-height: 1.5;
-  }
-
-  /* D-17/D-18: persistent bar hosting the "Clear my cached data"
-     control. Background uses the Secondary (neutral) 30% palette
-     (UI-SPEC Color table) so the bar reads as a persistent
-     page-level chrome element rather than competing with the
-     primary results content above it. The button itself is the
-     same neutral-info palette Start Over uses (D-22 visual
-     coherence between the two destructive triggers). */
-  .persistent-bar {
-    margin: 16px 0 0;
-    padding: 12px 16px;
-    border: 1px solid #dadce0;
-    border-radius: 6px;
-    background: #f7f7fa;
-  }
-
-  .clear-data-control {
-    padding: 8px 16px;
-    border: 1px solid #80868b;
-    border-radius: 6px;
-    background: #fff;
-    color: #3c4043;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background-color 120ms ease;
-  }
-
-  .clear-data-control:hover {
-    background: #f1f3f4;
-  }
-
-  .clear-data-control:focus-visible {
-    outline: 3px solid #1a73e8;
-    outline-offset: 2px;
   }
 </style>

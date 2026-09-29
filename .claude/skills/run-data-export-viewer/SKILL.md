@@ -1,11 +1,11 @@
 ---
 name: run-data-export-viewer
-description: Build, run, and drive the WG Data Export Viewer. Use when asked to start the app, run the preview server, take a screenshot of the UI, drop a synthetic export through the page, or interact with the running app's dropzone / results view.
+description: Build, run, and drive the WG Data Export Viewer. Use when asked to start the app, run the preview server, take a screenshot of the UI, drop a synthetic export through the page, or interact with the running app's dropzone / dashboard.
 ---
 
-Headless-Chromium driver over the WG Data Export Viewer (Phase 1). Drive
-it via `.claude/skills/run-data-export-viewer/driver.mjs` against a
-running `pnpm run preview` on port 4173.
+Headless-Chromium driver over the WG Data Export Viewer. Drive it via
+`.claude/skills/run-data-export-viewer/driver.mjs` against a running
+`pnpm run preview` on port 4173.
 
 All paths below are relative to the repo root.
 
@@ -55,10 +55,12 @@ The driver:
 2. Screenshots the empty dropzone.
 3. Builds a synthetic 12-file Wargaming-shaped export in memory with
    `fflate.zipSync` and drops it through `[data-testid="file-input"]`.
-4. Captures the processing paragraph (the spinner + per-stage text),
-   then the results view (`Account: 123456789` + summary + 8 color-coded
-   badges + Start over).
-5. Clicks Start over and screenshots the re-armed dropzone.
+4. Captures the processing paragraph (the spinner + per-stage text, in
+   the import bar's notice slot), then the dashboard: the identity
+   header (nickname + `Account ID: …`), one card per supported section
+   with its counts, and one banner per unsupported folder.
+5. Clicks Start over, screenshots its confirmation panel, confirms, and
+   screenshots the re-armed full-variant bar.
 6. Drops a `readme.txt` to demonstrate the failure banner.
 7. Closes the browser.
 
@@ -67,9 +69,10 @@ Screenshots land in `/tmp/wot-viewer-shots/`:
 ```
 01-empty-dropzone.png
 02-processing.png       (may be skipped if processing is faster than the screenshot grab)
-03-results.png
-04-start-over.png
-05-failure-banner.png
+03-dashboard.png
+04-start-over-confirm.png
+05-start-over-cleared.png
+06-failure-banner.png
 ```
 
 Override the URL with `--url http://localhost:5173` to drive the dev
@@ -82,7 +85,7 @@ pnpm run preview
 ```
 
 Open <http://localhost:4173>, drop a `.zip` from the file picker, watch
-the badge list render. Dev server (`pnpm run dev`, port 5173) is for
+the dashboard fill in. Dev server (`pnpm run dev`, port 5173) is for
 editing only — no CSP, HMR websocket allowed.
 
 ## Test
@@ -90,11 +93,13 @@ editing only — no CSP, HMR websocket allowed.
 ```bash
 pnpm run lint
 pnpm run check
-pnpm run test:unit    # 143 unit tests, ~1s
-pnpm run test:e2e     # 20 e2e tests, ~20-60s of actual test time —
-                       # but see the webServer-teardown Gotcha below,
-                       # the command frequently HANGS after printing
-                       # the last ✓ and never exits on its own.
+pnpm run test:unit    # fast
+pnpm run test:e2e     # the slow one — a failing spec burns a 30 s
+                      # timeout each, so a green run is much quicker
+                      # than a red one. See the webServer-teardown
+                      # Gotcha below: the command frequently HANGS
+                      # after printing the last ✓ and never exits on
+                      # its own.
 ```
 
 ## Direct invocation
@@ -115,15 +120,16 @@ Node 26.10) imports `.ts` files directly. Verified working with a plain
 ## Gotchas
 
 - **`pnpm run test:e2e` hangs after the last test passes** — reproduced
-  3 times in a row. All 20 tests print `✓` and finish in well under a
-  minute, but the `playwright test` process itself does not exit — it's
+  3 times in a row. Every test prints `✓` and the run finishes well
+  under a minute, but the `playwright test` process itself does not
+  exit — it's
   waiting on the `vite preview` process it spawned via the compound
   `webServer.command: 'pnpm run build && pnpm run preview'`
   (playwright.config.ts) to die, and signal delivery through the
   `pnpm -> vite.js preview` child chain doesn't reliably reach it on
   teardown. Confirmed fix: once every test shows `✓`, find and
   `kill -TERM` the leftover `vite.js preview` process yourself —
-  `playwright test` then prints its `20 passed (Ns)` summary and exits
+  `playwright test` then prints its `N passed (Ns)` summary and exits
   within ~3s:
   ```bash
   pkill -f 'vite.js preview'

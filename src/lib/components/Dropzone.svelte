@@ -1,13 +1,24 @@
 <script lang="ts">
-  import { DROPZONE_PROMPT } from '../ui-copy.ts';
+  import { COMPACT_DROPZONE_PROMPT, DROPZONE_ARIA_LABEL, DROPZONE_PROMPT } from '../ui-copy.ts';
 
   interface Props {
+    /** True while a job is in flight; gates every affordance below. */
     disabled: boolean;
-    statusText: string | null;
+    /** The slim-bar variant: a one-line replace target inside the bar. */
+    compact?: boolean;
     onfiles: (files: ArrayLike<File>) => void;
   }
 
-  let { disabled, statusText, onfiles }: Props = $props();
+  let { disabled, compact = false, onfiles }: Props = $props();
+
+  // The root element, so the parent can move focus to it after a confirmed
+  // clear — the button that opened the confirm is gone by then, and the
+  // dropzone is the only sensible landing spot (UI-SPEC focus management).
+  let label: HTMLLabelElement | undefined = $state();
+
+  export function focus(): void {
+    label?.focus();
+  }
 
   // Track the drag depth so child nodes entering/leaving don't
   // flicker the highlight off and back on (the browser fires
@@ -16,13 +27,6 @@
   let dragDepth = $state(0);
 
   let highlighted = $derived(dragDepth > 0 && !disabled);
-
-  // The spinner + status paragraph only render while busy (D-08).
-  // The statusText prop is the App's STAGE_TEXT[stage] lookup, or
-  // null when the dropzone is idle. While statusText is non-null
-  // the dropzone is always disabled — the disabled prop gates the
-  // rest of the affordance.
-  let showProcessing = $derived(disabled && statusText !== null);
 
   function onDragEnter(event: DragEvent): void {
     event.preventDefault();
@@ -84,18 +88,35 @@
   for an input". The svelte a11y rule does not know about this dual
   semantic, hence the suppression below — see also 01-04-PLAN.md
   interfaces block which specifies role="button" on this element.
+
+  There is exactly ONE dropzone in the DOM, in both the full first-visit
+  layout and the slim import bar (D-24, D-25) — `compact` changes how
+  this element looks, never how many of them there are. The processing
+  text and its spinner no longer live here either: D-26 moved both into
+  the import bar's notice slot, so this element keeps its prompt while
+  busy and is disabled instead. That is why `aria-busy` follows
+  `disabled` — a "processing" flag would now never be true.
+
+  The aria-label is applied to the FULL variant only. An `aria-label`
+  replaces the element's content as its accessible name, so labelling
+  the compact one would silence its prompt — and D-25's whole job is
+  that prompt saying a drop here REPLACES the export already loaded
+  above it. Unlabelled, the compact variant is named by the text it
+  shows, which is the affordance itself (W-02).
 -->
 <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
 <label
+  bind:this={label}
   data-testid="dropzone"
   class="dropzone"
+  class:compact
   class:highlighted
   class:disabled
   role="button"
   tabindex="0"
-  aria-label="Wargaming data export dropzone"
+  aria-label={compact ? undefined : DROPZONE_ARIA_LABEL}
   aria-disabled={disabled ? 'true' : undefined}
-  aria-busy={showProcessing ? 'true' : undefined}
+  aria-busy={disabled ? 'true' : undefined}
   ondragenter={onDragEnter}
   ondragleave={onDragLeave}
   ondragover={onDragOver}
@@ -103,14 +124,7 @@
   onkeydown={onLabelKeyDown}
 >
   <input type="file" accept=".zip" data-testid="file-input" {disabled} onchange={onInputChange} />
-  {#if showProcessing}
-    <p class="processing-status" data-testid="processing-status" role="status">
-      <span class="spinner" data-testid="spinner" aria-hidden="true"></span>
-      <span class="processing-text">{statusText}</span>
-    </p>
-  {:else}
-    <span class="prompt">{DROPZONE_PROMPT}</span>
-  {/if}
+  <span class="prompt">{compact ? COMPACT_DROPZONE_PROMPT : DROPZONE_PROMPT}</span>
 </label>
 
 <style>
@@ -136,8 +150,24 @@
       border-color 120ms ease;
   }
 
+  /* Declared BEFORE .highlighted and .disabled on purpose. The compact
+     variant is a *resting* look, not a state: the drag highlight and the
+     busy treatment must both still win over it, or a slim bar being
+     dragged onto would show no sign that it is a drop target. */
+  .dropzone.compact {
+    justify-content: flex-start;
+    min-height: 0;
+    padding: 8px 12px;
+    border-width: 1px;
+    border-color: #80868b;
+    border-radius: 6px;
+    background: #fff;
+  }
+
+  /* Visible focus ring when the label is tabbed to, and when focus() moves
+     it there after a confirmed clear. Identical in both variants — only the
+     resting chrome above differs. */
   .dropzone:focus-within {
-    /* Visible focus ring when the label is tabbed to. */
     outline: 3px solid #1a73e8;
     outline-offset: 2px;
   }
@@ -159,47 +189,10 @@
     line-height: 1.5;
   }
 
-  .processing-status {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin: 0;
-    padding: 0;
-    font-size: 16px;
-    line-height: 1.5;
-  }
-
-  .processing-text {
-    /* Nothing extra — the spinner carries the motion; the text stays
-       in the same colour as the prompt so the visual swap is small. */
-    text-align: center;
-  }
-
-  /* CSS-only spinner: a 1.5em circular border with one quarter
-     coloured, rotated continuously. The animation is disabled under
-     prefers-reduced-motion per WCAG 2.3.3. */
-  .spinner {
-    display: inline-block;
-    width: 1.25em;
-    height: 1.25em;
-    border: 3px solid rgba(26, 115, 232, 0.25);
-    border-top-color: #1a73e8;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    flex: 0 0 auto;
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .spinner {
-      animation: none;
-      border-top-color: rgba(26, 115, 232, 0.6);
-    }
+  /* The slim bar's prompt sits on one line against a white background, so
+     it reads as Body text in a row rather than as a centred headline. */
+  .compact .prompt {
+    text-align: left;
   }
 
   /* Visually-hidden but still focusable (clip pattern, not display:none).

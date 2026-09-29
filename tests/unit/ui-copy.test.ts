@@ -1,14 +1,36 @@
 import { describe, expect, test } from 'vitest';
 import {
+  COMPACT_DROPZONE_PROMPT,
+  DROPZONE_ARIA_LABEL,
   DROPZONE_PROMPT,
   GENERIC_FAILURE_MESSAGE,
+  IDENTITY_ARIA_LABEL,
+  IDENTITY_CAPTION,
+  IDENTITY_CREATED_LABEL,
+  IDENTITY_REGION_LABEL,
+  IDENTITY_SKELETON_PROMPT,
+  IDENTITY_SKELETON_TITLE,
+  IDENTITY_UNKNOWN_ACCOUNT_TITLE,
+  IMPORT_ARIA_LABEL,
+  NAV_ARIA_LABEL,
+  SECTION_NOTE_PENDING,
+  SECTION_NOTE_USER_INFO,
   STAGE_TEXT,
   START_OVER_LABEL,
-  formatAccountHeading,
+  UNKNOWN_VALUE,
+  UNSUPPORTED_BANNER_SUFFIX,
+  UNSUPPORTED_INTRO,
+  UNSUPPORTED_NONE_DETECTED,
+  formatAccountId,
+  formatCreatedDate,
   formatFileCount,
-  formatSummary,
+  formatIdentityFallbackTitle,
+  formatImportSummary,
+  formatSectionStatus,
+  NAV_STATUS_SUFFIX,
+  SECTION_TITLES,
 } from '../../src/lib/ui-copy.ts';
-import type { CategoryStatus, IngestStage } from '../../src/lib/types/worker-messages.ts';
+import type { IngestStage } from '../../src/lib/types/worker-messages.ts';
 
 // =============================================================================
 // ui-copy — formatter tests (01-05-PLAN Task 1, RED then GREEN)
@@ -77,57 +99,6 @@ describe('STAGE_TEXT', () => {
 });
 
 // -----------------------------------------------------------------------------
-// formatSummary — three buckets, stable separator, all-zero render
-// -----------------------------------------------------------------------------
-
-describe('formatSummary', () => {
-  test('renders the three buckets in supported, known-deferred, unknown order', () => {
-    expect(formatSummary({ supported: 4, 'known-deferred': 2, unknown: 2 })).toBe(
-      '4 supported · 2 known-deferred · 2 unknown',
-    );
-  });
-
-  test('uses U+00B7 (middle dot) with single spaces around it', () => {
-    const out = formatSummary({ supported: 1, 'known-deferred': 1, unknown: 1 });
-    expect(out).toBe('1 supported · 1 known-deferred · 1 unknown');
-    // Pin the separator's codepoint: middle dot, U+00B7.
-    expect(out).toContain(' · ');
-    // And no other separator glyph sneaks in between the buckets. The
-    // hyphen in `known-deferred` is part of the bucket NAME (not a
-    // separator), so we check for a separator-side hyphen specifically:
-    // a hyphen adjacent to a digit + space (which the format never
-    // produces). A robust assertion is: the only ` · ` substrings are
-    // the two bucket separators.
-    expect(out.match(/ · /g)?.length).toBe(2);
-    expect(out).not.toContain(' | ');
-    expect(out).not.toContain(' — '); // em dash with surrounding spaces
-  });
-
-  test('renders zero counts explicitly — the visual fingerprint is the three parts, not the numbers', () => {
-    expect(formatSummary({ supported: 4, 'known-deferred': 0, unknown: 0 })).toBe(
-      '4 supported · 0 known-deferred · 0 unknown',
-    );
-    expect(formatSummary({ supported: 0, 'known-deferred': 0, unknown: 0 })).toBe(
-      '0 supported · 0 known-deferred · 0 unknown',
-    );
-  });
-
-  test('renders arbitrary counts verbatim (sanity)', () => {
-    expect(formatSummary({ supported: 7, 'known-deferred': 3, unknown: 5 })).toBe(
-      '7 supported · 3 known-deferred · 5 unknown',
-    );
-  });
-
-  test('the produced string is locale-independent — plain concatenation, no Intl.*', () => {
-    // We assert this by formatting a count that would otherwise be
-    // locale-sensitive (large number). formatSummary must not call
-    // Intl.NumberFormat or otherwise transform the digits.
-    const out = formatSummary({ supported: 2500, 'known-deferred': 0, unknown: 1 });
-    expect(out).toBe('2500 supported · 0 known-deferred · 1 unknown');
-  });
-});
-
-// -----------------------------------------------------------------------------
 // formatFileCount — singular form for 1, plural otherwise (including 0)
 // -----------------------------------------------------------------------------
 
@@ -151,40 +122,195 @@ describe('formatFileCount', () => {
   });
 });
 
-// -----------------------------------------------------------------------------
-// formatAccountHeading — "Account: <root>" with no decoration (D-11)
-// -----------------------------------------------------------------------------
+// =============================================================================
+// Phase 3 dashboard shell — copy and formatters (03-02-PLAN Task 2)
+// =============================================================================
+//
+// Every string here is transcribed from the 03-UI-SPEC.md Copywriting
+// Contract. They are asserted with exact-string `toBe` on purpose: a
+// paraphrase is a copy-review change, and copy changes should be a
+// deliberate edit to this file, not a side effect of a refactor.
+// =============================================================================
 
-describe('formatAccountHeading', () => {
-  test('prefixes the raw root with "Account: "', () => {
-    expect(formatAccountHeading('123456789')).toBe('Account: 123456789');
+describe('Phase 3 section, nav and banner copy', () => {
+  test('SECTION_TITLES writes the folder names exactly as the export does', () => {
+    expect(SECTION_TITLES).toEqual({
+      'activity-history': 'Activity_history',
+      'player-statistics': 'Player_statistics',
+      'payment-history': 'Payment_history',
+      'user-info': 'User_Info',
+      'not-yet-supported': 'Not yet supported',
+    });
   });
 
-  test('does not strip or escape the root — the rendering layer owns that', () => {
-    // The function returns the raw concatenation. Svelte's text
-    // interpolation in ResultsView.svelte handles escaping.
-    expect(formatAccountHeading('weird&root<name>')).toBe('Account: weird&root<name>');
+  test('NAV_ARIA_LABEL names the nav landmark', () => {
+    expect(NAV_ARIA_LABEL).toBe('Dashboard sections');
   });
 
-  test('produces a non-empty prefix even when the root is empty (the classifier would never emit this)', () => {
-    expect(formatAccountHeading('')).toBe('Account: ');
+  test('every muted nav reason has its own visible-text suffix', () => {
+    expect(NAV_STATUS_SUFFIX).toEqual({
+      'no-export': ', not in this export',
+      empty: ', no rows in this export',
+      'not-loaded': ', no export loaded',
+      none: ', none detected',
+    });
+  });
+
+  test('the three greyed section statuses have three distinct messages', () => {
+    expect(formatSectionStatus('not-loaded', 'Payment_history')).toBe(
+      'Drop an export to see this section',
+    );
+    expect(formatSectionStatus('no-export', 'Payment_history')).toBe('Not in this export');
+    expect(formatSectionStatus('empty', 'Payment_history')).toBe(
+      'This export contains no rows for Payment_history',
+    );
+  });
+
+  test('SECTION_NOTE_PENDING is the D-09 note for a populated section', () => {
+    expect(SECTION_NOTE_PENDING).toBe('Dashboard coming in a later update');
+  });
+
+  test('SECTION_NOTE_USER_INFO overrides the note — no phase builds that dashboard', () => {
+    expect(SECTION_NOTE_USER_INFO).toBe('Account details are shown in the header above');
+  });
+
+  test('the unsupported block intro, empty state and banner suffix', () => {
+    expect(UNSUPPORTED_INTRO).toBe(
+      "These folders are in your export, but this viewer can't show them yet.",
+    );
+    expect(UNSUPPORTED_NONE_DETECTED).toBe(
+      'No unsupported categories were detected in this export',
+    );
+    // Leading space + em dash: the banner renders the folder name first and
+    // this follows it inline, so a missing space reads as a typo.
+    expect(UNSUPPORTED_BANNER_SUFFIX).toBe(' — detected but not yet supported');
   });
 });
 
-// -----------------------------------------------------------------------------
-// Sanity — every CategoryStatus key is reachable via formatSummary
-// -----------------------------------------------------------------------------
+describe('formatImportSummary', () => {
+  test('keeps the singular form for both counts', () => {
+    expect(formatImportSummary(1, 1)).toBe('1 file, 1 row');
+  });
 
-describe('formatSummary — CategoryStatus coverage', () => {
-  test('all three CategoryStatus values appear in the formatted output', () => {
-    const buckets: Record<CategoryStatus, number> = {
-      supported: 1,
-      'known-deferred': 1,
-      unknown: 1,
-    };
-    const out = formatSummary(buckets);
-    expect(out).toContain('supported');
-    expect(out).toContain('known-deferred');
-    expect(out).toContain('unknown');
+  test('uses the existing thousands separator for the row count', () => {
+    expect(formatImportSummary(3, 1204)).toBe('3 files, 1,204 rows');
+  });
+
+  test('renders zeroes rather than hiding them', () => {
+    expect(formatImportSummary(0, 0)).toBe('0 files, 0 rows');
+  });
+});
+
+describe('identity header copy', () => {
+  test('the landmark name is static and never carries the nickname', () => {
+    // D-21: the nickname appears in the header text only. An aria-label
+    // naming the account would leak it into an accessible name.
+    expect(IDENTITY_ARIA_LABEL).toBe('Account identity');
+  });
+
+  test('the caption, the two dt labels and the missing-value word', () => {
+    expect(IDENTITY_CAPTION).toBe('As of export');
+    expect(IDENTITY_REGION_LABEL).toBe('Region (per export)');
+    expect(IDENTITY_CREATED_LABEL).toBe('Account created');
+    expect(UNKNOWN_VALUE).toBe('Unknown');
+  });
+
+  test('the skeleton title and prompt', () => {
+    expect(IDENTITY_SKELETON_TITLE).toBe('No export loaded');
+    expect(IDENTITY_SKELETON_PROMPT).toBe('Drop an export to see the account details');
+  });
+});
+
+describe('formatAccountId', () => {
+  test('prefixes the raw root with "Account ID: "', () => {
+    expect(formatAccountId('123456789')).toBe('Account ID: 123456789');
+  });
+
+  test("returns untrusted text unchanged — escaping is the renderer's job", () => {
+    // The root is a zip-entry name from an archive anyone can craft. This
+    // function concatenates; it never emits markup (threat T-03-07).
+    expect(formatAccountId('a<b>&')).toBe('Account ID: a<b>&');
+  });
+});
+
+describe('formatCreatedDate', () => {
+  test('takes the date portion of a space-separated value', () => {
+    expect(formatCreatedDate('2015-03-11 10:00:00')).toBe('2015-03-11');
+  });
+
+  test('takes the date portion of an ISO T-separated value', () => {
+    expect(formatCreatedDate('2015-03-11T10:00:00Z')).toBe('2015-03-11');
+  });
+
+  test('trims padding around the value', () => {
+    expect(formatCreatedDate(' 2015-03-11 ')).toBe('2015-03-11');
+  });
+
+  test('null is Unknown — the field was never there', () => {
+    expect(formatCreatedDate(null)).toBe('Unknown');
+  });
+
+  test('an empty string is Unknown', () => {
+    expect(formatCreatedDate('')).toBe('Unknown');
+  });
+
+  test('a whitespace-only value is Unknown', () => {
+    expect(formatCreatedDate('   ')).toBe('Unknown');
+  });
+
+  test('a value that starts with T has no date portion and is Unknown', () => {
+    // D-15: the text before the first space or T. If that text is empty
+    // there is no date to show, and "Unknown" beats an empty <dd>.
+    expect(formatCreatedDate('T10:00')).toBe('Unknown');
+  });
+
+  test('a value with no separator at all is returned as written', () => {
+    // No Date parsing anywhere: the field carries no timezone, so a locale
+    // conversion would invent one (and can shift the day).
+    expect(formatCreatedDate('2015-03-11')).toBe('2015-03-11');
+    expect(formatCreatedDate('March 2015')).toBe('March');
+  });
+});
+
+describe('formatIdentityFallbackTitle', () => {
+  test('uses the account root when there is one', () => {
+    expect(formatIdentityFallbackTitle('123456789')).toBe('123456789');
+  });
+
+  test('a rootless export gets a title instead of an empty heading', () => {
+    // A re-zip whose entries are not under a single root folder gives
+    // accountRoot === '' (RESEARCH Pitfall 6). An empty <h2> would leave a
+    // blank card with no explanation.
+    expect(formatIdentityFallbackTitle('')).toBe('Unknown account');
+    expect(IDENTITY_UNKNOWN_ACCOUNT_TITLE).toBe('Unknown account');
+  });
+});
+
+describe('import region copy', () => {
+  test('the landmark name and the compact dropzone prompt', () => {
+    expect(IMPORT_ARIA_LABEL).toBe('Import');
+    expect(COMPACT_DROPZONE_PROMPT).toBe(
+      'Drop a new export (.zip) here to replace this one, or click to choose it.',
+    );
+  });
+
+  test('the compact prompt must not repeat the full-size prompt', () => {
+    // Two states, two sentences: the slim bar already has a dataset, and
+    // the full-size prompt's "your" would be wrong there.
+    expect(COMPACT_DROPZONE_PROMPT).not.toBe(DROPZONE_PROMPT);
+    expect(COMPACT_DROPZONE_PROMPT).toContain('replace this one');
+  });
+
+  test('the dropzone name, which the compact variant must NOT use', () => {
+    // W-02: `aria-label` REPLACES an element's content as its accessible
+    // name, so the full-size dropzone names itself here and the compact
+    // one deliberately carries no label at all — its accessible name falls
+    // back to the visible COMPACT_DROPZONE_PROMPT, which is the only place
+    // the replace-on-drop affordance is stated. The two strings must
+    // therefore stay distinct, or the two variants become interchangeable
+    // to a screen reader.
+    expect(DROPZONE_ARIA_LABEL).toBe('Wargaming data export dropzone');
+    expect(DROPZONE_ARIA_LABEL).not.toBe(COMPACT_DROPZONE_PROMPT);
+    expect(DROPZONE_ARIA_LABEL).not.toBe(DROPZONE_PROMPT);
   });
 });

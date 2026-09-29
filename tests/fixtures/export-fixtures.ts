@@ -84,6 +84,87 @@ export const SAMPLE_EXPECTED_COUNTS: Record<CategoryStatus, number> = {
   unknown: 2,
 };
 
+// -----------------------------------------------------------------------------
+// Account_Info cell constants (03-01)
+// -----------------------------------------------------------------------------
+//
+// Every phase-3 test that asserts on identity or on the D-18 privacy strip
+// needs the sample's Account_Info values by NAME rather than as literals
+// copied into each test file — a fixture edit would otherwise have to be
+// mirrored in a dozen assertions before it surfaced. The values below are
+// the ones ACCOUNT_INFO_ROW has always used; that row now reads them back
+// from here so the two cannot drift.
+//
+// SAMPLE_LOGIN / SAMPLE_BIRTH_DATE are the two values that must never
+// appear in IndexedDB, the rendered page, the document title or a console
+// line (D-18 / D-21). They are `example.invalid` / a distinctive date on
+// purpose: a substring assertion on them cannot false-positive against
+// CREATED_AT (2020-01-01), which IS legitimately displayed.
+
+/** `NAME` — the nickname the identity header shows (D-12). */
+export const SAMPLE_NICKNAME = 'Synthetic Player';
+/** Raw `REGION`, shown untranslated (D-13). */
+export const SAMPLE_REGION = 'CA';
+/** Raw `CREATED_AT` exactly as the export writes it (D-15). */
+export const SAMPLE_CREATED_AT = '2020-01-01 00:00:00';
+/** `CREATED_AT` as the header displays it — date only, no timezone shift. */
+export const SAMPLE_CREATED_DATE = '2020-01-01';
+/** `LOGIN` — the account email. Must never be persisted or rendered. */
+export const SAMPLE_LOGIN = 'synthetic.player@example.invalid';
+/** The reserved-TLD domain of SAMPLE_LOGIN, for substring leak assertions. */
+export const SAMPLE_LOGIN_DOMAIN = 'example.invalid';
+/** `BIRTH_DATE` — must never be persisted or rendered. */
+export const SAMPLE_BIRTH_DATE = '1990-01-01';
+/** `IP` (TEST-NET-1, RFC 5737). D-18 keeps this column stored. */
+export const SAMPLE_IP = '192.0.2.10';
+
+/** The email the hostile-header variant fixtures put in their LOGIN cells. */
+export const VARIANT_LOGIN = `variant.player@${SAMPLE_LOGIN_DOMAIN}`;
+
+/** Overflow-cell canary for the variant fixture (see buildAccountInfoVariantExport). */
+export const VARIANT_OVERFLOW_CANARY = 'CANARY-OVERFLOW-CELL';
+export const VARIANT_NICKNAME = 'Variant Player';
+export const VARIANT_REGION = 'EU';
+export const VARIANT_CREATED_AT = '2021-02-03 04:05:06';
+
+/** Second-row values for buildMultiRowAccountInfoExport (D-17 row choice). */
+export const MULTIROW_DECOY_ID = '999999999';
+export const MULTIROW_DECOY_NICKNAME = 'Decoy Player';
+export const MULTIROW_DECOY_REGION = 'NA';
+export const MULTIROW_MATCH_NICKNAME = 'Matched Player';
+export const MULTIROW_MATCH_REGION = 'EU';
+/** The second non-matching ID used by the no-match variant of the same fixture. */
+export const MULTIROW_SECOND_NON_MATCHING_ID = '888888888';
+
+/**
+ * The cells buildPartialAccountInfoExport leaves POPULATED. The whole point
+ * of that fixture is the cells it blanks, so the ones it keeps are named
+ * like the other fixtures' — a test can then assert both halves and catch
+ * a regression that blanks the entire row as readily as one that drops a
+ * single column.
+ */
+export const PARTIAL_ROW_NICKNAME = 'Partial Row Player';
+export const PARTIAL_ROW_REGION = 'EU';
+
+/**
+ * A 70-character unbroken alphanumeric nickname. Long enough that a
+ * layout that sets no `overflow-wrap` would push the identity header
+ * wider than the viewport; the "unbroken" part is the point — there is no
+ * space or hyphen for the browser to break on.
+ */
+export const LONG_NICKNAME =
+  'WolfensteinsVeryLongUnbrokenSyntheticNicknameWithoutAnySpaces01xABCDEF';
+/**
+ * An unknown-category folder name of at least 60 characters with no
+ * whitespace, carrying an unterminated `<b>` tag. A zip entry name can
+ * never contain `/` — that is the path separator — so the probe is a
+ * half-open tag rather than a `<b>bold</b>` pair: it only becomes bold if
+ * a renderer interpolates the folder name as HTML instead of text, which
+ * is exactly what the untrusted-zip-string rule in AGENTS.md forbids.
+ */
+export const LONG_UNKNOWN_FOLDER =
+  'Future_category_2026_with_a_deliberately_very_long_unbroken_name_<b>bold_markup';
+
 /**
  * For RENAMED_ACCOUNT_ROOT. The unknown folder row is added on top
  * of the SAMPLE_FILE_COUNTS set.
@@ -122,18 +203,18 @@ const ACCOUNT_INFO_HEADER =
 
 const ACCOUNT_INFO_ROW = [
   SAMPLE_ACCOUNT_ROOT, // ID
-  'Synthetic Player', // NAME
-  '2020-01-01 00:00:00', // CREATED_AT
+  SAMPLE_NICKNAME, // NAME
+  SAMPLE_CREATED_AT, // CREATED_AT
   '2020-01-02 00:00:00', // ACTIVATED_AT
-  '192.0.2.10', // IP (TEST-NET-1, RFC 5737)
+  SAMPLE_IP, // IP (TEST-NET-1, RFC 5737)
   'US', // COUNTRY_CODE
-  'CA', // REGION
+  SAMPLE_REGION, // REGION
   'Testville', // CITY
-  'synthetic.player@example.invalid', // LOGIN (RFC 6761 reserved TLD)
+  SAMPLE_LOGIN, // LOGIN (RFC 6761 reserved TLD) — stripped before write (D-18)
   'en', // USER_LANGUAGE
   'US', // USER_STATED_COUNTRY
-  '1990-01-01', // BIRTH_DATE
-  'self', // BIRTH_DATE_SRC
+  SAMPLE_BIRTH_DATE, // BIRTH_DATE — stripped before write (D-18)
+  'self', // BIRTH_DATE_SRC — stripped before write (D-18)
 ].join(';');
 
 const SESSIONS_HEADER = 'SESSION_START;SESSION_END;CLIENT_BUILD;CLIENT_PLATFORM;SERVER_NAME;IP';
@@ -813,4 +894,268 @@ export function buildScaleExport(): Uint8Array {
   }
 
   return zipSync(entries);
+}
+
+// -----------------------------------------------------------------------------
+// Phase 3 (03-01) — customisable export builders
+// -----------------------------------------------------------------------------
+//
+// Phase 3 needs exports that vary ALONG ONE AXIS each: one folder missing,
+// one CSV emptied, one header shape made hostile. Building a bespoke
+// `zipSync` literal per case would duplicate the other eleven files of the
+// sample every time, and a change to the canonical layout would then have
+// to be mirrored in each copy. So every builder below derives from
+// `sampleEntries()` through `buildCustomExport`, which can drop folders and
+// overlay individual files.
+//
+// The builders stay pure and synchronous like the rest of this module, and
+// the bytes are still produced in memory — no archive is ever committed.
+
+export interface CustomExportOptions {
+  /** Account-root folder name. Defaults to SAMPLE_ACCOUNT_ROOT. */
+  root?: string;
+  /**
+   * First path segments under the root to leave out, matched
+   * case-SENSITIVELY (the classifier's own match is case-insensitive, but
+   * omitting `user_info` should not silently drop `User_Info` when a test
+   * means a specific folder).
+   */
+  omitFolders?: readonly string[];
+  /**
+   * Files to write under the root, keyed by a path RELATIVE to the root.
+   * Applied AFTER the omissions and able to ADD files as well as replace
+   * them, so one override can introduce a whole new folder. Values may be
+   * a string (encoded as UTF-8) or raw bytes.
+   */
+  overrides?: Record<string, string | Uint8Array>;
+}
+
+export function buildCustomExport(options: CustomExportOptions = {}): Uint8Array {
+  const { root = SAMPLE_ACCOUNT_ROOT, omitFolders = [], overrides = {} } = options;
+  const omitted = new Set(omitFolders);
+  const entries: Record<string, Uint8Array> = {};
+
+  for (const [path, bytes] of Object.entries(sampleEntries(root))) {
+    const relative = path.slice(root.length + 1);
+    const folder = relative.slice(0, relative.indexOf('/'));
+    if (omitted.has(folder)) continue;
+    entries[path] = bytes;
+  }
+
+  for (const [relative, value] of Object.entries(overrides)) {
+    entries[`${root}/${relative}`] =
+      typeof value === 'string' ? new TextEncoder().encode(value) : value;
+  }
+
+  return zipSync(entries);
+}
+
+/**
+ * Render one CSV using this file's CRLF convention: a leading CRLF, then
+ * the header, then one CRLF-prefixed row per data row, then a trailing
+ * CRLF. Passing no rows yields a header-only file, which PapaParse
+ * reports as zero data rows — the `empty` section state.
+ */
+function renderCsv(header: string, rows: readonly (readonly string[])[]): string {
+  let out = CRLF + header + CRLF;
+  for (const row of rows) out += CRLF + row.join(';') + CRLF;
+  return out;
+}
+
+/** User_Info omitted entirely: the identity header takes its D-16 fallback. */
+export function buildMissingUserInfoExport(): Uint8Array {
+  return buildCustomExport({ omitFolders: ['User_Info'] });
+}
+
+/** Payment_history omitted: the absent-category half of DATA-04. */
+export function buildMissingPaymentHistoryExport(): Uint8Array {
+  return buildCustomExport({ omitFolders: ['Payment_history'] });
+}
+
+/** Payment_history present but holding a header-only CSV: the empty half of DATA-04. */
+export function buildZeroRowPaymentExport(): Uint8Array {
+  return buildCustomExport({
+    overrides: { 'Payment_history/Orders.csv': renderCsv(ORDERS_HEADER, []) },
+  });
+}
+
+/** Only the four supported categories: the "nothing detected but unsupported" state. */
+export function buildOnlySupportedExport(): Uint8Array {
+  return buildCustomExport({
+    omitFolders: ['Chat_history', 'Clans', 'Bans', 'Device_info'],
+  });
+}
+
+/**
+ * Account_Info.csv holding a DECOY row before the real one, so the D-17 row
+ * choice is observable rather than incidental.
+ *
+ * With `matchingRow` (the default) the second row's ID is the account root,
+ * so the identity must come from it. Without it, no row matches and the
+ * first row wins by the documented fallback.
+ */
+export function buildMultiRowAccountInfoExport({
+  matchingRow = true,
+}: { matchingRow?: boolean } = {}): Uint8Array {
+  const decoy = [
+    MULTIROW_DECOY_ID,
+    MULTIROW_DECOY_NICKNAME,
+    SAMPLE_CREATED_AT,
+    SAMPLE_IP,
+    'NA',
+    VARIANT_CREATED_AT,
+  ];
+  const second = matchingRow
+    ? [
+        SAMPLE_ACCOUNT_ROOT,
+        MULTIROW_MATCH_NICKNAME,
+        VARIANT_CREATED_AT,
+        SAMPLE_IP,
+        MULTIROW_MATCH_REGION,
+      ]
+    : [
+        MULTIROW_SECOND_NON_MATCHING_ID,
+        'Second Non-Matching Player',
+        SAMPLE_CREATED_AT,
+        SAMPLE_IP,
+        'EU',
+      ];
+
+  // A reduced header keeps the fixture readable while still carrying the
+  // three columns the identity reads, plus the two that must be stripped.
+  const header = 'ID;NAME;CREATED_AT;IP;REGION;LOGIN';
+  return buildCustomExport({
+    overrides: { 'User_Info/Account_Info.csv': renderCsv(header, [decoy, second]) },
+  });
+}
+
+/**
+ * The hostile-header shape from RESEARCH Q3's probe, as one real export.
+ * Its Account_Info.csv header is
+ *
+ *   ID; NAME ;CREATED_AT;IP;LOGIN;LOGIN;BIRTH_DATE ;region
+ *
+ * which is everything a naive strip gets wrong at once:
+ *   - ` NAME ` and `BIRTH_DATE ` are PADDED (PapaParse does not trim
+ *     headers, so `' LOGIN' === 'LOGIN'` would be false),
+ *   - `region` is LOWER-CASE (so `row.REGION` would be undefined),
+ *   - the header declares EIGHT columns and the row carries NINE, so
+ *     PapaParse puts the ninth cell in `__parsed_extra` — a container no
+ *     column deny-list inspects,
+ *   - the duplicated `LOGIN` is renamed `LOGIN_1` by PapaParse.
+ *
+ * The overflow cell holds VARIANT_OVERFLOW_CANARY so a leak is assertable
+ * by value, not only by key name.
+ */
+export function buildAccountInfoVariantExport(): Uint8Array {
+  const header = 'ID; NAME ;CREATED_AT;IP;LOGIN;LOGIN;BIRTH_DATE ;region';
+  const row = [
+    SAMPLE_ACCOUNT_ROOT,
+    VARIANT_NICKNAME,
+    VARIANT_CREATED_AT,
+    SAMPLE_IP,
+    VARIANT_LOGIN,
+    VARIANT_LOGIN,
+    SAMPLE_BIRTH_DATE,
+    VARIANT_REGION,
+    VARIANT_OVERFLOW_CANARY,
+  ];
+  return buildCustomExport({
+    overrides: { 'User_Info/Account_Info.csv': renderCsv(header, [row]) },
+  });
+}
+
+/**
+ * The sample with its `User_Info` folder re-keyed to `user_info`. The
+ * classifier matches folder names case-insensitively, so this classifies as
+ * the same supported category while KEEPING the lower-case name — the shape
+ * a strip keyed on the literal string 'User_Info' would silently pass over.
+ */
+export function buildLowercaseUserInfoFolderExport(): Uint8Array {
+  const entries: Record<string, Uint8Array> = {};
+  for (const [path, bytes] of Object.entries(sampleEntries(SAMPLE_ACCOUNT_ROOT))) {
+    entries[path.replace('/User_Info/', '/user_info/')] = bytes;
+  }
+  return zipSync(entries);
+}
+
+/**
+ * BOTH `User_Info` and `user_info` in one archive, each holding a login
+ * column, plus a lower-case `bans/` folder. Proves the strip covers every
+ * entry of the family rather than one of them, and that a case-variant
+ * UNKNOWN folder still classifies as unknown.
+ */
+export function buildCaseVariantFoldersExport(): Uint8Array {
+  return buildCustomExport({
+    overrides: {
+      'user_info/Extra.csv': renderCsv('ID;NAME;LOGIN', [
+        [SAMPLE_ACCOUNT_ROOT, 'Extra Synthetic Player', `extra.${SAMPLE_LOGIN_DOMAIN}`],
+      ]),
+      'bans/Bans.csv': renderCsv('BAN_DT;BAN_REASON;BAN_EXPIRES_AT', [
+        ['2020-09-01 00:00:00', 'synthetic_reason', '2020-09-08 00:00:00'],
+      ]),
+    },
+  });
+}
+
+/** Account_Info.csv holding only its header: a present category with zero data rows. */
+export function buildEmptyAccountInfoExport(): Uint8Array {
+  return buildCustomExport({
+    overrides: { 'User_Info/Account_Info.csv': renderCsv(ACCOUNT_INFO_HEADER, []) },
+  });
+}
+
+/**
+ * S-1 fixture: an Account_Info.csv whose row PARSED but carries a BLANK
+ * cell. This is the shape the D-16 "Unknown" placeholder exists for, and
+ * until now no suite ever rendered it: the header-only fixture takes the
+ * `fallback` variant and never shows the three-field card at all, so
+ * `valueOrUnknown()` ran only over unit-tested inputs and a regression
+ * rendering an empty `<dd>` — or a blank nickname heading — passed the
+ * entire project.
+ *
+ * A blank cell and an absent column are the same thing to the worker
+ * (`pick()` returns null either way), so the cell is left empty here
+ * rather than dropped from the header, which is the case a real export
+ * with a partially-filled row produces.
+ *
+ * `blankRegion` / `blankNickname` select which columns are empty, so one
+ * builder covers both the fully-blank row and the single-missing-column
+ * row that a real export more often carries. The other columns keep the
+ * sample's values.
+ */
+export function buildPartialAccountInfoExport({
+  blankRegion = true,
+  blankNickname = true,
+}: { blankRegion?: boolean; blankNickname?: boolean } = {}): Uint8Array {
+  const header = 'ID;NAME;CREATED_AT;IP;REGION;LOGIN';
+  const row = [
+    SAMPLE_ACCOUNT_ROOT,
+    blankNickname ? '' : PARTIAL_ROW_NICKNAME,
+    SAMPLE_CREATED_AT,
+    SAMPLE_IP,
+    blankRegion ? '' : PARTIAL_ROW_REGION,
+    VARIANT_LOGIN,
+  ];
+  return buildCustomExport({
+    overrides: { 'User_Info/Account_Info.csv': renderCsv(header, [row]) },
+  });
+}
+
+/**
+ * Overflow and wrapping fixture: a 70-character unbroken nickname, and an
+ * unknown-category folder whose name is long, unbroken, and carries an
+ * unterminated `<b>` tag. A layout with no `overflow-wrap` blows out on the
+ * nickname; a renderer that interpolates the folder name as HTML rather
+ * than text turns the second one into real bold text.
+ */
+export function buildLongTextExport(): Uint8Array {
+  const header = 'ID;NAME;CREATED_AT;IP;REGION';
+  const row = [SAMPLE_ACCOUNT_ROOT, LONG_NICKNAME, SAMPLE_CREATED_AT, SAMPLE_IP, SAMPLE_REGION];
+  return buildCustomExport({
+    overrides: {
+      'User_Info/Account_Info.csv': renderCsv(header, [row]),
+      [`${LONG_UNKNOWN_FOLDER}/Synthetic.csv`]: renderCsv('PART_ID;VALUE', [['1', 'synthetic']]),
+    },
+  });
 }

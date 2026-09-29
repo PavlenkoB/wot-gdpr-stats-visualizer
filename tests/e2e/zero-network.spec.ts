@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { buildSampleExport } from '../fixtures/export-fixtures.ts';
+import { SAMPLE_NICKNAME, buildSampleExport } from '../fixtures/export-fixtures.ts';
 
 /**
  * PLATFORM-02 — zero network requests after initial page load, plus
@@ -52,8 +52,11 @@ test.describe('zero-network and CSP', () => {
       buffer: Buffer.from(buildSampleExport()),
     });
 
-    // D-11: account root is the numeric raw ID from the detected root folder.
-    await expect(page.getByRole('heading', { level: 2 })).toHaveText('Account: 123456789');
+    // 03-04: the account heading is retired (D-23); the identity header's
+    // nickname `<h2>` is the dashboard's title now. Asserted on a test id
+    // rather than on a role+level heading, because the dashboard renders six
+    // `<h2>` elements and a role query would be ambiguous.
+    await expect(page.getByTestId('identity-nickname')).toHaveText(SAMPLE_NICKNAME);
 
     // Give any microtask-queued work a chance to settle before we assert
     // the count.

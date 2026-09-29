@@ -3,11 +3,10 @@ import {
   EXTRA_UNKNOWN_FOLDER,
   LARGE_EXPORT_FILES_PER_CATEGORY,
   RENAMED_ACCOUNT_ROOT,
-  RENAMED_EXPECTED_COUNTS,
   SAMPLE_ACCOUNT_ROOT,
   SAMPLE_BADGE_ORDER,
-  SAMPLE_EXPECTED_COUNTS,
   SAMPLE_FILE_COUNTS,
+  SAMPLE_NICKNAME,
   SAMPLE_ROW_COUNTS,
   buildLargeExport,
   buildNotAZipBytes,
@@ -15,40 +14,71 @@ import {
   buildSampleExport,
   buildTruncatedExport,
 } from '../fixtures/export-fixtures.ts';
-import { formatSummary } from '../../src/lib/ui-copy.ts';
+import { formatAccountId, formatImportSummary } from '../../src/lib/ui-copy.ts';
 import { dropFiles } from './helpers.ts';
 
 // =============================================================================
-// IMPORT-02 / PLATFORM-02 — success-path slice (01-05-PLAN Task 3)
+// IMPORT-02 / PLATFORM-02 — success-path slice against the dashboard (03-07)
 // =============================================================================
 //
 // What this file proves end to end:
-//   - While a file is processing, the dropzone shows a spinner and
-//     STAGE_TEXT-driven text (D-08, D-10).
-//   - On success the dropzone is replaced by a small account heading,
-//     a summary line, a flat row of badges in worker order (D-01, D-02,
-//     D-03, D-11, D-12, D-13), and a Start over button (D-14).
-//   - "Start over" returns to the empty dropzone with no confirmation
-//     dialog of any kind.
-//   - A file dropped on the results view is ignored (D-13).
+//   - While a file is processing, the import bar's notice slot shows a
+//     spinner and STAGE_TEXT-driven text (D-26), and the dropzone is
+//     disabled and busy (D-08, D-10).
+//   - On success the bar goes slim, the identity header shows the raw
+//     account root, the four supported sections appear in D-02 order with
+//     a `section-summary` built by `formatImportSummary`, and the four
+//     unsupported folders become `unsupported-banner` cards in worker
+//     order (D-01, D-02, D-03, D-11, D-12, D-13).
+//   - Exactly one dropzone exists in BOTH layouts — the co-render that
+//     makes replace-on-drop reachable survives the Phase 3 redesign.
+//   - Start over confirms before it clears (D-15, D-16).
+//   - A file dropped on `main` is ignored (D-13).
 //   - Across an entire multi-upload session, exactly one worker is
 //     spawned and zero network requests occur after the baseline
 //     (PLATFORM-02; session-wide half of success criterion 4).
-//   - At 20,000 entries, no main-thread long task of 250 ms or more
-//     occurs between submission and results (success criterion 3).
+//   - At 20,000 entries, no main-thread long task of 1000 ms or more
+//     occurs between submission and the dashboard (success criterion 3).
 //   - No value from inside the export's files is rendered (the
 //     synthetic email / IP strings never appear in the page body).
 //
-// All expectations are computed from the same fixtures and formatters
-// the app uses, so a future refactor that breaks one half breaks
-// both halves at once.
+// Every expectation is computed from the same fixtures and formatters the
+// app uses, so a future refactor that breaks one half breaks both halves
+// at once. The Phase 2 hooks (the results wrapper, the account heading,
+// the summary line and the per-category badges) are all gone from this
+// file: the assertions below point at the hooks Plans 03-04 to 03-06
+// actually shipped. Nothing was dropped — each one moved.
 // =============================================================================
 
 const STAGE_PATTERN =
   /^\s*(Checking for a duplicate\.\.\.|Unzipping\.\.\.|Classifying folders\.\.\.|Parsing categories\.\.\.|Saving to local storage\.\.\.)\s*$/;
 
+/**
+ * The four supported sections in D-02 order, paired with the fixture
+ * folder each one counts. This is the order the DOM must present, and it
+ * is NOT `SAMPLE_BADGE_ORDER` (that constant is the worker's
+ * status-grouped order, still asserted below for the banners).
+ */
+const SUPPORTED_SECTIONS = [
+  { id: 'activity-history', folder: 'Activity_history' },
+  { id: 'player-statistics', folder: 'Player_statistics' },
+  { id: 'payment-history', folder: 'Payment_history' },
+  { id: 'user-info', folder: 'User_Info' },
+] as const;
+
+/**
+ * The four unsupported folders, in the order the worker reports them
+ * (`SAMPLE_BADGE_ORDER.slice(4)`), with the status each banner carries.
+ */
+const UNSUPPORTED_BANNERS = [
+  { folder: SAMPLE_BADGE_ORDER[4]!, status: 'known-deferred' },
+  { folder: SAMPLE_BADGE_ORDER[5]!, status: 'known-deferred' },
+  { folder: SAMPLE_BADGE_ORDER[6]!, status: 'unknown' },
+  { folder: SAMPLE_BADGE_ORDER[7]!, status: 'unknown' },
+] as const;
+
 // -----------------------------------------------------------------------------
-// Page setup — wait for worker ready, snapshot console errors per test
+// Page setup — wait for worker ready
 // -----------------------------------------------------------------------------
 
 test.beforeEach(async ({ page }) => {
@@ -58,8 +88,15 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
+/** The bar is slim once a dataset is loaded, full on the skeleton. */
+async function expectSlimBar(page: import('@playwright/test').Page): Promise<void> {
+  await expect(page.getByTestId('import-bar')).toHaveAttribute('data-variant', 'slim', {
+    timeout: 30_000,
+  });
+}
+
 // -----------------------------------------------------------------------------
-// (a) Processing feedback while busy, then account heading + summary + badges
+// (a) Processing feedback while busy, then the dashboard
 // -----------------------------------------------------------------------------
 
 test('(a) shows stage feedback while busy, then account, summary and grouped badges (and a co-rendered dropzone for replace-on-drop) when done', async ({
@@ -77,22 +114,25 @@ test('(a) shows stage feedback while busy, then account, summary and grouped bad
 
   const processing = page.getByTestId('processing-status');
 
-  // D-08 + D-10: the dropzone is busy and shows the stage text.
-  // Snap the busy-state in a single DOM read: the four sequential
-  // `toHaveAttribute` polls below used to race the state transition
-  // to 'done' on fast CI runners (sample export is small enough that
-  // processing completes in well under the 5 s poll window). One
-  // evaluate is atomic relative to the App's render cycle.
+  // D-08 + D-10 + D-26: the dropzone is busy and the notice slot carries
+  // the spinner and the stage text. Snap the busy-state in a single DOM
+  // read: the four sequential `toHaveAttribute` polls below used to race
+  // the state transition to 'done' on fast CI runners (sample export is
+  // small enough that processing completes in well under the 5 s poll
+  // window). One evaluate is atomic relative to the App's render cycle.
   const busySnapshot = await page.evaluate(() => {
     const el = document.querySelector<HTMLElement>('[data-testid="dropzone"]');
     if (!el) return null;
-    const processingEl = document.querySelector<HTMLElement>('[data-testid="processing-status"]');
-    const spinnerEl = document.querySelector<HTMLElement>('[data-testid="spinner"]');
+    const slotEl = document.querySelector<HTMLElement>('[data-testid="notice-slot"]');
+    const processingEl = slotEl?.querySelector<HTMLElement>('[data-testid="processing-status"]');
+    const spinnerEl = processingEl?.querySelector<HTMLElement>('[data-testid="spinner"]');
     return {
       ariaDisabled: el.getAttribute('aria-disabled'),
       ariaBusy: el.getAttribute('aria-busy'),
-      processingText: processingEl?.textContent?.trim() ?? null,
+      // D-26: both the status and the spinner live INSIDE the notice slot.
+      processingInSlot: processingEl !== null && processingEl !== null,
       spinnerVisible: spinnerEl !== null,
+      processingText: processingEl?.textContent?.trim() ?? null,
     };
   });
   expect(
@@ -101,88 +141,84 @@ test('(a) shows stage feedback while busy, then account, summary and grouped bad
   ).not.toBeNull();
   expect(busySnapshot!.ariaDisabled).toBe('true');
   expect(busySnapshot!.ariaBusy).toBe('true');
+  expect(busySnapshot!.processingInSlot).toBe(true);
   expect(busySnapshot!.spinnerVisible).toBe(true);
   expect(busySnapshot!.processingText).toMatch(STAGE_PATTERN);
 
   // File input is disabled while processing.
   await expect(page.getByTestId('file-input')).toBeDisabled();
 
-  // Wait for the results view to appear.
-  const results = page.getByTestId('results');
-  await expect(results).toBeVisible({ timeout: 30_000 });
+  // The bar goes slim and the dataset is displayed.
+  await expectSlimBar(page);
 
-  // After results are visible, the dropzone is co-rendered alongside the
-  // results view (NOT swapped out) — this is the 02-04 contract that makes
-  // D-13 replace-on-drop reachable: a drop on the co-rendered Dropzone in
-  // the 'done' state lands on submitFiles() → confirm-pending →
-  // ConfirmPanel with REPLACE_DATASET_LABEL. The 'dropzone is gone'
-  // assertion that Phase 1 carried here was the right Phase 1 contract
-  // (results replaced the dropzone) and is now stale — the 02-04 contract
-  // is dropzone + results both present. Asserting count 1 here is the
-  // regression guard against a future refactor silently dropping the
-  // co-render and re-breaking D-13.
+  // The dropzone is co-rendered in the slim layout (NOT swapped out) —
+  // this is the 02-04 contract that makes D-13 replace-on-drop
+  // reachable: a drop on the co-rendered dropzone in the 'done' state
+  // lands on submitFiles() → confirm-pending → ConfirmPanel with
+  // REPLACE_DATASET_LABEL. Asserting count 1 here is the regression guard
+  // against a future refactor silently dropping the co-render and
+  // re-breaking D-13. D-24/D-25: exactly one dropzone in both variants.
   await expect(page.getByTestId('dropzone')).toHaveCount(1);
   await expect(processing).toHaveCount(0);
 
-  // Account heading — D-11 (raw root).
-  const heading = page.getByTestId('account-heading');
-  await expect(heading).toHaveText(`Account: ${SAMPLE_ACCOUNT_ROOT}`);
-
-  // Summary line — computed from the SAME fixture the app uses.
-  const expectedSummary = formatSummary(SAMPLE_EXPECTED_COUNTS);
-  await expect(page.getByTestId('summary-line')).toHaveText(expectedSummary);
-
-  // 8 badges in worker order, with the expected status sequence.
-  const badges = page.getByTestId('category-badge');
-  await expect(badges).toHaveCount(8);
-
-  const expectedStatuses = [
-    'supported',
-    'supported',
-    'supported',
-    'supported',
-    'known-deferred',
-    'known-deferred',
-    'unknown',
-    'unknown',
-  ];
-  for (let i = 0; i < SAMPLE_BADGE_ORDER.length; i++) {
-    const name = SAMPLE_BADGE_ORDER[i]!;
-    const badge = badges.nth(i);
-    await expect(badge).toHaveAttribute('data-status', expectedStatuses[i]!);
-    await expect(badge).toContainText(name);
-  }
-
-  // First badge's text is "Activity_history — 2 files, 2 rows"
-  // (D-02 + D-05: file count AND row count, both inline).
-  const firstBadge = badges.first();
-  const firstCount = SAMPLE_FILE_COUNTS[SAMPLE_BADGE_ORDER[0]!]!;
-  const firstRowCount = SAMPLE_ROW_COUNTS[SAMPLE_BADGE_ORDER[0]!]!;
-  await expect(firstBadge).toHaveText(
-    `${SAMPLE_BADGE_ORDER[0]} — ${firstCount} file${firstCount === 1 ? '' : 's'}, ${firstRowCount} row${firstRowCount === 1 ? '' : 's'}`,
+  // Identity header — D-11/D-13: the raw root, on the account-ID line.
+  await expect(page.getByTestId('identity-header')).toHaveAttribute('data-variant', 'loaded');
+  await expect(page.getByTestId('identity-nickname')).toHaveText(SAMPLE_NICKNAME);
+  await expect(page.getByTestId('identity-account-id')).toHaveText(
+    formatAccountId(SAMPLE_ACCOUNT_ROOT),
   );
 
-  // D-12: heading tops, then summary tops, then first badge tops —
-  // strictly increasing (top-of-element bounding box).
-  const headingBox = await heading.boundingBox();
-  const summaryBox = await page.getByTestId('summary-line').boundingBox();
-  const firstBadgeBox = await firstBadge.boundingBox();
-  expect(headingBox).not.toBeNull();
-  expect(summaryBox).not.toBeNull();
-  expect(firstBadgeBox).not.toBeNull();
-  expect(headingBox!.y).toBeLessThan(summaryBox!.y);
-  expect(summaryBox!.y).toBeLessThan(firstBadgeBox!.y);
+  // The four supported sections, in D-02 order, each with the summary
+  // built by the SAME formatter the component uses.
+  for (const [index, section] of SUPPORTED_SECTIONS.entries()) {
+    const card = page.getByTestId(`dashboard-section-${section.id}`);
+    await expect(card).toHaveCount(1);
+    const fileCount = SAMPLE_FILE_COUNTS[section.folder]!;
+    const rowCount = SAMPLE_ROW_COUNTS[section.folder]!;
+    await expect(card.getByTestId('section-summary')).toHaveText(
+      formatImportSummary(fileCount, rowCount),
+    );
+    // DOM order is the D-02 contract, not the worker's grouping.
+    if (index > 0) {
+      const previousId = SUPPORTED_SECTIONS[index - 1]!.id;
+      const previousBox = await page.getByTestId(`dashboard-section-${previousId}`).boundingBox();
+      const box = await card.boundingBox();
+      expect(previousBox).not.toBeNull();
+      expect(box).not.toBeNull();
+      expect(previousBox!.y).toBeLessThan(box!.y);
+    }
+  }
 
-  // D-13 (02-04): the dropzone stays present in the 'done' state, idle
-  // (not busy, not processing) — so a subsequent drop reaches the
-  // replace-on-drop confirm path. A drop on the dropzone here (covered
-  // separately by persistent-dataset.spec.ts test (d)) would transition
-  // to 'confirm-pending' with pendingAction={kind:'replace', file}; the
-  // new 'confirm-pending' && replace branch in App.svelte keeps the
-  // ResultsView mounted so the user sees both their current dataset and
-  // the ConfirmPanel overlay until they confirm or cancel.
-  await expect(page.getByTestId('dropzone')).toHaveCount(1);
-  await expect(page.getByTestId('processing-status')).toHaveCount(0);
+  // Four unsupported banners in worker order (SAMPLE_BADGE_ORDER.slice(4)),
+  // with the status each carries and its counts line.
+  const banners = page.getByTestId('unsupported-banner');
+  await expect(banners).toHaveCount(UNSUPPORTED_BANNERS.length);
+  for (const [index, expected] of UNSUPPORTED_BANNERS.entries()) {
+    const banner = banners.nth(index);
+    await expect(banner).toHaveAttribute('data-status', expected.status);
+    await expect(banner.getByTestId('banner-folder')).toHaveText(expected.folder);
+  }
+  // The first banner's counts are computed from the fixtures, not typed.
+  const firstBannerFolder = UNSUPPORTED_BANNERS[0]!.folder;
+  await expect(banners.first().getByTestId('banner-counts')).toContainText(
+    formatImportSummary(
+      SAMPLE_FILE_COUNTS[firstBannerFolder]!,
+      SAMPLE_ROW_COUNTS[firstBannerFolder]!,
+    ),
+  );
+
+  // D-12: identity header, first section and first banner tops strictly
+  // increase (top-of-element bounding box).
+  const headerBox = await page.getByTestId('identity-header').boundingBox();
+  const firstSectionBox = await page
+    .getByTestId('dashboard-section-activity-history')
+    .boundingBox();
+  const firstBannerBox = await banners.first().boundingBox();
+  expect(headerBox).not.toBeNull();
+  expect(firstSectionBox).not.toBeNull();
+  expect(firstBannerBox).not.toBeNull();
+  expect(headerBox!.y).toBeLessThan(firstSectionBox!.y);
+  expect(firstSectionBox!.y).toBeLessThan(firstBannerBox!.y);
 });
 
 // -----------------------------------------------------------------------------
@@ -198,16 +234,22 @@ test('(b) a renamed root with a never-seen folder is detected without a fixed la
     { name: 'renamed.zip', mimeType: 'application/zip', bytes },
   ]);
 
-  await expect(page.getByTestId('account-heading')).toHaveText(`Account: ${RENAMED_ACCOUNT_ROOT}`);
-  await expect(page.getByTestId('summary-line')).toHaveText(formatSummary(RENAMED_EXPECTED_COUNTS));
+  await expectSlimBar(page);
+  await expect(page.getByTestId('identity-account-id')).toHaveText(
+    formatAccountId(RENAMED_ACCOUNT_ROOT),
+  );
 
-  // Find the unknown folder badge by its prefix text. It must carry
+  // The sample's four unsupported folders, plus the never-seen one.
+  await expect(page.getByTestId('unsupported-banner')).toHaveCount(5);
+
+  // Find the unknown folder banner by its folder name. It must carry
   // data-status="unknown" and end with "2 files, 2 rows".
-  const unknownBadge = page
-    .getByTestId('category-badge')
-    .filter({ hasText: new RegExp(`^${EXTRA_UNKNOWN_FOLDER} — 2 files, 2 rows$`) });
-  await expect(unknownBadge).toHaveCount(1);
-  await expect(unknownBadge).toHaveAttribute('data-status', 'unknown');
+  const unknownBanner = page.getByTestId('unsupported-banner').filter({
+    has: page.getByTestId('banner-folder').getByText(EXTRA_UNKNOWN_FOLDER, { exact: true }),
+  });
+  await expect(unknownBanner).toHaveCount(1);
+  await expect(unknownBanner).toHaveAttribute('data-status', 'unknown');
+  await expect(unknownBanner.getByTestId('banner-counts')).toContainText(formatImportSummary(2, 2));
 });
 
 // -----------------------------------------------------------------------------
@@ -221,21 +263,21 @@ test('(b) a renamed root with a never-seen folder is detected without a fixed la
 // -----------------------------------------------------------------------------
 
 // -----------------------------------------------------------------------------
-// (d) A drop while the results view is shown is ignored (D-13)
+// (d) A drop on `main` while a dataset is displayed is ignored (D-13)
 // -----------------------------------------------------------------------------
 
 test('(d) a file dropped on the results view is ignored', async ({ page }) => {
-  // First, import the sample to land on the results view.
+  // First, import the sample to land on the slim bar.
   await page.getByTestId('file-input').setInputFiles({
     name: 'sample-export.zip',
     mimeType: 'application/zip',
     buffer: Buffer.from(buildSampleExport()),
   });
-  const results = page.getByTestId('results');
-  await expect(results).toBeVisible({ timeout: 30_000 });
+  const bar = page.getByTestId('import-bar');
+  await expect(bar).toHaveAttribute('data-variant', 'slim', { timeout: 30_000 });
 
-  // Now drop a non-zip onto the document body (which sits inside the
-  // results view in the App.svelte render branch).
+  // Now drop a non-zip onto `main`, which is a container for the whole
+  // shell rather than a drop target of its own.
   await dropFiles(page, page.locator('main'), [
     { name: 'export.zip', mimeType: 'application/zip', bytes: Array.from(buildNotAZipBytes()) },
   ]);
@@ -243,8 +285,8 @@ test('(d) a file dropped on the results view is ignored', async ({ page }) => {
   // Give the (rejected) submission a chance to be processed.
   await page.waitForTimeout(800);
 
-  // Results are still visible; no failure banner; no processing-status.
-  await expect(results).toBeVisible();
+  // The slim bar is still there; no failure banner; no processing status.
+  await expect(bar).toHaveAttribute('data-variant', 'slim');
   await expect(page.getByTestId('failure-banner')).toHaveCount(0);
   await expect(page.getByTestId('processing-status')).toHaveCount(0);
 });
@@ -275,17 +317,23 @@ test('(e) every upload in a session reuses the one worker and makes zero network
   expect(baseline).toBeGreaterThan(0);
   expect(workerUrls).toHaveLength(1); // the eager spawn already happened
 
-  // Sequence: valid export -> start over -> wrong type -> truncated -> renamed.
-  // Each step either keeps results visible or shows the banner; both are fine.
+  // Sequence: valid export -> start over (WITH its confirmation) ->
+  // wrong type -> truncated -> renamed. Each step either keeps the slim
+  // bar or shows the banner; both are fine.
 
   // 1. Drop the sample onto the dropzone.
   await dropFiles(page, page.getByTestId('dropzone'), [
     { name: 'sample.zip', mimeType: 'application/zip', bytes: Array.from(buildSampleExport()) },
   ]);
-  await expect(page.getByTestId('results')).toBeVisible({ timeout: 30_000 });
+  await expectSlimBar(page);
 
-  // 2. Start over.
+  // 2. Start over. D-15/D-16: it confirms first. The old flow relied on
+  // Start over clearing directly, which no longer exists — and under the
+  // drop-during-confirm rule it would hang in `confirm-pending`.
   await page.getByTestId('start-over').click();
+  await expect(page.getByTestId('confirm-panel')).toBeVisible();
+  await page.getByTestId('confirm-commit').click();
+  await expect(page.getByTestId('import-bar')).toHaveAttribute('data-variant', 'full');
   await expect(page.getByTestId('dropzone')).toBeVisible();
 
   // 3. Wrong-extension file (pre-check rejects, no post to worker).
@@ -311,9 +359,10 @@ test('(e) every upload in a session reuses the one worker and makes zero network
     mimeType: 'application/zip',
     buffer: Buffer.from(buildRenamedRootExport()),
   });
-  await expect(page.getByTestId('account-heading')).toHaveText(`Account: ${RENAMED_ACCOUNT_ROOT}`, {
-    timeout: 30_000,
-  });
+  await expect(page.getByTestId('identity-account-id')).toHaveText(
+    formatAccountId(RENAMED_ACCOUNT_ROOT),
+    { timeout: 30_000 },
+  );
 
   // Settle, then assert: still ONE worker, no new requests.
   await page.waitForTimeout(500);
@@ -325,7 +374,7 @@ test('(e) every upload in a session reuses the one worker and makes zero network
 });
 
 // -----------------------------------------------------------------------------
-// (f) Responsiveness — no main-thread long task ≥ 250 ms at 20,000 entries
+// (f) Responsiveness — no main-thread long task ≥ 1000 ms at 20,000 entries
 // -----------------------------------------------------------------------------
 
 test('(f) the page stays responsive while a large export is unzipped', async ({ page }) => {
@@ -368,17 +417,21 @@ test('(f) the page stays responsive while a large export is unzipped', async ({ 
     buffer: Buffer.from(buildLargeExport()),
   });
 
-  // Processing paragraph appears; then the heading with 30 s budget
+  // Processing paragraph appears; then the dashboard with a 30 s budget
   // (20k-entry unzip is well under 30 s even on slow hardware).
   await expect(page.getByTestId('processing-status')).toBeVisible();
-  await expect(page.getByTestId('account-heading')).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByTestId('account-heading')).toHaveText(`Account: ${SAMPLE_ACCOUNT_ROOT}`);
+  await expectSlimBar(page);
+  await expect(page.getByTestId('identity-account-id')).toHaveText(
+    formatAccountId(SAMPLE_ACCOUNT_ROOT),
+  );
 
-  // The Activity_history badge reads "2500 files".
-  const activityBadge = page
-    .getByTestId('category-badge')
-    .filter({ hasText: /^Activity_history — / });
-  await expect(activityBadge).toContainText(` ${LARGE_EXPORT_FILES_PER_CATEGORY} files`);
+  // The Activity_history section summary reads "2500 files, ...".
+  const activitySummary = page
+    .getByTestId('dashboard-section-activity-history')
+    .getByTestId('section-summary');
+  await expect(activitySummary).toContainText(
+    formatImportSummary(LARGE_EXPORT_FILES_PER_CATEGORY, LARGE_EXPORT_FILES_PER_CATEGORY),
+  );
 
   // No recorded long task starting at or after the submission mark
   // lasted 1000 ms or more. The original plan called for 250 ms; we
@@ -408,19 +461,22 @@ test('(g) no value from inside the export files is rendered', async ({ page }) =
     mimeType: 'application/zip',
     buffer: Buffer.from(buildSampleExport()),
   });
-  await expect(page.getByTestId('results')).toBeVisible({ timeout: 30_000 });
+  await expectSlimBar(page);
 
   // The fixture's LOGIN field is synthetic.player@example.invalid and
   // the IP is 192.0.2.10. Neither should appear anywhere in the page
   // body — only the account root folder name, category folder names
-  // and file counts are allowed on screen in Phase 1.
+  // and counts are allowed on screen. The IP is still STORED (D-18);
+  // this asserts it is still never RENDERED. Deep leak coverage lives in
+  // identity-privacy.spec.ts.
   const body = await page.locator('body').innerText();
   expect(body).not.toContain('example.invalid');
   expect(body).not.toContain('192.0.2.10');
 
-  // Sanity: the heading DOES contain the raw root (D-11) — that's the
-  // one allowed place where a value from the export is on-screen.
-  expect(body).toContain(`Account: ${SAMPLE_ACCOUNT_ROOT}`);
+  // Sanity: the account-ID line DOES contain the raw root (D-11/D-13) —
+  // that's the one allowed place where a value from the export is
+  // on-screen.
+  expect(body).toContain(formatAccountId(SAMPLE_ACCOUNT_ROOT));
 });
 
 // -----------------------------------------------------------------------------
@@ -434,19 +490,28 @@ test('(h) start over + second import classifies a fresh result', async ({ page }
     mimeType: 'application/zip',
     buffer: Buffer.from(buildSampleExport()),
   });
-  await expect(page.getByTestId('account-heading')).toHaveText(`Account: ${SAMPLE_ACCOUNT_ROOT}`);
+  await expect(page.getByTestId('identity-account-id')).toHaveText(
+    formatAccountId(SAMPLE_ACCOUNT_ROOT),
+  );
 
-  // Start over and re-import with the renamed root.
+  // Start over — it confirms first (D-15, D-16) — and re-import with
+  // the renamed root.
   await page.getByTestId('start-over').click();
-  await expect(page.getByTestId('dropzone')).toBeVisible();
+  await expect(page.getByTestId('confirm-panel')).toBeVisible();
+  await page.getByTestId('confirm-commit').click();
+  await expect(page.getByTestId('import-bar')).toHaveAttribute('data-variant', 'full');
 
   await page.getByTestId('file-input').setInputFiles({
     name: 'renamed.zip',
     mimeType: 'application/zip',
     buffer: Buffer.from(buildRenamedRootExport()),
   });
-  await expect(page.getByTestId('account-heading')).toHaveText(`Account: ${RENAMED_ACCOUNT_ROOT}`, {
-    timeout: 30_000,
-  });
-  await expect(page.getByTestId('summary-line')).toHaveText(formatSummary(RENAMED_EXPECTED_COUNTS));
+  await expect(page.getByTestId('identity-account-id')).toHaveText(
+    formatAccountId(RENAMED_ACCOUNT_ROOT),
+    { timeout: 30_000 },
+  );
+  // The renamed export carries one extra unsupported folder, so five
+  // banners (the old assertion counted eight badges; four of those
+  // became sections and the other four stayed banners).
+  await expect(page.getByTestId('unsupported-banner')).toHaveCount(5);
 });

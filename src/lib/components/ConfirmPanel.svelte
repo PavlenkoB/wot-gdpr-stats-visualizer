@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
+
   interface Props {
     message: string;
     confirmLabel: string;
@@ -8,6 +10,17 @@
   }
 
   let { message, confirmLabel, cancelLabel, onconfirm, oncancel }: Props = $props();
+
+  let cancelButton: HTMLButtonElement | undefined = $state();
+
+  // Focus moves to the safe answer the moment the panel appears. The panel
+  // can be opened from three different places, two of which are inside the
+  // bar it is inserted into, so the caller's focus is not a reliable place
+  // to leave the user: a keyboard user who opened this has to be told, in
+  // the accessibility tree, that a dialog now owns the interaction. This is
+  // done in code rather than with the element's own mount-time focus
+  // attribute, which the svelte accessibility lint flags.
+  onMount(() => cancelButton?.focus());
 </script>
 
 <!--
@@ -32,8 +45,12 @@
 <div role="alertdialog" aria-modal="true" data-testid="confirm-panel" class="confirm-panel">
   <p class="confirm-message">{message}</p>
   <div class="confirm-actions">
-    <button type="button" class="confirm-cancel" data-testid="confirm-cancel" onclick={oncancel}
-      >{cancelLabel}</button
+    <button
+      type="button"
+      class="confirm-cancel"
+      data-testid="confirm-cancel"
+      bind:this={cancelButton}
+      onclick={oncancel}>{cancelLabel}</button
     >
     <button type="button" class="confirm-commit" data-testid="confirm-commit" onclick={onconfirm}
       >{confirmLabel}</button
@@ -53,7 +70,10 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
-    margin: 0 0 16px;
+    /* The panel is the LAST child of the import bar, so the 12px that used
+       to sit under it now sits above it, and the space below it comes from
+       the bar's own place in the page gap. */
+    margin: 12px 0 0;
     padding: 16px;
     border: 1px solid #f9ab00;
     border-radius: 6px;

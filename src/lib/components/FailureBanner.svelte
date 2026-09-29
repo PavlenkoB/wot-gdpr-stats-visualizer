@@ -15,7 +15,9 @@
 
 <style>
   .failure-banner {
-    margin: 0 0 16px;
+    /* 12px, not 16px: the banner now renders inside the import bar's
+       notice slot, whose children all carry the same 12px bottom margin. */
+    margin: 0 0 12px;
     padding: 12px 16px;
     border: 1px solid #c5221f;
     border-radius: 6px;

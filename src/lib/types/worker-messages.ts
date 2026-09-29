@@ -30,6 +30,45 @@ export interface ClassifyResult {
    * never sets it).
    */
   importedAt?: string;
+  /**
+   * The three-field account identity (D-20). Computed once at import by the
+   * worker, persisted on the dataset meta record and replayed on the
+   * `done` / `duplicate` / `cache-status` responses, so a return visit
+   * needs no row query.
+   *
+   * Two distinct absences, which the UI must not conflate (D-16):
+   *   - `null` — NO User_Info row was parsed at all (folder absent, or
+   *     present but holding zero data rows). The header falls back to the
+   *     account ID.
+   *   - an object whose fields are `null` — a row WAS parsed but that
+   *     column was missing or blank, so the field renders as "Unknown".
+   *
+   * Absent (undefined) on a pre-parse `ClassifyResult` (analyzeExport
+   * alone never computes it), same convention as `importedAt`.
+   */
+  identity?: AccountIdentity | null;
+}
+
+/**
+ * The three-field account identity computed once, in the worker, at import
+ * time (D-20).
+ *
+ * This object is the ONLY account-derived data allowed to cross to the main
+ * thread: the raw User_Info rows never leave the worker, and the email
+ * (LOGIN) plus birth data are dropped before anything is persisted (D-18),
+ * so no field here can be one of the stripped columns by construction.
+ *
+ * Each field is `string | null` rather than optional so a consumer can tell
+ * "the export has no value for this field" from "this build of the contract
+ * does not carry the field".
+ */
+export interface AccountIdentity {
+  /** `NAME` from the chosen Account_Info row (D-12). */
+  nickname: string | null;
+  /** Raw `REGION`, never mapped to a friendly name (D-13). */
+  region: string | null;
+  /** Raw `CREATED_AT`, shown date-only with no timezone conversion (D-15). */
+  createdAt: string | null;
 }
 
 export type IngestStage = 'hashing' | 'unzipping' | 'classifying' | 'parsing' | 'writing';

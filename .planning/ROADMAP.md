@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Ingest Foundation & Zero-Network Guard** - Toolchain, typed worker contract, unzip + 3-way category detection, generic failure state, standing zero-network CI check + CSP (completed 2026-09-28)
 - [x] **Phase 2: Defensive Parsing & Persistent Dataset** - Worker-less PapaParse, mojibake fix, Dexie schema, hash-dedup, replace-on-upload, "clear my cached data" (completed 2026-09-29)
-- [ ] **Phase 3: Dashboard Shell & Account Identity** - Runes app state, single-page layout, identity header, "detected but not yet supported" banners, empty/greyed sections
+- [x] **Phase 3: Dashboard Shell & Account Identity** - Runes app state, single-page layout, identity header, "detected but not yet supported" banners, empty/greyed sections (completed 2026-09-29)
 - [ ] **Phase 4: Activity Time Dashboards** - Totals, year-by-year calendar heatmap, day × hour heatmap, session-duration distribution at scale
 - [ ] **Phase 5: Vehicle Stats & Financial Dashboards** - Per-vehicle stats across 4 titles, premium-time and currency timelines, per-currency real-money spend
 - [ ] **Phase 6: Login-IP History & Offline Geolocation** - Geo build step, masked IP table, country-level world map, opt-in city-level lazy-load
@@ -107,7 +107,27 @@ Plans:
   3. A supported category missing from the export (e.g. no Financial_data) still shows its dashboard section, clearly empty or greyed out, rather than disappearing.
   4. The page reflects the processing, ready, duplicate, and error states driven by worker messages. A return visit with cached data opens straight to the dashboard without re-uploading.
 
-**Plans**: TBD
+**Plans:** 7/7 plans complete
+Plans:
+**Wave 1**
+
+- [x] 03-01-PLAN.md — Tracer + worker privacy core: strip LOGIN/BIRTH_DATE at write time, three-field identity in meta, Dexie v2 wipe of Phase 2 caches, Phase 3 fixtures
+- [x] 03-02-PLAN.md — Pure section/unsupported/nav status, scroll-spy rule and all new UI copy with unit tests
+- [x] 03-03-PLAN.md — IngestClient keeps the displayed dataset through replace and failure, widened replace guard, cache-check error recovery
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 03-04-PLAN.md — Identity header, shared section shell, Not yet supported banners, results view retired, leak spec
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 03-05-PLAN.md — Sticky anchor nav with scroll-spy, muted status-bearing links, 375px and long-text coverage
+- [x] 03-06-PLAN.md — Import bar with notice slot, compact dropzone, confirm-panel focus management, app-state matrix e2e
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [x] 03-07-PLAN.md — Rewrite Phase 1/2 e2e specs for the dashboard, retire summary/heading copy, update the run skill, full phase gate
+
 **UI hint**: yes
 
 ### Phase 4: Activity Time Dashboards
@@ -187,7 +207,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 |-------|----------------|--------|-----------|
 | 1. Ingest Foundation & Zero-Network Guard | 6/6 | Complete    | 2026-09-28 |
 | 2. Defensive Parsing & Persistent Dataset | 4/4 | Complete    | 2026-09-29 |
-| 3. Dashboard Shell & Account Identity | 0/TBD | Not started | - |
+| 3. Dashboard Shell & Account Identity | 7/7 | Complete    | 2026-09-29 |
 | 4. Activity Time Dashboards | 0/TBD | Not started | - |
 | 5. Vehicle Stats & Financial Dashboards | 0/TBD | Not started | - |
 | 6. Login-IP History & Offline Geolocation | 0/TBD | Not started | - |

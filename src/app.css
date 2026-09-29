@@ -9,28 +9,46 @@
   background: #fff;
   font-size: 16px;
   line-height: 1.5;
+
+  /* The single source of truth for the sticky nav's height budget: every
+     anchor target's `scroll-margin-top` and the scroll-spy observer's
+     root margin both read this one value, so changing the nav later needs
+     one edit here (UI-SPEC Spacing). Not a spacing-scale token — it is
+     derived from the nav's own height plus one md of breathing room. */
+  --nav-offset: 72px;
 }
 
 body {
   margin: 0;
 }
 
+/* Anchor jumps glide instead of jumping — but only when the reader has not
+   asked for less movement. Under `reduce` the `html` element keeps the UA
+   default of `auto`, so a link click lands on its section immediately.
+   Global rather than scoped: `scroll-behavior` has to apply to the
+   scrolling element itself, and a component style block could not set it
+   for the page (D-04, D-29). */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
 main {
   max-width: 720px;
   margin: 0 auto;
-  padding: 24px 20px;
+  padding: 24px;
 }
 
-h1 {
-  margin: 0 0 16px;
-  font-size: 28px;
-  font-weight: 600;
-}
-
+/* Both headings are the compact Heading role (18 / 600 / 1.3). The h1 is
+   demoted from Display so the account nickname in the identity header can
+   be the dashboard's visual title (D-12, UI-SPEC Typography). */
+h1,
 h2 {
-  margin: 16px 0 8px;
-  font-size: 20px;
+  margin: 0;
+  font-size: 18px;
   font-weight: 600;
+  line-height: 1.3;
 }
 
 p {

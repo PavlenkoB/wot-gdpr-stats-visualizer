@@ -13,7 +13,8 @@ import { CATEGORY_STATUS_ORDER } from './categories.ts';
 import { listEntryPaths } from './zip-paths.ts';
 import { digestFile } from './hash.ts';
 import { parseCsvFile } from './csv-parse.ts';
-import { checkCache, clearData, writeDataset, type DatasetRow } from './db.ts';
+import { extractIdentity, isUserInfoCategory, sanitizeUserInfoRow } from './identity.ts';
+import { checkCache, clearData, writeDataset, type DatasetMeta, type DatasetRow } from './db.ts';
 
 const scope = self as unknown as WorkerScopeLike;
 
@@ -81,14 +82,7 @@ async function handleCheckCache(jobId: number): Promise<void> {
     scope.postMessage({
       type: 'cache-status',
       jobId,
-      cached: existing
-        ? {
-            accountRoot: existing.accountRoot,
-            categories: existing.categories,
-            counts: recomputeStatusCounts(existing.categories),
-            importedAt: existing.importedAt,
-          }
-        : null,
+      cached: existing ? resultFromMeta(existing) : null,
     } satisfies IngestResponse);
   } catch (err) {
     const e = err instanceof Error ? err : new Error(String(err));
@@ -99,6 +93,28 @@ async function handleCheckCache(jobId: number): Promise<void> {
       detail: `${e.name}: ${e.message}`,
     } satisfies IngestResponse);
   }
+}
+
+/**
+ * Build a `ClassifyResult` from a stored meta record — the ONE place the
+ * two replay paths (`cache-status` on a return visit, `duplicate` on a
+ * hash-identical re-drop) are constructed (D-20).
+ *
+ * Both replays read the same meta record and must therefore produce the
+ * same object; when they were separate literals a field added to one and
+ * not the other would surface as a page that renders a nickname after a
+ * re-drop but not after a reload, which is exactly the kind of drift this
+ * helper exists to prevent. It also guarantees the identity is served
+ * straight off the meta record with no row query (D-20).
+ */
+function resultFromMeta(meta: DatasetMeta): ClassifyResult {
+  return {
+    accountRoot: meta.accountRoot,
+    categories: meta.categories,
+    counts: recomputeStatusCounts(meta.categories),
+    importedAt: meta.importedAt,
+    identity: meta.identity ?? null,
+  };
 }
 
 async function handleIngest(jobId: number, file: File): Promise<void> {
@@ -115,12 +131,7 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
       scope.postMessage({
         type: 'duplicate',
         jobId,
-        result: {
-          accountRoot: existing.accountRoot,
-          categories: existing.categories,
-          counts: recomputeStatusCounts(existing.categories),
-          importedAt: existing.importedAt,
-        },
+        result: resultFromMeta(existing),
       } satisfies IngestResponse);
       return;
     }
@@ -145,6 +156,13 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
 
     const allRows: DatasetRow[] = [];
     const updatedCategories: CategoryEntry[] = [];
+    // Sanitised User_Info rows kept aside for the identity pick, split by
+    // which file they came from: Account_Info.csv is the file that actually
+    // carries NAME/REGION/CREATED_AT, so its rows win when there are any
+    // (D-17's "prefer the account row" ordering). Both pools are already
+    // sanitised, so extractIdentity cannot see a stripped column.
+    const accountInfoRows: Record<string, string | undefined>[] = [];
+    const otherUserInfoRows: Record<string, string | undefined>[] = [];
     const categoryTotal = outcome.result.categories.length;
     for (let i = 0; i < categoryTotal; i++) {
       const entry = outcome.result.categories[i]!;
@@ -160,6 +178,11 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
         progress,
       } satisfies IngestResponse);
 
+      // Case-insensitive on purpose: a `user_info` folder classifies as the
+      // same supported category and would otherwise skip the strip
+      // entirely (D-18, identity.ts isUserInfoCategory).
+      const userInfo = isUserInfoCategory(entry.name);
+
       let rowCount = 0;
       let skippedRowCount = 0;
       for (const [rawName, fileBytes] of Object.entries(inflated)) {
@@ -168,12 +191,22 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
         const text = new TextDecoder('utf-8').decode(fileBytes);
         const parsed = parseCsvFile(text, entry.name, resolved.sourceFile);
         for (let r = 0; r < parsed.rows.length; r++) {
+          // THE single choke point every row passes through. Dropping the
+          // three sensitive User_Info columns here — rather than at the
+          // Dexie write — is what makes the guarantee airtight: a row that
+          // is never pushed cannot be persisted, and the raw parsed object
+          // stays inside this loop.
+          const data = userInfo ? sanitizeUserInfoRow(parsed.rows[r]!.data) : parsed.rows[r]!.data;
           allRows.push({
             category: entry.name,
             sourceFile: resolved.sourceFile,
             rowIndex: rowCount + r,
-            data: parsed.rows[r]!.data,
+            data,
           });
+          if (userInfo) {
+            const isAccountInfo = resolved.sourceFile.toLowerCase().endsWith('account_info.csv');
+            (isAccountInfo ? accountInfoRows : otherUserInfoRows).push(data);
+          }
         }
         rowCount += parsed.rows.length;
         skippedRowCount += parsed.skippedCount;
@@ -185,18 +218,27 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
       });
     }
 
+    // D-17/D-20: three fields, or null when no User_Info row parsed at all
+    // (the D-16 fallback trigger). Never logged (D-21).
+    const identity = extractIdentity(
+      accountInfoRows.length > 0 ? accountInfoRows : otherUserInfoRows,
+      outcome.result.accountRoot,
+    );
+
     scope.postMessage({ type: 'stage', jobId, stage: 'writing' } satisfies IngestResponse);
     const { importedAt } = await writeDataset(
       hash,
       outcome.result.accountRoot,
       updatedCategories,
       allRows,
+      identity,
     );
 
     const finalResult: ClassifyResult = {
       ...outcome.result,
       categories: updatedCategories,
       importedAt,
+      identity,
     };
     scope.postMessage({ type: 'done', jobId, result: finalResult } satisfies IngestResponse);
   } catch (err) {

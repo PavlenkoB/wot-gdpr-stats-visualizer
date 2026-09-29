@@ -4,9 +4,10 @@
 //   1. Launches headless Chromium against a running preview/dev server
 //      (default http://localhost:4173).
 //   2. Runs a representative demo flow that exercises every layer the
-//      app exposes in Phase 1: page load, worker ready handshake,
-//      dropzone, synthetic zip upload, worker classification, results
-//      view, Start over.
+//      app exposes: page load, worker ready handshake, dropzone,
+//      synthetic zip upload, worker classification, the dashboard
+//      (identity header, section cards, unsupported banners), Start
+//      over with its confirmation, and the failure path.
 //   3. Writes a screenshot at each milestone to /tmp/wot-viewer-shots/.
 //
 // Usage:
@@ -90,8 +91,10 @@ await page.getByTestId('file-input').setInputFiles({
   buffer: sampleZip,
 });
 
-// Catch the processing-status paragraph while it's still visible
-// (MIN_PROCESSING_MS = 400ms floor; often captured mid-spinner).
+// Catch the processing-status paragraph while it's still visible. Since
+// the dashboard shell (D-26) it lives inside the import bar's notice
+// slot rather than inside the dropzone. MIN_PROCESSING_MS = 400ms floor;
+// often captured mid-spinner.
 try {
   await page.getByTestId('processing-status').waitFor({ state: 'visible', timeout: 1000 });
   await page.screenshot({ path: logShot('02-processing'), fullPage: true });
@@ -100,17 +103,30 @@ try {
   console.log('  processing not captured (too fast on this machine)');
 }
 
-// Wait for the results view.
-await page.getByTestId('account-heading').waitFor({ state: 'visible', timeout: 30_000 });
-const heading = await page.getByTestId('account-heading').innerText();
-console.log(`  heading: "${heading}"`);
-await page.screenshot({ path: logShot('03-results'), fullPage: true });
+// Wait for the dashboard: the bar goes slim and the identity header
+// fills in once the worker has classified the export.
+await page.getByTestId('identity-nickname').waitFor({ state: 'visible', timeout: 30_000 });
+const nickname = await page.getByTestId('identity-nickname').innerText();
+const accountId = await page.getByTestId('identity-account-id').innerText();
+const sectionCount = await page.locator('[data-testid^="dashboard-section-"]').count();
+const bannerCount = await page.getByTestId('unsupported-banner').count();
+console.log(`  nickname: "${nickname}"`);
+console.log(`  account id: "${accountId}"`);
+console.log(`  sections: ${sectionCount}, unsupported banners: ${bannerCount}`);
+await page.screenshot({ path: logShot('03-dashboard'), fullPage: true });
 
-// Click Start over, screenshot the reset state.
+// Click Start over — it CONFIRMS first (D-15/D-16), so wait for the
+// confirm panel and commit before expecting the bar to go full again.
 await page.getByTestId('start-over').click();
+await page.getByTestId('confirm-panel').waitFor({ state: 'visible', timeout: 5_000 });
+await page.screenshot({ path: logShot('04-start-over-confirm'), fullPage: true });
+await page.getByTestId('confirm-commit').click();
+await page
+  .locator('[data-testid="import-bar"][data-variant="full"]')
+  .waitFor({ state: 'visible', timeout: 5_000 });
 await page.getByTestId('dropzone').waitFor({ state: 'visible', timeout: 5_000 });
-await page.screenshot({ path: logShot('04-start-over'), fullPage: true });
-console.log('  start-over clicked, dropzone re-armed');
+await page.screenshot({ path: logShot('05-start-over-cleared'), fullPage: true });
+console.log('  start-over confirmed, dropzone re-armed');
 
 // Demonstrate the failure path: drop a non-zip.
 console.log('Uploading a non-zip to exercise failure path ...');
@@ -120,7 +136,7 @@ await page.getByTestId('file-input').setInputFiles({
   buffer: Buffer.from('not a wargaming export'),
 });
 await page.getByTestId('failure-banner').waitFor({ state: 'visible', timeout: 5_000 });
-await page.screenshot({ path: logShot('05-failure-banner'), fullPage: true });
+await page.screenshot({ path: logShot('06-failure-banner'), fullPage: true });
 const banner = await page.getByTestId('failure-banner').innerText();
 console.log(`  banner: "${banner.slice(0, 80)}..."`);
 

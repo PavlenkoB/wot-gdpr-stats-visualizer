@@ -1172,3 +1172,345 @@ describe("'cleared' message — transitions out of 'confirm-pending' to 'idle' w
     expect(c.justCleared).toBe(false);
   });
 });
+
+// =============================================================================
+// 03-03 — the displayed dataset survives a replace and its failure (D-27)
+//
+// Why this block exists:
+//   `result` used to mean "the outcome of the job in flight", so three
+//   assignments nulled it the moment a replacement started or failed
+//   (confirmPending's replace branch, submitFiles, #fail). The worker's
+//   write is a single atomic Dexie transaction (RESEARCH Q2 probed it), so
+//   the OLD dataset was still sitting in IndexedDB while the UI showed an
+//   empty page — the "unresolved" row of the approved UI-SPEC state
+//   matrix. Re-typing `result` as "the last known cached dataset" makes
+//   the dashboard stay on screen across processing, duplicate and error
+//   (D-27: the current dashboard stays visible until a replace is
+//   confirmed AND finished).
+//
+//   Nothing re-reads the cache after a failure: the old rows and meta are
+//   intact by construction, and the client simply stopped throwing the
+//   displayed copy away.
+// =============================================================================
+
+/** The dataset a client holds once a first import has landed. */
+const DISPLAYED_RESULT = {
+  accountRoot: 'stale',
+  categories: [
+    { name: 'Activity_history', status: 'supported' as const, fileCount: 1, rowCount: 2 },
+  ],
+  counts: { supported: 1, 'known-deferred': 0, unknown: 0 },
+  importedAt: '2026-09-28T00:00:00.000Z',
+};
+
+/**
+ * Drive a client to 'done' with DISPLAYED_RESULT as its result. Job id
+ * convention in this file: the ready handshake bumps #jobId to 1, the
+ * first ingest is 2, and a confirmed replace is 3.
+ */
+function makeClientWithDisplayedDataset(): { c: IngestClient; f: FakeWorker } {
+  const f = new FakeWorker();
+  const c = new IngestClient(() => f, { minProcessingMs: 0 });
+  f.emit({ type: 'ready' });
+  c.submitFiles([makeFile('export.zip', 100)]);
+  f.emit({ type: 'done', jobId: 2, result: DISPLAYED_RESULT });
+  expect(c.state).toBe('done');
+  return { c, f };
+}
+
+describe('the displayed dataset survives a replace confirm and a failed replace (D-27)', () => {
+  test('confirming a replace moves to processing but KEEPS the displayed result', () => {
+    const { c, f } = makeClientWithDisplayedDataset();
+
+    c.submitFiles([makeFile('other.zip', 100)]);
+    expect(c.state).toBe('confirm-pending');
+
+    c.confirmPending();
+    // D-27: the dashboard stays visible for the whole replacement.
+    expect(c.state).toBe('processing');
+    expect(c.result).toEqual(DISPLAYED_RESULT);
+    // The stashed file is now on the wire as job 3.
+    expect(f.posts.filter((m) => m.type === 'ingest').map((m) => m.jobId)).toEqual([2, 3]);
+  });
+
+  test('a worker error mid-replace lands on error and STILL KEEPS the displayed result', () => {
+    const { c, f } = makeClientWithDisplayedDataset();
+
+    c.submitFiles([makeFile('other.zip', 100)]);
+    c.confirmPending();
+    f.emit({ type: 'error', jobId: 3, detail: 'Error: unzip blew up' });
+
+    // The old rows and meta are intact in IndexedDB (one atomic
+    // transaction), so the screen must match storage: the failure
+    // notice over the dataset that is still really there.
+    expect(c.state).toBe('error');
+    expect(c.errorMessage).toBe(GENERIC_FAILURE_MESSAGE);
+    expect(c.result).toEqual(DISPLAYED_RESULT);
+  });
+
+  test('a successful replace SWAPS the result for the new dataset', () => {
+    const { c, f } = makeClientWithDisplayedDataset();
+
+    c.submitFiles([makeFile('other.zip', 100)]);
+    c.confirmPending();
+
+    const fresh = {
+      accountRoot: 'fresh',
+      categories: [],
+      counts: { supported: 0, 'known-deferred': 0, unknown: 0 },
+    };
+    f.emit({ type: 'done', jobId: 3, result: fresh });
+
+    expect(c.state).toBe('done');
+    expect(c.result).toEqual(fresh);
+  });
+
+  test('a first import with no cache keeps result null while processing and after a worker error', () => {
+    const f = new FakeWorker();
+    const c = new IngestClient(() => f, { minProcessingMs: 0 });
+    f.emit({ type: 'ready' });
+
+    c.submitFiles([makeFile('export.zip', 100)]);
+    // Nothing cached to preserve, so nothing is invented.
+    expect(c.result).toBeNull();
+
+    f.emit({ type: 'error', jobId: 2, detail: 'Error: nope' });
+    expect(c.state).toBe('error');
+    expect(c.errorMessage).toBe(GENERIC_FAILURE_MESSAGE);
+    expect(c.result).toBeNull();
+  });
+});
+
+// =============================================================================
+// 03-03 — the replace guard covers every state that DISPLAYS a dataset
+//
+// Why this block exists:
+//   The replace guard was `if (this.state === 'done')`, but after 03-03's
+//   first task `result` — and therefore the dashboard — is also displayed
+//   in 'duplicate' and in 'error'. In those two states the old guard fell
+//   straight through to postMessage: a drop would overwrite the cached
+//   dataset with NO confirmation, contradicting Phase 2 D-13. Keying the
+//   guard on "a dataset is displayed" (result !== null) closes that hole
+//   for every state at once.
+//
+//   Three smaller gaps travel with it, all found while tracing:
+//     - a drop while a confirm is already open used to move the machine
+//       to 'processing' and leave a stale pendingAction behind;
+//     - the pre-check ran AFTER the guard, so a notes.txt dropped on a
+//       displayed dataset opened a replace prompt for an unusable file
+//       instead of showing the failure notice;
+//     - a worker error during the on-load cache check was swallowed by the
+//       `state !== 'processing'` guard, leaving the page on the spinner
+//       forever. D-19's v2 upgrade gives that first read a new way to
+//       fail, so this was no longer theoretical.
+// =============================================================================
+
+describe('the replace guard covers every state that displays a dataset (D-13, D-27)', () => {
+  test('a drop while state is "duplicate" with a displayed dataset goes to confirm-pending, posts nothing', () => {
+    const { c, f } = makeClientWithDisplayedDataset();
+
+    // Reach 'duplicate' the real way: a confirmed replace whose bytes
+    // hash to the dataset already cached.
+    c.submitFiles([makeFile('same.zip', 100)]);
+    c.confirmPending();
+    f.emit({ type: 'duplicate', jobId: 3, result: DISPLAYED_RESULT });
+    expect(c.state).toBe('duplicate');
+    const postsBefore = f.posts.length;
+
+    const dropped = makeFile('third.zip', 100);
+    const ok = c.submitFiles([dropped]);
+
+    expect(ok).toBe(false);
+    expect(f.posts).toHaveLength(postsBefore);
+    expect(c.state).toBe('confirm-pending');
+    expect(c.pendingAction).toEqual({ kind: 'replace', file: dropped });
+    expect(c.result).toEqual(DISPLAYED_RESULT);
+  });
+
+  test('a drop while state is "error" WITH a result goes to confirm-pending, posts nothing', () => {
+    const { c, f } = makeClientWithDisplayedDataset();
+
+    c.submitFiles([makeFile('other.zip', 100)]);
+    c.confirmPending();
+    f.emit({ type: 'error', jobId: 3, detail: 'Error: unzip blew up' });
+    expect(c.state).toBe('error');
+    expect(c.result).toEqual(DISPLAYED_RESULT);
+    const postsBefore = f.posts.length;
+
+    const dropped = makeFile('third.zip', 100);
+    const ok = c.submitFiles([dropped]);
+
+    expect(ok).toBe(false);
+    expect(f.posts).toHaveLength(postsBefore);
+    expect(c.state).toBe('confirm-pending');
+    expect(c.pendingAction).toEqual({ kind: 'replace', file: dropped });
+    // The dataset that prompted the failure is still the one on screen.
+    expect(c.result).toEqual(DISPLAYED_RESULT);
+  });
+
+  test('a drop while state is "error" with NO result still posts an ingest (nothing to protect)', () => {
+    const f = new FakeWorker();
+    const c = new IngestClient(() => f, { minProcessingMs: 0 });
+    f.emit({ type: 'ready' });
+
+    // A pre-check rejection: error state, and result is null.
+    c.submitFiles([makeFile('notes.txt', 10, 'text/plain')]);
+    expect(c.state).toBe('error');
+    expect(c.result).toBeNull();
+
+    const ok = c.submitFiles([makeFile('export.zip', 100)]);
+    expect(ok).toBe(true);
+    expect(f.posts.filter((m) => m.type === 'ingest')).toHaveLength(1);
+    expect(c.state).toBe('processing');
+  });
+
+  test('a drop while a confirm is already pending is ignored: no state change, no post, no stale action', () => {
+    const { c, f } = makeClientWithDisplayedDataset();
+
+    const first = makeFile('other.zip', 100);
+    c.submitFiles([first]);
+    expect(c.state).toBe('confirm-pending');
+    const postsBefore = f.posts.length;
+
+    // A second drop must not replace the stashed file, nor move the
+    // machine into 'processing' with a stale pendingAction left over.
+    const second = makeFile('third.zip', 100);
+    const ok = c.submitFiles([second]);
+
+    expect(ok).toBe(false);
+    expect(c.state).toBe('confirm-pending');
+    expect(c.pendingAction).toEqual({ kind: 'replace', file: first });
+    expect(f.posts).toHaveLength(postsBefore);
+    expect(consoleSpyContains('confirm pending, submission ignored')).toBe(true);
+  });
+
+  test('the pre-check runs BEFORE the replace guard: a notes.txt drop fails without opening a confirm', () => {
+    const { c, f } = makeClientWithDisplayedDataset();
+    const postsBefore = f.posts.length;
+
+    const ok = c.submitFiles([makeFile('notes.txt', 10, 'text/plain')]);
+
+    expect(ok).toBe(false);
+    expect(c.state).toBe('error');
+    expect(c.errorMessage).toBe(GENERIC_FAILURE_MESSAGE);
+    // No replace prompt for a file that could never be ingested...
+    expect(c.pendingAction).toBeNull();
+    expect(f.posts).toHaveLength(postsBefore);
+    // ...and the dashboard behind the notice is untouched (D-27).
+    expect(c.result).toEqual(DISPLAYED_RESULT);
+  });
+
+  test('the pre-check runs BEFORE the replace guard: a two-file drop fails without opening a confirm', () => {
+    const { c, f } = makeClientWithDisplayedDataset();
+    const postsBefore = f.posts.length;
+
+    const ok = c.submitFiles([makeFile('a.zip', 100), makeFile('b.zip', 100)]);
+
+    expect(ok).toBe(false);
+    expect(c.state).toBe('error');
+    expect(c.pendingAction).toBeNull();
+    expect(f.posts).toHaveLength(postsBefore);
+    expect(c.result).toEqual(DISPLAYED_RESULT);
+  });
+});
+
+describe('a worker error during the on-load cache check never leaves the spinner (D-19, D-28)', () => {
+  test('an error for the check-cache jobId lands on idle with the cause in the console and no banner', () => {
+    const f = new FakeWorker();
+    const c = new IngestClient(() => f, { minProcessingMs: 0 });
+    f.emit({ type: 'ready' });
+    expect(c.state).toBe('checking-cache');
+
+    f.emit({ type: 'error', jobId: 1, detail: 'Error: upgrade blocked' });
+
+    // Skeleton + full dropzone, NOT a permanent spinner and NOT the
+    // generic banner: that copy claims "This doesn't look like a
+    // Wargaming data export", which is nonsense for a storage failure.
+    expect(c.state).toBe('idle');
+    expect(c.result).toBeNull();
+    expect(c.errorMessage).toBeNull();
+    expect(c.stage).toBeNull();
+    expect(c.parsingProgress).toBeNull();
+    expect(consoleSpyContains('cache check failed: Error: upgrade blocked')).toBe(true);
+  });
+
+  test('a cache-check error carrying a stale jobId is ignored; the spinner state is left alone', () => {
+    const f = new FakeWorker();
+    const c = new IngestClient(() => f, { minProcessingMs: 0 });
+    f.emit({ type: 'ready' });
+
+    f.emit({ type: 'error', jobId: 99, detail: 'Error: someone else' });
+
+    expect(c.state).toBe('checking-cache');
+  });
+});
+
+describe('a worker error answering a confirmed clear does not strand the confirm panel', () => {
+  test('an error for the clear jobId lands on error with the dataset retained and the confirm closed', () => {
+    const { c, f } = makeClientWithDisplayedDataset();
+
+    c.requestClearData();
+    c.confirmPending();
+    expect(c.state).toBe('confirm-pending');
+    expect(f.posts.filter((m) => m.type === 'clear-data')).toHaveLength(1);
+
+    f.emit({ type: 'error', jobId: 3, detail: 'Error: clear refused' });
+
+    // The clear transaction is atomic, so the dataset really is still
+    // there: the screen must say so (D-27 / T-03-13).
+    expect(c.state).toBe('error');
+    expect(c.pendingAction).toBeNull();
+    expect(c.errorMessage).toBe(GENERIC_FAILURE_MESSAGE);
+    expect(c.result).toEqual(DISPLAYED_RESULT);
+  });
+});
+
+describe('cancelling a confirm that began from a notice returns to the dataset view (D-06)', () => {
+  test('cancelling a replace confirm opened from "duplicate" returns to done with the notice cleared', () => {
+    const { c, f } = makeClientWithDisplayedDataset();
+
+    c.submitFiles([makeFile('same.zip', 100)]);
+    c.confirmPending();
+    f.emit({ type: 'duplicate', jobId: 3, result: DISPLAYED_RESULT });
+    expect(c.state).toBe('duplicate');
+
+    c.submitFiles([makeFile('third.zip', 100)]);
+    c.cancelPending();
+
+    // 'duplicate' is a notice over a real dataset, not a view of its
+    // own — the next user action replaces notices (D-06), so going back
+    // to 'duplicate' would resurface a banner the user just dismissed.
+    expect(c.state).toBe('done');
+    expect(c.errorMessage).toBeNull();
+    expect(c.pendingAction).toBeNull();
+    expect(c.result).toEqual(DISPLAYED_RESULT);
+  });
+
+  test('cancelling a replace confirm opened from "error" with a result returns to done', () => {
+    const { c, f } = makeClientWithDisplayedDataset();
+
+    c.submitFiles([makeFile('other.zip', 100)]);
+    c.confirmPending();
+    f.emit({ type: 'error', jobId: 3, detail: 'Error: unzip blew up' });
+    expect(c.state).toBe('error');
+    expect(c.errorMessage).toBe(GENERIC_FAILURE_MESSAGE);
+
+    c.submitFiles([makeFile('third.zip', 100)]);
+    c.cancelPending();
+
+    expect(c.state).toBe('done');
+    expect(c.errorMessage).toBeNull();
+    expect(c.result).toEqual(DISPLAYED_RESULT);
+  });
+
+  test('cancelling a replace confirm opened from "done" still returns to done', () => {
+    const { c } = makeClientWithDisplayedDataset();
+
+    c.submitFiles([makeFile('other.zip', 100)]);
+    c.cancelPending();
+
+    expect(c.state).toBe('done');
+    expect(c.pendingAction).toBeNull();
+    expect(c.result).toEqual(DISPLAYED_RESULT);
+  });
+});

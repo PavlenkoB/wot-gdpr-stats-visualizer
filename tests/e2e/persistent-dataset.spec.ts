@@ -1,11 +1,10 @@
 import { expect, test } from '@playwright/test';
 import {
   RENAMED_ACCOUNT_ROOT,
-  RENAMED_EXPECTED_COUNTS,
   SAMPLE_ACCOUNT_ROOT,
   SAMPLE_BADGE_ORDER,
-  SAMPLE_EXPECTED_COUNTS,
   SAMPLE_FILE_COUNTS,
+  SAMPLE_NICKNAME,
   SAMPLE_ROW_COUNTS,
   SCALE_10X_ROWS_PER_FILE,
   buildMalformedRowsExport,
@@ -19,8 +18,9 @@ import {
   CONFIRM_CLEAR_MESSAGE,
   CONFIRM_REPLACE_MESSAGE,
   DELETE_CACHED_DATA_LABEL,
+  formatAccountId,
+  formatImportSummary,
   formatParsingProgress,
-  formatSummary,
   KEEP_CACHED_DATA_LABEL,
   KEEP_CURRENT_DATA_LABEL,
   REPLACE_DATASET_LABEL,
@@ -29,16 +29,18 @@ import {
 import { dropFiles } from './helpers.ts';
 
 // =============================================================================
-// 02-02 — DATA-01 close-the-loop (persistent dataset auto-load)
+// 02-02 — DATA-01 close-the-loop (persistent dataset auto-load), re-pointed
+// at the dashboard in 03-07.
 // =============================================================================
 //
 // What this file proves end to end:
 //   (a) After a successful import, reloading the browser shows the
-//       same results view without re-uploading, with unchanged row
-//       counts and an "Imported on ..." timestamp (D-07, D-10).
+//       same dashboard without re-uploading, with unchanged section
+//       counts, banner text and an "Imported on ..." timestamp
+//       (D-07, D-10, D-25).
 //   (b) A fresh browser with no cached dataset shows the brief
-//       "Checking for a saved export..." status, then settles on
-//       the empty dropzone (D-08).
+//       "Checking for a saved export..." status, then settles on the
+//       full-variant import bar and the skeleton header (D-08, D-24).
 //
 // Test (c) — the 10x-scale responsiveness assertion — lives in this
 // file too. It uses the same `PerformanceObserver` long-task pattern
@@ -50,24 +52,39 @@ import { dropFiles } from './helpers.ts';
 // =============================================================================
 
 /**
- * The expected badge text for a given badge index, computed from the
- * SAME fixtures and formatters the app uses (mirroring the lockstep
- * pattern in `import-flow.spec.ts` test (a)). Kept local so this file
- * is self-contained — if `SAMPLE_FILE_COUNTS` / `SAMPLE_ROW_COUNTS`
- * change, this helper rebuilds the expected string from the same
- * source of truth, keeping test and app in sync.
+ * The expected `section-summary` text for one supported category,
+ * computed from the SAME fixtures and formatter the app uses (mirroring
+ * the lockstep pattern in `import-flow.spec.ts` test (a)). Kept local so
+ * this file is self-contained — if `SAMPLE_FILE_COUNTS` /
+ * `SAMPLE_ROW_COUNTS` change, this helper rebuilds the expected string
+ * from the same source of truth, keeping test and app in sync.
  */
-function expectedBadgeText(index: number): string {
-  const name = SAMPLE_BADGE_ORDER[index]!;
-  const fileCount = SAMPLE_FILE_COUNTS[name]!;
-  const rowCount = SAMPLE_ROW_COUNTS[name]!;
-  return `${name} — ${fileCount} file${fileCount === 1 ? '' : 's'}, ${rowCount} row${rowCount === 1 ? '' : 's'}`;
+function expectedSectionSummary(folder: string): string {
+  return formatImportSummary(SAMPLE_FILE_COUNTS[folder]!, SAMPLE_ROW_COUNTS[folder]!);
+}
+
+/** The four supported sections in D-02 order. */
+const SUPPORTED_SECTIONS = [
+  { id: 'activity-history', folder: 'Activity_history' },
+  { id: 'player-statistics', folder: 'Player_statistics' },
+  { id: 'payment-history', folder: 'Payment_history' },
+  { id: 'user-info', folder: 'User_Info' },
+] as const;
+
+/** The four unsupported folders, in the worker's order. */
+const UNSUPPORTED_FOLDERS = SAMPLE_BADGE_ORDER.slice(4) as readonly string[];
+
+/** Wait for the dataset to be displayed: the bar is slim (D-25). */
+async function expectSlimBar(page: import('@playwright/test').Page): Promise<void> {
+  await expect(page.getByTestId('import-bar')).toHaveAttribute('data-variant', 'slim', {
+    timeout: 30_000,
+  });
 }
 
 test.describe('persistent-dataset auto-load', () => {
   // -----------------------------------------------------------------------------
-  // (a) A return visit with a cached dataset opens straight to the results view,
-  //     with unchanged row counts and an import timestamp, without re-uploading
+  // (a) A return visit with a cached dataset opens straight to the dashboard,
+  //     with unchanged counts and an import timestamp, without re-uploading
   // -----------------------------------------------------------------------------
 
   test('(a) a return visit with a cached dataset opens straight to the results view, with unchanged row counts and an import timestamp, without re-uploading', async ({
@@ -86,20 +103,27 @@ test.describe('persistent-dataset auto-load', () => {
         bytes: Array.from(buildSampleExport()),
       },
     ]);
-    await expect(page.getByTestId('results')).toBeVisible({ timeout: 30_000 });
+    await expectSlimBar(page);
 
-    // Snapshot the badges' text BEFORE reload — these are the values
-    // the auto-loaded view must show again unchanged. We capture the
-    // trimmed text content of each badge, then compare with
-    // `toContainText` (whitespace-normalized) rather than strict
+    // Snapshot the section summaries and banner texts BEFORE reload —
+    // these are the values the auto-loaded dashboard must show again
+    // unchanged. We capture the rendered text of each, then compare
+    // with `toContainText` (whitespace-normalized) rather than strict
     // equality, because `innerText()` returns rendered text with
-    // line breaks between the badge's child spans under flex layout.
-    const badgesBefore = page.getByTestId('category-badge');
-    await expect(badgesBefore).toHaveCount(8);
-    // Sanity: the first badge carries the documented file + row counts
-    // (D-05), proving the worker has populated the row counts from a
-    // real parse — not just the file counts from classify.
-    await expect(badgesBefore.first()).toContainText(expectedBadgeText(0));
+    // line breaks between a card's child spans under flex layout.
+    for (const section of SUPPORTED_SECTIONS) {
+      // Sanity: the section carries the documented file + row counts
+      // (D-05), proving the worker populated the row counts from a
+      // real parse — not just the file counts from classify.
+      await expect(
+        page.getByTestId(`dashboard-section-${section.id}`).getByTestId('section-summary'),
+      ).toHaveText(expectedSectionSummary(section.folder));
+    }
+    const banners = page.getByTestId('unsupported-banner');
+    await expect(banners).toHaveCount(UNSUPPORTED_FOLDERS.length);
+    const bannerTextsBefore = await banners.allInnerTexts();
+    const sectionTextsBefore = await page.getByTestId('section-summary').allInnerTexts();
+    expect(sectionTextsBefore).toHaveLength(SUPPORTED_SECTIONS.length);
 
     // Capture the worker's reported importedAt for the timestamp check
     // (formatImportedOn uses the same value).
@@ -111,49 +135,57 @@ test.describe('persistent-dataset auto-load', () => {
 
     // Step 2: reload the page. The dataset survives the reload via
     // IndexedDB (DATA-01). The app should auto-load straight to the
-    // results view (D-07), WITHOUT a new file being set on the input.
+    // dashboard (D-07), WITHOUT a new file being set on the input.
     await page.reload();
     await expect(page.locator('main')).toHaveAttribute('data-worker-ready', 'true', {
       timeout: 10_000,
     });
 
-    // The cache-check status briefly appears, then the results view
-    // auto-loads. Wait for the results view — that proves the auto-
-    // load resolved correctly. (D-07 success criterion: no upload.)
-    await expect(page.getByTestId('results')).toBeVisible({ timeout: 30_000 });
+    // The cache-check status briefly appears, then the dashboard
+    // auto-loads. Waiting for the slim bar proves the auto-load
+    // resolved correctly. (D-07 success criterion: no upload.)
+    await expectSlimBar(page);
 
-    // The same row/skip counts as before reload — auto-load carries
-    // the same `categories` array the original import produced.
-    const badgesAfter = page.getByTestId('category-badge');
-    await expect(badgesAfter).toHaveCount(8);
-    // Verify each badge contains the expected substring (whitespace-
-    // normalized via `toContainText`). Strict text equality breaks
-    // under flex layout because `innerText()` adds line breaks
-    // between child spans; `toContainText` normalizes both sides.
-    for (let i = 0; i < 8; i++) {
-      await expect(badgesAfter.nth(i)).toContainText(expectedBadgeText(i));
+    // The same counts as before reload — auto-load carries the same
+    // `categories` array the original import produced.
+    const sectionTextsAfter = await page.getByTestId('section-summary').allInnerTexts();
+    expect(sectionTextsAfter).toEqual(sectionTextsBefore);
+    for (const section of SUPPORTED_SECTIONS) {
+      await expect(
+        page.getByTestId(`dashboard-section-${section.id}`).getByTestId('section-summary'),
+      ).toHaveText(expectedSectionSummary(section.folder));
     }
+
+    // The banners come back in the same order with the same text.
+    const bannersAfter = page.getByTestId('unsupported-banner');
+    await expect(bannersAfter).toHaveCount(UNSUPPORTED_FOLDERS.length);
+    expect(await bannersAfter.allInnerTexts()).toEqual(bannerTextsBefore);
 
     // The "Imported on ..." timestamp text is now derived from the
     // CACHED importedAt — verify the format directly. The date will
     // have changed by microseconds (the cached record carries the
-    // original parse timestamp), so we assert on the format prefix
-    // rather than the literal text equality.
+    // original parse timestamp), so we assert the literal text is
+    // carried over unchanged from before the reload.
     const importedAtAfter = page.getByTestId('imported-at');
     await expect(importedAtAfter).toBeVisible();
     await expect(importedAtAfter).toHaveText(importedAt);
 
-    // Summary line + account heading also auto-load correctly (D-11).
-    await expect(page.getByTestId('summary-line')).toHaveText(
-      formatSummary(SAMPLE_EXPECTED_COUNTS),
+    // Identity header + account-ID line also auto-load correctly
+    // (D-11, D-13).
+    await expect(page.getByTestId('identity-header')).toHaveAttribute('data-variant', 'loaded');
+    await expect(page.getByTestId('identity-nickname')).toHaveText(SAMPLE_NICKNAME);
+    await expect(page.getByTestId('identity-account-id')).toHaveText(
+      formatAccountId(SAMPLE_ACCOUNT_ROOT),
     );
-    await expect(page.getByTestId('account-heading')).toHaveText(`Account: ${SAMPLE_ACCOUNT_ROOT}`);
 
-    // Auto-load, not re-import: the dropzone (and its file input)
-    // are not rendered at all once results are shown — the UI has
-    // already committed to the cached dataset. (A redundant
-    // inputValue check would be a no-op assertion since the
-    // element doesn't exist; the absent dropzone is the proof.)
+    // Auto-load, not re-import: no file is set on the co-rendered
+    // dropzone's input. The dropzone IS rendered in the slim bar
+    // (D-24/D-25 — that co-render is what makes replace-on-drop
+    // reachable), so the proof is the empty FileList rather than an
+    // absent element. (`inputValue()` throws on a file input; the
+    // JS property is the supported way to read it.)
+    await expect(page.getByTestId('dropzone')).toHaveCount(1);
+    await expect(page.getByTestId('file-input')).toHaveJSProperty('files.length', 0);
 
     // The PLATFORM-02 zero-network guard in zero-network.spec.ts is
     // the load-bearing assertion that no extra script fetches
@@ -164,7 +196,8 @@ test.describe('persistent-dataset auto-load', () => {
 
   // -----------------------------------------------------------------------------
   // (b) A fresh browser with no cached dataset shows the cache-check status, then
-  //     settles on the empty dropzone (no flash of the wrong state)
+  //     settles on the full-variant bar and the skeleton header (no flash of
+  //     the wrong state)
   // -----------------------------------------------------------------------------
 
   test('(b) a fresh visit with no cached dataset shows the checking-cache status then settles on the empty dropzone', async ({
@@ -178,21 +211,25 @@ test.describe('persistent-dataset auto-load', () => {
     // The cache-check status paragraph appears briefly (D-08). It may
     // already have settled by the time the locator resolves (the
     // IndexedDB read is fast), so we use a soft expectation — the
-    // test still proves the settled state below is the empty dropzone.
+    // test still proves the settled state below is the skeleton.
     const cacheCheckStatus = page.getByTestId('cache-check-status');
     await expect(cacheCheckStatus)
       .toBeVisible({ timeout: 500 })
       .catch(() => {
         // The status may have resolved already on a fast CI runner.
         // That's fine — the rest of the test still verifies the
-        // final settled state is the empty dropzone.
+        // final settled state is the skeleton.
       });
 
-    // Settled state: the cache-check status is GONE and the empty
-    // dropzone is shown — no results view, no failure banner, no
-    // file set on the input.
+    // Settled state: the cache-check status is GONE and the bar is
+    // the FULL variant with the skeleton header — no dataset, no
+    // failure banner, no file set on the input.
     await expect(cacheCheckStatus).toHaveCount(0, { timeout: 10_000 });
-    await expect(page.getByTestId('results')).toHaveCount(0);
+    await expect(page.getByTestId('import-bar')).toHaveAttribute('data-variant', 'full');
+    await expect(page.getByTestId('identity-header')).toHaveAttribute('data-variant', 'skeleton');
+    await expect(page.getByTestId('identity-nickname')).toHaveCount(0);
+    await expect(page.getByTestId('identity-account-id')).toHaveCount(0);
+    await expect(page.getByTestId('persistent-bar')).toHaveCount(0);
     await expect(page.getByTestId('failure-banner')).toHaveCount(0);
     await expect(page.getByTestId('dropzone')).toBeVisible();
     await expect(page.getByTestId('file-input')).toBeEnabled();
@@ -200,7 +237,7 @@ test.describe('persistent-dataset auto-load', () => {
 
   // -----------------------------------------------------------------------------
   // (a-skip) D-04 / D-09: an import with one malformed row in Bans.csv surfaces
-  //     the skip-count tag on that category's badge, and only on that badge.
+  //     the skip-count tag on that category's banner, and only there.
   //     The skip-count survives a reload (D-09) because it is persisted in
   //     DatasetMeta.categories, not just on the in-memory ClassifyResult.
   // -----------------------------------------------------------------------------
@@ -220,20 +257,28 @@ test.describe('persistent-dataset auto-load', () => {
         bytes: Array.from(buildMalformedRowsExport()),
       },
     ]);
-    await expect(page.getByTestId('results')).toBeVisible({ timeout: 30_000 });
+    await expectSlimBar(page);
 
-    // D-04: the Bans badge (only category with skips in this fixture)
-    // carries a "1 row skipped" tag. We locate the badge by its data
-    // status + name prefix to be robust to worker badge ordering.
-    const bansBadge = page.getByTestId('category-badge').filter({ hasText: /^Bans\b/ });
-    await expect(bansBadge).toHaveCount(1);
-    await expect(bansBadge).toContainText('1 row skipped');
+    // D-04: the Bans banner (the only category with skips in this
+    // fixture) carries a "1 row skipped" tag. We locate the banner by
+    // its folder name to be robust to worker ordering.
+    const bansBanner = page
+      .getByTestId('unsupported-banner')
+      .filter({ has: page.getByTestId('banner-folder').getByText('Bans', { exact: true }) });
+    await expect(bansBanner).toHaveCount(1);
+    await expect(bansBanner.getByTestId('skip-tag')).toHaveText('1 row skipped');
 
     // D-09 / D-04 prohibition: a category with NO skips must NOT show
-    // the skip-count tag. Every other badge in the malformed fixture
-    // has skippedRowCount === 0 — verify none of them carry the tag.
-    const skippedTags = page.getByTestId('badge-skipped-count');
+    // the skip-count tag. Every other card in the malformed fixture has
+    // skippedRowCount === 0 — verify the whole page carries exactly one
+    // tag, and that no supported section carries one.
+    const skippedTags = page.getByTestId('skip-tag');
     await expect(skippedTags).toHaveCount(1); // exactly one skip tag, on Bans
+    for (const section of SUPPORTED_SECTIONS) {
+      await expect(
+        page.getByTestId(`dashboard-section-${section.id}`).getByTestId('skip-tag'),
+      ).toHaveCount(0);
+    }
 
     // The skip count survives a reload because it is persisted in
     // DatasetMeta.categories (D-09). Reload and verify again.
@@ -241,11 +286,15 @@ test.describe('persistent-dataset auto-load', () => {
     await expect(page.locator('main')).toHaveAttribute('data-worker-ready', 'true', {
       timeout: 10_000,
     });
-    await expect(page.getByTestId('results')).toBeVisible({ timeout: 30_000 });
+    await expectSlimBar(page);
 
-    const bansBadgeAfterReload = page.getByTestId('category-badge').filter({ hasText: /^Bans\b/ });
-    await expect(bansBadgeAfterReload).toContainText('1 row skipped');
-    await expect(page.getByTestId('badge-skipped-count')).toHaveCount(1);
+    await expect(
+      page
+        .getByTestId('unsupported-banner')
+        .filter({ has: page.getByTestId('banner-folder').getByText('Bans', { exact: true }) })
+        .getByTestId('skip-tag'),
+    ).toHaveText('1 row skipped');
+    await expect(page.getByTestId('skip-tag')).toHaveCount(1);
   });
 
   // -----------------------------------------------------------------------------
@@ -307,7 +356,10 @@ test.describe('persistent-dataset auto-load', () => {
     const observer = setInterval(async () => {
       try {
         const text = await page.evaluate(() => {
-          const el = document.querySelector<HTMLElement>('[data-testid="processing-status"]');
+          // D-26: the processing status now lives inside the import
+          // bar's notice slot, not inside the dropzone.
+          const slot = document.querySelector<HTMLElement>('[data-testid="notice-slot"]');
+          const el = slot?.querySelector<HTMLElement>('[data-testid="processing-status"]');
           return el?.textContent?.trim() ?? null;
         });
         if (text && /^Parsing \S+ \(\d+\/\d+\)\.\.\.$/.test(text)) {
@@ -330,8 +382,12 @@ test.describe('persistent-dataset auto-load', () => {
     // not the gating assertion (the gating assertion is the
     // long-task threshold below).
     await expect(page.getByTestId('processing-status')).toBeVisible();
-    await expect(page.getByTestId('account-heading')).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByTestId('account-heading')).toHaveText(`Account: ${SAMPLE_ACCOUNT_ROOT}`);
+    await expect(page.getByTestId('import-bar')).toHaveAttribute('data-variant', 'slim', {
+      timeout: 60_000,
+    });
+    await expect(page.getByTestId('identity-account-id')).toHaveText(
+      formatAccountId(SAMPLE_ACCOUNT_ROOT),
+    );
     clearInterval(observer);
 
     // D-11 progress: at least 2 distinct per-category progress texts
@@ -350,14 +406,14 @@ test.describe('persistent-dataset auto-load', () => {
       formatParsingProgress({ category: 'Activity_history', categoryIndex: 1, categoryTotal: 8 }),
     ).toMatch(/^Parsing \S+ \(\d+\/\d+\)\.\.\.$/);
 
-    // The Activity_history badge carries the inflated row count —
+    // The Activity_history section carries the inflated row count —
     // Activity_history has 2 templates (Sessions + Logins) in the
     // sample layout, so 2 × 5 files × 1000 rows/file = 10,000 rows.
-    const activityBadge = page
-      .getByTestId('category-badge')
-      .filter({ hasText: /^Activity_history\b/ });
+    const activitySummary = page
+      .getByTestId('dashboard-section-activity-history')
+      .getByTestId('section-summary');
     const expectedActivityRows = SCALE_10X_ROWS_PER_FILE * 2 * 5; // 2 templates × 5 files
-    await expect(activityBadge).toContainText(`${expectedActivityRows.toLocaleString()} rows`);
+    await expect(activitySummary).toContainText(`${expectedActivityRows.toLocaleString()} rows`);
 
     // No main-thread long task ≥ 1000 ms starting at or after the
     // submission mark. Same threshold `import-flow.spec.ts` test (f)
@@ -378,7 +434,8 @@ test.describe('persistent-dataset auto-load', () => {
 });
 
 // =============================================================================
-// 02-03 — destructive controls (D-13/D-15/D-16/D-17/D-18/D-19/D-20/D-22)
+// 02-03 — destructive controls (D-13/D-15/D-16/D-17/D-18/D-19/D-20/D-22),
+// re-pointed at the slim import bar in 03-07.
 //
 // Why this block is its own world:
 //   02-02's persistent-dataset block proves the auto-load round
@@ -418,9 +475,10 @@ test.describe('persistent-dataset destructive controls', () => {
       mimeType: 'application/zip',
       buffer: Buffer.from(buildSampleExport()),
     });
-    await expect(page.getByTestId('results')).toBeVisible({ timeout: 30_000 });
-    const headingBefore = await page.getByTestId('account-heading').textContent();
-    expect(headingBefore).toBe(`Account: ${SAMPLE_ACCOUNT_ROOT}`);
+    await expectSlimBar(page);
+    await expect(page.getByTestId('identity-account-id')).toHaveText(
+      formatAccountId(SAMPLE_ACCOUNT_ROOT),
+    );
 
     // Step 2: drop a DIFFERENT (hash-mismatched) zip. The ConfirmPanel
     // must appear with D-13 copy and the cached dataset must still be
@@ -443,18 +501,22 @@ test.describe('persistent-dataset destructive controls', () => {
     // The cached dataset is still visible behind the panel — D-13
     // explicitly requires "the old dataset remains visible and
     // unchanged until the user confirms".
-    await expect(page.getByTestId('account-heading')).toHaveText(`Account: ${SAMPLE_ACCOUNT_ROOT}`);
+    await expect(page.getByTestId('identity-account-id')).toHaveText(
+      formatAccountId(SAMPLE_ACCOUNT_ROOT),
+    );
 
     // Step 3: cancel — the cached dataset is untouched, the panel
-    // dismisses, the empty/results view is restored.
+    // dismisses, the dashboard is restored.
     await page.getByTestId('confirm-cancel').click();
     await expect(confirmPanel).toHaveCount(0);
-    await expect(page.getByTestId('account-heading')).toHaveText(`Account: ${SAMPLE_ACCOUNT_ROOT}`);
-    await expect(page.getByTestId('results')).toBeVisible();
+    await expect(page.getByTestId('identity-account-id')).toHaveText(
+      formatAccountId(SAMPLE_ACCOUNT_ROOT),
+    );
+    await expect(page.getByTestId('import-bar')).toHaveAttribute('data-variant', 'slim');
 
     // Step 4: re-trigger confirm, then confirm. The worker writes
-    // the new dataset, the heading flips to the renamed account
-    // root, and the prior dataset is gone.
+    // the new dataset, the account-ID line flips to the renamed root,
+    // and the prior dataset is gone.
     await dropFiles(page, page.getByTestId('dropzone'), [
       {
         name: 'renamed.zip',
@@ -464,21 +526,21 @@ test.describe('persistent-dataset destructive controls', () => {
     ]);
     await expect(confirmPanel).toBeVisible();
     await page.getByTestId('confirm-commit').click();
-    await expect(page.getByTestId('account-heading')).toHaveText(
-      `Account: ${RENAMED_ACCOUNT_ROOT}`,
+    await expect(page.getByTestId('identity-account-id')).toHaveText(
+      formatAccountId(RENAMED_ACCOUNT_ROOT),
       {
         timeout: 30_000,
       },
     );
-    await expect(page.getByTestId('summary-line')).toHaveText(
-      formatSummary(RENAMED_EXPECTED_COUNTS),
-    );
+    // The renamed export adds one never-seen folder on top of the
+    // sample's four, so the banner count goes 4 -> 5.
+    await expect(page.getByTestId('unsupported-banner')).toHaveCount(5);
   });
 
   // -----------------------------------------------------------------------------
   // (e) D-15/D-16: Start Over now requires confirmation and, once confirmed,
   //     wipes IndexedDB — the empty dropzone + acknowledgment banner appears,
-  //     not the prior results.
+  //     not the prior dataset.
   // -----------------------------------------------------------------------------
 
   test('(e) start over now requires confirmation and actually clears IndexedDB', async ({
@@ -495,7 +557,7 @@ test.describe('persistent-dataset destructive controls', () => {
       mimeType: 'application/zip',
       buffer: Buffer.from(buildSampleExport()),
     });
-    await expect(page.getByTestId('results')).toBeVisible({ timeout: 30_000 });
+    await expectSlimBar(page);
 
     // Click Start Over — the ConfirmPanel appears with the D-21
     // copy (NOT the D-13 copy).
@@ -509,34 +571,38 @@ test.describe('persistent-dataset destructive controls', () => {
     // Cancel — the cached dataset is untouched (must_haves prohibition).
     await page.getByTestId('confirm-cancel').click();
     await expect(confirmPanel).toHaveCount(0);
-    await expect(page.getByTestId('results')).toBeVisible();
+    await expect(page.getByTestId('import-bar')).toHaveAttribute('data-variant', 'slim');
 
-    // Confirm — the worker wipes IndexedDB. The empty dropzone +
-    // one-shot D-20 acknowledgment appears.
+    // Confirm — the worker wipes IndexedDB. The full-variant bar with
+    // the skeleton header and a one-shot D-20 acknowledgment appears.
     await page.getByTestId('start-over').click();
     await expect(confirmPanel).toBeVisible();
     await page.getByTestId('confirm-commit').click();
     await expect(page.getByTestId('cleared-ack')).toHaveText(CLEARED_ACK_MESSAGE);
-    await expect(page.getByTestId('results')).toHaveCount(0);
+    await expect(page.getByTestId('import-bar')).toHaveAttribute('data-variant', 'full');
+    await expect(page.getByTestId('identity-header')).toHaveAttribute('data-variant', 'skeleton');
     await expect(page.getByTestId('dropzone')).toBeVisible();
     await expect(page.getByTestId('file-input')).toBeEnabled();
-    // The persistent bar is hidden (D-19: nothing cached).
+    // The persistent bar is absent (D-19: nothing cached). It renders
+    // only in the slim variant, so a full bar proves it on its own —
+    // the explicit count keeps the intent readable.
     await expect(page.getByTestId('persistent-bar')).toHaveCount(0);
 
     // Reload — the IndexedDB cache is empty, so the post-init state
-    // is the empty dropzone with no results view (proves the wipe
+    // is the full bar with the skeleton header (proves the wipe
     // was persistent, not just a view reset).
     await page.reload();
     await expect(page.locator('main')).toHaveAttribute('data-worker-ready', 'true', {
       timeout: 10_000,
     });
+    await expect(page.getByTestId('import-bar')).toHaveAttribute('data-variant', 'full');
     await expect(page.getByTestId('dropzone')).toBeVisible();
-    await expect(page.getByTestId('results')).toHaveCount(0);
+    await expect(page.getByTestId('identity-nickname')).toHaveCount(0);
     await expect(page.getByTestId('persistent-bar')).toHaveCount(0);
   });
 
   // -----------------------------------------------------------------------------
-  // (f) D-17/D-18/D-19: the dedicated "Clear my cached data" control is hidden
+  // (f) D-17/D-18/D-19: the dedicated "Clear my cached data" control is absent
   //     when there is no dataset and clears everything when confirmed.
   // -----------------------------------------------------------------------------
 
@@ -559,7 +625,7 @@ test.describe('persistent-dataset destructive controls', () => {
       mimeType: 'application/zip',
       buffer: Buffer.from(buildSampleExport()),
     });
-    await expect(page.getByTestId('results')).toBeVisible({ timeout: 30_000 });
+    await expectSlimBar(page);
     await expect(page.getByTestId('persistent-bar')).toBeVisible();
     const clearControl = page.getByTestId('clear-data-control');
     await expect(clearControl).toBeVisible();
@@ -578,7 +644,7 @@ test.describe('persistent-dataset destructive controls', () => {
     await page.getByTestId('confirm-commit').click();
     await expect(page.getByTestId('cleared-ack')).toHaveText(CLEARED_ACK_MESSAGE);
     await expect(page.getByTestId('dropzone')).toBeVisible();
-    await expect(page.getByTestId('results')).toHaveCount(0);
+    await expect(page.getByTestId('import-bar')).toHaveAttribute('data-variant', 'full');
     await expect(page.getByTestId('persistent-bar')).toHaveCount(0);
   });
 
@@ -609,7 +675,7 @@ test.describe('persistent-dataset destructive controls', () => {
       mimeType: 'application/zip',
       buffer: Buffer.from(buildSampleExport()),
     });
-    await expect(page.getByTestId('results')).toBeVisible({ timeout: 30_000 });
+    await expectSlimBar(page);
 
     // 1. Replace-on-drop → cancel.
     await dropFiles(page, page.getByTestId('dropzone'), [

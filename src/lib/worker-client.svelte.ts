@@ -75,9 +75,12 @@ export interface IngestClientOptions {
  *      are settled via `setTimeout(remaining)`. While the timer is
  *      pending the state stays 'processing' (busy stays true) so the
  *      dropzone stays disabled and the spinner stays visible (D-10).
- *   6. Refuse a new submission while results are shown (state 'done')
- *      until the caller invokes `reset()`. The refuse is a no-op
- *      console.error, never an error banner (D-13, D-14).
+ *   6. Route every drop made while a dataset is displayed through the
+ *      replace confirmation (D-13). The user must confirm before the
+ *      worker sees the bytes, because an unconfirmed drop would
+ *      overwrite the cached dataset. See `submitFiles` for the guard
+ *      order; the guard is keyed on `result !== null`, so it holds in
+ *      'done', 'duplicate' and 'error' alike (D-27).
  *
  * The `#fail` method is the single failure path. Pre-check rejection,
  * broken worker, worker error event, deserialization error, and worker
@@ -96,6 +99,23 @@ export class IngestClient {
   state = $state<IngestViewState>('checking-cache');
   stage = $state<IngestStage | null>(null);
   parsingProgress = $state<ParsingProgress | null>(null);
+  /**
+   * The LAST KNOWN CACHED DATASET (D-27) — not "the outcome of the job
+   * in flight". `done`, `duplicate` and `cache-status` assign it;
+   * `reset()`, the `cleared` handler and a `cache-status` with
+   * `cached: null` are the only things that null it.
+   *
+   * A replacement import therefore leaves the old dataset on screen
+   * while it runs and after it fails. That matches storage: the worker
+   * writes through a single atomic Dexie transaction, so a failed
+   * replace leaves the previous rows and meta completely intact
+   * (RESEARCH Q2 probed this), and re-reading the cache afterwards
+   * would return exactly this object.
+   *
+   * App.svelte derives the whole view from these two fields: the
+   * dashboard-versus-skeleton choice is `result !== null`, and the
+   * notice shown is a function of `state` (D-26/D-27).
+   */
   result = $state<ClassifyResult | null>(null);
   errorMessage = $state<string | null>(null);
   workerReady = $state(false);
@@ -267,7 +287,12 @@ export class IngestClient {
       const jobId = this.#jobId;
       this.state = 'processing';
       this.stage = 'unzipping';
-      this.result = null;
+      // D-27: `result` deliberately survives the start of a
+      // replacement. It is the last known CACHED dataset, not the
+      // outcome of the job in flight, and the worker only overwrites
+      // IndexedDB inside one atomic transaction — so until a 'done'
+      // reply lands, the dataset on screen is still the dataset on
+      // disk.
       this.errorMessage = null;
       this.#submittedAt = Date.now();
       const message: IngestRequest = { type: 'ingest', jobId, file: action.file };
@@ -294,7 +319,10 @@ export class IngestClient {
    * Cancel a pending destructive action WITHOUT taking it. Returns
    * to the state the user was in before the pending action started
    * (`#pendingReturnState`, typically 'done' for replace/start-over
-   * or whatever the prior state was). pendingAction and
+   * or whatever the prior state was). The one exception: a confirm
+   * opened from 'duplicate' or 'error' returns to 'done' instead —
+   * those are notices over a dataset, and restoring them would undo
+   * the dismissal the user just asked for (D-06). pendingAction and
    * #pendingReturnState are cleared, and justCleared is also cleared
    * (a cancel must never inherit a prior clear's acknowledgment).
    *
@@ -304,7 +332,18 @@ export class IngestClient {
    */
   cancelPending(): void {
     if (this.state !== 'confirm-pending') return;
-    this.state = this.#pendingReturnState ?? 'idle';
+    const returnState = this.#pendingReturnState ?? 'idle';
+    this.state = returnState;
+    // 'duplicate' and 'error' are NOTICES drawn over a dataset, not
+    // views of their own. Since the replace guard widened (D-27) a
+    // confirm can now be opened from either, and returning there would
+    // resurface the banner the user just dismissed by cancelling. The
+    // next user action replaces notices (D-06), so land on 'done' —
+    // the dataset view the notice was sitting on — with it cleared.
+    if (this.result !== null && (returnState === 'duplicate' || returnState === 'error')) {
+      this.state = 'done';
+      this.errorMessage = null;
+    }
     this.pendingAction = null;
     this.#pendingReturnState = null;
     this.justCleared = false;
@@ -319,6 +358,18 @@ export class IngestClient {
       return false;
     }
 
+    // 2. A drop while a confirm is already open. Exactly one confirm
+    //    can be pending (D-22 shares a single panel), so a second drop
+    //    has nowhere to go: accepting it would overwrite the stashed
+    //    file, and letting it fall through would move the machine to
+    //    'processing' with a stale pendingAction still on the client.
+    //    Touch no state at all — not even justCleared, so a drop the
+    //    user cannot act on cannot dismiss the D-20 acknowledgment.
+    if (this.state === 'confirm-pending') {
+      console.error('[ingest] confirm pending, submission ignored');
+      return false;
+    }
+
     // A new submission implicitly dismisses the one-shot "Cached
     // data cleared" acknowledgment (D-20) — the user is taking an
     // action, so the stale banner from a prior clear must not
@@ -326,38 +377,47 @@ export class IngestClient {
     // a timer (D-06: nothing auto-dismisses).
     this.justCleared = false;
 
-    // 2. The done-state guard. While results are shown, the only way
-    //    to start a new import is "Start over" -> reset(). A file
-    //    dropped on the results view is a silent no-op (D-13).
+    // 3. The pre-check, BEFORE the replace guard. UI-affordance
+    //    rejections never reach the worker — the cause is logged for
+    //    the developer (D-05) and the on-screen banner is the same
+    //    generic D-04 copy as every other failure source. The
+    //    pre-check is immediate — D-06 says nothing auto-dismisses,
+    //    and there is no spinner to keep up.
     //
-    //    As of 02-03 this guard is REPLACED by the replace-confirm
-    //    flow (D-13 supersedes Phase 1's "ignore the drop"): a drop
-    //    while 'done' stashes the file as a 'replace' pendingAction
-    //    and transitions to 'confirm-pending'. No worker message is
-    //    posted yet — the user must confirm before the worker sees
-    //    the bytes. The previous "results shown, drop ignored" log
-    //    line is intentionally retired because the drop is no longer
-    //    ignored, just paused.
-    if (this.state === 'done') {
-      const file = files[0]!;
-      this.#pendingReturnState = this.state;
-      this.pendingAction = { kind: 'replace', file };
-      this.state = 'confirm-pending';
-      return false;
-    }
-
-    // 3. The pre-check. UI-affordance rejections never reach the
-    //    worker — the cause is logged for the developer (D-05) and
-    //    the on-screen banner is the same generic D-04 copy as every
-    //    other failure source. The pre-check is immediate — D-06 says
-    //    nothing auto-dismisses, and there is no spinner to keep up.
+    //    Order matters once the guard below is keyed on `result`: a
+    //    notes.txt dropped on a displayed dataset would otherwise open
+    //    a replace prompt for a file that can never be ingested, and
+    //    the user would confirm their way to the very same failure.
     const failure = precheckFiles(files);
     if (failure !== null) {
       this.#fail(`pre-check rejected: ${failure.cause}`);
       return false;
     }
 
-    // 4. The broken-worker / not-yet-ready fail-fast. A worker that
+    // 4. The replace guard (D-13). While a dataset is displayed, a new
+    //    import must be confirmed: an unconfirmed drop would overwrite
+    //    the cached dataset. The file is stashed as a 'replace'
+    //    pendingAction and nothing is posted until the user confirms.
+    //
+    //    The guard is keyed on `this.result !== null` — "a dataset is
+    //    displayed" — rather than on `state === 'done'`. Since 03-03
+    //    `result` outlives a failed or duplicated import (D-27), so
+    //    the dataset is on screen in 'duplicate' and 'error' too, and a
+    //    guard that only knew about 'done' let a drop in either state
+    //    straight through to the worker.
+    if (this.result !== null) {
+      const file = files[0]!;
+      this.#pendingReturnState = this.state;
+      this.pendingAction = { kind: 'replace', file };
+      // The next user action replaces notices (D-06): opening a
+      // confirm is that action, so a stale failure banner does not sit
+      // behind the panel waiting to reappear.
+      this.errorMessage = null;
+      this.state = 'confirm-pending';
+      return false;
+    }
+
+    // 5. The broken-worker / not-yet-ready fail-fast. A worker that
     //    errored before it ever reported ready is permanently
     //    unavailable for the session; the owner recovers by
     //    reloading the page (FA-01-04-3). We do NOT respawn: a
@@ -379,7 +439,6 @@ export class IngestClient {
 
     this.state = 'processing';
     this.stage = 'unzipping';
-    this.result = null;
     this.errorMessage = null;
     this.#submittedAt = Date.now();
 
@@ -472,6 +531,44 @@ export class IngestClient {
     }
 
     if (msg.type === 'error') {
+      // The on-load cache check can fail now that the v2 upgrade can
+      // (D-19): a blocked or failed upgrade is a storage problem, not a
+      // bad export. Without this branch the `state !== 'processing'`
+      // guard below swallowed it and the page sat on the spinner
+      // forever. Recover to 'idle' — the skeleton with a full dropzone —
+      // and keep the cause in the console (D-05). Deliberately NOT the
+      // generic banner: that copy says "This doesn't look like a
+      // Wargaming data export", which is simply false here.
+      if (this.state === 'checking-cache') {
+        if (msg.jobId !== this.#jobId) return;
+        console.error('[ingest] cache check failed:', msg.detail);
+        this.state = 'idle';
+        this.result = null;
+        this.stage = null;
+        this.parsingProgress = null;
+        this.errorMessage = null;
+        return;
+      }
+
+      // A confirmed clear the worker could not perform. State stays
+      // 'confirm-pending' until a 'cleared' reply arrives, so an error
+      // here would otherwise leave the confirm panel open forever with
+      // no way out. The clear runs in one atomic transaction, so the
+      // dataset is intact and the failure is the ordinary error notice
+      // shown OVER the dataset that is still really there (D-27).
+      //
+      // Only the two clear kinds reach this: a 'replace' pendingAction
+      // has not been posted yet, so its #jobId still belongs to the
+      // PREVIOUS job and a late error for that job must not be
+      // mistaken for a reply to the un-posted replace.
+      if (this.state === 'confirm-pending' && this.pendingAction?.kind !== 'replace') {
+        if (msg.jobId !== this.#jobId) return;
+        this.pendingAction = null;
+        this.#pendingReturnState = null;
+        this.#fail(msg.detail);
+        return;
+      }
+
       if (this.state !== 'processing') return;
       if (msg.jobId !== this.#jobId) return;
       // The worker posts a structured detail string. Log it
@@ -519,7 +616,6 @@ export class IngestClient {
     console.error('[ingest] import failed:', detail);
     this.state = 'error';
     this.stage = null;
-    this.result = null;
     this.errorMessage = GENERIC_FAILURE_MESSAGE;
   }
 

@@ -1,12 +1,14 @@
 import { afterAll, beforeEach, describe, expect, test } from 'vitest';
+import Dexie from 'dexie';
 import {
   ROWS_PER_BULKPUT_CHUNK,
+  AppDb,
   checkCache,
   clearData,
   db,
   writeDataset,
 } from '../../src/lib/worker/db.ts';
-import type { CategoryEntry } from '../../src/lib/types/worker-messages.ts';
+import type { AccountIdentity, CategoryEntry } from '../../src/lib/types/worker-messages.ts';
 import type { DatasetRow } from '../../src/lib/worker/db.ts';
 
 // =============================================================================
@@ -204,5 +206,168 @@ describe('clearData', () => {
     await expect(clearData()).resolves.toBeUndefined();
     expect(await db.rows.count()).toBe(0);
     expect(await checkCache()).toBeNull();
+  });
+});
+
+// =============================================================================
+// 03-01 Task 3 — Dexie v2 wipes Phase 2 caches, and meta carries the identity
+// =============================================================================
+//
+// Why this block exists (03-01-PLAN Task 3, D-19, threat T-03-02):
+//   D-18 stops the account email from being written from here on, but a
+//   returning user already has a Phase 2 database sitting in their browser
+//   with the raw LOGIN already in it. D-19 discards it: the schema version
+//   is bumped and every row and meta record is cleared on the upgrade.
+//
+//   The nuance that makes this a real test rather than a version bump: a
+//   bare `version(2).stores(<same>)` PRESERVES all data (RESEARCH Q1 probe
+//   A) — only an `upgrade` callback discards it. So the assertion that
+//   matters is emptiness after opening a seeded v1 database, and it fails
+//   loudly if someone later "simplifies" the declaration and drops the
+//   upgrader.
+//
+//   Renaming the database is NOT an option and would be worse: it would
+//   leave the emailed `wg-export-viewer` store in the user's browser
+//   forever, which is precisely what D-19 exists to prevent.
+// =============================================================================
+
+const IDENTITY: AccountIdentity = {
+  nickname: 'Synthetic Player',
+  region: 'CA',
+  createdAt: '2020-01-01 00:00:00',
+};
+
+/** A v1 row in the shape Phase 2 wrote, with the email still at rest. */
+const LEGACY_ROW = {
+  category: 'User_Info',
+  sourceFile: 'Account_Info.csv',
+  rowIndex: 0,
+  data: {
+    ID: '123456789',
+    NAME: 'Synthetic Player',
+    LOGIN: 'synthetic.player@example.invalid',
+    BIRTH_DATE: '1990-01-01',
+  },
+};
+
+const LEGACY_META = {
+  id: 'active' as const,
+  hash: 'legacy-hash',
+  accountRoot: '123456789',
+  importedAt: '2020-01-01T00:00:00.000Z',
+  categories: [] as CategoryEntry[],
+};
+
+describe('03-01 — Dexie v2 upgrade discards a Phase 2 cache (D-19)', () => {
+  beforeEach(async () => {
+    // Delete whatever the previous test left behind, but DELIBERATELY do
+    // not open the module singleton here. Opening it would create the
+    // database directly at the current version, and the seeded v1 store
+    // below would then have nothing to upgrade — no versionchange
+    // transaction, no upgrade callback, and the seeded row would survive
+    // for a reason that has nothing to do with the upgrader.
+    await db.delete();
+  });
+
+  afterAll(async () => {
+    await db.close();
+  });
+
+  test('opening a seeded v1 database leaves rows and meta empty', async () => {
+    // Seed the legacy store with a bare Dexie declaring the v1 schema, so
+    // what the upgrade finds is genuinely a v1 database rather than an
+    // empty one that merely looks fresh.
+    const legacy = new Dexie('wg-export-viewer');
+    legacy.version(1).stores({ rows: '++id, category, sourceFile', meta: 'id' });
+    await legacy.open();
+    await legacy.table('rows').add(LEGACY_ROW);
+    await legacy.table('meta').add(LEGACY_META);
+    await legacy.close();
+
+    const upgraded = new AppDb();
+    await upgraded.open();
+    try {
+      // The email-bearing row and the meta record that described it are
+      // both gone: the user is left on the empty state and re-imports once.
+      expect(await upgraded.rows.count()).toBe(0);
+      expect(await upgraded.meta.count()).toBe(0);
+    } finally {
+      await upgraded.close();
+    }
+  });
+
+  test('the same database NAME is reused, so the emailed v1 store is actually reached', async () => {
+    // A different name would orphan the old store rather than wipe it.
+    const upgraded = new AppDb();
+    await upgraded.open();
+    try {
+      expect(upgraded.name).toBe('wg-export-viewer');
+    } finally {
+      await upgraded.close();
+    }
+  });
+});
+
+describe('03-01 — the upgrader runs once and never on a fresh install', () => {
+  beforeEach(async () => {
+    await db.delete();
+    await db.open();
+  });
+
+  afterAll(async () => {
+    await db.close();
+  });
+
+  test('data written at v2 survives a close and re-open — the upgrader never re-runs', async () => {
+    // Opening this database at v2 is exactly the "brand-new install" path
+    // Dexie documents: it initializes at the last version directly and no
+    // upgrade function runs, so the rows written below must still be there
+    // on the next open.
+    await writeDataset('v2-hash'.padEnd(64, '2'), 'root-v2', CATEGORIES, makeRows(3), IDENTITY);
+    expect(await db.rows.count()).toBe(3);
+    await db.close();
+
+    const reopened = new AppDb();
+    await reopened.open();
+    try {
+      expect(await reopened.rows.count()).toBe(3);
+      expect(await reopened.meta.count()).toBe(1);
+      expect((await reopened.meta.get('active'))?.identity).toEqual(IDENTITY);
+    } finally {
+      await reopened.close();
+    }
+  });
+});
+
+describe('03-01 — the identity rides on the meta record (D-20)', () => {
+  beforeEach(async () => {
+    await db.delete();
+    await db.open();
+  });
+
+  afterAll(async () => {
+    await db.close();
+  });
+
+  test('writeDataset with an identity stores it and checkCache replays it', async () => {
+    await writeDataset('id-hash'.padEnd(64, 'i'), 'root-id', CATEGORIES, makeRows(2), IDENTITY);
+    expect((await db.meta.get('active'))?.identity).toEqual(IDENTITY);
+    // The return-visit path reads the identity from meta with no row query.
+    expect((await checkCache())?.identity).toEqual(IDENTITY);
+  });
+
+  test('omitting the fifth argument leaves meta.identity null (the D-16 fallback)', async () => {
+    // The four-argument call must keep working — several existing tests
+    // and no User_Info export both use it.
+    await writeDataset('no-id-hash'.padEnd(64, 'n'), 'root-none', CATEGORIES, makeRows(2));
+    const meta = await db.meta.get('active');
+    expect(meta).toBeDefined();
+    expect(meta!.identity ?? null).toBeNull();
+  });
+
+  test('a replaced dataset does not inherit the previous identity', async () => {
+    await writeDataset('first-hash'.padEnd(64, 'f'), 'root-a', CATEGORIES, makeRows(2), IDENTITY);
+    await writeDataset('second-hash'.padEnd(64, 's'), 'root-b', CATEGORIES, makeRows(2));
+    expect((await checkCache())?.identity ?? null).toBeNull();
   });
 });

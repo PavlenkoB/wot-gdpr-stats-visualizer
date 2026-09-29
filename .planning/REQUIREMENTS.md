@@ -18,12 +18,12 @@
 
 - [x] **DATA-01**: Parsed data is cached in IndexedDB (Dexie 4, bulkPut writes) so re-uploading isn't needed on repeat visits
 - [x] **DATA-02**: A discoverable "clear my cached data" control wipes the IndexedDB cache, shipped in the same phase as caching itself
-- [ ] **DATA-03**: Export categories are classified 3-way — supported / known-deferred (Chat_history, Clans) / unknown (any folder never seen before) — all three render the same "detected but not yet supported" banner rather than being hidden, silently dropped, or crashing
-- [ ] **DATA-04**: A category folder absent from a given user's export (e.g. no Financial_data, no Warplanes data) shows that dashboard section empty/greyed-out rather than removing it
+- [x] **DATA-03**: Export categories are classified 3-way — supported / known-deferred (Chat_history, Clans) / unknown (any folder never seen before) — all three render the same "detected but not yet supported" banner rather than being hidden, silently dropped, or crashing
+- [x] **DATA-04**: A category folder absent from a given user's export (e.g. no Financial_data, no Warplanes data) shows that dashboard section empty/greyed-out rather than removing it
 
 ### Identity
 
-- [ ] **IDENTITY-01**: Dashboard opens with an account identity header (nickname, region, account-created date from `User_Info`) — the account's email (`LOGIN` field) is deliberately omitted from display
+- [x] **IDENTITY-01**: Dashboard opens with an account identity header (nickname, region, account-created date from `User_Info`) — the account's email (`LOGIN` field) is deliberately omitted from display
 
 ### Activity
 
@@ -91,9 +91,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | IMPORT-06 | Phase 2 | Complete |
 | DATA-01 | Phase 2 | Complete |
 | DATA-02 | Phase 2 | Complete |
-| DATA-03 | Phase 3 | Pending |
-| DATA-04 | Phase 3 | Pending |
-| IDENTITY-01 | Phase 3 | Pending |
+| DATA-03 | Phase 3 | Complete |
+| DATA-04 | Phase 3 | Complete |
+| IDENTITY-01 | Phase 3 | Complete |
 | ACTIVITY-01 | Phase 4 | Pending |
 | ACTIVITY-02 | Phase 4 | Pending |
 | ACTIVITY-03 | Phase 4 | Pending |
