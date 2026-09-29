@@ -142,8 +142,12 @@ describe('submitFiles — happy path', () => {
     const ok = client.submitFiles([file]);
 
     expect(ok).toBe(true);
-    expect(fake.posts).toHaveLength(1);
-    expect(fake.posts[0]).toEqual({ type: 'ingest', jobId: 1, file });
+    // After 02-02: the 'ready' handshake also posts a 'check-cache'
+    // request (D-07/D-08). The ingest message is now jobId 2 (the
+    // ready handler bumps #jobId to 1 first).
+    const ingestPosts = fake.posts.filter((m) => m.type === 'ingest');
+    expect(ingestPosts).toHaveLength(1);
+    expect(ingestPosts[0]).toEqual({ type: 'ingest', jobId: 2, file });
     expect(client.state).toBe('processing');
     expect(client.stage).toBe('unzipping');
     expect(client.errorMessage).toBeNull();
@@ -154,7 +158,9 @@ describe('submitFiles — happy path', () => {
     const file = makeFile('EXPORT.ZIP', 50);
     const ok = client.submitFiles([file]);
     expect(ok).toBe(true);
-    expect(fake.posts).toHaveLength(1);
+    // Same as the lowercase happy path: exactly one ingest message
+    // (the check-cache handshake is filtered out).
+    expect(fake.posts.filter((m) => m.type === 'ingest')).toHaveLength(1);
   });
 });
 
@@ -167,7 +173,11 @@ describe('submitFiles — pre-check rejection', () => {
     fake.emit({ type: 'ready' });
     const ok = client.submitFiles([] as unknown as ArrayLike<File>);
     expect(ok).toBe(false);
-    expect(fake.posts).toHaveLength(0);
+    // After 02-02: the ready handshake posts a check-cache request
+    // (D-07/D-08). The pre-check rejects BEFORE any ingest message
+    // would be posted, so only the check-cache is on the wire.
+    expect(fake.posts).toHaveLength(1);
+    expect(fake.posts[0]!.type).toBe('check-cache');
     expect(client.state).toBe('error');
     expect(client.errorMessage).toBe(GENERIC_FAILURE_MESSAGE);
     expect(consoleSpyContains('pre-check')).toBe(true);
@@ -179,7 +189,8 @@ describe('submitFiles — pre-check rejection', () => {
     const b = makeFile('b.zip', 10);
     const ok = client.submitFiles([a, b]);
     expect(ok).toBe(false);
-    expect(fake.posts).toHaveLength(0);
+    expect(fake.posts).toHaveLength(1);
+    expect(fake.posts[0]!.type).toBe('check-cache');
     expect(client.state).toBe('error');
     expect(consoleSpyContains('pre-check')).toBe(true);
   });
@@ -189,7 +200,8 @@ describe('submitFiles — pre-check rejection', () => {
     const file = makeFile('notes.txt', 10, 'text/plain');
     const ok = client.submitFiles([file]);
     expect(ok).toBe(false);
-    expect(fake.posts).toHaveLength(0);
+    expect(fake.posts).toHaveLength(1);
+    expect(fake.posts[0]!.type).toBe('check-cache');
     expect(client.state).toBe('error');
     expect(consoleSpyContains('pre-check')).toBe(true);
   });
@@ -200,7 +212,8 @@ describe('submitFiles — pre-check rejection', () => {
     expect(file.size).toBe(0);
     const ok = client.submitFiles([file]);
     expect(ok).toBe(false);
-    expect(fake.posts).toHaveLength(0);
+    expect(fake.posts).toHaveLength(1);
+    expect(fake.posts[0]!.type).toBe('check-cache');
     expect(client.state).toBe('error');
     expect(consoleSpyContains('pre-check')).toBe(true);
   });
@@ -262,9 +275,11 @@ describe('submitFiles — worker error responses', () => {
     client.submitFiles([makeFile('export.zip', 100)]);
     expect(client.state).toBe('processing');
 
+    // After 02-02: ingest messages carry jobId 2 (the ready handshake
+    // bumped the counter from 0 to 1 first).
     fake.emit({
       type: 'error',
-      jobId: 1,
+      jobId: 2,
       detail: 'Error: unrecognized export: no-recognized-category (2 entries)',
     });
 
@@ -273,7 +288,7 @@ describe('submitFiles — worker error responses', () => {
     expect(consoleSpyContains('no-recognized-category')).toBe(true);
   });
 
-  test("a { type: 'done' } for a stale jobId while job 1 is in flight is ignored; state stays 'processing'", () => {
+  test("a { type: 'done' } for a stale jobId while the ingest is in flight is ignored; state stays 'processing'", () => {
     fake.emit({ type: 'ready' });
     client.submitFiles([makeFile('export.zip', 100)]);
     expect(client.state).toBe('processing');
@@ -291,7 +306,7 @@ describe('submitFiles — worker error responses', () => {
     expect(client.state).toBe('processing');
   });
 
-  test("a { type: 'error', jobId: 99 } for a stale jobId while job 1 is in flight is ignored; state stays 'processing'", () => {
+  test("a { type: 'error', jobId: 99 } for a stale jobId while the ingest is in flight is ignored; state stays 'processing'", () => {
     fake.emit({ type: 'ready' });
     client.submitFiles([makeFile('export.zip', 100)]);
     expect(client.state).toBe('processing');
@@ -306,11 +321,12 @@ describe('submitFiles — worker error responses', () => {
     fake.emit({ type: 'ready' });
     const first = client.submitFiles([makeFile('export.zip', 100)]);
     expect(first).toBe(true);
-    expect(fake.posts).toHaveLength(1);
+    expect(fake.posts).toHaveLength(2); // check-cache (from ready) + ingest
 
     const second = client.submitFiles([makeFile('other.zip', 100)]);
     expect(second).toBe(false);
-    expect(fake.posts).toHaveLength(1);
+    // No new posts — the busy guard blocks before any postMessage.
+    expect(fake.posts).toHaveLength(2);
   });
 
   test('onerror while processing lands in the generic error state', () => {
@@ -337,7 +353,8 @@ describe('submitFiles — worker error responses', () => {
   });
 
   test('onerror before ready: a later submission fails fast without posting', () => {
-    // No 'ready' emitted. onerror fires while still idle.
+    // No 'ready' emitted. onerror fires while still idle (now
+    // 'checking-cache' before any handshake has arrived).
     fake.emitError('crashed during init');
     expect(client.state).toBe('error');
     expect(client.errorMessage).toBe(GENERIC_FAILURE_MESSAGE);
@@ -345,7 +362,10 @@ describe('submitFiles — worker error responses', () => {
     fake.emit({ type: 'ready' });
     const ok = client.submitFiles([makeFile('export.zip', 100)]);
     expect(ok).toBe(false);
-    expect(fake.posts).toHaveLength(0);
+    // check-cache was attempted in the ready handler but the worker
+    // is broken — the only post recorded is the check-cache request.
+    expect(fake.posts).toHaveLength(1);
+    expect(fake.posts[0]!.type).toBe('check-cache');
     expect(client.state).toBe('error');
   });
 
@@ -358,7 +378,9 @@ describe('submitFiles — worker error responses', () => {
     // Then a valid submission must clear the error and move into processing.
     const ok = client.submitFiles([makeFile('export.zip', 100)]);
     expect(ok).toBe(true);
-    expect(fake.posts).toHaveLength(1);
+    // Exactly one ingest message on the wire (the check-cache handshake
+    // is filtered out — pre-check rejections don't add ingest posts).
+    expect(fake.posts.filter((m) => m.type === 'ingest')).toHaveLength(1);
     expect(client.state).toBe('processing');
     expect(client.errorMessage).toBeNull();
   });
@@ -432,10 +454,12 @@ describe('MIN_PROCESSING_MS floor', () => {
     expect(c.stage).toBe('unzipping');
 
     // Worker answers at t=+50 ms — much earlier than the 400 ms floor.
+    // After 02-02: ingest messages carry jobId 2 (the ready handshake
+    // bumped the counter from 0 to 1 first).
     vi.advanceTimersByTime(50);
     f.emit({
       type: 'done',
-      jobId: 1,
+      jobId: 2,
       result: {
         accountRoot: '123456789',
         categories: [],
@@ -470,7 +494,7 @@ describe('MIN_PROCESSING_MS floor', () => {
     vi.advanceTimersByTime(600);
     f.emit({
       type: 'done',
-      jobId: 1,
+      jobId: 2,
       result: {
         accountRoot: '999',
         categories: [],
@@ -489,7 +513,7 @@ describe('MIN_PROCESSING_MS floor', () => {
 
     c.submitFiles([makeFile('export.zip', 100)]);
     vi.advanceTimersByTime(10);
-    f.emit({ type: 'error', jobId: 1, detail: 'synthetic worker error' });
+    f.emit({ type: 'error', jobId: 2, detail: 'synthetic worker error' });
 
     expect(c.state).toBe('processing');
     expect(c.errorMessage).toBeNull();
@@ -544,7 +568,7 @@ describe('MIN_PROCESSING_MS floor', () => {
     vi.advanceTimersByTime(50);
     f.emit({
       type: 'done',
-      jobId: 1,
+      jobId: 2,
       result: {
         accountRoot: 'first',
         categories: [],
@@ -556,7 +580,7 @@ describe('MIN_PROCESSING_MS floor', () => {
     // only sender and we want defensive behaviour) is ignored.
     f.emit({
       type: 'done',
-      jobId: 1,
+      jobId: 2,
       result: {
         accountRoot: 'second',
         categories: [],
@@ -588,28 +612,41 @@ describe('MIN_PROCESSING_MS floor', () => {
 // -----------------------------------------------------------------------------
 
 describe('done-state guard', () => {
-  test('submitFiles while state is "done" returns false, posts nothing, leaves the result intact', () => {
+  test('submitFiles while state is "done" transitions to "confirm-pending" with a replace pendingAction (D-13)', () => {
     const f = new FakeWorker();
     const c = new IngestClient(() => f, { minProcessingMs: 0 });
     f.emit({ type: 'ready' });
 
-    // Land in 'done'.
+    // Land in 'done'. After 02-02: ingest messages carry jobId 2
+    // (the ready handshake bumped #jobId from 0 to 1 first).
     c.submitFiles([makeFile('export.zip', 100)]);
     const result = {
       accountRoot: 'stale',
       categories: [],
       counts: { supported: 0, 'known-deferred': 0, unknown: 0 },
     };
-    f.emit({ type: 'done', jobId: 1, result });
+    f.emit({ type: 'done', jobId: 2, result });
     expect(c.state).toBe('done');
 
-    // A second submission must be a silent no-op (D-13).
-    const ok = c.submitFiles([makeFile('other.zip', 100)]);
+    // As of 02-03, a drop while 'done' transitions to
+    // 'confirm-pending' with the file stashed for confirm-time
+    // posting (D-13). Returns false (no ingest message posted
+    // until the user confirms) — supersedes the Phase 1
+    // "results shown, drop ignored" silent-no-op behavior.
+    const dropped = makeFile('other.zip', 100);
+    const ok = c.submitFiles([dropped]);
     expect(ok).toBe(false);
-    expect(f.posts).toHaveLength(1); // only the first submission was posted
-    expect(c.state).toBe('done');
-    expect(c.result).toEqual(result); // still the original result
-    expect(consoleSpyContains('results shown, drop ignored')).toBe(true);
+    // No new posts — the replace-guard blocks before any
+    // postMessage. The check-cache handshake (from ready) and the
+    // original ingest message are already on the wire, so the
+    // count stays at 2.
+    expect(f.posts).toHaveLength(2);
+    expect(c.state).toBe('confirm-pending');
+    // The original result is preserved untouched behind the
+    // pending confirm (must_haves prohibition: a cancelled confirm
+    // must never alter the existing dataset / view state).
+    expect(c.result).toEqual(result);
+    expect(c.pendingAction).toEqual({ kind: 'replace', file: dropped });
   });
 
   test('submitFiles while state is "error" still posts (reset is opt-in)', () => {
@@ -623,7 +660,9 @@ describe('done-state guard', () => {
     // Error state must NOT block a new submission; only 'done' does.
     const ok = c.submitFiles([makeFile('export.zip', 100)]);
     expect(ok).toBe(true);
-    expect(f.posts).toHaveLength(1);
+    // Exactly one ingest message on the wire (the check-cache
+    // handshake is filtered out).
+    expect(f.posts.filter((m) => m.type === 'ingest')).toHaveLength(1);
     expect(c.state).toBe('processing');
   });
 });
@@ -638,10 +677,12 @@ describe('reset()', () => {
     const c = new IngestClient(() => f, { minProcessingMs: 0 });
     f.emit({ type: 'ready' });
 
+    // After 02-02: ingest messages carry jobId 2 (the ready handshake
+    // bumped #jobId from 0 to 1 first).
     c.submitFiles([makeFile('export.zip', 100)]);
     f.emit({
       type: 'done',
-      jobId: 1,
+      jobId: 2,
       result: {
         accountRoot: 'stale',
         categories: [{ name: 'A', status: 'supported', fileCount: 1 }],
@@ -667,7 +708,7 @@ describe('reset()', () => {
     c.submitFiles([makeFile('export.zip', 100)]);
     f.emit({
       type: 'done',
-      jobId: 1,
+      jobId: 2,
       result: {
         accountRoot: 'stale',
         categories: [],
@@ -679,7 +720,8 @@ describe('reset()', () => {
     const ok = c.submitFiles([makeFile('next.zip', 100)]);
     expect(ok).toBe(true);
     expect(c.state).toBe('processing');
-    expect(f.posts).toHaveLength(2);
+    // check-cache (jobId 1) + first ingest (jobId 2) + second ingest (jobId 3).
+    expect(f.posts).toHaveLength(3);
   });
 
   test('after "error", reset returns true and clears errorMessage', () => {
@@ -710,7 +752,8 @@ describe('reset()', () => {
     const ok = c.reset();
     expect(ok).toBe(false);
     expect(c.state).toBe('processing');
-    expect(f.posts).toHaveLength(1); // submission was posted
+    // check-cache (from ready) + ingest = 2 posts on the wire.
+    expect(f.posts).toHaveLength(2);
   });
 
   test('in idle state, reset returns true and is a no-op', () => {
@@ -734,5 +777,398 @@ describe('STAGE_TEXT plumbing', () => {
     // while busy (App.svelte wiring). The map's values are the contract.
     expect(STAGE_TEXT.unzipping).toBe('Unzipping...');
     expect(STAGE_TEXT.classifying).toBe('Classifying folders...');
+  });
+});
+
+// =============================================================================
+// 02-02 — check-cache handshake, 'checking-cache' state, auto-load from cache
+// =============================================================================
+//
+// Why this block is its own world:
+//   02-02's DATA-01 close-the-loop plan adds:
+//     - 'checking-cache' as the initial IngestViewState (before 'ready'
+//       AND before 'cache-status'), so App.svelte can render a spinner
+//       instead of flashing the empty dropzone (D-08).
+//     - On 'ready', the client posts exactly one 'check-cache' request
+//       to the worker — auto-load piggybacks on the same handshake.
+//     - On 'cache-status' (the worker's reply), the client transitions
+//       to 'done' (with result set) if a cached dataset was returned,
+//       or to 'idle' if there is no cached dataset yet.
+//
+// These tests use FakeWorker (same seam 01-04 / 01-05 used). Note the
+// FakeWorker's `emit` helper carries an IngestResponse whose types
+// match the new 'cache-status' variant in worker-messages.ts — that
+// variant was added in 02-01 so the tests can compile against the
+// existing contract.
+// =============================================================================
+
+describe("'checking-cache' initial state (D-08)", () => {
+  test("a freshly constructed client starts in 'checking-cache' (NOT 'idle'), so the UI can show a spinner before the cache check resolves", () => {
+    const f = new FakeWorker();
+    const c = new IngestClient(() => f);
+    expect(c.state).toBe('checking-cache');
+    expect(c.result).toBeNull();
+  });
+
+  test("state stays 'checking-cache' after a 'ready' arrives but before the worker has responded to check-cache", () => {
+    const f = new FakeWorker();
+    const c = new IngestClient(() => f);
+    f.emit({ type: 'ready' });
+    // After ready, the workerReady flag flipped to true (so the dropzone
+    // will be allowed to submit later), but the cache-status response has
+    // not yet arrived — the UI must keep showing the loading state.
+    expect(c.workerReady).toBe(true);
+    expect(c.state).toBe('checking-cache');
+  });
+});
+
+describe("check-cache request — sent once on 'ready' (D-07, D-08)", () => {
+  test("the 'ready' message triggers exactly one { type: 'check-cache' } post (no 'ingest' message)", () => {
+    const f = new FakeWorker();
+    const c = new IngestClient(() => f);
+    f.emit({ type: 'ready' });
+
+    // Exactly one post, and it's the check-cache request — not an ingest.
+    expect(f.posts).toHaveLength(1);
+    expect(f.posts[0]).toEqual({ type: 'check-cache', jobId: 1 });
+    expect(f.posts[0]!.type).not.toBe('ingest');
+    // Reference the client so the unused-var lint sees a use; the
+    // constructor wires the worker→client handshake (the side effect
+    // this test is exercising).
+    expect(c.workerReady).toBe(true);
+  });
+});
+
+describe("cache-status response — transitions out of 'checking-cache'", () => {
+  test("a 'cache-status' with a non-null cached result transitions to 'done' with the cached result, without ever having posted an 'ingest' message", () => {
+    const f = new FakeWorker();
+    const c = new IngestClient(() => f);
+    f.emit({ type: 'ready' });
+
+    // No ingest message yet — only the check-cache handshake.
+    expect(f.posts.filter((m) => m.type === 'ingest')).toEqual([]);
+
+    const cached = {
+      accountRoot: 'cached-root',
+      categories: [{ name: 'A', status: 'supported' as const, fileCount: 1, rowCount: 5 }],
+      counts: { supported: 1, 'known-deferred': 0, unknown: 0 },
+      importedAt: '2026-09-28T18:00:00.000Z',
+    };
+    f.emit({ type: 'cache-status', jobId: 1, cached });
+
+    // Auto-loaded straight to the results view (D-07), without re-upload.
+    expect(c.state).toBe('done');
+    expect(c.result).toEqual(cached);
+    // The whole session posted exactly one message — the check-cache handshake.
+    expect(f.posts.filter((m) => m.type === 'ingest')).toEqual([]);
+  });
+
+  test("a 'cache-status' with cached=null transitions to 'idle' (empty dropzone, no results)", () => {
+    const f = new FakeWorker();
+    const c = new IngestClient(() => f);
+    f.emit({ type: 'ready' });
+
+    f.emit({ type: 'cache-status', jobId: 1, cached: null });
+
+    expect(c.state).toBe('idle');
+    expect(c.result).toBeNull();
+  });
+
+  test("a 'cache-status' with a stale jobId is ignored; state stays 'checking-cache'", () => {
+    const f = new FakeWorker();
+    const c = new IngestClient(() => f);
+    f.emit({ type: 'ready' });
+
+    // JobId mismatch — should not transition.
+    f.emit({ type: 'cache-status', jobId: 99, cached: null });
+    expect(c.state).toBe('checking-cache');
+  });
+});
+
+// =============================================================================
+// 02-03 — confirm-pending state machine (D-13/D-16/D-17/D-22, IMPORT-06/DATA-02)
+//
+// Why this block exists:
+//   Phase 2 closes the destructive-action loop. The 02-02 client had
+//   a single 'done' guard that silently ignored drops on the results
+//   view (D-13 at the time meant "ignore the drop"). With persistent
+//   data, ignoring the drop would silently leave the user stuck — so
+//   02-03 introduces a 'confirm-pending' state, a `pendingAction`
+//   discriminated-union payload, and three new public methods
+//   (requestStartOver, requestClearData, confirmPending,
+//   cancelPending) that route every destructive flow through ONE
+//   shared confirm mechanism (D-22).
+//
+// The shared mechanism is a single 'confirm-pending' state plus a
+// `pendingAction.kind` discriminator — three separate confirm states
+// would have been equivalent but would have made the App.svelte
+// switch three-way. ONE state with ONE kind discriminator is the
+// pattern the 02-03-PLAN locks.
+// =============================================================================
+
+describe("replace-on-drop — submitFiles while 'done' transitions to 'confirm-pending' (D-13)", () => {
+  test("submitFiles while state is 'done' sets pendingAction={kind:'replace',file} and transitions to 'confirm-pending', WITHOUT posting any worker message", () => {
+    const f = new FakeWorker();
+    const c = new IngestClient(() => f, { minProcessingMs: 0 });
+    f.emit({ type: 'ready' });
+
+    // Land in 'done' first.
+    c.submitFiles([makeFile('export.zip', 100)]);
+    f.emit({
+      type: 'done',
+      jobId: 2,
+      result: {
+        accountRoot: 'stale',
+        categories: [],
+        counts: { supported: 0, 'known-deferred': 0, unknown: 0 },
+      },
+    });
+    expect(c.state).toBe('done');
+
+    const postsBefore = f.posts.length;
+    const newFile = makeFile('other.zip', 100);
+    const ok = c.submitFiles([newFile]);
+
+    // Returns false (no worker message posted yet — the user must
+    // confirm first). The check-cache (jobId 1) and the original
+    // ingest (jobId 2) are already on the wire.
+    expect(ok).toBe(false);
+    expect(f.posts).toHaveLength(postsBefore);
+    // D-13: a NEW 'confirm-pending' state, with the file stashed
+    // for confirm-time posting.
+    expect(c.state).toBe('confirm-pending');
+    expect(c.pendingAction).not.toBeNull();
+    expect(c.pendingAction!.kind).toBe('replace');
+    if (c.pendingAction!.kind === 'replace') {
+      expect(c.pendingAction!.file).toBe(newFile);
+    }
+  });
+});
+
+describe("confirmPending — replace flow posts the stashed file as a normal 'ingest' (D-13)", () => {
+  test("confirmPending() with kind 'replace' posts one 'ingest' message for the pending file and clears pendingAction", () => {
+    const f = new FakeWorker();
+    const c = new IngestClient(() => f, { minProcessingMs: 0 });
+    f.emit({ type: 'ready' });
+
+    // Land in 'done'.
+    c.submitFiles([makeFile('export.zip', 100)]);
+    f.emit({
+      type: 'done',
+      jobId: 2,
+      result: {
+        accountRoot: 'stale',
+        categories: [],
+        counts: { supported: 0, 'known-deferred': 0, unknown: 0 },
+      },
+    });
+
+    // Drop a different file — moves to confirm-pending.
+    const newFile = makeFile('other.zip', 100);
+    c.submitFiles([newFile]);
+    expect(c.state).toBe('confirm-pending');
+
+    // User confirms — the pending file posts as a normal ingest.
+    const returned = c.confirmPending();
+    expect(returned).toBe(true);
+    expect(c.state).toBe('processing');
+    expect(c.pendingAction).toBeNull();
+
+    // Exactly one new 'ingest' message on the wire — the pending file.
+    const ingestPosts = f.posts.filter((m) => m.type === 'ingest');
+    expect(ingestPosts).toHaveLength(2); // original + confirmed
+    expect(ingestPosts[1]).toEqual({ type: 'ingest', jobId: 3, file: newFile });
+  });
+
+  test("confirmPending() with kind 'start-over' posts 'clear-data' and stays 'confirm-pending' until 'cleared' arrives (D-16)", () => {
+    const f = new FakeWorker();
+    const c = new IngestClient(() => f, { minProcessingMs: 0 });
+    f.emit({ type: 'ready' });
+
+    // Land in 'done'.
+    c.submitFiles([makeFile('export.zip', 100)]);
+    f.emit({
+      type: 'done',
+      jobId: 2,
+      result: {
+        accountRoot: 'stale',
+        categories: [],
+        counts: { supported: 0, 'known-deferred': 0, unknown: 0 },
+      },
+    });
+
+    c.requestStartOver();
+    expect(c.state).toBe('confirm-pending');
+    expect(c.pendingAction!.kind).toBe('start-over');
+
+    const returned = c.confirmPending();
+    expect(returned).toBe(true);
+    // Still in 'confirm-pending' until the worker's 'cleared' lands.
+    expect(c.state).toBe('confirm-pending');
+    // One 'clear-data' message posted.
+    const clears = f.posts.filter((m) => m.type === 'clear-data');
+    expect(clears).toHaveLength(1);
+    expect(clears[0]).toEqual({ type: 'clear-data', jobId: 3 });
+
+    // Worker acknowledges — transitions to 'idle' with the
+    // one-shot acknowledgment flag set (D-20).
+    f.emit({ type: 'cleared', jobId: 3 });
+    expect(c.state).toBe('idle');
+    expect(c.result).toBeNull();
+    expect(c.pendingAction).toBeNull();
+    expect(c.justCleared).toBe(true);
+  });
+
+  test("confirmPending() with kind 'clear-data' follows the identical confirm + clear flow (D-22)", () => {
+    const f = new FakeWorker();
+    const c = new IngestClient(() => f, { minProcessingMs: 0 });
+    f.emit({ type: 'ready' });
+
+    // Land in 'done' so the persistent clear-data control is visible
+    // (D-18 — D-19 hides it on idle). Test exercises the same path
+    // the App.svelte wiring uses.
+    c.submitFiles([makeFile('export.zip', 100)]);
+    f.emit({
+      type: 'done',
+      jobId: 2,
+      result: {
+        accountRoot: 'stale',
+        categories: [],
+        counts: { supported: 0, 'known-deferred': 0, unknown: 0 },
+      },
+    });
+
+    c.requestClearData();
+    expect(c.state).toBe('confirm-pending');
+    expect(c.pendingAction!.kind).toBe('clear-data');
+
+    c.confirmPending();
+    const clears = f.posts.filter((m) => m.type === 'clear-data');
+    expect(clears).toHaveLength(1);
+    f.emit({ type: 'cleared', jobId: 3 });
+    expect(c.state).toBe('idle');
+    expect(c.justCleared).toBe(true);
+  });
+
+  test("confirmPending() while state is NOT 'confirm-pending' is a no-op (defensive guard)", () => {
+    const f = new FakeWorker();
+    const c = new IngestClient(() => f, { minProcessingMs: 0 });
+    f.emit({ type: 'ready' });
+    // No confirm pending — just idle.
+    const returned = c.confirmPending();
+    expect(returned).toBe(false);
+    expect(f.posts).toHaveLength(1); // only the check-cache handshake
+  });
+});
+
+describe('cancelPending — returns to the pre-confirm state and discards the pending action', () => {
+  test("cancelPending() after a replace-on-drop returns to 'done' with the original result untouched, pending file discarded (D-13)", () => {
+    const f = new FakeWorker();
+    const c = new IngestClient(() => f, { minProcessingMs: 0 });
+    f.emit({ type: 'ready' });
+
+    c.submitFiles([makeFile('export.zip', 100)]);
+    const originalResult = {
+      accountRoot: 'stale',
+      categories: [{ name: 'A', status: 'supported' as const, fileCount: 1, rowCount: 1 }],
+      counts: { supported: 1, 'known-deferred': 0, unknown: 0 },
+      importedAt: '2026-09-28T00:00:00.000Z',
+    };
+    f.emit({ type: 'done', jobId: 2, result: originalResult });
+    expect(c.state).toBe('done');
+
+    const dropped = makeFile('different.zip', 100);
+    c.submitFiles([dropped]);
+    expect(c.state).toBe('confirm-pending');
+
+    c.cancelPending();
+    // Back to 'done' — the user's existing dataset is completely
+    // untouched by a cancelled replace (must_haves prohibition:
+    // a cancelled confirm must never alter the existing dataset).
+    expect(c.state).toBe('done');
+    expect(c.result).toEqual(originalResult);
+    expect(c.pendingAction).toBeNull();
+  });
+
+  test("cancelPending() after requestStartOver returns to 'done' with the original result untouched (D-16)", () => {
+    const f = new FakeWorker();
+    const c = new IngestClient(() => f, { minProcessingMs: 0 });
+    f.emit({ type: 'ready' });
+
+    c.submitFiles([makeFile('export.zip', 100)]);
+    f.emit({
+      type: 'done',
+      jobId: 2,
+      result: {
+        accountRoot: 'stale',
+        categories: [],
+        counts: { supported: 0, 'known-deferred': 0, unknown: 0 },
+      },
+    });
+
+    c.requestStartOver();
+    expect(c.state).toBe('confirm-pending');
+
+    c.cancelPending();
+    expect(c.state).toBe('done');
+    expect(c.pendingAction).toBeNull();
+    expect(c.result?.accountRoot).toBe('stale');
+  });
+
+  test("cancelPending() while NOT in 'confirm-pending' is a no-op", () => {
+    const f = new FakeWorker();
+    const c = new IngestClient(() => f, { minProcessingMs: 0 });
+    f.emit({ type: 'ready' });
+
+    // No pending action — cancelPending should be a safe no-op so the
+    // App.svelte cancel-button click is harmless in any state.
+    c.cancelPending();
+    expect(c.state).toBe('checking-cache');
+    expect(c.pendingAction).toBeNull();
+  });
+});
+
+describe("'cleared' message — transitions out of 'confirm-pending' to 'idle' with the acknowledgment flag (D-20)", () => {
+  test("the 'cleared' message for a non-pending state is ignored", () => {
+    const f = new FakeWorker();
+    const c = new IngestClient(() => f, { minProcessingMs: 0 });
+    f.emit({ type: 'ready' });
+
+    // Land in 'idle' (no confirm pending).
+    f.emit({ type: 'cache-status', jobId: 1, cached: null });
+    expect(c.state).toBe('idle');
+
+    // A late 'cleared' for a different jobId must NOT clobber state.
+    f.emit({ type: 'cleared', jobId: 99 });
+    expect(c.state).toBe('idle');
+    expect(c.justCleared).toBe(false);
+  });
+
+  test('a subsequent submitFiles() clears the justCleared acknowledgment flag (D-20: nothing auto-dismisses)', () => {
+    const f = new FakeWorker();
+    const c = new IngestClient(() => f, { minProcessingMs: 0 });
+    f.emit({ type: 'ready' });
+
+    // Trigger a clear-data flow end-to-end.
+    c.submitFiles([makeFile('export.zip', 100)]);
+    f.emit({
+      type: 'done',
+      jobId: 2,
+      result: {
+        accountRoot: 'stale',
+        categories: [],
+        counts: { supported: 0, 'known-deferred': 0, unknown: 0 },
+      },
+    });
+    c.requestStartOver();
+    c.confirmPending();
+    f.emit({ type: 'cleared', jobId: 3 });
+    expect(c.justCleared).toBe(true);
+
+    // Submitting a new file must reset the flag — the acknowledgment
+    // is one-shot and tied to the cleared dropzone, not to anything
+    // that would survive a subsequent action.
+    c.submitFiles([makeFile('next.zip', 100)]);
+    expect(c.justCleared).toBe(false);
   });
 });

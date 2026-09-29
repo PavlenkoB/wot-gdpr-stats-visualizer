@@ -8,13 +8,14 @@ import {
   SAMPLE_BADGE_ORDER,
   SAMPLE_EXPECTED_COUNTS,
   SAMPLE_FILE_COUNTS,
+  SAMPLE_ROW_COUNTS,
   buildLargeExport,
   buildNotAZipBytes,
   buildRenamedRootExport,
   buildSampleExport,
   buildTruncatedExport,
 } from '../fixtures/export-fixtures.ts';
-import { formatSummary, START_OVER_LABEL } from '../../src/lib/ui-copy.ts';
+import { formatSummary } from '../../src/lib/ui-copy.ts';
 import { dropFiles } from './helpers.ts';
 
 // =============================================================================
@@ -43,7 +44,8 @@ import { dropFiles } from './helpers.ts';
 // both halves at once.
 // =============================================================================
 
-const STAGE_PATTERN = /^\s*(Unzipping|Classifying folders)\.\.\.\s*$/;
+const STAGE_PATTERN =
+  /^\s*(Checking for a duplicate\.\.\.|Unzipping\.\.\.|Classifying folders\.\.\.|Parsing categories\.\.\.|Saving to local storage\.\.\.)\s*$/;
 
 // -----------------------------------------------------------------------------
 // Page setup — wait for worker ready, snapshot console errors per test
@@ -60,7 +62,7 @@ test.beforeEach(async ({ page }) => {
 // (a) Processing feedback while busy, then account heading + summary + badges
 // -----------------------------------------------------------------------------
 
-test('(a) shows stage feedback while busy, then account, summary and grouped badges in place of the dropzone', async ({
+test('(a) shows stage feedback while busy, then account, summary and grouped badges (and a co-rendered dropzone for replace-on-drop) when done', async ({
   page,
 }) => {
   const sample = Array.from(buildSampleExport());
@@ -105,12 +107,21 @@ test('(a) shows stage feedback while busy, then account, summary and grouped bad
   // File input is disabled while processing.
   await expect(page.getByTestId('file-input')).toBeDisabled();
 
-  // Wait for the results view (replaces the dropzone).
+  // Wait for the results view to appear.
   const results = page.getByTestId('results');
   await expect(results).toBeVisible({ timeout: 30_000 });
 
-  // After results are visible, the dropzone is gone.
-  await expect(page.getByTestId('dropzone')).toHaveCount(0);
+  // After results are visible, the dropzone is co-rendered alongside the
+  // results view (NOT swapped out) — this is the 02-04 contract that makes
+  // D-13 replace-on-drop reachable: a drop on the co-rendered Dropzone in
+  // the 'done' state lands on submitFiles() → confirm-pending →
+  // ConfirmPanel with REPLACE_DATASET_LABEL. The 'dropzone is gone'
+  // assertion that Phase 1 carried here was the right Phase 1 contract
+  // (results replaced the dropzone) and is now stale — the 02-04 contract
+  // is dropzone + results both present. Asserting count 1 here is the
+  // regression guard against a future refactor silently dropping the
+  // co-render and re-breaking D-13.
+  await expect(page.getByTestId('dropzone')).toHaveCount(1);
   await expect(processing).toHaveCount(0);
 
   // Account heading — D-11 (raw root).
@@ -142,11 +153,13 @@ test('(a) shows stage feedback while busy, then account, summary and grouped bad
     await expect(badge).toContainText(name);
   }
 
-  // First badge's text is "Activity_history — 2 files" (D-02).
+  // First badge's text is "Activity_history — 2 files, 2 rows"
+  // (D-02 + D-05: file count AND row count, both inline).
   const firstBadge = badges.first();
   const firstCount = SAMPLE_FILE_COUNTS[SAMPLE_BADGE_ORDER[0]!]!;
+  const firstRowCount = SAMPLE_ROW_COUNTS[SAMPLE_BADGE_ORDER[0]!]!;
   await expect(firstBadge).toHaveText(
-    `${SAMPLE_BADGE_ORDER[0]} — ${firstCount} file${firstCount === 1 ? '' : 's'}`,
+    `${SAMPLE_BADGE_ORDER[0]} — ${firstCount} file${firstCount === 1 ? '' : 's'}, ${firstRowCount} row${firstRowCount === 1 ? '' : 's'}`,
   );
 
   // D-12: heading tops, then summary tops, then first badge tops —
@@ -160,8 +173,16 @@ test('(a) shows stage feedback while busy, then account, summary and grouped bad
   expect(headingBox!.y).toBeLessThan(summaryBox!.y);
   expect(summaryBox!.y).toBeLessThan(firstBadgeBox!.y);
 
-  // D-13: after results, the dropzone is gone.
-  await expect(page.getByTestId('dropzone')).toHaveCount(0);
+  // D-13 (02-04): the dropzone stays present in the 'done' state, idle
+  // (not busy, not processing) — so a subsequent drop reaches the
+  // replace-on-drop confirm path. A drop on the dropzone here (covered
+  // separately by persistent-dataset.spec.ts test (d)) would transition
+  // to 'confirm-pending' with pendingAction={kind:'replace', file}; the
+  // new 'confirm-pending' && replace branch in App.svelte keeps the
+  // ResultsView mounted so the user sees both their current dataset and
+  // the ConfirmPanel overlay until they confirm or cancel.
+  await expect(page.getByTestId('dropzone')).toHaveCount(1);
+  await expect(page.getByTestId('processing-status')).toHaveCount(0);
 });
 
 // -----------------------------------------------------------------------------
@@ -181,52 +202,23 @@ test('(b) a renamed root with a never-seen folder is detected without a fixed la
   await expect(page.getByTestId('summary-line')).toHaveText(formatSummary(RENAMED_EXPECTED_COUNTS));
 
   // Find the unknown folder badge by its prefix text. It must carry
-  // data-status="unknown" and end with "2 files".
+  // data-status="unknown" and end with "2 files, 2 rows".
   const unknownBadge = page
     .getByTestId('category-badge')
-    .filter({ hasText: new RegExp(`^${EXTRA_UNKNOWN_FOLDER} — 2 files$`) });
+    .filter({ hasText: new RegExp(`^${EXTRA_UNKNOWN_FOLDER} — 2 files, 2 rows$`) });
   await expect(unknownBadge).toHaveCount(1);
   await expect(unknownBadge).toHaveAttribute('data-status', 'unknown');
 });
 
 // -----------------------------------------------------------------------------
-// (c) Start over is one click with no confirmation (D-13, D-14)
+// (c) REMOVED in 02-03 (D-13/D-15/D-16 supersede the prior "no confirmation"
+//     behavior — Start Over is now destructive). The replacement assertion
+//     that Start Over DOES require a confirmation, then DOES wipe IndexedDB,
+//     lives in `tests/e2e/persistent-dataset.spec.ts` test (e). This file no
+//     longer carries a test claiming the now-false "single click, no confirm"
+//     behavior — leaving it in place would create a contradictory contract
+//     between the two specs and let a regression slip past either one.
 // -----------------------------------------------------------------------------
-
-test('(c) start over is one click with no confirmation', async ({ page }) => {
-  // Register a dialog listener that would FAIL the test if any dialog
-  // (alert / confirm / beforeunload) fires. We assert at the end that
-  // dialogs.length === 0.
-  const dialogs: string[] = [];
-  page.on('dialog', (d) => {
-    dialogs.push(`${d.type()}: ${d.message()}`);
-    // Don't dismiss — leaving it open would block the next click.
-    void d.dismiss();
-  });
-
-  // Import the sample.
-  await page.getByTestId('file-input').setInputFiles({
-    name: 'sample-export.zip',
-    mimeType: 'application/zip',
-    buffer: Buffer.from(buildSampleExport()),
-  });
-  await expect(page.getByTestId('results')).toBeVisible({ timeout: 30_000 });
-
-  // Start over.
-  const startOver = page.getByTestId('start-over');
-  await expect(startOver).toBeVisible();
-  await expect(startOver).toHaveText(START_OVER_LABEL);
-  await startOver.click();
-
-  // The dropzone is back, enabled, with no banner. Results are gone.
-  await expect(page.getByTestId('dropzone')).toBeVisible();
-  await expect(page.getByTestId('file-input')).toBeEnabled();
-  await expect(page.getByTestId('failure-banner')).toHaveCount(0);
-  await expect(page.getByTestId('results')).toHaveCount(0);
-
-  // No dialog fired.
-  expect(dialogs).toEqual([]);
-});
 
 // -----------------------------------------------------------------------------
 // (d) A drop while the results view is shown is ignored (D-13)

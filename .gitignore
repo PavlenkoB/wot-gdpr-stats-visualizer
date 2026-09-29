@@ -62,3 +62,13 @@ tests/fixtures/private/
 # be staged. Anchored with leading slash so it does not match
 # node_modules-style nested paths.
 /*.zip
+
+# graphify
+graphify-out/manifest.json
+graphify-out/cost.json
+.graphify_*
+graphify-out/cache
+graphify-out/*/cost.json
+graphify-out/*/graph.json
+graphify-out/*/manifest.json
+graphify-out/*/GRAPH_REPORT.md

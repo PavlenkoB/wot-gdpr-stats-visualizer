@@ -369,3 +369,77 @@ export function classifyExport(paths: string[]): ClassifyResult | null {
   const outcome = analyzeExport(paths);
   return outcome.ok ? outcome.result : null;
 }
+
+// -----------------------------------------------------------------------------
+// resolveCsvFileCategory — per-entry name → { category, sourceFile } (02-01)
+// -----------------------------------------------------------------------------
+//
+// Why this exists (02-01-PLAN Task 3, IMPORT-01 + key_links invariant):
+//   The ingest worker inflates ONLY the CSV entries that belong to a
+//   recognized category (D-01, D-02, IMPORT-01). It calls
+//   `resolveCsvFileCategory(info.name, accountRoot, recognizedSet)` on
+//   every zip entry during the `unzipSync` filter to decide which to
+//   inflate. The mapping must agree with `analyzeExport`'s own
+//   category resolution — otherwise the per-category `rowCount` in
+//   `db.meta.categories` would silently diverge from the row counts
+//   the worker actually wrote.
+//
+// Rules (mirroring classify.ts's existing `prepare` + `categoryFoldersUnder`):
+//   1. Normalize the raw name (forward slashes only, strip leading
+//      '/' or './' — the existing `normalizeEntryPath`).
+//   2. Reject OS-metadata (the existing `isOsMetadataEntry`) and
+//      directory entries (trailing '/').
+//   3. Strip the `${root}/` prefix (or use the full normalized path
+//      when `root === ''`, matching `foldersAt`'s rootless convention).
+//   4. Take the first remaining path segment as the `category`.
+//   5. Reject when the category is not in `recognizedCategories` or
+//      the remaining path does not end in `.csv` (case-insensitive).
+//   6. Otherwise return `{ category, sourceFile: <rest> }`.
+//
+// Returns `null` on every rejection path; callers use the null-check
+// shape `if (resolveCsvFileCategory(...) !== null)`.
+export function resolveCsvFileCategory(
+  rawName: string,
+  root: string,
+  recognizedCategories: ReadonlySet<string>,
+): { category: string; sourceFile: string } | null {
+  const normalized = normalizeEntryPath(rawName);
+  if (isOsMetadataEntry(normalized)) return null;
+  if (normalized.endsWith('/')) return null; // directory entry, not a CSV file
+
+  let rest: string;
+  if (root === '') {
+    rest = normalized;
+  } else {
+    // Accept either a `${root}/...` direct prefix OR a rightmost
+    // `/${root}/...` wrapper-prefixed path. The wrapper case is the
+    // 2021 Wargaming export shape (e.g.
+    // `${dateFolder}/${root}/${category}/${file}.csv`) — analyzeExport's
+    // wrapper-retry returns the inner account root, but the CSVs sit
+    // one wrapper folder deeper than `${root}/`. OS-metadata entries
+    // (`__MACOSX/...` sidecars) are rejected above before this point,
+    // so a coincidental match inside a sidecar path cannot leak through.
+    // Bounded by MAX_WRAPPER_DEPTH upstream — lastIndexOf would find any
+    // deeper nested match, but the analysis layer has already bounded
+    // the depth at which `${root}/` is identified.
+    const directPrefix = root + '/';
+    if (normalized.startsWith(directPrefix)) {
+      rest = normalized.slice(directPrefix.length);
+    } else {
+      const rootSuffix = '/' + root + '/';
+      const idx = normalized.lastIndexOf(rootSuffix);
+      if (idx === -1) return null;
+      rest = normalized.slice(idx + rootSuffix.length);
+    }
+    if (!rest) return null;
+  }
+
+  const slash = rest.indexOf('/');
+  if (slash === -1) return null; // file directly under the root
+  const category = rest.slice(0, slash);
+  if (!category) return null;
+  if (!recognizedCategories.has(category)) return null;
+  const sourceFile = rest.slice(slash + 1);
+  if (!sourceFile.toLowerCase().endsWith('.csv')) return null;
+  return { category, sourceFile };
+}

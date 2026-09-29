@@ -7,17 +7,17 @@
 
 ### Import
 
-- [ ] **IMPORT-01**: User can drag-and-drop a Wargaming GDPR export `.zip` and have it unzipped + parsed entirely client-side (fflate + PapaParse, inside a single long-lived Web Worker reused across uploads)
+- [x] **IMPORT-01**: User can drag-and-drop a Wargaming GDPR export `.zip` and have it unzipped + parsed entirely client-side (fflate + PapaParse, inside a single long-lived Web Worker reused across uploads)
 - [ ] **IMPORT-02**: App auto-detects the zip's root/category-folder structure rather than assuming a fixed layout or naming
-- [ ] **IMPORT-03**: CSV parsing tolerates unexpected/missing columns and mixed line terminators (CRLF and bare-CR) rather than assuming the 2021 reference sample's exact schema
-- [ ] **IMPORT-04**: Double-UTF8-encoded (mojibake) text fields are corrected on parse
+- [x] **IMPORT-03**: CSV parsing tolerates unexpected/missing columns and mixed line terminators (CRLF and bare-CR) rather than assuming the 2021 reference sample's exact schema
+- [x] **IMPORT-04**: Double-UTF8-encoded (mojibake) text fields are corrected on parse
 - [x] **IMPORT-05**: A zip that isn't a recognizable Wargaming export (wrong file, corrupt archive) shows a generic failure state
-- [ ] **IMPORT-06**: Uploading a new zip replaces the current dataset (single active dataset); re-uploading the identical zip is detected via hash and skipped rather than re-parsed
+- [x] **IMPORT-06**: Uploading a new zip replaces the current dataset (single active dataset); re-uploading the identical zip is detected via hash and skipped rather than re-parsed
 
 ### Data Management
 
-- [ ] **DATA-01**: Parsed data is cached in IndexedDB (Dexie 4, bulkPut writes) so re-uploading isn't needed on repeat visits
-- [ ] **DATA-02**: A discoverable "clear my cached data" control wipes the IndexedDB cache, shipped in the same phase as caching itself
+- [x] **DATA-01**: Parsed data is cached in IndexedDB (Dexie 4, bulkPut writes) so re-uploading isn't needed on repeat visits
+- [x] **DATA-02**: A discoverable "clear my cached data" control wipes the IndexedDB cache, shipped in the same phase as caching itself
 - [ ] **DATA-03**: Export categories are classified 3-way — supported / known-deferred (Chat_history, Clans) / unknown (any folder never seen before) — all three render the same "detected but not yet supported" banner rather than being hidden, silently dropped, or crashing
 - [ ] **DATA-04**: A category folder absent from a given user's export (e.g. no Financial_data, no Warplanes data) shows that dashboard section empty/greyed-out rather than removing it
 
@@ -83,14 +83,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| IMPORT-01 | Phase 2 | Pending |
+| IMPORT-01 | Phase 2 | Complete |
 | IMPORT-02 | Phase 1 | Complete |
-| IMPORT-03 | Phase 2 | Pending |
-| IMPORT-04 | Phase 2 | Pending |
+| IMPORT-03 | Phase 2 | Complete |
+| IMPORT-04 | Phase 2 | Complete |
 | IMPORT-05 | Phase 1 | Complete |
-| IMPORT-06 | Phase 2 | Pending |
-| DATA-01 | Phase 2 | Pending |
-| DATA-02 | Phase 2 | Pending |
+| IMPORT-06 | Phase 2 | Complete |
+| DATA-01 | Phase 2 | Complete |
+| DATA-02 | Phase 2 | Complete |
 | DATA-03 | Phase 3 | Pending |
 | DATA-04 | Phase 3 | Pending |
 | IDENTITY-01 | Phase 3 | Pending |
@@ -110,6 +110,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PLATFORM-03 | Phase 7 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 25 total (corrected from 24 — ACTIVITY-07 was added after the initial count)
 - Mapped to phases: 25
 - Unmapped: 0 ✓

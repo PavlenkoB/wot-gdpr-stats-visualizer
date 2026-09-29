@@ -1,0 +1,4278 @@
+{
+  "version": 1,
+  "timestamp": "2026-09-29T06:46:14.778Z",
+  "nodes": [
+    {
+      "label": "svelte.config.js",
+      "file_type": "code",
+      "source_file": "svelte.config.js",
+      "source_location": "L1",
+      "id": "svelte_config_js",
+      "community": 9,
+      "norm_label": "svelte.config.js"
+    },
+    {
+      "label": "playwright.config.ts",
+      "file_type": "code",
+      "source_file": "playwright.config.ts",
+      "source_location": "L1",
+      "id": "playwright_config_ts",
+      "community": 10,
+      "norm_label": "playwright.config.ts"
+    },
+    {
+      "label": "eslint.config.js",
+      "file_type": "code",
+      "source_file": "eslint.config.js",
+      "source_location": "L1",
+      "id": "eslint_config_js",
+      "community": 11,
+      "norm_label": "eslint.config.js"
+    },
+    {
+      "label": "vite.config.ts",
+      "file_type": "code",
+      "source_file": "vite.config.ts",
+      "source_location": "L1",
+      "id": "vite_config_ts",
+      "community": 12,
+      "norm_label": "vite.config.ts"
+    },
+    {
+      "label": "vitest.config.ts",
+      "file_type": "code",
+      "source_file": "vitest.config.ts",
+      "source_location": "L1",
+      "id": "vitest_config_ts",
+      "community": 13,
+      "norm_label": "vitest.config.ts"
+    },
+    {
+      "label": "mojibake.test.ts",
+      "file_type": "code",
+      "source_file": "tests/unit/mojibake.test.ts",
+      "source_location": "L1",
+      "id": "tests_unit_mojibake_test_ts",
+      "community": 5,
+      "norm_label": "mojibake.test.ts"
+    },
+    {
+      "label": "toMojibake()",
+      "file_type": "code",
+      "source_file": "tests/unit/mojibake.test.ts",
+      "source_location": "L40",
+      "id": "unit_mojibake_test_tomojibake",
+      "community": 5,
+      "norm_label": "tomojibake()"
+    },
+    {
+      "label": "lint-guards.test.ts",
+      "file_type": "code",
+      "source_file": "tests/unit/lint-guards.test.ts",
+      "source_location": "L1",
+      "id": "tests_unit_lint_guards_test_ts",
+      "community": 8,
+      "norm_label": "lint-guards.test.ts"
+    },
+    {
+      "label": "eslint()",
+      "file_type": "code",
+      "source_file": "tests/unit/lint-guards.test.ts",
+      "source_location": "L61",
+      "id": "unit_lint_guards_test_eslint",
+      "community": 8,
+      "norm_label": "eslint()"
+    },
+    {
+      "label": "ruleIdsAtError()",
+      "file_type": "code",
+      "source_file": "tests/unit/lint-guards.test.ts",
+      "source_location": "L72",
+      "id": "unit_lint_guards_test_ruleidsaterror",
+      "community": 8,
+      "norm_label": "ruleidsaterror()"
+    },
+    {
+      "label": "db.test.ts",
+      "file_type": "code",
+      "source_file": "tests/unit/db.test.ts",
+      "source_location": "L1",
+      "id": "tests_unit_db_test_ts",
+      "community": 3,
+      "norm_label": "db.test.ts"
+    },
+    {
+      "label": "makeRows()",
+      "file_type": "code",
+      "source_file": "tests/unit/db.test.ts",
+      "source_location": "L45",
+      "id": "unit_db_test_makerows",
+      "community": 3,
+      "norm_label": "makerows()"
+    },
+    {
+      "label": "setup.ts",
+      "file_type": "code",
+      "source_file": "tests/unit/setup.ts",
+      "source_location": "L1",
+      "id": "tests_unit_setup_ts",
+      "community": 14,
+      "norm_label": "setup.ts"
+    },
+    {
+      "label": "hash.test.ts",
+      "file_type": "code",
+      "source_file": "tests/unit/hash.test.ts",
+      "source_location": "L1",
+      "id": "tests_unit_hash_test_ts",
+      "community": 3,
+      "norm_label": "hash.test.ts"
+    },
+    {
+      "label": "ui-copy.test.ts",
+      "file_type": "code",
+      "source_file": "tests/unit/ui-copy.test.ts",
+      "source_location": "L1",
+      "id": "tests_unit_ui_copy_test_ts",
+      "community": 2,
+      "norm_label": "ui-copy.test.ts"
+    },
+    {
+      "label": "classify.test.ts",
+      "file_type": "code",
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L1",
+      "id": "tests_unit_classify_test_ts",
+      "community": 0,
+      "norm_label": "classify.test.ts"
+    },
+    {
+      "label": "pathsOf()",
+      "file_type": "code",
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L125",
+      "id": "unit_classify_test_pathsof",
+      "community": 3,
+      "norm_label": "pathsof()"
+    },
+    {
+      "label": "deepEqual()",
+      "file_type": "code",
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L129",
+      "id": "unit_classify_test_deepequal",
+      "community": 0,
+      "norm_label": "deepequal()"
+    },
+    {
+      "label": "webserver-teardown.test.ts",
+      "file_type": "code",
+      "source_file": "tests/unit/webserver-teardown.test.ts",
+      "source_location": "L1",
+      "id": "tests_unit_webserver_teardown_test_ts",
+      "community": 7,
+      "norm_label": "webserver-teardown.test.ts"
+    },
+    {
+      "label": "launchLikePlaywright()",
+      "file_type": "code",
+      "source_file": "tests/unit/webserver-teardown.test.ts",
+      "source_location": "L43",
+      "id": "unit_webserver_teardown_test_launchlikeplaywright",
+      "community": 7,
+      "norm_label": "launchlikeplaywright()"
+    },
+    {
+      "label": "killProcessGroupLikePlaywright()",
+      "file_type": "code",
+      "source_file": "tests/unit/webserver-teardown.test.ts",
+      "source_location": "L56",
+      "id": "unit_webserver_teardown_test_killprocessgrouplikeplaywright",
+      "community": 7,
+      "norm_label": "killprocessgrouplikeplaywright()"
+    },
+    {
+      "label": "forceFreePort()",
+      "file_type": "code",
+      "source_file": "tests/unit/webserver-teardown.test.ts",
+      "source_location": "L68",
+      "id": "unit_webserver_teardown_test_forcefreeport",
+      "community": 7,
+      "norm_label": "forcefreeport()"
+    },
+    {
+      "label": "waitForReachable()",
+      "file_type": "code",
+      "source_file": "tests/unit/webserver-teardown.test.ts",
+      "source_location": "L86",
+      "id": "unit_webserver_teardown_test_waitforreachable",
+      "community": 7,
+      "norm_label": "waitforreachable()"
+    },
+    {
+      "label": "ingest-worker.test.ts",
+      "file_type": "code",
+      "source_file": "tests/unit/ingest-worker.test.ts",
+      "source_location": "L1",
+      "id": "tests_unit_ingest_worker_test_ts",
+      "community": 2,
+      "norm_label": "ingest-worker.test.ts"
+    },
+    {
+      "label": "waitForTerminal()",
+      "file_type": "code",
+      "source_file": "tests/unit/ingest-worker.test.ts",
+      "source_location": "L56",
+      "id": "unit_ingest_worker_test_waitforterminal",
+      "community": 2,
+      "norm_label": "waitforterminal()"
+    },
+    {
+      "label": "deleteActiveDatabase()",
+      "file_type": "code",
+      "source_file": "tests/unit/ingest-worker.test.ts",
+      "source_location": "L83",
+      "id": "unit_ingest_worker_test_deleteactivedatabase",
+      "community": 2,
+      "norm_label": "deleteactivedatabase()"
+    },
+    {
+      "label": "makeFileFromBytes()",
+      "file_type": "code",
+      "source_file": "tests/unit/ingest-worker.test.ts",
+      "source_location": "L92",
+      "id": "unit_ingest_worker_test_makefilefrombytes",
+      "community": 2,
+      "norm_label": "makefilefrombytes()"
+    },
+    {
+      "label": "csv-parse.test.ts",
+      "file_type": "code",
+      "source_file": "tests/unit/csv-parse.test.ts",
+      "source_location": "L1",
+      "id": "tests_unit_csv_parse_test_ts",
+      "community": 5,
+      "norm_label": "csv-parse.test.ts"
+    },
+    {
+      "label": "ingest-client.test.ts",
+      "file_type": "code",
+      "source_file": "tests/unit/ingest-client.test.ts",
+      "source_location": "L1",
+      "id": "tests_unit_ingest_client_test_ts",
+      "community": 1,
+      "norm_label": "ingest-client.test.ts"
+    },
+    {
+      "label": "FakeWorker",
+      "file_type": "code",
+      "source_file": "tests/unit/ingest-client.test.ts",
+      "source_location": "L37",
+      "id": "unit_ingest_client_test_fakeworker",
+      "community": 1,
+      "norm_label": "fakeworker"
+    },
+    {
+      "label": ".postMessage()",
+      "file_type": "code",
+      "source_file": "tests/unit/ingest-client.test.ts",
+      "source_location": "L43",
+      "id": "unit_ingest_client_test_fakeworker_postmessage",
+      "community": 1,
+      "norm_label": ".postmessage()"
+    },
+    {
+      "label": ".emit()",
+      "file_type": "code",
+      "source_file": "tests/unit/ingest-client.test.ts",
+      "source_location": "L47",
+      "id": "unit_ingest_client_test_fakeworker_emit",
+      "community": 1,
+      "norm_label": ".emit()"
+    },
+    {
+      "label": ".emitError()",
+      "file_type": "code",
+      "source_file": "tests/unit/ingest-client.test.ts",
+      "source_location": "L55",
+      "id": "unit_ingest_client_test_fakeworker_emiterror",
+      "community": 1,
+      "norm_label": ".emiterror()"
+    },
+    {
+      "label": ".emitMessageError()",
+      "file_type": "code",
+      "source_file": "tests/unit/ingest-client.test.ts",
+      "source_location": "L59",
+      "id": "unit_ingest_client_test_fakeworker_emitmessageerror",
+      "community": 1,
+      "norm_label": ".emitmessageerror()"
+    },
+    {
+      "label": "makeClient()",
+      "file_type": "code",
+      "source_file": "tests/unit/ingest-client.test.ts",
+      "source_location": "L74",
+      "id": "unit_ingest_client_test_makeclient",
+      "community": 1,
+      "norm_label": "makeclient()"
+    },
+    {
+      "label": "makeFile()",
+      "file_type": "code",
+      "source_file": "tests/unit/ingest-client.test.ts",
+      "source_location": "L84",
+      "id": "unit_ingest_client_test_makefile",
+      "community": 1,
+      "norm_label": "makefile()"
+    },
+    {
+      "label": "stringify()",
+      "file_type": "code",
+      "source_file": "tests/unit/ingest-client.test.ts",
+      "source_location": "L407",
+      "id": "unit_ingest_client_test_stringify",
+      "community": 1,
+      "norm_label": "stringify()"
+    },
+    {
+      "label": "consoleSpyContains()",
+      "file_type": "code",
+      "source_file": "tests/unit/ingest-client.test.ts",
+      "source_location": "L416",
+      "id": "unit_ingest_client_test_consolespycontains",
+      "community": 1,
+      "norm_label": "consolespycontains()"
+    },
+    {
+      "label": "zip-paths.test.ts",
+      "file_type": "code",
+      "source_file": "tests/unit/zip-paths.test.ts",
+      "source_location": "L1",
+      "id": "tests_unit_zip_paths_test_ts",
+      "community": 0,
+      "norm_label": "zip-paths.test.ts"
+    },
+    {
+      "label": "export-fixtures.ts",
+      "file_type": "code",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L1",
+      "id": "tests_fixtures_export_fixtures_ts",
+      "community": 0,
+      "norm_label": "export-fixtures.ts"
+    },
+    {
+      "label": "sampleEntries()",
+      "file_type": "code",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L199",
+      "id": "fixtures_export_fixtures_sampleentries",
+      "community": 0,
+      "norm_label": "sampleentries()"
+    },
+    {
+      "label": "buildSampleExport()",
+      "file_type": "code",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L248",
+      "id": "fixtures_export_fixtures_buildsampleexport",
+      "community": 0,
+      "norm_label": "buildsampleexport()"
+    },
+    {
+      "label": "buildLargeExport()",
+      "file_type": "code",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L276",
+      "id": "fixtures_export_fixtures_buildlargeexport",
+      "community": 0,
+      "norm_label": "buildlargeexport()"
+    },
+    {
+      "label": "buildRenamedRootExport()",
+      "file_type": "code",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L309",
+      "id": "fixtures_export_fixtures_buildrenamedrootexport",
+      "community": 0,
+      "norm_label": "buildrenamedrootexport()"
+    },
+    {
+      "label": "buildMacRezippedExport()",
+      "file_type": "code",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L324",
+      "id": "fixtures_export_fixtures_buildmacrezippedexport",
+      "community": 0,
+      "norm_label": "buildmacrezippedexport()"
+    },
+    {
+      "label": "buildBackslashExport()",
+      "file_type": "code",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L340",
+      "id": "fixtures_export_fixtures_buildbackslashexport",
+      "community": 0,
+      "norm_label": "buildbackslashexport()"
+    },
+    {
+      "label": "buildDirectoryEntriesExport()",
+      "file_type": "code",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L353",
+      "id": "fixtures_export_fixtures_builddirectoryentriesexport",
+      "community": 0,
+      "norm_label": "builddirectoryentriesexport()"
+    },
+    {
+      "label": "buildNoRecognizedCategoryZip()",
+      "file_type": "code",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L367",
+      "id": "fixtures_export_fixtures_buildnorecognizedcategoryzip",
+      "community": 0,
+      "norm_label": "buildnorecognizedcategoryzip()"
+    },
+    {
+      "label": "buildMultiRootZip()",
+      "file_type": "code",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L378",
+      "id": "fixtures_export_fixtures_buildmultirootzip",
+      "community": 0,
+      "norm_label": "buildmultirootzip()"
+    },
+    {
+      "label": "buildSingleFileZip()",
+      "file_type": "code",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L390",
+      "id": "fixtures_export_fixtures_buildsinglefilezip",
+      "community": 0,
+      "norm_label": "buildsinglefilezip()"
+    },
+    {
+      "label": "buildFilesOnlyUnderRootZip()",
+      "file_type": "code",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L400",
+      "id": "fixtures_export_fixtures_buildfilesonlyunderrootzip",
+      "community": 0,
+      "norm_label": "buildfilesonlyunderrootzip()"
+    },
+    {
+      "label": "buildEmptyZip()",
+      "file_type": "code",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L411",
+      "id": "fixtures_export_fixtures_buildemptyzip",
+      "community": 0,
+      "norm_label": "buildemptyzip()"
+    },
+    {
+      "label": "buildWrapperExport()",
+      "file_type": "code",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L429",
+      "id": "fixtures_export_fixtures_buildwrapperexport",
+      "community": 0,
+      "norm_label": "buildwrapperexport()"
+    },
+    {
+      "label": "buildRootlessExport()",
+      "file_type": "code",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L447",
+      "id": "fixtures_export_fixtures_buildrootlessexport",
+      "community": 0,
+      "norm_label": "buildrootlessexport()"
+    },
+    {
+      "label": "buildNotAZipBytes()",
+      "file_type": "code",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L468",
+      "id": "fixtures_export_fixtures_buildnotazipbytes",
+      "community": 0,
+      "norm_label": "buildnotazipbytes()"
+    },
+    {
+      "label": "buildTruncatedExport()",
+      "file_type": "code",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L476",
+      "id": "fixtures_export_fixtures_buildtruncatedexport",
+      "community": 0,
+      "norm_label": "buildtruncatedexport()"
+    },
+    {
+      "label": "buildInflateTrapExport()",
+      "file_type": "code",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L503",
+      "id": "fixtures_export_fixtures_buildinflatetrapexport",
+      "community": 0,
+      "norm_label": "buildinflatetrapexport()"
+    },
+    {
+      "label": "inflateTrapContent()",
+      "file_type": "code",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L558",
+      "id": "fixtures_export_fixtures_inflatetrapcontent",
+      "community": 0,
+      "norm_label": "inflatetrapcontent()"
+    },
+    {
+      "label": "toMojibake()",
+      "file_type": "code",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L594",
+      "id": "fixtures_export_fixtures_tomojibake",
+      "community": 0,
+      "norm_label": "tomojibake()"
+    },
+    {
+      "label": "buildMojibakeExport()",
+      "file_type": "code",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L612",
+      "id": "fixtures_export_fixtures_buildmojibakeexport",
+      "community": 0,
+      "norm_label": "buildmojibakeexport()"
+    },
+    {
+      "label": "buildMalformedRowsExport()",
+      "file_type": "code",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L650",
+      "id": "fixtures_export_fixtures_buildmalformedrowsexport",
+      "community": 0,
+      "norm_label": "buildmalformedrowsexport()"
+    },
+    {
+      "label": "buildScaleExport()",
+      "file_type": "code",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L796",
+      "id": "fixtures_export_fixtures_buildscaleexport",
+      "community": 0,
+      "norm_label": "buildscaleexport()"
+    },
+    {
+      "label": "zero-network.spec.ts",
+      "file_type": "code",
+      "source_file": "tests/e2e/zero-network.spec.ts",
+      "source_location": "L1",
+      "id": "tests_e2e_zero_network_spec_ts",
+      "community": 0,
+      "norm_label": "zero-network.spec.ts"
+    },
+    {
+      "label": "helpers.ts",
+      "file_type": "code",
+      "source_file": "tests/e2e/helpers.ts",
+      "source_location": "L1",
+      "id": "tests_e2e_helpers_ts",
+      "community": 0,
+      "norm_label": "helpers.ts"
+    },
+    {
+      "label": "dropFiles()",
+      "file_type": "code",
+      "source_file": "tests/e2e/helpers.ts",
+      "source_location": "L43",
+      "id": "e2e_helpers_dropfiles",
+      "community": 0,
+      "norm_label": "dropfiles()"
+    },
+    {
+      "label": "import-flow.spec.ts",
+      "file_type": "code",
+      "source_file": "tests/e2e/import-flow.spec.ts",
+      "source_location": "L1",
+      "id": "tests_e2e_import_flow_spec_ts",
+      "community": 0,
+      "norm_label": "import-flow.spec.ts"
+    },
+    {
+      "label": "persistent-dataset.spec.ts",
+      "file_type": "code",
+      "source_file": "tests/e2e/persistent-dataset.spec.ts",
+      "source_location": "L1",
+      "id": "tests_e2e_persistent_dataset_spec_ts",
+      "community": 0,
+      "norm_label": "persistent-dataset.spec.ts"
+    },
+    {
+      "label": "expectedBadgeText()",
+      "file_type": "code",
+      "source_file": "tests/e2e/persistent-dataset.spec.ts",
+      "source_location": "L60",
+      "id": "e2e_persistent_dataset_spec_expectedbadgetext",
+      "community": 0,
+      "norm_label": "expectedbadgetext()"
+    },
+    {
+      "label": "import-failure.spec.ts",
+      "file_type": "code",
+      "source_file": "tests/e2e/import-failure.spec.ts",
+      "source_location": "L1",
+      "id": "tests_e2e_import_failure_spec_ts",
+      "community": 0,
+      "norm_label": "import-failure.spec.ts"
+    },
+    {
+      "label": "bannerTextContaining()",
+      "file_type": "code",
+      "source_file": "tests/e2e/import-failure.spec.ts",
+      "source_location": "L60",
+      "id": "e2e_import_failure_spec_bannertextcontaining",
+      "community": 0,
+      "norm_label": "bannertextcontaining()"
+    },
+    {
+      "label": "main.ts",
+      "file_type": "code",
+      "source_file": "src/main.ts",
+      "source_location": "L1",
+      "id": "src_main_ts",
+      "community": 2,
+      "norm_label": "main.ts"
+    },
+    {
+      "label": "App.svelte",
+      "file_type": "code",
+      "source_file": "src/App.svelte",
+      "source_location": "L1",
+      "id": "src_app_svelte",
+      "community": 2,
+      "norm_label": "app.svelte"
+    },
+    {
+      "label": "ingest-client.ts",
+      "file_type": "code",
+      "source_file": "src/lib/ingest-client.ts",
+      "confidence": "EXTRACTED",
+      "source_location": "L1",
+      "id": "src_lib_ingest_client_ts",
+      "community": 2,
+      "norm_label": "ingest-client.ts"
+    },
+    {
+      "label": "../ui-copy.ts",
+      "file_type": "code",
+      "source_file": "src/lib/ui-copy.ts",
+      "confidence": "EXTRACTED",
+      "source_location": "L1",
+      "id": "src_lib_ui_copy_ts",
+      "community": 2,
+      "norm_label": "../ui-copy.ts"
+    },
+    {
+      "label": "worker-client.svelte.ts",
+      "file_type": "code",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "confidence": "EXTRACTED",
+      "source_location": "L1",
+      "id": "src_lib_worker_client_svelte_ts",
+      "community": 2,
+      "norm_label": "worker-client.svelte.ts"
+    },
+    {
+      "label": "ConfirmPanel.svelte",
+      "file_type": "code",
+      "source_file": "src/lib/components/ConfirmPanel.svelte",
+      "confidence": "EXTRACTED",
+      "source_location": "L1",
+      "id": "src_lib_components_confirmpanel_svelte",
+      "community": 2,
+      "norm_label": "confirmpanel.svelte"
+    },
+    {
+      "label": "Dropzone.svelte",
+      "file_type": "code",
+      "source_file": "src/lib/components/Dropzone.svelte",
+      "confidence": "EXTRACTED",
+      "source_location": "L1",
+      "id": "src_lib_components_dropzone_svelte",
+      "community": 6,
+      "norm_label": "dropzone.svelte"
+    },
+    {
+      "label": "FailureBanner.svelte",
+      "file_type": "code",
+      "source_file": "src/lib/components/FailureBanner.svelte",
+      "confidence": "EXTRACTED",
+      "source_location": "L1",
+      "id": "src_lib_components_failurebanner_svelte",
+      "community": 2,
+      "norm_label": "failurebanner.svelte"
+    },
+    {
+      "label": "ResultsView.svelte",
+      "file_type": "code",
+      "source_file": "src/lib/components/ResultsView.svelte",
+      "confidence": "EXTRACTED",
+      "source_location": "L1",
+      "id": "src_lib_components_resultsview_svelte",
+      "community": 2,
+      "norm_label": "resultsview.svelte"
+    },
+    {
+      "label": "IngestClient",
+      "file_type": "code",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L95",
+      "id": "lib_worker_client_svelte_ingestclient",
+      "community": 1,
+      "norm_label": "ingestclient"
+    },
+    {
+      "label": ".constructor()",
+      "file_type": "code",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L134",
+      "id": "lib_worker_client_svelte_ingestclient_constructor",
+      "community": 1,
+      "norm_label": ".constructor()"
+    },
+    {
+      "label": ".busy()",
+      "file_type": "code",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L163",
+      "id": "lib_worker_client_svelte_ingestclient_busy",
+      "community": 1,
+      "norm_label": ".busy()"
+    },
+    {
+      "label": ".reset()",
+      "file_type": "code",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L184",
+      "id": "lib_worker_client_svelte_ingestclient_reset",
+      "community": 1,
+      "norm_label": ".reset()"
+    },
+    {
+      "label": ".requestStartOver()",
+      "file_type": "code",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L214",
+      "id": "lib_worker_client_svelte_ingestclient_requeststartover",
+      "community": 1,
+      "norm_label": ".requeststartover()"
+    },
+    {
+      "label": ".requestClearData()",
+      "file_type": "code",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L230",
+      "id": "lib_worker_client_svelte_ingestclient_requestcleardata",
+      "community": 1,
+      "norm_label": ".requestcleardata()"
+    },
+    {
+      "label": ".confirmPending()",
+      "file_type": "code",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L254",
+      "id": "lib_worker_client_svelte_ingestclient_confirmpending",
+      "community": 1,
+      "norm_label": ".confirmpending()"
+    },
+    {
+      "label": ".cancelPending()",
+      "file_type": "code",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L305",
+      "id": "lib_worker_client_svelte_ingestclient_cancelpending",
+      "community": 1,
+      "norm_label": ".cancelpending()"
+    },
+    {
+      "label": ".submitFiles()",
+      "file_type": "code",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L313",
+      "id": "lib_worker_client_svelte_ingestclient_submitfiles",
+      "community": 1,
+      "norm_label": ".submitfiles()"
+    },
+    {
+      "label": ".#handle()",
+      "file_type": "code",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L391",
+      "id": "lib_worker_client_svelte_ingestclient_handle",
+      "community": 1,
+      "norm_label": ".#handle()"
+    },
+    {
+      "label": ".#fail()",
+      "file_type": "code",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L518",
+      "id": "lib_worker_client_svelte_ingestclient_fail",
+      "community": 1,
+      "norm_label": ".#fail()"
+    },
+    {
+      "label": ".#scheduleSettle()",
+      "file_type": "code",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L544",
+      "id": "lib_worker_client_svelte_ingestclient_schedulesettle",
+      "community": 1,
+      "norm_label": ".#schedulesettle()"
+    },
+    {
+      "label": ".#clearSettleTimer()",
+      "file_type": "code",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L563",
+      "id": "lib_worker_client_svelte_ingestclient_clearsettletimer",
+      "community": 1,
+      "norm_label": ".#clearsettletimer()"
+    },
+    {
+      "label": "precheck.ts",
+      "file_type": "code",
+      "source_file": "src/lib/precheck.ts",
+      "source_location": "L1",
+      "id": "src_lib_precheck_ts",
+      "community": 1,
+      "norm_label": "precheck.ts"
+    },
+    {
+      "label": "precheckFiles()",
+      "file_type": "code",
+      "source_file": "src/lib/precheck.ts",
+      "source_location": "L45",
+      "id": "lib_precheck_precheckfiles",
+      "community": 1,
+      "norm_label": "precheckfiles()"
+    },
+    {
+      "label": "formatParsingProgress()",
+      "file_type": "code",
+      "source_file": "src/lib/ui-copy.ts",
+      "source_location": "L41",
+      "id": "lib_ui_copy_formatparsingprogress",
+      "community": 0,
+      "norm_label": "formatparsingprogress()"
+    },
+    {
+      "label": "formatSummary()",
+      "file_type": "code",
+      "source_file": "src/lib/ui-copy.ts",
+      "source_location": "L57",
+      "id": "lib_ui_copy_formatsummary",
+      "community": 2,
+      "norm_label": "formatsummary()"
+    },
+    {
+      "label": "formatFileCount()",
+      "file_type": "code",
+      "source_file": "src/lib/ui-copy.ts",
+      "source_location": "L67",
+      "id": "lib_ui_copy_formatfilecount",
+      "community": 2,
+      "norm_label": "formatfilecount()"
+    },
+    {
+      "label": "formatRowCount()",
+      "file_type": "code",
+      "source_file": "src/lib/ui-copy.ts",
+      "source_location": "L78",
+      "id": "lib_ui_copy_formatrowcount",
+      "community": 2,
+      "norm_label": "formatrowcount()"
+    },
+    {
+      "label": "formatSkippedRowCount()",
+      "file_type": "code",
+      "source_file": "src/lib/ui-copy.ts",
+      "source_location": "L90",
+      "id": "lib_ui_copy_formatskippedrowcount",
+      "community": 2,
+      "norm_label": "formatskippedrowcount()"
+    },
+    {
+      "label": "formatAccountHeading()",
+      "file_type": "code",
+      "source_file": "src/lib/ui-copy.ts",
+      "source_location": "L106",
+      "id": "lib_ui_copy_formataccountheading",
+      "community": 2,
+      "norm_label": "formataccountheading()"
+    },
+    {
+      "label": "formatImportedOn()",
+      "file_type": "code",
+      "source_file": "src/lib/ui-copy.ts",
+      "source_location": "L141",
+      "id": "lib_ui_copy_formatimportedon",
+      "community": 2,
+      "norm_label": "formatimportedon()"
+    },
+    {
+      "label": "../types/worker-messages.ts",
+      "file_type": "code",
+      "source_file": "src/lib/types/worker-messages.ts",
+      "source_location": "L1",
+      "confidence": "EXTRACTED",
+      "id": "src_lib_types_worker_messages_ts",
+      "community": 2,
+      "norm_label": "../types/worker-messages.ts"
+    },
+    {
+      "label": "CategoryBadge.svelte",
+      "file_type": "code",
+      "source_file": "src/lib/components/CategoryBadge.svelte",
+      "confidence": "EXTRACTED",
+      "source_location": "L1",
+      "id": "src_lib_components_categorybadge_svelte",
+      "community": 2,
+      "norm_label": "categorybadge.svelte"
+    },
+    {
+      "label": "onDragEnter()",
+      "file_type": "code",
+      "source_file": "src/lib/components/Dropzone.svelte",
+      "source_location": "L27",
+      "id": "components_dropzone_ondragenter",
+      "community": 6,
+      "norm_label": "ondragenter()"
+    },
+    {
+      "label": "onDragLeave()",
+      "file_type": "code",
+      "source_file": "src/lib/components/Dropzone.svelte",
+      "source_location": "L33",
+      "id": "components_dropzone_ondragleave",
+      "community": 6,
+      "norm_label": "ondragleave()"
+    },
+    {
+      "label": "onDragOver()",
+      "file_type": "code",
+      "source_file": "src/lib/components/Dropzone.svelte",
+      "source_location": "L39",
+      "id": "components_dropzone_ondragover",
+      "community": 6,
+      "norm_label": "ondragover()"
+    },
+    {
+      "label": "onDrop()",
+      "file_type": "code",
+      "source_file": "src/lib/components/Dropzone.svelte",
+      "source_location": "L48",
+      "id": "components_dropzone_ondrop",
+      "community": 6,
+      "norm_label": "ondrop()"
+    },
+    {
+      "label": "onLabelKeyDown()",
+      "file_type": "code",
+      "source_file": "src/lib/components/Dropzone.svelte",
+      "source_location": "L56",
+      "id": "components_dropzone_onlabelkeydown",
+      "community": 6,
+      "norm_label": "onlabelkeydown()"
+    },
+    {
+      "label": "onInputChange()",
+      "file_type": "code",
+      "source_file": "src/lib/components/Dropzone.svelte",
+      "source_location": "L67",
+      "id": "components_dropzone_oninputchange",
+      "community": 6,
+      "norm_label": "oninputchange()"
+    },
+    {
+      "label": "formatFileCount()",
+      "file_type": "code",
+      "source_file": "src/lib/components/CategoryBadge.svelte",
+      "source_location": "L41",
+      "id": "components_categorybadge_formatfilecount",
+      "community": 2,
+      "norm_label": "formatfilecount()"
+    },
+    {
+      "label": "zip-paths.ts",
+      "file_type": "code",
+      "source_file": "src/lib/worker/zip-paths.ts",
+      "source_location": "L1",
+      "id": "src_lib_worker_zip_paths_ts",
+      "community": 3,
+      "norm_label": "zip-paths.ts"
+    },
+    {
+      "label": "listEntryPaths()",
+      "file_type": "code",
+      "source_file": "src/lib/worker/zip-paths.ts",
+      "source_location": "L25",
+      "id": "worker_zip_paths_listentrypaths",
+      "community": 3,
+      "norm_label": "listentrypaths()"
+    },
+    {
+      "label": "mojibake.ts",
+      "file_type": "code",
+      "source_file": "src/lib/worker/mojibake.ts",
+      "source_location": "L1",
+      "id": "src_lib_worker_mojibake_ts",
+      "community": 5,
+      "norm_label": "mojibake.ts"
+    },
+    {
+      "label": "fixMojibake()",
+      "file_type": "code",
+      "source_file": "src/lib/worker/mojibake.ts",
+      "source_location": "L28",
+      "id": "worker_mojibake_fixmojibake",
+      "community": 5,
+      "norm_label": "fixmojibake()"
+    },
+    {
+      "label": "ingest.worker.ts",
+      "file_type": "code",
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L1",
+      "id": "src_lib_worker_ingest_worker_ts",
+      "community": 3,
+      "norm_label": "ingest.worker.ts"
+    },
+    {
+      "label": "handleClearData()",
+      "file_type": "code",
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L53",
+      "id": "worker_ingest_worker_handlecleardata",
+      "community": 3,
+      "norm_label": "handlecleardata()"
+    },
+    {
+      "label": "handleCheckCache()",
+      "file_type": "code",
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L78",
+      "id": "worker_ingest_worker_handlecheckcache",
+      "community": 3,
+      "norm_label": "handlecheckcache()"
+    },
+    {
+      "label": "handleIngest()",
+      "file_type": "code",
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L104",
+      "id": "worker_ingest_worker_handleingest",
+      "community": 3,
+      "norm_label": "handleingest()"
+    },
+    {
+      "label": "recomputeStatusCounts()",
+      "file_type": "code",
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L219",
+      "id": "worker_ingest_worker_recomputestatuscounts",
+      "community": 3,
+      "norm_label": "recomputestatuscounts()"
+    },
+    {
+      "label": "csv-parse.ts",
+      "file_type": "code",
+      "source_file": "src/lib/worker/csv-parse.ts",
+      "source_location": "L1",
+      "id": "src_lib_worker_csv_parse_ts",
+      "community": 5,
+      "norm_label": "csv-parse.ts"
+    },
+    {
+      "label": "parseCsvFile()",
+      "file_type": "code",
+      "source_file": "src/lib/worker/csv-parse.ts",
+      "source_location": "L42",
+      "id": "worker_csv_parse_parsecsvfile",
+      "community": 5,
+      "norm_label": "parsecsvfile()"
+    },
+    {
+      "label": "hash.ts",
+      "file_type": "code",
+      "source_file": "src/lib/worker/hash.ts",
+      "source_location": "L1",
+      "id": "src_lib_worker_hash_ts",
+      "community": 3,
+      "norm_label": "hash.ts"
+    },
+    {
+      "label": "digestFile()",
+      "file_type": "code",
+      "source_file": "src/lib/worker/hash.ts",
+      "source_location": "L21",
+      "id": "worker_hash_digestfile",
+      "community": 3,
+      "norm_label": "digestfile()"
+    },
+    {
+      "label": "classify.ts",
+      "file_type": "code",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L1",
+      "id": "src_lib_worker_classify_ts",
+      "community": 4,
+      "norm_label": "classify.ts"
+    },
+    {
+      "label": "normalizeEntryPath()",
+      "file_type": "code",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L43",
+      "id": "worker_classify_normalizeentrypath",
+      "community": 4,
+      "norm_label": "normalizeentrypath()"
+    },
+    {
+      "label": "isOsMetadataEntry()",
+      "file_type": "code",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L63",
+      "id": "worker_classify_isosmetadataentry",
+      "community": 4,
+      "norm_label": "isosmetadataentry()"
+    },
+    {
+      "label": "prepare()",
+      "file_type": "code",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L76",
+      "id": "worker_classify_prepare",
+      "community": 4,
+      "norm_label": "prepare()"
+    },
+    {
+      "label": "detectRoot()",
+      "file_type": "code",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L98",
+      "id": "worker_classify_detectroot",
+      "community": 4,
+      "norm_label": "detectroot()"
+    },
+    {
+      "label": "categoryFoldersUnder()",
+      "file_type": "code",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L124",
+      "id": "worker_classify_categoryfoldersunder",
+      "community": 4,
+      "norm_label": "categoryfoldersunder()"
+    },
+    {
+      "label": "foldersAt()",
+      "file_type": "code",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L145",
+      "id": "worker_classify_foldersat",
+      "community": 4,
+      "norm_label": "foldersat()"
+    },
+    {
+      "label": "hasRecognizedCategory()",
+      "file_type": "code",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L178",
+      "id": "worker_classify_hasrecognizedcategory",
+      "community": 4,
+      "norm_label": "hasrecognizedcategory()"
+    },
+    {
+      "label": "resolveAccountRootAndCategories()",
+      "file_type": "code",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L228",
+      "id": "worker_classify_resolveaccountrootandcategories",
+      "community": 4,
+      "norm_label": "resolveaccountrootandcategories()"
+    },
+    {
+      "label": "analyzeExport()",
+      "file_type": "code",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L308",
+      "id": "worker_classify_analyzeexport",
+      "community": 4,
+      "norm_label": "analyzeexport()"
+    },
+    {
+      "label": "classifyExport()",
+      "file_type": "code",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L368",
+      "id": "worker_classify_classifyexport",
+      "community": 4,
+      "norm_label": "classifyexport()"
+    },
+    {
+      "label": "resolveCsvFileCategory()",
+      "file_type": "code",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L401",
+      "id": "worker_classify_resolvecsvfilecategory",
+      "community": 4,
+      "norm_label": "resolvecsvfilecategory()"
+    },
+    {
+      "label": "categories.ts",
+      "file_type": "code",
+      "source_file": "src/lib/worker/categories.ts",
+      "source_location": "L1",
+      "id": "src_lib_worker_categories_ts",
+      "community": 4,
+      "norm_label": "categories.ts"
+    },
+    {
+      "label": "classifyFolder()",
+      "file_type": "code",
+      "source_file": "src/lib/worker/categories.ts",
+      "source_location": "L39",
+      "id": "worker_categories_classifyfolder",
+      "community": 4,
+      "norm_label": "classifyfolder()"
+    },
+    {
+      "label": "db.ts",
+      "file_type": "code",
+      "source_file": "src/lib/worker/db.ts",
+      "source_location": "L1",
+      "id": "src_lib_worker_db_ts",
+      "community": 3,
+      "norm_label": "db.ts"
+    },
+    {
+      "label": "AppDb",
+      "file_type": "code",
+      "source_file": "src/lib/worker/db.ts",
+      "source_location": "L47",
+      "id": "worker_db_appdb",
+      "community": 3,
+      "norm_label": "appdb"
+    },
+    {
+      "label": ".constructor()",
+      "file_type": "code",
+      "source_file": "src/lib/worker/db.ts",
+      "source_location": "L51",
+      "id": "worker_db_appdb_constructor",
+      "community": 3,
+      "norm_label": ".constructor()"
+    },
+    {
+      "label": "writeDataset()",
+      "file_type": "code",
+      "source_file": "src/lib/worker/db.ts",
+      "source_location": "L73",
+      "id": "worker_db_writedataset",
+      "community": 3,
+      "norm_label": "writedataset()"
+    },
+    {
+      "label": "checkCache()",
+      "file_type": "code",
+      "source_file": "src/lib/worker/db.ts",
+      "source_location": "L96",
+      "id": "worker_db_checkcache",
+      "community": 3,
+      "norm_label": "checkcache()"
+    },
+    {
+      "label": "clearData()",
+      "file_type": "code",
+      "source_file": "src/lib/worker/db.ts",
+      "source_location": "L118",
+      "id": "worker_db_cleardata",
+      "community": 3,
+      "norm_label": "cleardata()"
+    }
+  ],
+  "edges": [
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/mojibake.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_mojibake_test_ts",
+      "target": "src_lib_worker_mojibake_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/mojibake.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_mojibake_test_ts",
+      "target": "worker_mojibake_fixmojibake",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/mojibake.test.ts",
+      "source_location": "L40",
+      "weight": 1,
+      "source": "tests_unit_mojibake_test_ts",
+      "target": "unit_mojibake_test_tomojibake",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/lint-guards.test.ts",
+      "source_location": "L61",
+      "weight": 1,
+      "source": "tests_unit_lint_guards_test_ts",
+      "target": "unit_lint_guards_test_eslint",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/lint-guards.test.ts",
+      "source_location": "L72",
+      "weight": 1,
+      "source": "tests_unit_lint_guards_test_ts",
+      "target": "unit_lint_guards_test_ruleidsaterror",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/lint-guards.test.ts",
+      "source_location": "L73",
+      "weight": 1,
+      "source": "unit_lint_guards_test_ruleidsaterror",
+      "target": "unit_lint_guards_test_eslint",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/db.test.ts",
+      "source_location": "L10",
+      "weight": 1,
+      "source": "tests_unit_db_test_ts",
+      "target": "src_lib_worker_db_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/db.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_db_test_ts",
+      "target": "worker_db_checkcache",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/db.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_db_test_ts",
+      "target": "worker_db_cleardata",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/db.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_db_test_ts",
+      "target": "worker_db_writedataset",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/db.test.ts",
+      "source_location": "L9",
+      "weight": 1,
+      "source": "tests_unit_db_test_ts",
+      "target": "src_lib_types_worker_messages_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/db.test.ts",
+      "source_location": "L45",
+      "weight": 1,
+      "source": "tests_unit_db_test_ts",
+      "target": "unit_db_test_makerows",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/hash.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_hash_test_ts",
+      "target": "src_lib_worker_hash_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/hash.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_hash_test_ts",
+      "target": "worker_hash_digestfile",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/ui-copy.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_ui_copy_test_ts",
+      "target": "src_lib_ui_copy_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/ui-copy.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_ui_copy_test_ts",
+      "target": "lib_ui_copy_formataccountheading",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/ui-copy.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_ui_copy_test_ts",
+      "target": "lib_ui_copy_formatfilecount",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/ui-copy.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_ui_copy_test_ts",
+      "target": "lib_ui_copy_formatsummary",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/ui-copy.test.ts",
+      "source_location": "L11",
+      "weight": 1,
+      "source": "tests_unit_ui_copy_test_ts",
+      "target": "src_lib_types_worker_messages_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_classify_test_ts",
+      "target": "tests_fixtures_export_fixtures_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_classify_test_ts",
+      "target": "fixtures_export_fixtures_buildbackslashexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_classify_test_ts",
+      "target": "fixtures_export_fixtures_builddirectoryentriesexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_classify_test_ts",
+      "target": "fixtures_export_fixtures_buildemptyzip",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_classify_test_ts",
+      "target": "fixtures_export_fixtures_buildfilesonlyunderrootzip",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_classify_test_ts",
+      "target": "fixtures_export_fixtures_buildmacrezippedexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_classify_test_ts",
+      "target": "fixtures_export_fixtures_buildmultirootzip",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_classify_test_ts",
+      "target": "fixtures_export_fixtures_buildnorecognizedcategoryzip",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_classify_test_ts",
+      "target": "fixtures_export_fixtures_buildrenamedrootexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_classify_test_ts",
+      "target": "fixtures_export_fixtures_buildrootlessexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_classify_test_ts",
+      "target": "fixtures_export_fixtures_buildsampleexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_classify_test_ts",
+      "target": "fixtures_export_fixtures_buildsinglefilezip",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_classify_test_ts",
+      "target": "fixtures_export_fixtures_buildwrapperexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L23",
+      "weight": 1,
+      "source": "tests_unit_classify_test_ts",
+      "target": "src_lib_worker_classify_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L23",
+      "weight": 1,
+      "source": "tests_unit_classify_test_ts",
+      "target": "worker_classify_analyzeexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L23",
+      "weight": 1,
+      "source": "tests_unit_classify_test_ts",
+      "target": "worker_classify_categoryfoldersunder",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L23",
+      "weight": 1,
+      "source": "tests_unit_classify_test_ts",
+      "target": "worker_classify_classifyexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L23",
+      "weight": 1,
+      "source": "tests_unit_classify_test_ts",
+      "target": "worker_classify_detectroot",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L23",
+      "weight": 1,
+      "source": "tests_unit_classify_test_ts",
+      "target": "worker_classify_isosmetadataentry",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L23",
+      "weight": 1,
+      "source": "tests_unit_classify_test_ts",
+      "target": "worker_classify_normalizeentrypath",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L23",
+      "weight": 1,
+      "source": "tests_unit_classify_test_ts",
+      "target": "worker_classify_resolvecsvfilecategory",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L32",
+      "weight": 1,
+      "source": "tests_unit_classify_test_ts",
+      "target": "src_lib_worker_zip_paths_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L32",
+      "weight": 1,
+      "source": "tests_unit_classify_test_ts",
+      "target": "worker_zip_paths_listentrypaths",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L125",
+      "weight": 1,
+      "source": "tests_unit_classify_test_ts",
+      "target": "unit_classify_test_pathsof",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L129",
+      "weight": 1,
+      "source": "tests_unit_classify_test_ts",
+      "target": "unit_classify_test_deepequal",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "tests/unit/classify.test.ts",
+      "source_location": "L126",
+      "weight": 1,
+      "source": "unit_classify_test_pathsof",
+      "target": "worker_zip_paths_listentrypaths"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/webserver-teardown.test.ts",
+      "source_location": "L43",
+      "weight": 1,
+      "source": "tests_unit_webserver_teardown_test_ts",
+      "target": "unit_webserver_teardown_test_launchlikeplaywright",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/webserver-teardown.test.ts",
+      "source_location": "L56",
+      "weight": 1,
+      "source": "tests_unit_webserver_teardown_test_ts",
+      "target": "unit_webserver_teardown_test_killprocessgrouplikeplaywright",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/webserver-teardown.test.ts",
+      "source_location": "L68",
+      "weight": 1,
+      "source": "tests_unit_webserver_teardown_test_ts",
+      "target": "unit_webserver_teardown_test_forcefreeport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/webserver-teardown.test.ts",
+      "source_location": "L86",
+      "weight": 1,
+      "source": "tests_unit_webserver_teardown_test_ts",
+      "target": "unit_webserver_teardown_test_waitforreachable",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/ingest-worker.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_ingest_worker_test_ts",
+      "target": "tests_fixtures_export_fixtures_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/ingest-worker.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_ingest_worker_test_ts",
+      "target": "fixtures_export_fixtures_buildsampleexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/ingest-worker.test.ts",
+      "source_location": "L7",
+      "weight": 1,
+      "source": "tests_unit_ingest_worker_test_ts",
+      "target": "src_lib_types_worker_messages_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/ingest-worker.test.ts",
+      "source_location": "L56",
+      "weight": 1,
+      "source": "tests_unit_ingest_worker_test_ts",
+      "target": "unit_ingest_worker_test_waitforterminal",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/ingest-worker.test.ts",
+      "source_location": "L83",
+      "weight": 1,
+      "source": "tests_unit_ingest_worker_test_ts",
+      "target": "unit_ingest_worker_test_deleteactivedatabase",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/ingest-worker.test.ts",
+      "source_location": "L92",
+      "weight": 1,
+      "source": "tests_unit_ingest_worker_test_ts",
+      "target": "unit_ingest_worker_test_makefilefrombytes",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/csv-parse.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_csv_parse_test_ts",
+      "target": "src_lib_worker_csv_parse_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/csv-parse.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_csv_parse_test_ts",
+      "target": "worker_csv_parse_parsecsvfile",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/ingest-client.test.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_unit_ingest_client_test_ts",
+      "target": "src_lib_ui_copy_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/ingest-client.test.ts",
+      "source_location": "L3",
+      "weight": 1,
+      "source": "tests_unit_ingest_client_test_ts",
+      "target": "src_lib_worker_client_svelte_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/ingest-client.test.ts",
+      "source_location": "L3",
+      "weight": 1,
+      "source": "tests_unit_ingest_client_test_ts",
+      "target": "lib_worker_client_svelte_ingestclient",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/ingest-client.test.ts",
+      "source_location": "L4",
+      "weight": 1,
+      "source": "tests_unit_ingest_client_test_ts",
+      "target": "src_lib_types_worker_messages_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/ingest-client.test.ts",
+      "source_location": "L37",
+      "weight": 1,
+      "source": "tests_unit_ingest_client_test_ts",
+      "target": "unit_ingest_client_test_fakeworker",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/ingest-client.test.ts",
+      "source_location": "L74",
+      "weight": 1,
+      "source": "tests_unit_ingest_client_test_ts",
+      "target": "unit_ingest_client_test_makeclient",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/ingest-client.test.ts",
+      "source_location": "L84",
+      "weight": 1,
+      "source": "tests_unit_ingest_client_test_ts",
+      "target": "unit_ingest_client_test_makefile",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/ingest-client.test.ts",
+      "source_location": "L232",
+      "weight": 1,
+      "source": "tests_unit_ingest_client_test_ts",
+      "target": "src_lib_precheck_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/ingest-client.test.ts",
+      "source_location": "L232",
+      "weight": 1,
+      "source": "tests_unit_ingest_client_test_ts",
+      "target": "lib_precheck_precheckfiles",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/ingest-client.test.ts",
+      "source_location": "L407",
+      "weight": 1,
+      "source": "tests_unit_ingest_client_test_ts",
+      "target": "unit_ingest_client_test_stringify",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/ingest-client.test.ts",
+      "source_location": "L416",
+      "weight": 1,
+      "source": "tests_unit_ingest_client_test_ts",
+      "target": "unit_ingest_client_test_consolespycontains",
+      "confidence_score": 1
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/ingest-client.test.ts",
+      "source_location": "L43",
+      "weight": 1,
+      "source": "unit_ingest_client_test_fakeworker",
+      "target": "unit_ingest_client_test_fakeworker_postmessage",
+      "confidence_score": 1
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/ingest-client.test.ts",
+      "source_location": "L47",
+      "weight": 1,
+      "source": "unit_ingest_client_test_fakeworker",
+      "target": "unit_ingest_client_test_fakeworker_emit",
+      "confidence_score": 1
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/ingest-client.test.ts",
+      "source_location": "L55",
+      "weight": 1,
+      "source": "unit_ingest_client_test_fakeworker",
+      "target": "unit_ingest_client_test_fakeworker_emiterror",
+      "confidence_score": 1
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/ingest-client.test.ts",
+      "source_location": "L59",
+      "weight": 1,
+      "source": "unit_ingest_client_test_fakeworker",
+      "target": "unit_ingest_client_test_fakeworker_emitmessageerror",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/zip-paths.test.ts",
+      "source_location": "L3",
+      "weight": 1,
+      "source": "tests_unit_zip_paths_test_ts",
+      "target": "tests_fixtures_export_fixtures_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/zip-paths.test.ts",
+      "source_location": "L3",
+      "weight": 1,
+      "source": "tests_unit_zip_paths_test_ts",
+      "target": "fixtures_export_fixtures_buildbackslashexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/zip-paths.test.ts",
+      "source_location": "L3",
+      "weight": 1,
+      "source": "tests_unit_zip_paths_test_ts",
+      "target": "fixtures_export_fixtures_buildemptyzip",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/zip-paths.test.ts",
+      "source_location": "L3",
+      "weight": 1,
+      "source": "tests_unit_zip_paths_test_ts",
+      "target": "fixtures_export_fixtures_buildinflatetrapexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/zip-paths.test.ts",
+      "source_location": "L3",
+      "weight": 1,
+      "source": "tests_unit_zip_paths_test_ts",
+      "target": "fixtures_export_fixtures_buildnotazipbytes",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/zip-paths.test.ts",
+      "source_location": "L3",
+      "weight": 1,
+      "source": "tests_unit_zip_paths_test_ts",
+      "target": "fixtures_export_fixtures_buildsampleexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/zip-paths.test.ts",
+      "source_location": "L3",
+      "weight": 1,
+      "source": "tests_unit_zip_paths_test_ts",
+      "target": "fixtures_export_fixtures_buildtruncatedexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/zip-paths.test.ts",
+      "source_location": "L11",
+      "weight": 1,
+      "source": "tests_unit_zip_paths_test_ts",
+      "target": "src_lib_worker_zip_paths_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/zip-paths.test.ts",
+      "source_location": "L11",
+      "weight": 1,
+      "source": "tests_unit_zip_paths_test_ts",
+      "target": "worker_zip_paths_listentrypaths",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_fixtures_export_fixtures_ts",
+      "target": "src_lib_types_worker_messages_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L199",
+      "weight": 1,
+      "source": "tests_fixtures_export_fixtures_ts",
+      "target": "fixtures_export_fixtures_sampleentries",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L248",
+      "weight": 1,
+      "source": "tests_fixtures_export_fixtures_ts",
+      "target": "fixtures_export_fixtures_buildsampleexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L276",
+      "weight": 1,
+      "source": "tests_fixtures_export_fixtures_ts",
+      "target": "fixtures_export_fixtures_buildlargeexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L309",
+      "weight": 1,
+      "source": "tests_fixtures_export_fixtures_ts",
+      "target": "fixtures_export_fixtures_buildrenamedrootexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L324",
+      "weight": 1,
+      "source": "tests_fixtures_export_fixtures_ts",
+      "target": "fixtures_export_fixtures_buildmacrezippedexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L340",
+      "weight": 1,
+      "source": "tests_fixtures_export_fixtures_ts",
+      "target": "fixtures_export_fixtures_buildbackslashexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L353",
+      "weight": 1,
+      "source": "tests_fixtures_export_fixtures_ts",
+      "target": "fixtures_export_fixtures_builddirectoryentriesexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L367",
+      "weight": 1,
+      "source": "tests_fixtures_export_fixtures_ts",
+      "target": "fixtures_export_fixtures_buildnorecognizedcategoryzip",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L378",
+      "weight": 1,
+      "source": "tests_fixtures_export_fixtures_ts",
+      "target": "fixtures_export_fixtures_buildmultirootzip",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L390",
+      "weight": 1,
+      "source": "tests_fixtures_export_fixtures_ts",
+      "target": "fixtures_export_fixtures_buildsinglefilezip",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L400",
+      "weight": 1,
+      "source": "tests_fixtures_export_fixtures_ts",
+      "target": "fixtures_export_fixtures_buildfilesonlyunderrootzip",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L411",
+      "weight": 1,
+      "source": "tests_fixtures_export_fixtures_ts",
+      "target": "fixtures_export_fixtures_buildemptyzip",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L429",
+      "weight": 1,
+      "source": "tests_fixtures_export_fixtures_ts",
+      "target": "fixtures_export_fixtures_buildwrapperexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L447",
+      "weight": 1,
+      "source": "tests_fixtures_export_fixtures_ts",
+      "target": "fixtures_export_fixtures_buildrootlessexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L468",
+      "weight": 1,
+      "source": "tests_fixtures_export_fixtures_ts",
+      "target": "fixtures_export_fixtures_buildnotazipbytes",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L476",
+      "weight": 1,
+      "source": "tests_fixtures_export_fixtures_ts",
+      "target": "fixtures_export_fixtures_buildtruncatedexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L503",
+      "weight": 1,
+      "source": "tests_fixtures_export_fixtures_ts",
+      "target": "fixtures_export_fixtures_buildinflatetrapexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L558",
+      "weight": 1,
+      "source": "tests_fixtures_export_fixtures_ts",
+      "target": "fixtures_export_fixtures_inflatetrapcontent",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L594",
+      "weight": 1,
+      "source": "tests_fixtures_export_fixtures_ts",
+      "target": "fixtures_export_fixtures_tomojibake",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L612",
+      "weight": 1,
+      "source": "tests_fixtures_export_fixtures_ts",
+      "target": "fixtures_export_fixtures_buildmojibakeexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L650",
+      "weight": 1,
+      "source": "tests_fixtures_export_fixtures_ts",
+      "target": "fixtures_export_fixtures_buildmalformedrowsexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L796",
+      "weight": 1,
+      "source": "tests_fixtures_export_fixtures_ts",
+      "target": "fixtures_export_fixtures_buildscaleexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/zero-network.spec.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_e2e_zero_network_spec_ts",
+      "target": "tests_fixtures_export_fixtures_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/import-flow.spec.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_e2e_import_flow_spec_ts",
+      "target": "tests_fixtures_export_fixtures_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/persistent-dataset.spec.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_e2e_persistent_dataset_spec_ts",
+      "target": "tests_fixtures_export_fixtures_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/import-failure.spec.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_e2e_import_failure_spec_ts",
+      "target": "tests_fixtures_export_fixtures_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L249",
+      "weight": 1,
+      "source": "fixtures_export_fixtures_buildsampleexport",
+      "target": "fixtures_export_fixtures_sampleentries",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L310",
+      "weight": 1,
+      "source": "fixtures_export_fixtures_buildrenamedrootexport",
+      "target": "fixtures_export_fixtures_sampleentries",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L325",
+      "weight": 1,
+      "source": "fixtures_export_fixtures_buildmacrezippedexport",
+      "target": "fixtures_export_fixtures_sampleentries",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L341",
+      "weight": 1,
+      "source": "fixtures_export_fixtures_buildbackslashexport",
+      "target": "fixtures_export_fixtures_sampleentries",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L354",
+      "weight": 1,
+      "source": "fixtures_export_fixtures_builddirectoryentriesexport",
+      "target": "fixtures_export_fixtures_sampleentries",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L431",
+      "weight": 1,
+      "source": "fixtures_export_fixtures_buildwrapperexport",
+      "target": "fixtures_export_fixtures_sampleentries",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L449",
+      "weight": 1,
+      "source": "fixtures_export_fixtures_buildrootlessexport",
+      "target": "fixtures_export_fixtures_sampleentries",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L511",
+      "weight": 1,
+      "source": "fixtures_export_fixtures_buildinflatetrapexport",
+      "target": "fixtures_export_fixtures_sampleentries",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L621",
+      "weight": 1,
+      "source": "fixtures_export_fixtures_buildmojibakeexport",
+      "target": "fixtures_export_fixtures_sampleentries",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L666",
+      "weight": 1,
+      "source": "fixtures_export_fixtures_buildmalformedrowsexport",
+      "target": "fixtures_export_fixtures_sampleentries",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L477",
+      "weight": 1,
+      "source": "fixtures_export_fixtures_buildtruncatedexport",
+      "target": "fixtures_export_fixtures_buildsampleexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/zero-network.spec.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_e2e_zero_network_spec_ts",
+      "target": "fixtures_export_fixtures_buildsampleexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/import-flow.spec.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_e2e_import_flow_spec_ts",
+      "target": "fixtures_export_fixtures_buildsampleexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/persistent-dataset.spec.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_e2e_persistent_dataset_spec_ts",
+      "target": "fixtures_export_fixtures_buildsampleexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/import-failure.spec.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_e2e_import_failure_spec_ts",
+      "target": "fixtures_export_fixtures_buildsampleexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/import-flow.spec.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_e2e_import_flow_spec_ts",
+      "target": "fixtures_export_fixtures_buildlargeexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/import-flow.spec.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_e2e_import_flow_spec_ts",
+      "target": "fixtures_export_fixtures_buildrenamedrootexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/persistent-dataset.spec.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_e2e_persistent_dataset_spec_ts",
+      "target": "fixtures_export_fixtures_buildrenamedrootexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/import-failure.spec.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_e2e_import_failure_spec_ts",
+      "target": "fixtures_export_fixtures_buildnorecognizedcategoryzip",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/import-failure.spec.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_e2e_import_failure_spec_ts",
+      "target": "fixtures_export_fixtures_buildmultirootzip",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/import-flow.spec.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_e2e_import_flow_spec_ts",
+      "target": "fixtures_export_fixtures_buildnotazipbytes",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/import-failure.spec.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_e2e_import_failure_spec_ts",
+      "target": "fixtures_export_fixtures_buildnotazipbytes",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/import-flow.spec.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_e2e_import_flow_spec_ts",
+      "target": "fixtures_export_fixtures_buildtruncatedexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/import-failure.spec.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_e2e_import_failure_spec_ts",
+      "target": "fixtures_export_fixtures_buildtruncatedexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L504",
+      "weight": 1,
+      "source": "fixtures_export_fixtures_buildinflatetrapexport",
+      "target": "fixtures_export_fixtures_inflatetrapcontent",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fixtures/export-fixtures.ts",
+      "source_location": "L613",
+      "weight": 1,
+      "source": "fixtures_export_fixtures_buildmojibakeexport",
+      "target": "fixtures_export_fixtures_tomojibake",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/persistent-dataset.spec.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_e2e_persistent_dataset_spec_ts",
+      "target": "fixtures_export_fixtures_buildmalformedrowsexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/persistent-dataset.spec.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "tests_e2e_persistent_dataset_spec_ts",
+      "target": "fixtures_export_fixtures_buildscaleexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/helpers.ts",
+      "source_location": "L43",
+      "weight": 1,
+      "source": "tests_e2e_helpers_ts",
+      "target": "e2e_helpers_dropfiles",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/import-flow.spec.ts",
+      "source_location": "L19",
+      "weight": 1,
+      "source": "tests_e2e_import_flow_spec_ts",
+      "target": "tests_e2e_helpers_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/persistent-dataset.spec.ts",
+      "source_location": "L29",
+      "weight": 1,
+      "source": "tests_e2e_persistent_dataset_spec_ts",
+      "target": "tests_e2e_helpers_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/import-failure.spec.ts",
+      "source_location": "L10",
+      "weight": 1,
+      "source": "tests_e2e_import_failure_spec_ts",
+      "target": "tests_e2e_helpers_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/import-flow.spec.ts",
+      "source_location": "L19",
+      "weight": 1,
+      "source": "tests_e2e_import_flow_spec_ts",
+      "target": "e2e_helpers_dropfiles",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/persistent-dataset.spec.ts",
+      "source_location": "L29",
+      "weight": 1,
+      "source": "tests_e2e_persistent_dataset_spec_ts",
+      "target": "e2e_helpers_dropfiles",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/import-failure.spec.ts",
+      "source_location": "L10",
+      "weight": 1,
+      "source": "tests_e2e_import_failure_spec_ts",
+      "target": "e2e_helpers_dropfiles",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/import-flow.spec.ts",
+      "source_location": "L18",
+      "weight": 1,
+      "source": "tests_e2e_import_flow_spec_ts",
+      "target": "src_lib_ui_copy_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/import-flow.spec.ts",
+      "source_location": "L18",
+      "weight": 1,
+      "source": "tests_e2e_import_flow_spec_ts",
+      "target": "lib_ui_copy_formatsummary",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/persistent-dataset.spec.ts",
+      "source_location": "L16",
+      "weight": 1,
+      "source": "tests_e2e_persistent_dataset_spec_ts",
+      "target": "src_lib_ui_copy_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/persistent-dataset.spec.ts",
+      "source_location": "L16",
+      "weight": 1,
+      "source": "tests_e2e_persistent_dataset_spec_ts",
+      "target": "lib_ui_copy_formatparsingprogress",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/persistent-dataset.spec.ts",
+      "source_location": "L16",
+      "weight": 1,
+      "source": "tests_e2e_persistent_dataset_spec_ts",
+      "target": "lib_ui_copy_formatsummary",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/persistent-dataset.spec.ts",
+      "source_location": "L60",
+      "weight": 1,
+      "source": "tests_e2e_persistent_dataset_spec_ts",
+      "target": "e2e_persistent_dataset_spec_expectedbadgetext",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/import-failure.spec.ts",
+      "source_location": "L9",
+      "weight": 1,
+      "source": "tests_e2e_import_failure_spec_ts",
+      "target": "src_lib_ui_copy_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/e2e/import-failure.spec.ts",
+      "source_location": "L60",
+      "weight": 1,
+      "source": "tests_e2e_import_failure_spec_ts",
+      "target": "e2e_import_failure_spec_bannertextcontaining",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/main.ts",
+      "source_location": "L3",
+      "weight": 1,
+      "source": "src_main_ts",
+      "target": "src_app_svelte",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src/App.svelte",
+      "source": "src_app_svelte",
+      "target": "src_lib_ingest_client_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src/App.svelte",
+      "source": "src_app_svelte",
+      "target": "src_lib_ui_copy_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src/App.svelte",
+      "source": "src_app_svelte",
+      "target": "src_lib_worker_client_svelte_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src/App.svelte",
+      "source": "src_app_svelte",
+      "target": "src_lib_components_confirmpanel_svelte",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src/App.svelte",
+      "source": "src_app_svelte",
+      "target": "src_lib_components_dropzone_svelte",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src/App.svelte",
+      "source": "src_app_svelte",
+      "target": "src_lib_components_failurebanner_svelte",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src/App.svelte",
+      "source": "src_app_svelte",
+      "target": "src_lib_components_resultsview_svelte",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/ingest-client.ts",
+      "source_location": "L1",
+      "weight": 1,
+      "source": "src_lib_ingest_client_ts",
+      "target": "src_lib_worker_client_svelte_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/ingest-client.ts",
+      "source_location": "L1",
+      "weight": 1,
+      "source": "src_lib_ingest_client_ts",
+      "target": "lib_worker_client_svelte_ingestclient",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/ingest-client.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "src_lib_ingest_client_ts",
+      "target": "src_lib_types_worker_messages_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L10",
+      "weight": 1,
+      "source": "src_lib_worker_client_svelte_ts",
+      "target": "src_lib_ui_copy_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/ui-copy.ts",
+      "source_location": "L1",
+      "weight": 1,
+      "source": "src_lib_ui_copy_ts",
+      "target": "src_lib_types_worker_messages_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/ui-copy.ts",
+      "source_location": "L41",
+      "weight": 1,
+      "source": "src_lib_ui_copy_ts",
+      "target": "lib_ui_copy_formatparsingprogress",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/ui-copy.ts",
+      "source_location": "L57",
+      "weight": 1,
+      "source": "src_lib_ui_copy_ts",
+      "target": "lib_ui_copy_formatsummary",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/ui-copy.ts",
+      "source_location": "L67",
+      "weight": 1,
+      "source": "src_lib_ui_copy_ts",
+      "target": "lib_ui_copy_formatfilecount",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/ui-copy.ts",
+      "source_location": "L78",
+      "weight": 1,
+      "source": "src_lib_ui_copy_ts",
+      "target": "lib_ui_copy_formatrowcount",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/ui-copy.ts",
+      "source_location": "L90",
+      "weight": 1,
+      "source": "src_lib_ui_copy_ts",
+      "target": "lib_ui_copy_formatskippedrowcount",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/ui-copy.ts",
+      "source_location": "L106",
+      "weight": 1,
+      "source": "src_lib_ui_copy_ts",
+      "target": "lib_ui_copy_formataccountheading",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/ui-copy.ts",
+      "source_location": "L141",
+      "weight": 1,
+      "source": "src_lib_ui_copy_ts",
+      "target": "lib_ui_copy_formatimportedon",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/components/ResultsView.svelte",
+      "source": "src_lib_components_resultsview_svelte",
+      "target": "src_lib_ui_copy_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/components/Dropzone.svelte",
+      "source": "src_lib_components_dropzone_svelte",
+      "target": "src_lib_ui_copy_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/components/CategoryBadge.svelte",
+      "source": "src_lib_components_categorybadge_svelte",
+      "target": "src_lib_ui_copy_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L1",
+      "weight": 1,
+      "source": "src_lib_worker_client_svelte_ts",
+      "target": "src_lib_types_worker_messages_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L9",
+      "weight": 1,
+      "source": "src_lib_worker_client_svelte_ts",
+      "target": "src_lib_precheck_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L9",
+      "weight": 1,
+      "source": "src_lib_worker_client_svelte_ts",
+      "target": "lib_precheck_precheckfiles",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L95",
+      "weight": 1,
+      "source": "src_lib_worker_client_svelte_ts",
+      "target": "lib_worker_client_svelte_ingestclient",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/components/Dropzone.svelte",
+      "source_location": "L27",
+      "weight": 1,
+      "source": "src_lib_components_dropzone_svelte",
+      "target": "components_dropzone_ondragenter",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/components/Dropzone.svelte",
+      "source_location": "L33",
+      "weight": 1,
+      "source": "src_lib_components_dropzone_svelte",
+      "target": "components_dropzone_ondragleave",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/components/Dropzone.svelte",
+      "source_location": "L39",
+      "weight": 1,
+      "source": "src_lib_components_dropzone_svelte",
+      "target": "components_dropzone_ondragover",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/components/Dropzone.svelte",
+      "source_location": "L48",
+      "weight": 1,
+      "source": "src_lib_components_dropzone_svelte",
+      "target": "components_dropzone_ondrop",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/components/Dropzone.svelte",
+      "source_location": "L56",
+      "weight": 1,
+      "source": "src_lib_components_dropzone_svelte",
+      "target": "components_dropzone_onlabelkeydown",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/components/Dropzone.svelte",
+      "source_location": "L67",
+      "weight": 1,
+      "source": "src_lib_components_dropzone_svelte",
+      "target": "components_dropzone_oninputchange",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/components/ResultsView.svelte",
+      "source": "src_lib_components_resultsview_svelte",
+      "target": "src_lib_types_worker_messages_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/components/ResultsView.svelte",
+      "source": "src_lib_components_resultsview_svelte",
+      "target": "src_lib_components_categorybadge_svelte",
+      "confidence_score": 1
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L134",
+      "weight": 1,
+      "source": "lib_worker_client_svelte_ingestclient",
+      "target": "lib_worker_client_svelte_ingestclient_constructor",
+      "confidence_score": 1
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L163",
+      "weight": 1,
+      "source": "lib_worker_client_svelte_ingestclient",
+      "target": "lib_worker_client_svelte_ingestclient_busy",
+      "confidence_score": 1
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L184",
+      "weight": 1,
+      "source": "lib_worker_client_svelte_ingestclient",
+      "target": "lib_worker_client_svelte_ingestclient_reset",
+      "confidence_score": 1
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L214",
+      "weight": 1,
+      "source": "lib_worker_client_svelte_ingestclient",
+      "target": "lib_worker_client_svelte_ingestclient_requeststartover",
+      "confidence_score": 1
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L230",
+      "weight": 1,
+      "source": "lib_worker_client_svelte_ingestclient",
+      "target": "lib_worker_client_svelte_ingestclient_requestcleardata",
+      "confidence_score": 1
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L254",
+      "weight": 1,
+      "source": "lib_worker_client_svelte_ingestclient",
+      "target": "lib_worker_client_svelte_ingestclient_confirmpending",
+      "confidence_score": 1
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L305",
+      "weight": 1,
+      "source": "lib_worker_client_svelte_ingestclient",
+      "target": "lib_worker_client_svelte_ingestclient_cancelpending",
+      "confidence_score": 1
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L313",
+      "weight": 1,
+      "source": "lib_worker_client_svelte_ingestclient",
+      "target": "lib_worker_client_svelte_ingestclient_submitfiles",
+      "confidence_score": 1
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L391",
+      "weight": 1,
+      "source": "lib_worker_client_svelte_ingestclient",
+      "target": "lib_worker_client_svelte_ingestclient_handle",
+      "confidence_score": 1
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L518",
+      "weight": 1,
+      "source": "lib_worker_client_svelte_ingestclient",
+      "target": "lib_worker_client_svelte_ingestclient_fail",
+      "confidence_score": 1
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L544",
+      "weight": 1,
+      "source": "lib_worker_client_svelte_ingestclient",
+      "target": "lib_worker_client_svelte_ingestclient_schedulesettle",
+      "confidence_score": 1
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L563",
+      "weight": 1,
+      "source": "lib_worker_client_svelte_ingestclient",
+      "target": "lib_worker_client_svelte_ingestclient_clearsettletimer",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L186",
+      "weight": 1,
+      "source": "lib_worker_client_svelte_ingestclient_reset",
+      "target": "lib_worker_client_svelte_ingestclient_clearsettletimer",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L356",
+      "weight": 1,
+      "source": "lib_worker_client_svelte_ingestclient_submitfiles",
+      "target": "lib_worker_client_svelte_ingestclient_fail",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L354",
+      "weight": 1,
+      "source": "lib_worker_client_svelte_ingestclient_submitfiles",
+      "target": "lib_precheck_precheckfiles"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker-client.svelte.ts",
+      "source_location": "L429",
+      "weight": 1,
+      "source": "lib_worker_client_svelte_ingestclient_handle",
+      "target": "lib_worker_client_svelte_ingestclient_schedulesettle",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/precheck.ts",
+      "source_location": "L45",
+      "weight": 1,
+      "source": "src_lib_precheck_ts",
+      "target": "lib_precheck_precheckfiles",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "src/lib/components/CategoryBadge.svelte",
+      "source_location": "L41",
+      "weight": 1,
+      "source": "components_categorybadge_formatfilecount",
+      "target": "lib_ui_copy_formatrowcount"
+    },
+    {
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/components/CategoryBadge.svelte",
+      "source": "src_lib_components_categorybadge_svelte",
+      "target": "src_lib_types_worker_messages_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L3",
+      "weight": 1,
+      "source": "src_lib_worker_ingest_worker_ts",
+      "target": "src_lib_types_worker_messages_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L1",
+      "weight": 1,
+      "source": "src_lib_worker_classify_ts",
+      "target": "src_lib_types_worker_messages_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/categories.ts",
+      "source_location": "L1",
+      "weight": 1,
+      "source": "src_lib_worker_categories_ts",
+      "target": "src_lib_types_worker_messages_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/db.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "src_lib_worker_db_ts",
+      "target": "src_lib_types_worker_messages_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/components/CategoryBadge.svelte",
+      "source_location": "L41",
+      "weight": 1,
+      "source": "src_lib_components_categorybadge_svelte",
+      "target": "components_categorybadge_formatfilecount",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/zip-paths.ts",
+      "source_location": "L25",
+      "weight": 1,
+      "source": "src_lib_worker_zip_paths_ts",
+      "target": "worker_zip_paths_listentrypaths",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L13",
+      "weight": 1,
+      "source": "src_lib_worker_ingest_worker_ts",
+      "target": "src_lib_worker_zip_paths_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L13",
+      "weight": 1,
+      "source": "src_lib_worker_ingest_worker_ts",
+      "target": "worker_zip_paths_listentrypaths",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L129",
+      "weight": 1,
+      "source": "worker_ingest_worker_handleingest",
+      "target": "worker_zip_paths_listentrypaths"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/mojibake.ts",
+      "source_location": "L28",
+      "weight": 1,
+      "source": "src_lib_worker_mojibake_ts",
+      "target": "worker_mojibake_fixmojibake",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/csv-parse.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "src_lib_worker_csv_parse_ts",
+      "target": "src_lib_worker_mojibake_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/csv-parse.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "src_lib_worker_csv_parse_ts",
+      "target": "worker_mojibake_fixmojibake",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "src/lib/worker/csv-parse.ts",
+      "source_location": "L79",
+      "weight": 1,
+      "source": "worker_csv_parse_parsecsvfile",
+      "target": "worker_mojibake_fixmojibake"
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L11",
+      "weight": 1,
+      "source": "src_lib_worker_ingest_worker_ts",
+      "target": "src_lib_worker_classify_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L11",
+      "weight": 1,
+      "source": "src_lib_worker_ingest_worker_ts",
+      "target": "worker_classify_analyzeexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L11",
+      "weight": 1,
+      "source": "src_lib_worker_ingest_worker_ts",
+      "target": "worker_classify_resolvecsvfilecategory",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L12",
+      "weight": 1,
+      "source": "src_lib_worker_ingest_worker_ts",
+      "target": "src_lib_worker_categories_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L14",
+      "weight": 1,
+      "source": "src_lib_worker_ingest_worker_ts",
+      "target": "src_lib_worker_hash_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L14",
+      "weight": 1,
+      "source": "src_lib_worker_ingest_worker_ts",
+      "target": "worker_hash_digestfile",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L15",
+      "weight": 1,
+      "source": "src_lib_worker_ingest_worker_ts",
+      "target": "src_lib_worker_csv_parse_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L15",
+      "weight": 1,
+      "source": "src_lib_worker_ingest_worker_ts",
+      "target": "worker_csv_parse_parsecsvfile",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L16",
+      "weight": 1,
+      "source": "src_lib_worker_ingest_worker_ts",
+      "target": "src_lib_worker_db_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L16",
+      "weight": 1,
+      "source": "src_lib_worker_ingest_worker_ts",
+      "target": "worker_db_checkcache",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L16",
+      "weight": 1,
+      "source": "src_lib_worker_ingest_worker_ts",
+      "target": "worker_db_cleardata",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L16",
+      "weight": 1,
+      "source": "src_lib_worker_ingest_worker_ts",
+      "target": "worker_db_writedataset",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L53",
+      "weight": 1,
+      "source": "src_lib_worker_ingest_worker_ts",
+      "target": "worker_ingest_worker_handlecleardata",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L78",
+      "weight": 1,
+      "source": "src_lib_worker_ingest_worker_ts",
+      "target": "worker_ingest_worker_handlecheckcache",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L104",
+      "weight": 1,
+      "source": "src_lib_worker_ingest_worker_ts",
+      "target": "worker_ingest_worker_handleingest",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L219",
+      "weight": 1,
+      "source": "src_lib_worker_ingest_worker_ts",
+      "target": "worker_ingest_worker_recomputestatuscounts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L55",
+      "weight": 1,
+      "source": "worker_ingest_worker_handlecleardata",
+      "target": "worker_db_cleardata"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L88",
+      "weight": 1,
+      "source": "worker_ingest_worker_handlecheckcache",
+      "target": "worker_ingest_worker_recomputestatuscounts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L80",
+      "weight": 1,
+      "source": "worker_ingest_worker_handlecheckcache",
+      "target": "worker_db_checkcache"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L121",
+      "weight": 1,
+      "source": "worker_ingest_worker_handleingest",
+      "target": "worker_ingest_worker_recomputestatuscounts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L112",
+      "weight": 1,
+      "source": "worker_ingest_worker_handleingest",
+      "target": "worker_hash_digestfile"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L113",
+      "weight": 1,
+      "source": "worker_ingest_worker_handleingest",
+      "target": "worker_db_checkcache"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L132",
+      "weight": 1,
+      "source": "worker_ingest_worker_handleingest",
+      "target": "worker_classify_analyzeexport"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L166",
+      "weight": 1,
+      "source": "worker_ingest_worker_handleingest",
+      "target": "worker_classify_resolvecsvfilecategory"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L169",
+      "weight": 1,
+      "source": "worker_ingest_worker_handleingest",
+      "target": "worker_csv_parse_parsecsvfile"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "src/lib/worker/ingest.worker.ts",
+      "source_location": "L189",
+      "weight": 1,
+      "source": "worker_ingest_worker_handleingest",
+      "target": "worker_db_writedataset"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/csv-parse.ts",
+      "source_location": "L42",
+      "weight": 1,
+      "source": "src_lib_worker_csv_parse_ts",
+      "target": "worker_csv_parse_parsecsvfile",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/hash.ts",
+      "source_location": "L21",
+      "weight": 1,
+      "source": "src_lib_worker_hash_ts",
+      "target": "worker_hash_digestfile",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "src_lib_worker_classify_ts",
+      "target": "src_lib_worker_categories_ts",
+      "confidence_score": 1
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L2",
+      "weight": 1,
+      "source": "src_lib_worker_classify_ts",
+      "target": "worker_categories_classifyfolder",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L43",
+      "weight": 1,
+      "source": "src_lib_worker_classify_ts",
+      "target": "worker_classify_normalizeentrypath",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L63",
+      "weight": 1,
+      "source": "src_lib_worker_classify_ts",
+      "target": "worker_classify_isosmetadataentry",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L76",
+      "weight": 1,
+      "source": "src_lib_worker_classify_ts",
+      "target": "worker_classify_prepare",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L98",
+      "weight": 1,
+      "source": "src_lib_worker_classify_ts",
+      "target": "worker_classify_detectroot",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L124",
+      "weight": 1,
+      "source": "src_lib_worker_classify_ts",
+      "target": "worker_classify_categoryfoldersunder",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L145",
+      "weight": 1,
+      "source": "src_lib_worker_classify_ts",
+      "target": "worker_classify_foldersat",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L178",
+      "weight": 1,
+      "source": "src_lib_worker_classify_ts",
+      "target": "worker_classify_hasrecognizedcategory",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L228",
+      "weight": 1,
+      "source": "src_lib_worker_classify_ts",
+      "target": "worker_classify_resolveaccountrootandcategories",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L308",
+      "weight": 1,
+      "source": "src_lib_worker_classify_ts",
+      "target": "worker_classify_analyzeexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L368",
+      "weight": 1,
+      "source": "src_lib_worker_classify_ts",
+      "target": "worker_classify_classifyexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L401",
+      "weight": 1,
+      "source": "src_lib_worker_classify_ts",
+      "target": "worker_classify_resolvecsvfilecategory",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L80",
+      "weight": 1,
+      "source": "worker_classify_prepare",
+      "target": "worker_classify_normalizeentrypath",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L406",
+      "weight": 1,
+      "source": "worker_classify_resolvecsvfilecategory",
+      "target": "worker_classify_normalizeentrypath",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L82",
+      "weight": 1,
+      "source": "worker_classify_prepare",
+      "target": "worker_classify_isosmetadataentry",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L407",
+      "weight": 1,
+      "source": "worker_classify_resolvecsvfilecategory",
+      "target": "worker_classify_isosmetadataentry",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L99",
+      "weight": 1,
+      "source": "worker_classify_detectroot",
+      "target": "worker_classify_prepare",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L147",
+      "weight": 1,
+      "source": "worker_classify_foldersat",
+      "target": "worker_classify_prepare",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L309",
+      "weight": 1,
+      "source": "worker_classify_analyzeexport",
+      "target": "worker_classify_prepare",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L231",
+      "weight": 1,
+      "source": "worker_classify_resolveaccountrootandcategories",
+      "target": "worker_classify_detectroot",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L356",
+      "weight": 1,
+      "source": "worker_classify_analyzeexport",
+      "target": "worker_classify_detectroot",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L125",
+      "weight": 1,
+      "source": "worker_classify_categoryfoldersunder",
+      "target": "worker_classify_foldersat",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L237",
+      "weight": 1,
+      "source": "worker_classify_resolveaccountrootandcategories",
+      "target": "worker_classify_categoryfoldersunder",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L358",
+      "weight": 1,
+      "source": "worker_classify_analyzeexport",
+      "target": "worker_classify_categoryfoldersunder",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L258",
+      "weight": 1,
+      "source": "worker_classify_resolveaccountrootandcategories",
+      "target": "worker_classify_foldersat",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L239",
+      "weight": 1,
+      "source": "worker_classify_resolveaccountrootandcategories",
+      "target": "worker_classify_hasrecognizedcategory",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L180",
+      "weight": 1,
+      "source": "worker_classify_hasrecognizedcategory",
+      "target": "worker_categories_classifyfolder"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L312",
+      "weight": 1,
+      "source": "worker_classify_analyzeexport",
+      "target": "worker_classify_resolveaccountrootandcategories",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L369",
+      "weight": 1,
+      "source": "worker_classify_classifyexport",
+      "target": "worker_classify_analyzeexport",
+      "confidence_score": 1
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "src/lib/worker/classify.ts",
+      "source_location": "L324",
+      "weight": 1,
+      "source": "worker_classify_analyzeexport",
+      "target": "worker_categories_classifyfolder"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/categories.ts",
+      "source_location": "L39",
+      "weight": 1,
+      "source": "src_lib_worker_categories_ts",
+      "target": "worker_categories_classifyfolder",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/db.ts",
+      "source_location": "L47",
+      "weight": 1,
+      "source": "src_lib_worker_db_ts",
+      "target": "worker_db_appdb",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/db.ts",
+      "source_location": "L73",
+      "weight": 1,
+      "source": "src_lib_worker_db_ts",
+      "target": "worker_db_writedataset",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/db.ts",
+      "source_location": "L96",
+      "weight": 1,
+      "source": "src_lib_worker_db_ts",
+      "target": "worker_db_checkcache",
+      "confidence_score": 1
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/db.ts",
+      "source_location": "L118",
+      "weight": 1,
+      "source": "src_lib_worker_db_ts",
+      "target": "worker_db_cleardata",
+      "confidence_score": 1
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/worker/db.ts",
+      "source_location": "L51",
+      "weight": 1,
+      "source": "worker_db_appdb",
+      "target": "worker_db_appdb_constructor",
+      "confidence_score": 1
+    }
+  ]
+}

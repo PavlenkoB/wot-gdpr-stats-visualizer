@@ -14,7 +14,7 @@ This roadmap builds a browser-only viewer for Wargaming GDPR exports in horizont
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Ingest Foundation & Zero-Network Guard** - Toolchain, typed worker contract, unzip + 3-way category detection, generic failure state, standing zero-network CI check + CSP (completed 2026-09-28)
-- [ ] **Phase 2: Defensive Parsing & Persistent Dataset** - Worker-less PapaParse, mojibake fix, Dexie schema, hash-dedup, replace-on-upload, "clear my cached data"
+- [x] **Phase 2: Defensive Parsing & Persistent Dataset** - Worker-less PapaParse, mojibake fix, Dexie schema, hash-dedup, replace-on-upload, "clear my cached data" (completed 2026-09-29)
 - [ ] **Phase 3: Dashboard Shell & Account Identity** - Runes app state, single-page layout, identity header, "detected but not yet supported" banners, empty/greyed sections
 - [ ] **Phase 4: Activity Time Dashboards** - Totals, year-by-year calendar heatmap, day × hour heatmap, session-duration distribution at scale
 - [ ] **Phase 5: Vehicle Stats & Financial Dashboards** - Per-vehicle stats across 4 titles, premium-time and currency timelines, per-currency real-money spend
@@ -75,7 +75,24 @@ Plans:
   3. Re-dropping the identical zip is reported as already loaded and skipped before any unzip or parse work starts. Dropping a different zip fully replaces the previous dataset, leaving no rows from the old export.
   4. A clearly visible "Clear my cached data" control deletes all cached export data. After clearing and reloading, the app is back in its empty upload state and IndexedDB holds no export rows.
 
-**Plans**: TBD
+**Plans:** 4/4 plans complete
+Plans:
+**Wave 1**
+
+- [x] 02-01-PLAN.md — Package gate + tracer: hash-dedup, defensive CSV parse of every category, mojibake fix, chunked Dexie write
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 02-02-PLAN.md — Return-visit auto-load, skip-count display, mojibake/10x-scale validation
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 02-03-PLAN.md — Destructive-action UX: shared ConfirmPanel, replace-on-drop, destructive Start Over, Clear my cached data
+
+**Gap closure** *(verifier G-02-20, filed after Wave 3)*
+
+- [x] 02-04-PLAN.md — Replace-on-drop render sites: co-render `<Dropzone>` in `'done'`/`'duplicate'` branches, keep `<ResultsView>` mounted during replace-confirm
+
 **UI hint**: yes
 
 ### Phase 3: Dashboard Shell & Account Identity
@@ -169,7 +186,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Ingest Foundation & Zero-Network Guard | 6/6 | Complete    | 2026-09-28 |
-| 2. Defensive Parsing & Persistent Dataset | 0/TBD | Not started | - |
+| 2. Defensive Parsing & Persistent Dataset | 4/4 | Complete    | 2026-09-29 |
 | 3. Dashboard Shell & Account Identity | 0/TBD | Not started | - |
 | 4. Activity Time Dashboards | 0/TBD | Not started | - |
 | 5. Vehicle Stats & Financial Dashboards | 0/TBD | Not started | - |

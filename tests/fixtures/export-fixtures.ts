@@ -57,6 +57,27 @@ export const SAMPLE_FILE_COUNTS: Record<string, number> = {
   Device_info: 1,
 };
 
+/**
+ * Per-category ROW counts for the SAMPLE_ACCOUNT_ROOT fixture. The
+ * sample uses one synthetic data row per file (every `_ROW` constant
+ * is appended once), so the row count per category equals its file
+ * count. D-05 requires every category badge to display "N rows" —
+ * never blank, never omitted — so this map is the single source of
+ * truth that both the unit tests (db.test.ts, ingest-worker.test.ts)
+ * and the Playwright e2e spec (import-flow.spec.ts test (a)) assert
+ * against.
+ */
+export const SAMPLE_ROW_COUNTS: Record<string, number> = {
+  Activity_history: 2,
+  Payment_history: 1,
+  Player_statistics: 4,
+  User_Info: 1,
+  Chat_history: 1,
+  Clans: 1,
+  Bans: 1,
+  Device_info: 1,
+};
+
 export const SAMPLE_EXPECTED_COUNTS: Record<CategoryStatus, number> = {
   supported: 4,
   'known-deferred': 2,
@@ -540,4 +561,256 @@ function inflateTrapContent(): Uint8Array {
   let s = '';
   while (s.length < target) s += row;
   return new TextEncoder().encode(s);
+}
+
+// -----------------------------------------------------------------------------
+// Mojibake fixture — the documented CONTEXT.md double-UTF8 Cyrillic byte
+// pattern, applied to one CSV cell so the worker pipeline is forced to
+// exercise fixMojibake on a real mojibake input (not just a synthetic
+// round-trip on a pure-ASCII field).
+// -----------------------------------------------------------------------------
+
+/**
+ * The original UTF-8 Cyrillic source string for the mojibake fixture.
+ * The CLAN_NAME field in buildMojibakeExport() is written to the CSV
+ * as the inverse — bytes of this string reinterpreted as Latin-1
+ * code points — so the field the worker sees is the "double-UTF8"
+ * shape that fixMojibake() is designed to undo.
+ *
+ * PII-free fabricated name (Latin-1 transcription of a Cyrillic
+ * phrase meaning "synthetic mojibake test clan"), used only to
+ * verify the round-trip of fixMojibake on the documented byte
+ * pattern from CONTEXT.md / RESEARCH.md Assumption A2.
+ */
+export const MOJIBAKE_CLAN_NAME_CORRECTED = 'Синтетический_клан';
+
+/**
+ * Helper: inverse of fixMojibake(). Given a UTF-8 source string,
+ * returns the string that results from encoding its bytes as Latin-1
+ * code points — i.e. the "double-UTF8" mojibake form. Every character
+ * of the returned string has a code unit ≤ 0xff, so a follow-up call
+ * to fixMojibake() should recover the original.
+ */
+function toMojibake(original: string): string {
+  const bytes = new TextEncoder().encode(original);
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) {
+    s += String.fromCharCode(bytes[i]!);
+  }
+  return s;
+}
+
+/**
+ * Same layout as buildSampleExport() but the CLAN_NAME cell in
+ * Clans/Clan_membership.csv is written in the mojibake form — the
+ * "double-UTF8" byte pattern that real Wargaming exports from 2021
+ * exhibited (CONTEXT.md). After the worker parses this file, every
+ * CLAN_NAME value in the resulting rows should equal
+ * MOJIBAKE_CLAN_NAME_CORRECTED, proving fixMojibake() ran in the
+ * parse loop.
+ */
+export function buildMojibakeExport(): Uint8Array {
+  const mojibakeName = toMojibake(MOJIBAKE_CLAN_NAME_CORRECTED);
+  // Rebuild only the Clans row with the mojibake field. The header
+  // and remaining columns stay as in the sample; only CLAN_NAME
+  // (column 2) is replaced.
+  const mojibakeClanRow = ['1', mojibakeName, '2020-02-01 00:00:00', '', 'member'].join(';');
+  const encode = (s: string): Uint8Array => new TextEncoder().encode(s);
+  const CRLF = '\r\n';
+
+  const entries = sampleEntries(SAMPLE_ACCOUNT_ROOT);
+  entries[`${SAMPLE_ACCOUNT_ROOT}/Clans/Clan_membership.csv`] = encode(
+    CRLF + CLAN_MEMBERSHIP_HEADER + CRLF + mojibakeClanRow + CRLF,
+  );
+  return zipSync(entries);
+}
+
+// -----------------------------------------------------------------------------
+// Malformed-rows fixture — proves the D-04 skip-count path end-to-end.
+// -----------------------------------------------------------------------------
+
+/**
+ * A synthetic export identical to buildSampleExport() except that
+ * `Bans/Bans.csv` carries THREE valid rows + ONE row with an
+ * unbalanced quote character in the BAN_REASON field (missing its
+ * closing quote). The unbalanced quote triggers a 'Quotes'-type
+ * PapaParse error tied to that row — the worker routes the error
+ * through `parseCsvFile`'s skip path, the row is dropped from
+ * `rows`, and `skippedRowCount` for the Bans category becomes 1.
+ *
+ * The fixture is intentionally minimal (1 row skipped, 3 rows
+ * surviving) so the unit test can assert exact counts rather than
+ * ranges; the constants below pin the expected values so future
+ * changes to `sampleEntries()` or PapaParse's behaviour surface
+ * here first, not silently.
+ */
+export const MALFORMED_ROW_EXPECTED_SKIPPED_COUNT = 1;
+export const MALFORMED_ROW_EXPECTED_ROW_COUNT = 3;
+
+export function buildMalformedRowsExport(): Uint8Array {
+  const encode = (s: string): Uint8Array => new TextEncoder().encode(s);
+  const CRLF = '\r\n';
+
+  // Three well-formed rows + one row whose BAN_REASON field is
+  // `"unterminated` (no closing quote). The unterminated quote is
+  // the LAST row so PapaParse does not merge subsequent lines into
+  // it — its row boundary is preserved and the Quotes error is
+  // reported against that row's 1-based data index.
+  const validBansRow1 = ['2020-09-01 00:00:00', 'reason_alpha', '2020-09-08 00:00:00'].join(';');
+  const validBansRow2 = ['2020-09-02 00:00:00', 'reason_beta', '2020-09-09 00:00:00'].join(';');
+  const validBansRow3 = ['2020-09-03 00:00:00', 'reason_gamma', '2020-09-10 00:00:00'].join(';');
+  const malformedBansRow = ['2020-09-04 00:00:00', '"unterminated', '2020-09-11 00:00:00'].join(
+    ';',
+  );
+
+  const entries = sampleEntries(SAMPLE_ACCOUNT_ROOT);
+  // No leading CRLF: PapaParse's `error.row` includes every line
+  // (including empty lines) when computing the row index, so a
+  // leading blank shifts the mapping by 1 and breaks the off-by-one
+  // fix in csv-parse.ts. The malformed-row fixture must start
+  // directly with the header for the skip to land on the right
+  // data index.
+  entries[`${SAMPLE_ACCOUNT_ROOT}/Bans/Bans.csv`] = encode(
+    BANS_HEADER +
+      CRLF +
+      validBansRow1 +
+      CRLF +
+      validBansRow2 +
+      CRLF +
+      validBansRow3 +
+      CRLF +
+      malformedBansRow +
+      CRLF,
+  );
+  return zipSync(entries);
+}
+
+// -----------------------------------------------------------------------------
+// 10x-scale fixture — realistic row VOLUME through CSV-parse/mojibake/bulkPut.
+// -----------------------------------------------------------------------------
+
+/**
+ * Rows-per-file for `buildScaleExport()`. Sized so the resulting
+ * archive carries realistic row content at roughly 10x the 2021
+ * sample's ~4,200 data rows:
+ *
+ *   8 categories × 5 files per category × ~1,000 rows per file
+ *     ≈ 40,000 data rows total
+ *
+ * Distinct from `buildLargeExport()` (Phase 1), which inflates file
+ * COUNT to 20,000 (one row per file) to stress fflate's per-entry
+ * overhead. The 10x fixture stresses the CSV-parse + mojibake +
+ * Dexie bulkPut path with realistic per-file row counts — the
+ * surface that Phase 2 actually scales.
+ *
+ * The value is tuned so the responsive-imports e2e test (c) lands
+ * inside its 60 s budget on a developer machine while still pushing
+ * enough rows through the parser to make a ≥1000 ms main-thread
+ * long task detectable. The test is intentionally well below the
+ * 60 s ceiling, so the budget is a safety net, not the gating
+ * assertion.
+ */
+export const SCALE_10X_ROWS_PER_FILE = 1000;
+const SCALE_10X_FILES_PER_CATEGORY = 5;
+
+/**
+ * Per-category template mapping for the 10x fixture. Each entry
+ * pins the canonical CSV header + row template (the same constants
+ * `sampleEntries()` uses) so the inflated CSV bodies are byte-
+ * realistic — same number of fields, same column shape, same field
+ * widths as the real archive.
+ *
+ * Two categories need more than one template:
+ *   - Activity_history: 2 files (Sessions, Logins)
+ *   - Player_statistics: 4 files (WOT/WOTB/WOWS/WOWP)
+ * The others use 1 each — mirroring the sample layout. The total
+ * file count comes out to 12 × SCALE_10X_FILES_PER_CATEGORY = 60
+ * files total, ~1,000 rows per file, ~60,000 data rows total.
+ */
+const SCALE_ROW_TEMPLATES: ReadonlyArray<{
+  folder: string;
+  baseName: string;
+  header: string;
+  row: string;
+}> = [
+  {
+    folder: 'Activity_history',
+    baseName: 'Sessions.csv',
+    header: SESSIONS_HEADER,
+    row: SESSIONS_ROW,
+  },
+  { folder: 'Activity_history', baseName: 'Logins.csv', header: LOGINS_HEADER, row: LOGINS_ROW },
+  { folder: 'Payment_history', baseName: 'Orders.csv', header: ORDERS_HEADER, row: ORDERS_ROW },
+  {
+    folder: 'Player_statistics',
+    baseName: 'WOT_stats.csv',
+    header: WOT_STATS_HEADER,
+    row: WOT_STATS_ROW,
+  },
+  {
+    folder: 'Player_statistics',
+    baseName: 'WOTB_stats.csv',
+    header: WOTB_STATS_HEADER,
+    row: WOTB_STATS_ROW,
+  },
+  {
+    folder: 'Player_statistics',
+    baseName: 'WOWS_stats.csv',
+    header: WOWS_STATS_HEADER,
+    row: WOWS_STATS_ROW,
+  },
+  {
+    folder: 'Player_statistics',
+    baseName: 'WOWP_19_stats.csv',
+    header: WOWP_19_STATS_HEADER,
+    row: WOWP_19_STATS_ROW,
+  },
+  {
+    folder: 'User_Info',
+    baseName: 'Account_Info.csv',
+    header: ACCOUNT_INFO_HEADER,
+    row: ACCOUNT_INFO_ROW,
+  },
+  { folder: 'Chat_history', baseName: 'Messages.csv', header: MESSAGES_HEADER, row: MESSAGES_ROW },
+  {
+    folder: 'Clans',
+    baseName: 'Clan_membership.csv',
+    header: CLAN_MEMBERSHIP_HEADER,
+    row: CLAN_MEMBERSHIP_ROW,
+  },
+  { folder: 'Bans', baseName: 'Bans.csv', header: BANS_HEADER, row: BANS_ROW },
+  { folder: 'Device_info', baseName: 'Devices.csv', header: DEVICES_HEADER, row: DEVICES_ROW },
+];
+
+/**
+ * 10x-scale synthetic export under SAMPLE_ACCOUNT_ROOT. Each of the
+ * 12 canonical CSVs from the sample layout is multiplied to
+ * SCALE_10X_FILES_PER_CATEGORY files, each carrying
+ * SCALE_10X_ROWS_PER_FILE rows of the canonical row template.
+ *
+ * Designed for the responsiveness e2e test (c) — proves the parse /
+ * mojibake / Dexie bulkPut pipeline stays under 1 s of main-thread
+ * time at a row VOLUME 10x the real sample. Distinct from
+ * `buildLargeExport()`'s file-count stress test.
+ */
+export function buildScaleExport(): Uint8Array {
+  const encode = (s: string): Uint8Array => new TextEncoder().encode(s);
+  const root = SAMPLE_ACCOUNT_ROOT;
+  const entries: Record<string, Uint8Array> = {};
+
+  for (const { folder, baseName, header, row } of SCALE_ROW_TEMPLATES) {
+    for (let f = 0; f < SCALE_10X_FILES_PER_CATEGORY; f++) {
+      // Suffix variant file names so they coexist in the same folder
+      // without collision (e.g. WOT_stats.csv, WOT_stats_1.csv, ...).
+      const fileName = f === 0 ? baseName : baseName.replace(/\.csv$/, `_${f}.csv`);
+      let body = header;
+      for (let r = 0; r < SCALE_10X_ROWS_PER_FILE; r++) {
+        body += CRLF + row;
+      }
+      body += CRLF;
+      entries[`${root}/${folder}/${fileName}`] = encode(body);
+    }
+  }
+
+  return zipSync(entries);
 }

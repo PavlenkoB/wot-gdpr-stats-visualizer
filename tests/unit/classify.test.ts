@@ -27,6 +27,7 @@ import {
   detectRoot,
   isOsMetadataEntry,
   normalizeEntryPath,
+  resolveCsvFileCategory,
 } from '../../src/lib/worker/classify.ts';
 import { listEntryPaths } from '../../src/lib/worker/zip-paths.ts';
 
@@ -327,6 +328,95 @@ describe('categoryFoldersUnder — pure preparation', () => {
   test('directory entries add 0 (the category still appears)', () => {
     const m = categoryFoldersUnder('123', ['123/Bonus_codes/']);
     expect(m.get('Bonus_codes')).toBe(0);
+  });
+});
+
+// -----------------------------------------------------------------------------
+// resolveCsvFileCategory — per-entry name → { category, sourceFile } (02-01)
+// -----------------------------------------------------------------------------
+//
+// Why this block exists (02-01-PLAN Task 3, Behavior Test 5 + new classify
+// cases from the action block):
+//   The ingest worker must inflate ONLY the CSV entries that belong to a
+//   recognized category (D-01, D-02, IMPORT-01). It uses
+//   resolveCsvFileCategory to map each entry name to the category folder
+//   it belongs under. The mapping must agree with analyzeExport's own
+//   category resolution — otherwise the per-category row counts in
+//   `db.meta.categories` would silently diverge from the row counts the
+//   worker actually wrote.
+//
+// The five testable invariants per the plan's action block:
+//   1. A normal `${root}/Activity_history/Sessions.csv` path resolves
+//      to { category: 'Activity_history', sourceFile: 'Sessions.csv' }.
+//   2. A rootless export (root === '') keeps the leading category
+//      folder as the first segment.
+//   3. An OS-metadata entry is rejected (returns null).
+//   4. A non-csv file is rejected (returns null).
+//   5. A file under an unrecognized category is rejected (returns null).
+// -----------------------------------------------------------------------------
+
+describe('resolveCsvFileCategory — per-entry mapping', () => {
+  const RECOGNIZED = new Set<string>([
+    'Activity_history',
+    'User_Info',
+    'Clans',
+    'Bonus_codes', // also acceptable as "unknown" status but still a real folder
+  ]);
+
+  test('a normal `${root}/Activity_history/Sessions.csv` resolves to that category and source file', () => {
+    expect(resolveCsvFileCategory('123/Activity_history/Sessions.csv', '123', RECOGNIZED)).toEqual({
+      category: 'Activity_history',
+      sourceFile: 'Sessions.csv',
+    });
+  });
+
+  test('a rootless-export path (`root === ""`) keeps the leading category as the first segment', () => {
+    expect(resolveCsvFileCategory('Activity_history/Sessions.csv', '', RECOGNIZED)).toEqual({
+      category: 'Activity_history',
+      sourceFile: 'Sessions.csv',
+    });
+  });
+
+  test('an OS-metadata entry is rejected (returns null)', () => {
+    expect(
+      resolveCsvFileCategory('__MACOSX/123/Activity_history/._Sessions.csv', '123', RECOGNIZED),
+    ).toBeNull();
+    expect(resolveCsvFileCategory('123/Activity_history/.DS_Store', '123', RECOGNIZED)).toBeNull();
+  });
+
+  test('a non-csv file is rejected (returns null)', () => {
+    expect(resolveCsvFileCategory('123/Activity_history/notes.txt', '123', RECOGNIZED)).toBeNull();
+  });
+
+  test('a file under an unrecognized category is rejected (returns null)', () => {
+    expect(resolveCsvFileCategory('123/Mystery_folder/Sessions.csv', '123', RECOGNIZED)).toBeNull();
+  });
+
+  test('a wrapper-folder path (`${wrapper}/${root}/${category}/${file}.csv`) resolves to the inner category and source file', () => {
+    // Mirrors the real 2021 Wargaming export shape
+    // (e.g. `1234567_2021-10-12/1234567/Activity_history/file.csv`) —
+    // analyzeExport's wrapper-retry returns root === '1234567' here,
+    // and the CSVs sit one wrapper folder deeper than `${root}/`.
+    expect(
+      resolveCsvFileCategory(
+        '1234567_2021-10-12/1234567/Activity_history/Sessions.csv',
+        '1234567',
+        RECOGNIZED,
+      ),
+    ).toEqual({ category: 'Activity_history', sourceFile: 'Sessions.csv' });
+    expect(
+      resolveCsvFileCategory(
+        'WrapperName/1234567/User_Info/Account_Info.csv',
+        '1234567',
+        RECOGNIZED,
+      ),
+    ).toEqual({ category: 'User_Info', sourceFile: 'Account_Info.csv' });
+  });
+
+  test('a path that does not contain `${root}/` anywhere is rejected (returns null)', () => {
+    expect(
+      resolveCsvFileCategory('wrongroot/Activity_history/Sessions.csv', '1234567', RECOGNIZED),
+    ).toBeNull();
   });
 });
 

@@ -1,3 +1,9 @@
+// Vitest runs unit tests under environment: 'node' (see vitest.config.ts),
+// which has no `indexedDB` global (RESEARCH.md "Environment Availability"
+// table). This polyfill must load before any Dexie import in any test
+// file, or Dexie throws "IndexedDB API missing" at module-load time.
+import 'fake-indexeddb/auto';
+
 /**
  * Vitest setup file.
  *
