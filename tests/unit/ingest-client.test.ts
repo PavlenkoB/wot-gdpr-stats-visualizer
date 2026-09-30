@@ -369,6 +369,45 @@ describe('submitFiles — worker error responses', () => {
     expect(client.state).toBe('error');
   });
 
+  test('onerror while idle AND ready: a later submitFiles fails fast without posting (WR-01)', () => {
+    // Drive the client to the WR-01 gap state: the handshake has
+    // completed (workerReady true) and nothing is in flight
+    // (state 'idle'). Neither pre-existing onerror branch covers
+    // this pair.
+    fake.emit({ type: 'ready' });
+    fake.emit({ type: 'cache-status', jobId: 1, cached: null });
+    expect(client.workerReady).toBe(true);
+    expect(client.state).toBe('idle');
+
+    // The worker dies BETWEEN submissions. A worker that errors is
+    // dead whatever the client's state is, so this must mark the
+    // client broken even though there is nothing in flight to fail.
+    fake.emitError('boom');
+
+    const postsBefore = fake.posts.length;
+    const ok = client.submitFiles([makeFile('sample.zip', 10, 'application/zip')]);
+
+    expect(ok).toBe(false);
+    // The WR-01 hang surface: a postMessage to a dead worker that
+    // never answers, so the MIN_PROCESSING_MS floor is the only thing
+    // left and nothing ever settles it. The check-cache handshake
+    // from 'ready' is already on the wire, so the assertion is "no
+    // NEW posts" plus "no ingest message at all".
+    expect(fake.posts).toHaveLength(postsBefore);
+    expect(fake.posts.filter((m) => m.type === 'ingest')).toHaveLength(0);
+    expect(client.state).toBe('error');
+    // The same canonical copy the pre-ready branch uses — one #fail
+    // path, one banner (D-04/D-07). The console line proves the
+    // failure was 'worker-not-ready' and not a pre-check rejection.
+    expect(client.errorMessage).toBe(GENERIC_FAILURE_MESSAGE);
+    expect(consoleSpyContains('worker-not-ready')).toBe(true);
+    // No settle timer was ever queued for this submission, and the
+    // busy floor never had a chance to strand the view.
+    expect(vi.getTimerCount()).toBe(0);
+    vi.advanceTimersByTime(MIN_PROCESSING_MS);
+    expect(client.busy).toBe(false);
+  });
+
   test('after any error, submitFiles with a valid file returns true and enters processing (re-armed)', () => {
     fake.emit({ type: 'ready' });
     // First a pre-check rejection.

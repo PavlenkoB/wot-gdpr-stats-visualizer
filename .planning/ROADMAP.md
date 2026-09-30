@@ -35,7 +35,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. The drop target is disabled while a file is processing. Every upload in a session goes through the same single Worker instance over the typed message contract, and the page stays responsive during unzip.
   4. CI runs lint, typecheck, Vitest, and Playwright on every push. A Playwright test loads the app, drops the sample export, and fails the build if any network request occurs after initial page load, including the worker script fetch. The served HTML includes a CSP meta tag as defense-in-depth.
 
-**Plans:** 6/6 plans complete
+**Plans:** 10/10 plans complete
 Plans:
 **Wave 1**
 
@@ -60,6 +60,13 @@ Plans:
 **Gap closure** *(UAT G-01-20, filed after Phase 1 UAT)*
 
 - [x] 01-06-PLAN.md — Depth-tolerant classify: wrapper folder and rootless re-zip exports classify same as a normal single-root export
+
+**Gap closure (advisory findings)** *(replanned under `--force --gaps` after Phase 1 verified `passed`; 12 advisory findings from 01-VERIFICATION.md)*
+
+- [x] 01-07-PLAN.md — Correctness: CR-01 wrapper-around-categories misclassification + WR-06 rootless-fallback reachability + WR-03 empty-root footgun (Wave 1)
+- [x] 01-08-PLAN.md — Worker robustness: WR-01 mark worker broken on idle `onerror` so a later submit does not hang on the busy floor (Wave 2)
+- [x] 01-09-PLAN.md — Build/CI hygiene: WR-02 fold `unescapeQuotes` into `cspMeta` + WR-04 `tsc -b` + IN-01 `verbatimModuleSyntax` + IN-02 drop `checkJs` + IN-05 annotate `svelte.config.js` (Wave 2, parallel with 01-08)
+- [x] 01-10-PLAN.md — Docs: IN-03 document the driver `--no-sandbox` flag + IN-04 README note that the zero-network assertion covers build/preview, not dev (Wave 3)
 
 **UI hint**: yes
 

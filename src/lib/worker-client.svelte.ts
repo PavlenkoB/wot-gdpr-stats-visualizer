@@ -58,9 +58,9 @@ export interface IngestClientOptions {
  *      the on-screen banner is identical (D-07, Pitfall 2).
  *   2. Hold one Worker for the lifetime of the page. We never respawn
  *      it: a respawn would trigger a second post-load script fetch,
- *      which violates PLATFORM-02. A worker that errors BEFORE
- *      reporting 'ready' is therefore marked #workerBroken, and any
- *      later submission fails fast without ever posting.
+ *      which violates PLATFORM-02. Any worker error event therefore
+ *      marks #workerBroken — before OR after 'ready' (WR-01) — and
+ *      any later submission fails fast without ever posting.
  *   3. Treat `onerror` (script error) and `onmessageerror`
  *      (deserialization error) as fatal-for-this-job: each routes to
  *      `#fail` so a crash mid-processing cannot leave the UI stuck
@@ -160,6 +160,13 @@ export class IngestClient {
       // message routed through #fail, which already logs under
       // '[ingest] import failed:'). D-05: the cause is local-only.
       console.error('[ingest] worker error:', event.message || 'unknown');
+      // A worker that raises an error event is DEAD, whatever state the
+      // client happens to be in. Mark it broken on every onerror, not
+      // only before 'ready' (WR-01): the idle+ready case used to fall
+      // through both branches below, so a later submission posted to a
+      // dead worker and hung on the MIN_PROCESSING_MS busy floor,
+      // which nothing ever settles.
+      this.#workerBroken = true;
       if (this.state === 'processing') {
         this.#scheduleSettle(() => this.#fail(`worker error: ${event.message || 'unknown'}`));
       } else if (!this.workerReady) {
@@ -170,8 +177,6 @@ export class IngestClient {
         this.#workerBroken = true;
         this.#fail('worker-not-ready');
       }
-      // If we're idle AND ready, the error is informational only —
-      // nothing in flight, nothing to fail.
     };
     this.#worker.onmessageerror = () => {
       if (this.state === 'processing') {
@@ -367,6 +372,30 @@ export class IngestClient {
     //    user cannot act on cannot dismiss the D-20 acknowledgment.
     if (this.state === 'confirm-pending') {
       console.error('[ingest] confirm pending, submission ignored');
+      return false;
+    }
+
+    // 2b. The dead-worker fail-fast (WR-01). `#workerBroken` is set by
+    //     EVERY worker error event, including one that lands between
+    //     submissions while the client is idle and ready. A dead
+    //     worker cannot ingest anything, so the submission fails fast
+    //     on the canonical 'worker-not-ready' copy (D-04/D-07: one
+    //     failure path, one banner) instead of posting into a void and
+    //     parking the UI on the busy floor forever.
+    //
+    //     Order matters. This runs AFTER guards 1 and 2 — a busy or
+    //     confirm-pending drop is ignored regardless of worker state,
+    //     and the user is not told their worker died for a drop they
+    //     could not make anyway. It runs BEFORE the justCleared reset,
+    //     the pre-check and the replace confirm: a submission that can
+    //     never be ingested must not dismiss the D-20 acknowledgment,
+    //     must not burn a pre-check, and must not open a confirm whose
+    //     confirmPending() would post to the dead worker anyway.
+    //     Guard 5 below is kept as the not-yet-ready half of the same
+    //     check; the flag is never cleared, so this guard is the only
+    //     one a broken worker can reach.
+    if (this.#workerBroken) {
+      this.#fail('worker-not-ready');
       return false;
     }
 

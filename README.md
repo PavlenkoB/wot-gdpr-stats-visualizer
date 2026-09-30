@@ -25,19 +25,26 @@ inside one long-lived Web Worker and rendered. No network requests are made
 after the initial page load — the DevTools Network tab stays empty after
 the drop.
 
-For local development with HMR (no CSP meta applied):
+For local development with HMR:
 
 ```bash
 pnpm run dev
 ```
 
+The dev server applies no CSP meta tag — that tag is injected at build time,
+so it only exists in `dist/`. The zero-network assertion (PLATFORM-02, checked
+by `tests/e2e/zero-network.spec.ts`) therefore applies only to
+`pnpm run build && pnpm run preview` and to CI's e2e step, never to
+`pnpm run dev`. Use the dev server for editing with HMR, and verify any privacy
+or network change against the built preview.
+
 ## Verifying the privacy guarantee
 
 ```bash
 pnpm run lint           # Prettier + ESLint (source-level network ban)
-pnpm run check          # svelte-check + tsc over app, node, and test configs
-pnpm run test:unit      # Vitest: 143 unit tests
-pnpm run test:e2e       # Playwright: 20 e2e tests against the built app
+pnpm run check          # tsc -b over app, node, and test configs
+pnpm run test:unit      # Vitest: 337 unit tests
+pnpm run test:e2e       # Playwright: 86 e2e tests against the built app
 ```
 
 The Playwright suite includes `tests/e2e/zero-network.spec.ts` — it asserts

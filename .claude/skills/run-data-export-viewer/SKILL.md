@@ -96,10 +96,9 @@ pnpm run check
 pnpm run test:unit    # fast
 pnpm run test:e2e     # the slow one — a failing spec burns a 30 s
                       # timeout each, so a green run is much quicker
-                      # than a red one. See the webServer-teardown
-                      # Gotcha below: the command frequently HANGS
-                      # after printing the last ✓ and never exits on
-                      # its own.
+                      # than a red one. The historic teardown hang
+                      # is fixed and regression-guarded; see the
+                      # `pnpm run test:e2e` teardown Gotcha below.
 ```
 
 ## Direct invocation
@@ -119,25 +118,20 @@ Node 26.10) imports `.ts` files directly. Verified working with a plain
 
 ## Gotchas
 
-- **`pnpm run test:e2e` hangs after the last test passes** — reproduced
-  3 times in a row. Every test prints `✓` and the run finishes well
-  under a minute, but the `playwright test` process itself does not
-  exit — it's
-  waiting on the `vite preview` process it spawned via the compound
-  `webServer.command: 'pnpm run build && pnpm run preview'`
-  (playwright.config.ts) to die, and signal delivery through the
-  `pnpm -> vite.js preview` child chain doesn't reliably reach it on
-  teardown. Confirmed fix: once every test shows `✓`, find and
-  `kill -TERM` the leftover `vite.js preview` process yourself —
-  `playwright test` then prints its `N passed (Ns)` summary and exits
-  within ~3s:
-  ```bash
-  pkill -f 'vite.js preview'
-  ```
-  If running `test:e2e` non-interactively (backgrounded, CI-like), poll
-  for the last `✓` line in its output and send this the moment it
-  appears rather than waiting on the process to exit on its own — it
-  may not, for minutes.
+- **Driver sandbox flag** — `driver.mjs` launches Chromium with
+  `chromium.launch({ args: ['--no-sandbox'] })`. Some sandboxed agent
+  runtimes already sandbox the agent process, and a second sandbox layer
+  there stops Chromium from launching. It is a dev-driver choice only:
+  the shipped app never launches Chromium, and the runtime CSP is
+  unrelated to it. Do not remove the flag without first confirming the
+  agent runtime can launch Chromium with the default sandbox enabled.
+- **`pnpm run test:e2e` teardown** — the historic hang after the last
+  test passed (a pnpm-wrapped `vite preview` escaping Playwright's
+  process-group SIGKILL) is fixed in `playwright.config.ts` (direct
+  binary invocation, no pnpm wrapper) and guarded by
+  `tests/unit/webserver-teardown.test.ts`. If a webServer teardown hang
+  recurs, check that `webServer.command` is still on the direct-binary
+  form before anything else — config drift is the most likely cause.
 - **`pnpm` not on PATH on Node 26+** — Node 26 dropped corepack. Install
   with `npm install -g pnpm@12.6.0 --cache "$TMPDIR/npm-cache"`, or use
   Homebrew.
@@ -162,10 +156,11 @@ Node 26.10) imports `.ts` files directly. Verified working with a plain
 ## Troubleshooting
 
 - **`pnpm run test:e2e` shows every `✓` but the final `N passed`
-  summary never prints and the command never returns**: it hung in
-  webServer teardown (see Gotcha above). Run `pkill -f 'vite.js
-  preview'` — the test process exits within seconds and prints its
-  summary.
+  summary never prints and the command never returns**: it is hanging in
+  webServer teardown, which means `playwright.config.ts`'s
+  `webServer.command` has drifted back to a pnpm-wrapped form. Restore
+  the direct-binary invocation — `tests/unit/webserver-teardown.test.ts`
+  fails on exactly that drift.
 - **`http://localhost:4173 is already used`**: kill the listener
   (`lsof -ti:4173 | xargs -r kill`) and retry.
 - **`pnpm: command not found`**: Node 26 dropped corepack. Install pnpm

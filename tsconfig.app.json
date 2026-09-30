@@ -10,14 +10,22 @@
     "allowImportingTsExtensions": true,
     "noEmit": true,
     /**
-     * Typecheck JS in `.svelte` and `.js` files by default.
-     * Disable checkJs if you'd like to use dynamic types in JS.
-     * Note that setting allowJs false does not prevent the use
-     * of JS in `.svelte` files.
+     * `.svelte` files embed JS, so `allowJs` stays on: setting it false
+     * would not stop the use of JS inside `.svelte` files, but it would
+     * break the svelte-check pipeline. There are no `.js` files in `src/`
+     * (see `include`), so `checkJs` is deliberately absent — it would be a
+     * no-op today and would silently start type-checking any `.js` file a
+     * future contributor drops in.
      */
     "allowJs": true,
-    "checkJs": true,
-    "moduleDetection": "force"
+    "moduleDetection": "force",
+    /**
+     * Mirrors tsconfig.node.json / tsconfig.test.json so a type-only
+     * re-export has to say `export type` explicitly. Already inherited
+     * from @tsconfig/svelte; stated here so the three project configs
+     * read the same.
+     */
+    "verbatimModuleSyntax": true
   },
   "include": ["src/**/*.ts", "src/**/*.js", "src/**/*.svelte"]
 }

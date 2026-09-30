@@ -120,9 +120,14 @@ export function detectRoot(paths: string[]): string | null {
  *   - File entries (not ending in "/") add 1.
  *   - Directory entries register the category with 0.
  *   - Files directly under the root (no category segment) are skipped.
+ *
+ * An empty `root` means "no root folder" — the category folders sit at
+ * the top level. It delegates to the prefix-agnostic internal read rather
+ * than building the prefix `"/"`, which would match nothing and silently
+ * return an empty Map (01-07, WR-03).
  */
 export function categoryFoldersUnder(root: string, paths: string[]): Map<string, number> {
-  return foldersAt(root + '/', paths);
+  return foldersAt(root === '' ? '' : root + '/', paths);
 }
 
 /**
@@ -193,15 +198,54 @@ function hasRecognizedCategory(counts: Map<string, number>): boolean {
 const MAX_WRAPPER_DEPTH = 4;
 
 /**
- * Internal: depth-tolerant root + category resolution (G-01-20).
+ * The folder name Wargaming puts at the top of the export it hands out
+ * (the same name the repo's own fixtures use, see
+ * `tests/fixtures/export-fixtures.ts`). It is a Wargaming artifact, NOT an
+ * account id, so it is never reported as `accountRoot`.
+ *
+ * Why a name is the only signal here (01-07, CR-01): the wrapper-around-
+ * categories shape (`personal_data_export/Activity_history/foo.csv`) and
+ * the canonical single-account shape (`123456789/Activity_history/...`)
+ * are STRUCTURALLY identical — one top-level folder whose direct children
+ * are recognized categories. No path-shape predicate can tell them apart;
+ * any "single folder above recognized categories is a wrapper" rule would
+ * report `accountRoot: ''` for the ordinary account-id export and throw
+ * away a real account id. The discriminator is therefore the folder name,
+ * and it is an explicit allow-list of Wargaming's own export-wrapper name
+ * rather than a guess between the two shapes: `WrapperName/1234567/...`
+ * and `renamed-root-2026/...` are untouched, because only the names
+ * Wargaming itself emits match.
+ */
+const EXPORT_WRAPPER_FOLDER = 'personal_data_export';
+
+/**
+ * True when `name` is Wargaming's export-wrapper folder (case-insensitive),
+ * i.e. a folder that is transparent in `accountRoot` terms.
+ */
+function isTransparentWrapper(name: string): boolean {
+  return name.toLowerCase() === EXPORT_WRAPPER_FOLDER;
+}
+
+/**
+ * Internal: depth-tolerant root + category resolution (G-01-20, 01-07).
  *
  * Walks the prepared entry list looking for a real account-ID folder
  * with at least one recognized Wargaming category under it. Returns
  * `{ root, counts }` on success (with `root` being the innermost
  * folder name, never a wrapper prefix) or `null` when no shape
- * matches. Two complementary strategies:
+ * matches. Two complementary strategies, tried in this order:
  *
- *   1. detectRoot-style wrapper retry. When detectRoot() finds a
+ *   1. Rootless read (01-07, WR-06). Read the top-level segments
+ *      directly, before any named-reason chain can run. When the
+ *      top-level segments are themselves real category folders (no
+ *      account-ID wrapper above them), report `accountRoot === ''`.
+ *      This handles `Activity_history/..., Payment_history/...` shapes —
+ *      what a user gets when their re-zip tool flattened the account-ID
+ *      folder away. Running it FIRST removes the WR-06 reachability gap:
+ *      a wrapper retry that exhausts can no longer pre-empt the rootless
+ *      read, so a rootless re-zip is never mis-routed to a named reason.
+ *
+ *   2. detectRoot-style wrapper retry. When detectRoot() finds a
  *      single top-level folder whose only child is itself unrecognized,
  *      try the inner folder as the new candidate root. This handles
  *      `WrapperName/AccountId/Category/...` shapes — exactly what a
@@ -209,29 +253,30 @@ const MAX_WRAPPER_DEPTH = 4;
  *      top-level folder. The retry is bounded by MAX_WRAPPER_DEPTH so
  *      a single-child-folder chain cannot loop forever.
  *
- *   2. Rootless fallback. When detectRoot() returns null because the
- *      top-level segments are themselves real category folders (no
- *      account-ID wrapper above them), treat the archive root as the
- *      account root and report `accountRoot === ''`. This handles
- *      `Activity_history/..., Payment_history/...` shapes — exactly
- *      what a user gets when their re-zip tool flattened the
- *      account-ID folder away.
+ * Whatever candidate root the retry settles on is reported only if it is
+ * a real account id: Wargaming's own export-wrapper folder is
+ * transparent, so a wrapper that sits DIRECTLY above the recognized
+ * categories (the account-ID wrapper dropped on re-zip, CR-01) reports
+ * `accountRoot === ''` instead of the wrapper name.
  *
  * An ambiguous wrapper (root with TWO distinct, equally unrecognized
  * children) is intentionally NOT guessed between — the retry only
- * descends when the sole child is one folder. The same fallback
- * through detectRoot null-handling applies (rootless fallback may or
- * may not save it depending on whether the children happen to match
- * recognized categories). Failure paths still surface as named
+ * descends when the sole child is one folder, and the rootless read
+ * never starts classifying it. Failure paths still surface as named
  * `UnrecognizedReason`s via analyzeExport's fallback chain.
  */
 function resolveAccountRootAndCategories(
   prepared: string[],
 ): { root: string; counts: Map<string, number> } | null {
-  const root = detectRoot(prepared);
+  // Strategy 1: rootless read, before anything else (WR-06).
+  const counts0 = foldersAt('', prepared);
+  if (hasRecognizedCategory(counts0)) {
+    return { root: '', counts: counts0 };
+  }
 
+  // Strategy 2: wrapper-descent retry.
+  const root = detectRoot(prepared);
   if (root !== null) {
-    // Strategy 1: wrapper-descent retry.
     let fullRoot = root;
     let displayRoot = root;
     let counts = categoryFoldersUnder(fullRoot, prepared);
@@ -246,18 +291,15 @@ function resolveAccountRootAndCategories(
       depth += 1;
     }
     if (hasRecognizedCategory(counts)) {
-      return { root: displayRoot, counts };
+      // CR-01: a Wargaming export-wrapper folder is not an account id —
+      // when the categories hang directly off it, the account-root layer
+      // is gone and the honest answer is `''`, not the wrapper name.
+      return { root: isTransparentWrapper(displayRoot) ? '' : displayRoot, counts };
     }
     // No recognized category found at any depth we tried. Fall through
     // to the existing reason-classification chain in analyzeExport
     // (preserves every pre-existing failure fixture's exact reason).
     return null;
-  }
-
-  // Strategy 2: rootless re-zip fallback.
-  const counts0 = foldersAt('', prepared);
-  if (hasRecognizedCategory(counts0)) {
-    return { root: '', counts: counts0 };
   }
   return null;
 }
@@ -389,12 +431,26 @@ export function classifyExport(paths: string[]): ClassifyResult | null {
 //      '/' or './' — the existing `normalizeEntryPath`).
 //   2. Reject OS-metadata (the existing `isOsMetadataEntry`) and
 //      directory entries (trailing '/').
-//   3. Strip the `${root}/` prefix (or use the full normalized path
-//      when `root === ''`, matching `foldersAt`'s rootless convention).
-//   4. Take the first remaining path segment as the `category`.
-//   5. Reject when the category is not in `recognizedCategories` or
-//      the remaining path does not end in `.csv` (case-insensitive).
+//   3. Strip the `${root}/` prefix. When `root` is non-empty that is
+//      either the direct prefix or a rightmost `/${root}/` wrapper
+//      prefix. When `root === ''` there is nothing to strip, but the
+//      path may still carry a TRANSPARENT wrapper above the categories
+//      (the CR-01 shape `personal_data_export/Activity_history/x.csv`,
+//      which `analyzeExport` reports as `accountRoot: ''` on purpose
+//      so a wrapper name is never displayed as an account id).
+//      So the prefix to drop is the leading run of segments up to the
+//      first RECOGNIZED CATEGORY segment — not blindly segment 0.
+//   4. Take the first segment after that prefix as the `category`.
+//   5. Reject when no recognized category segment exists at all, when
+//      the category is not in `recognizedCategories`, or when the
+//      remaining path does not end in `.csv` (case-insensitive).
 //   6. Otherwise return `{ category, sourceFile: <rest> }`.
+//
+// Step 3's "first recognized category segment" rule is what keeps this
+// function in agreement with `analyzeExport` under `root === ''`.
+// Without it, the CR-01 shape resolved its category to the wrapper
+// itself, every entry was rejected, and the worker reported a
+// successful import of an entirely empty dashboard.
 //
 // Returns `null` on every rejection path; callers use the null-check
 // shape `if (resolveCsvFileCategory(...) !== null)`.
@@ -409,7 +465,36 @@ export function resolveCsvFileCategory(
 
   let rest: string;
   if (root === '') {
-    rest = normalized;
+    // `accountRoot === ''` does NOT mean "the categories sit at the top
+    // level". It ALSO covers the transparent-wrapper shape from CR-01,
+    // where the wrapper folder is deliberately not reported as an
+    // account id and the categories hang one (or more) wrapper folders
+    // deeper — `personal_data_export/Activity_history/foo.csv` resolves
+    // to `''` with the category `Activity_history`.
+    //
+    // Blindly taking segment 0 as the category there resolves it to the
+    // wrapper itself, which is not a recognized category, so every entry
+    // is rejected. The worker's `unzipSync` filter then inflates nothing
+    // and the import "succeeds" with an entirely empty dashboard. So
+    // locate the first segment that IS a recognized category and treat
+    // everything above it as transparent prefix.
+    //
+    // This is the same rule the docstring above demands: the mapping must
+    // agree with `analyzeExport`'s own category resolution. A bare
+    // `foo.csv` with no category folder anywhere still returns null, and
+    // the genuinely-rootless `Activity_history/a.csv` is unchanged
+    // (its first segment is already the category, start = 0).
+    const segments = normalized.split('/');
+    const lastSegment = segments.length - 1; // the filename itself
+    let start = -1;
+    for (let i = 0; i < lastSegment; i++) {
+      if (recognizedCategories.has(segments[i]!)) {
+        start = i;
+        break;
+      }
+    }
+    if (start === -1) return null; // no category folder anywhere in the path
+    rest = segments.slice(start).join('/');
   } else {
     // Accept either a `${root}/...` direct prefix OR a rightmost
     // `/${root}/...` wrapper-prefixed path. The wrapper case is the

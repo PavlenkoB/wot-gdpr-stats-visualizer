@@ -268,3 +268,96 @@ const browser = await chromium.launch({
 _Reviewed: 2026-09-28T12:00:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
+---
+
+# Post-gap-closure review (2026-09-30)
+
+**Scope.** The 11 findings above were closed by plans 01-07 through 01-10
+(`gap_closure: true`). This section records a second, independent review of
+that closure work — base `6c4c548..HEAD`, 13 source files. The prior review
+above is preserved verbatim; nothing in it was overwritten.
+
+**Depth:** standard  **Reviewer:** independent `verifier` agent
+**Status:** issues_found → 1 Critical (now fixed), 3 Warnings, 4 Info
+
+## Critical — FIXED in `42aeef5`
+
+**The CR-01 fix made the wrapper-above-categories shape import zero files.**
+
+`classify.ts:297` returned `accountRoot: ''` for
+`personal_data_export/Activity_history/foo.csv`, as the plan prescribed. But
+`ingest.worker.ts:153` passes that value straight to `resolveCsvFileCategory()`
+as the prefix selecting which zip entries to inflate. `resolveCsvFileCategory`
+read `root === ''` as "categories sit at the top level" and took segment 0 as
+the category — the wrapper itself. Not a recognized category, so every entry
+was rejected, `unzipSync` inflated nothing, and the worker posted `done`, not
+`error`. The user got a **successful import of an entirely empty dashboard**.
+
+Pre-fix the same export imported fine (the wrapper name standing in for the
+account id), so the closure was a net regression. It was invisible to 337 unit
+tests and to all 83 e2e specs: the repo's `buildWrapperExport` fixture is the
+wrapper-**around-account** shape, which still resolves, and no e2e spec uses it.
+
+The plan's own verification only ever read `analyzeExport(...).accountRoot` —
+the label — never the consumer that value feeds.
+
+**Fix.** `resolveCsvFileCategory` now locates the first segment that *is* a
+recognized category and treats everything above it as transparent prefix when
+`root === ''`. This restores the invariant its own docstring already demanded
+("the mapping must agree with `analyzeExport`'s own category resolution"),
+without touching the D-09-frozen worker and without reverting CR-01. Two
+regression tests now run the shape through the verbatim `unzipSync` filter so
+the consumer can never silently diverge again. Unit: 339/339.
+
+## Warnings (open, logged to WINDOWS.md)
+
+- **WR-01 does not cover the confirm routes** — `requestStartOver()` /
+  `requestClearData()` have no broken-worker guard; `confirmPending()` posts
+  to a dead worker and parks in `confirm-pending` with no settle timer and no
+  banner. Reachable straight from a displayed cached dataset, no file drop.
+  Narrower than the `01-08-SUMMARY.md` residual, which assumed the confirm was
+  already open. → ledger #2
+- **Rootless-first widens the accept surface** — any archive whose top-level
+  folder is named after a recognized category is now accepted regardless of
+  content (`['Payment_history/invoice.pdf']` → `ok`, 0 CSVs inflate). Broader
+  than the `01-07-SUMMARY.md` disclosure, which named only the
+  `User_Info/Account_Info.csv` case. → ledger #3
+- **`tsc -b` drops `.svelte` from CI type-checking** — 0 of 11 `.svelte` files
+  enter the program. Confirmed factually; accepted for this phase (all
+  components are clean today, and `.svelte.ts` rune modules remain covered),
+  but it is a live gap in a phase whose later deliverables are UI. → ledger #4
+
+## Info
+
+- ~~README claimed 86 e2e tests; there are 83 `test()` definitions.~~ **OVERTURNED
+  2026-09-30.** A real `pnpm run test:e2e` reports **86 passed**, and
+  `playwright test --list` reports "Total: 86 tests in 7 files". Three tests are
+  generated at collection time and are invisible to a static count of `test()`
+  calls, so the README figure of 86 was correct and this finding was the error.
+- The `head-prepend` acceptance grep now matches only comment text.
+- `svelte-check@^4.7.6` is now an unused dependency.
+- The CSP injection no-ops if `<head>` is ever absent — a future `index.html`
+  could build with no CSP meta and still exit 0. `zero-network.spec.ts:72`
+  would catch it, but nothing fails at build time.
+
+## Cleared — looked for, found nothing
+
+No security regression: **PLATFORM-02 is intact.** Nothing in the diff adds
+network capability, relaxes the CSP, respawns the worker, or introduces a
+second script fetch. The vite CSP rewrite is byte-identical in output to the
+pre-change build. The rootless-first ordering cannot make an ambiguous-wrapper
+shape silently succeed. `workerBroken` is intentionally terminal (reload-only),
+which is the PLATFORM-02-compliant choice. All five pre-existing failure
+fixtures keep their exact reasons; no pre-existing test was modified; the
+D-09-frozen files remain untouched.
+
+## Unverified
+
+All 83 e2e specs — Chromium cannot launch in this environment (macOS Mach-port
+`bootstrap_check_in` denied), so e2e is reasoned about, not run. The
+Critical's browser-level consequence is inferred from the executed `null`
+returns plus `ingest.worker.ts:151-190`; the app was not run to observe the
+rendered result.
+
+_Reviewed: 2026-09-30_
+_Reviewer: independent verifier (orchestrator-dispatched)_

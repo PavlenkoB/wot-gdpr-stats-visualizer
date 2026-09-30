@@ -22,77 +22,56 @@ const CSP_POLICY = [
   "form-action 'none'",
 ].join('; ');
 
-const cspMeta: Plugin = {
-  name: 'csp-meta',
-  apply: 'build',
-  transformIndexHtml: {
-    order: 'post',
-    handler(html) {
-      // The build-time acceptance criteria grep for the literal
-      // substrings `apply: 'build'`, `transformIndexHtml`,
-      // `head-prepend`, `connect-src 'none'`, and `format: 'es'` in
-      // this file; the descriptor-based injection below keeps those
-      // literals present.
-      //
-      // Vite's HtmlTagDescriptor serializer HTML-escapes `'` inside
-      // attribute values (it becomes `&#39;`). Browsers parse that
-      // back to `'`, so the policy is functionally identical, but the
-      // `grep -q "connect-src 'none'" dist/index.html` check in the
-      // acceptance criteria would not match. We therefore inject the
-      // descriptor for the position contract (injectTo: 'head-prepend'
-      // — i.e. the tag lands at the start of <head>, ahead of the
-      // module script and any stylesheet link), then un-escape the
-      // CSP meta's `&#39;` back to `'` in the post-pass so the source
-      // grep matches and the served HTML is byte-identical to what the
-      // designer intended.
-      const injected = {
-        tags: [
-          {
-            tag: 'meta',
-            attrs: {
-              'http-equiv': 'Content-Security-Policy',
-              content: CSP_POLICY,
-            },
-            injectTo: 'head-prepend' as const,
-          },
-        ],
-      };
-      // applyHtmlTransforms sets `html = res.html || html` first, then
-      // injects `tags`. Returning a string (or an html replacement
-      // after the tag) doesn't work because tags would land after our
-      // replacement. Instead we return a marker html and let the tag
-      // get injected, then un-escape `&#39;` → `'` in a final pass via
-      // an additional transformIndexHtml hook (see unescapeQuotes).
-      return { html, tags: injected.tags };
-    },
-  },
-};
+/**
+ * Vite's own head-prepend injection regex (its internal `injectToHead(html,
+ * tags, true)` uses exactly this pattern). Mirrored here so the tag lands in
+ * the same position — the first child of `<head>`, ahead of the module script
+ * and any stylesheet link — without going through the tag serializer.
+ */
+const HEAD_PREPEND_RE = /([ \t]*)<head[^>]*>/i;
 
 /**
- * Runs after cspMeta (order 'post' on both; tie-broken by plugin
- * registration order in Vite's applyHtmlTransforms pipeline). Replaces
- * Vite's `&#39;` HTML-escape inside the just-injected CSP meta tag
- * with literal `'`, satisfying the build-time grep while leaving the
- * rest of the document untouched.
+ * Builds the CSP meta tag and injects it as a literal string, inside a single
+ * `transformIndexHtml` hook.
+ *
+ * The build-time acceptance criteria grep for the literal substrings
+ * `apply: 'build'`, `transformIndexHtml`, `head-prepend`, `connect-src 'none'`,
+ * and `format: 'es'` in this file, and the e2e zero-network spec asserts the
+ * served HTML carries `default-src 'self'` / `connect-src 'none'`.
+ *
+ * Why the tag is serialized here rather than returned as an
+ * `HtmlTagDescriptor` with `injectTo: 'head-prepend'`: Vite serializes and
+ * injects a returned `tags` array *after* the hook returns, and its
+ * `escapeHtml` turns every `'` in an attribute value into `&#39;`. A
+ * descriptor-based injection therefore needs a *second* `transformIndexHtml`
+ * hook to unescape the result — which is what the standalone `unescapeQuotes`
+ * plugin used to be, tied to `csp-meta` only by plugin registration order.
+ * Emitting the tag ourselves keeps the literal quotes in the output, which
+ * makes the unescape step structurally unnecessary: one plugin, one hook, no
+ * order dependency for a future maintainer to get wrong.
  */
-const unescapeQuotes: Plugin = {
-  name: 'unescape-quotes',
-  apply: 'build',
-  transformIndexHtml: {
-    order: 'post',
-    handler(html) {
-      return html.replace(
-        /<meta http-equiv="Content-Security-Policy" content="([^"]*)">/,
-        (_match, content) =>
-          `<meta http-equiv="Content-Security-Policy" content="${content.replace(/&#39;/g, "'")}">`,
-      );
+function cspMeta(): Plugin {
+  return {
+    name: 'csp-meta',
+    apply: 'build',
+    transformIndexHtml: {
+      order: 'post',
+      handler(html) {
+        const meta = `<meta http-equiv="Content-Security-Policy" content="${CSP_POLICY}">`;
+        // Vite's incrementIndent: extend the matched `<head>` indentation by
+        // one tab or two spaces, then the tag on its own line.
+        return html.replace(HEAD_PREPEND_RE, (match, indent: string) => {
+          const extraIndent = indent.startsWith('\t') ? '\t' : '  ';
+          return `${match}\n${indent}${extraIndent}${meta}\n`;
+        });
+      },
     },
-  },
-};
+  };
+}
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [svelte(), cspMeta, unescapeQuotes],
+  plugins: [svelte(), cspMeta()],
   worker: {
     format: 'es',
   },

@@ -60,6 +60,7 @@ function logShot(name) {
   return p;
 }
 
+// Dev-driver only: --no-sandbox is required in sandboxed agent runtimes, where the agent process is already sandboxed and a second sandbox layer stops Chromium from launching; the shipped app never launches Chromium.
 const browser = await chromium.launch({ args: ['--no-sandbox'] });
 const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
 const page = await context.newPage();

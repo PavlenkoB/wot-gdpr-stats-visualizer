@@ -518,3 +518,146 @@ describe('analyzeExport — depth-tolerant detection (G-01-20)', () => {
     });
   });
 });
+
+// -----------------------------------------------------------------------------
+// Priority inversion + empty-root guard — CR-01 / WR-06 / WR-03 (01-07)
+// -----------------------------------------------------------------------------
+//
+// Why this block exists (01-07-PLAN Task 1, closing the advisory findings
+// carried by 01-VERIFICATION.md against the depth-tolerant path 01-06 added):
+//
+//   CR-01 (correctness) — a wrapper folder that sits DIRECTLY above the
+//     recognized categories (`personal_data_export/Activity_history/foo.csv`,
+//     the account-id wrapper dropped on re-zip) is surfaced as `accountRoot`,
+//     so the UI would show a folder name where an account id belongs. The
+//     wrapper is transparent: the answer is `accountRoot === ''`.
+//   WR-06 (correctness) — the rootless read used to run only when
+//     `detectRoot()` returned null, so a wrapper retry that exhausted first
+//     could pre-empt it. Rootless-first removes that reachability gap.
+//   WR-03 (robustness) — `categoryFoldersUnder('', paths)` concatenated
+//     `'/'` onto the empty root and matched nothing, silently returning an
+//     empty Map. It must delegate to the prefix-agnostic internal read.
+//
+// The three priority-inversion invariants below are regression guards, not
+// RED tests: they pass both before and after the fix. The wrapper-around-
+// account shape MUST keep resolving to the inner account folder — the
+// inversion must never guess between the two wrapper shapes.
+// -----------------------------------------------------------------------------
+
+describe('analyzeExport — priority inversion + empty-root guard (CR-01 / WR-06 / WR-03)', () => {
+  test('CR-01: ["personal_data_export/Activity_history/foo.csv"] classifies ok with accountRoot "" (the wrapper folder is transparent, not an account id)', () => {
+    const outcome = analyzeExport(['personal_data_export/Activity_history/foo.csv']);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.accountRoot).toBe('');
+    expect(outcome.result.categories).toEqual([
+      { name: 'Activity_history', status: 'supported', fileCount: 1 },
+    ]);
+    expect(outcome.result.counts).toEqual({ supported: 1, 'known-deferred': 0, unknown: 0 });
+  });
+
+  // The regression guard for the regression guard. The test above pins the
+  // LABEL, but `accountRoot` is not only displayed — the ingest worker
+  // feeds it straight to `resolveCsvFileCategory` as the prefix used to
+  // decide which zip entries to inflate (IMPORT-01). So `''` is only a
+  // valid accountRoot if the consumer can still find the categories
+  // through it. This test pipes the CR-01 shape through the exact filter
+  // `ingest.worker.ts` runs, and asserts files actually inflate.
+  //
+  // Without this, `accountRoot: ''` for the wrapper-above-categories shape
+  // silently resolves the category to segment 0 — the wrapper itself —
+  // rejects every entry, and the user gets a "successful" import of an
+  // entirely empty dashboard instead of their data.
+  test('CR-01 downstream: the wrapper-above-categories shape still inflates through resolveCsvFileCategory with accountRoot ""', () => {
+    const paths = ['personal_data_export/Activity_history/foo.csv'];
+    const outcome = analyzeExport(paths);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const recognized = new Set(outcome.result.categories.map((c) => c.name));
+    // This is verbatim the `unzipSync` filter in ingest.worker.ts.
+    const inflated = paths.filter(
+      (p) => resolveCsvFileCategory(p, outcome.result.accountRoot, recognized) !== null,
+    );
+
+    expect(inflated).toEqual(paths);
+    expect(
+      resolveCsvFileCategory('personal_data_export/Activity_history/foo.csv', '', recognized),
+    ).toEqual({
+      category: 'Activity_history',
+      sourceFile: 'foo.csv',
+    });
+  });
+
+  // The same consumer agreement, for a wrapper buried deeper. The
+  // accountRoot stays '' (the wrapper is transparent) but the categories
+  // are not at the top level, so the consumer must still reach them.
+  test('CR-01 downstream: a deeper wrapper chain also inflates with accountRoot ""', () => {
+    const paths = ['Downloads/personal_data_export/Activity_history/foo.csv'];
+    const outcome = analyzeExport(paths);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const recognized = new Set(outcome.result.categories.map((c) => c.name));
+    expect(
+      paths.filter(
+        (p) => resolveCsvFileCategory(p, outcome.result.accountRoot, recognized) !== null,
+      ),
+    ).toEqual(paths);
+  });
+
+  test('WR-03: categoryFoldersUnder("", ["Activity_history/a.csv"]) counts the top-level category instead of returning an empty Map', () => {
+    const m = categoryFoldersUnder('', ['Activity_history/a.csv']);
+    expect(m.size).toBe(1);
+    expect(m.get('Activity_history')).toBe(1);
+  });
+
+  test('priority-inversion invariant: the wrapper-around-account shape still resolves accountRoot "1234567"', () => {
+    const outcome = analyzeExport(['WrapperName/1234567/Activity_history/a.csv']);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.accountRoot).toBe('1234567');
+    expect(outcome.result.categories).toEqual([
+      { name: 'Activity_history', status: 'supported', fileCount: 1 },
+    ]);
+  });
+
+  test('priority-inversion invariant: the rootless shape still resolves accountRoot ""', () => {
+    const outcome = analyzeExport(['Activity_history/a.csv', 'Payment_history/b.csv']);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.accountRoot).toBe('');
+    expect(outcome.result.categories.map((c) => c.name)).toEqual([
+      'Activity_history',
+      'Payment_history',
+    ]);
+  });
+
+  test('priority-inversion invariant: the ambiguous-wrapper shape still fails with no-recognized-category (rootless-first never starts classifying it)', () => {
+    const outcome = analyzeExport(['w/x/Activity_history/a.csv', 'w/y/Payment_history/b.csv']);
+    expect(outcome).toEqual({ ok: false, reason: 'no-recognized-category' });
+  });
+
+  test('every pre-existing failure fixture keeps its exact pre-fix reason (the priority inversion is additive only)', () => {
+    expect(analyzeExport(pathsOf(buildEmptyZip()))).toEqual({
+      ok: false,
+      reason: 'empty-archive',
+    });
+    expect(analyzeExport(pathsOf(buildMultiRootZip()))).toEqual({
+      ok: false,
+      reason: 'no-single-root',
+    });
+    expect(analyzeExport(pathsOf(buildSingleFileZip()))).toEqual({
+      ok: false,
+      reason: 'no-single-root',
+    });
+    expect(analyzeExport(pathsOf(buildFilesOnlyUnderRootZip()))).toEqual({
+      ok: false,
+      reason: 'no-category-folders',
+    });
+    expect(analyzeExport(pathsOf(buildNoRecognizedCategoryZip()))).toEqual({
+      ok: false,
+      reason: 'no-recognized-category',
+    });
+  });
+});
