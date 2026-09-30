@@ -1,5 +1,17 @@
 import Dexie, { type Table, type Transaction } from 'dexie';
-import type { AccountIdentity, CategoryEntry } from '../types/worker-messages.ts';
+import type {
+  AccountIdentity,
+  CategoryEntry,
+  PlaytimeAggregates,
+} from '../types/worker-messages.ts';
+import {
+  isLegacySessionsFileName,
+  isSessionsRow,
+  sessionFileGame,
+  sessionFileNameGame,
+  type SessionRow,
+  type SessionSource,
+} from './playtime.ts';
 
 /**
  * Dexie schema + transactional write (RESEARCH.md Pattern 3, DATA-01).
@@ -49,6 +61,22 @@ export interface DatasetMeta {
    * column was missing.
    */
   identity?: AccountIdentity | null;
+  /**
+   * The playtime aggregate computed by the worker at import (D-02), following
+   * the same precedent as `identity`: persisted here so a `playtime-query`
+   * answers from one single-key read with no row scan on the main thread.
+   *
+   * `null` when aggregation produced nothing to store — no Sessions.csv was
+   * seen, or the aggregator threw and the import continued without it. The
+   * two are not distinguished here on purpose: both mean "this dataset has no
+   * stored aggregate", and `ingest.worker.ts` only answers a query whose `v`
+   * matches.
+   *
+   * No Dexie version bump for this field: it lives inside the `meta` record,
+   * whose store definition is unchanged, so existing databases read it as a
+   * normal optional property and the `version(2)` upgrader above is untouched.
+   */
+  playtime?: PlaytimeAggregates | null;
 }
 
 export const ROWS_PER_BULKPUT_CHUNK = 1000;
@@ -117,6 +145,12 @@ export const db = new AppDb();
  * along in the same `meta.put` inside the same transaction as the rows,
  * so a crash mid-write can never leave an identity pointing at a rows
  * table that was never written.
+ *
+ * `playtime` is the sixth parameter and is OPTIONAL for the same reason
+ * (D-02). It is a NON-INDEXED field of the same `meta` record, written in
+ * that same `meta.put`, so the aggregate is as atomic as the rows and
+ * needs no schema version: a dataset is either all rows plus its aggregate
+ * or neither.
  */
 export async function writeDataset(
   hash: string,
@@ -124,6 +158,7 @@ export async function writeDataset(
   categories: CategoryEntry[],
   rows: DatasetRow[],
   identity: AccountIdentity | null = null,
+  playtime: PlaytimeAggregates | null = null,
 ): Promise<{ importedAt: string }> {
   const importedAt = new Date().toISOString();
   await db.transaction('rw', db.rows, db.meta, async () => {
@@ -131,7 +166,15 @@ export async function writeDataset(
     for (let i = 0; i < rows.length; i += ROWS_PER_BULKPUT_CHUNK) {
       await db.rows.bulkPut(rows.slice(i, i + ROWS_PER_BULKPUT_CHUNK));
     }
-    await db.meta.put({ id: 'active', hash, accountRoot, importedAt, categories, identity });
+    await db.meta.put({
+      id: 'active',
+      hash,
+      accountRoot,
+      importedAt,
+      categories,
+      identity,
+      playtime,
+    });
   });
   return { importedAt };
 }
@@ -144,6 +187,143 @@ export async function writeDataset(
  */
 export async function checkCache(): Promise<DatasetMeta | null> {
   return (await db.meta.get('active')) ?? null;
+}
+
+/**
+ * Read ONE atomic snapshot of the active dataset's session rows, for the lazy
+ * playtime backfill (04-06, T-04-11, T-04-30).
+ *
+ * ## Why meta and rows are read in the same transaction
+ *
+ * `writeDataset` replaces the whole record with `meta.put` inside a
+ * transaction, so a dataset is either all rows plus its meta or neither. A
+ * backfill that read the meta first and the rows afterwards could be handed a
+ * NEW dataset's meta and an OLD dataset's rows, and would then write the old
+ * dataset's playtime onto the new one. Reading both inside one read
+ * transaction is what makes the answer and its data come from the same
+ * dataset; `writePlaytimeIfCurrent` is the second half of the guard.
+ *
+ * ## Why one source per FILE, and not one flat row list
+ *
+ * Every session file has its own HEADER: the synthetic fixture's `Sessions.csv`
+ * says `SESSION_START`/`SESSION_END`, a real `WOT_Game_Sessions.csv` says
+ * `STARTED_AT`/`FINISHED_AT`, and an export can hold both. The aggregator
+ * resolves its columns per source, so a flat list here would hand it the first
+ * file's header to apply to every other one and every row of those would be
+ * excluded. Handing back the same grouping the import path used is what keeps
+ * the two paths from producing different numbers for one export (D-02).
+ *
+ * ## Why the distinct keys are listed rather than a multi-key query
+ *
+ * Dexie's multi-key `where('sourceFile')` form — the one that takes a LIST of
+ * keys in a single call — took 2,243 ms on 3,000 rows in fake-indexeddb
+ * (RESEARCH Pattern 2, measured). This walks the index with
+ * `orderBy().uniqueKeys()` — index-only, 9 ms there — keeps the keys
+ * `sessionFileNameGame` accepts, and issues one single-key `equals` per
+ * survivor. No multi-key query form appears anywhere in this file and must
+ * not: its cost is a function of the number of keys, not of the rows.
+ *
+ * ## Why the import path's own predicate, twice
+ *
+ * `sessionFileNameGame` screens the stored `sourceFile` index BY NAME, which
+ * is all an index entry holds; `sessionFileGame` then decides with the row's
+ * OWN category, exactly as the import path does. The name-only screen is what
+ * keeps the number of indexed reads to one per candidate FILE rather than one
+ * per category spelling of it, and it is the same predicate the importer used,
+ * so the two cannot diverge. The second call is also what rejects a session
+ * file nested one folder deeper — deliberately, because the import path stores
+ * only the basename.
+ *
+ * Rows are grouped per CATEGORY-AND-FILE pair in the order first seen, so a
+ * dataset that somehow holds the same name in two folder cases is aggregated
+ * with the same grouping the import loop produced.
+ */
+export async function readSessionRowData(): Promise<{
+  importedAt: string;
+  sources: SessionSource[];
+} | null> {
+  return db.transaction('r', db.rows, db.meta, async () => {
+    const meta = await db.meta.get('active');
+    if (meta === undefined) return null;
+
+    const keys = await db.rows.orderBy('sourceFile').uniqueKeys();
+    // Grouped per CATEGORY-AND-FILE pair, in the order first seen, as a Map of
+    // Maps rather than a Map keyed by a joined string: a folder name and a file
+    // name can both contain any character a zip entry name can, and a separator
+    // that has to be excluded from both is one more thing to get wrong.
+    const grouped = new Map<string, Map<string, SessionSource>>();
+    for (const key of keys) {
+      // The name-only screen: cheap, index-driven, and the same rule the
+      // importer applied. A key it refuses is never read at all.
+      if (typeof key !== 'string' || !isSessionFileName(key)) continue;
+      const matches = await db.rows.where('sourceFile').equals(key).toArray();
+      for (const row of matches) {
+        // The full predicate, on the row's own category.
+        if (!isSessionsRow(row.category, row.sourceFile)) continue;
+        const byFile = grouped.get(row.category) ?? new Map<string, SessionSource>();
+        grouped.set(row.category, byFile);
+        const source = byFile.get(row.sourceFile);
+        if (source === undefined) {
+          byFile.set(row.sourceFile, {
+            game: sessionFileGame(row.category, row.sourceFile),
+            rows: [row.data],
+          });
+        } else {
+          // The accumulator behind the readonly `rows`; see the same pattern
+          // in the worker's import loop.
+          (source.rows as SessionRow[]).push(row.data);
+        }
+      }
+    }
+    const sources = [...grouped.values()].flatMap((byFile) => [...byFile.values()]);
+    return { importedAt: meta.importedAt, sources };
+  });
+}
+
+/**
+ * The name-only half of the import path's session-file test, used to screen the
+ * `sourceFile` index before paying for a read of the rows behind each key.
+ *
+ * `sessionFileNameGame` answers null for BOTH "not a session file" and "the
+ * legacy `Sessions.csv`, which names no game", so it cannot screen by name on
+ * its own; `isSessionsRow` needs a category it does not have here. The rule is
+ * therefore spelled out once, from the same two exported predicates, so this
+ * screen and the import path cannot drift apart: a name is worth reading when
+ * it is the legacy file OR it carries a game token. Both halves are the
+ * predicates themselves rather than literals re-spelled here, so a second
+ * legacy file shape added to `playtime.ts` cannot reach the import path and
+ * miss this screen.
+ */
+function isSessionFileName(sourceFile: string): boolean {
+  return sessionFileNameGame(sourceFile) !== null || isLegacySessionsFileName(sourceFile);
+}
+
+/**
+ * Store a freshly computed playtime aggregate, but ONLY while the active
+ * dataset is still the one the aggregate was computed from (T-04-11).
+ *
+ * Returns whether it wrote. A false return is not a failure: it means a
+ * replace landed between the snapshot and this call, and the aggregate that
+ * caller holds belongs to a dataset the user is no longer looking at. The
+ * backfill answers the caller with the SNAPSHOT's numbers either way — this
+ * is a cache, and a missed cache write costs one recomputation, not
+ * correctness.
+ *
+ * Only the `playtime` field is updated, so a hash, an identity, a category
+ * list and an `importedAt` can never be rewritten by a backfill. No Dexie
+ * version is added: this is a property of the existing `meta` record, and the
+ * `version(2)` upgrader above must stay exactly as it is.
+ */
+export async function writePlaytimeIfCurrent(
+  importedAt: string,
+  playtime: PlaytimeAggregates,
+): Promise<boolean> {
+  return db.transaction('rw', db.meta, async () => {
+    const current = await db.meta.get('active');
+    if (current === undefined || current.importedAt !== importedAt) return false;
+    await db.meta.update('active', { playtime });
+    return true;
+  });
 }
 
 /**

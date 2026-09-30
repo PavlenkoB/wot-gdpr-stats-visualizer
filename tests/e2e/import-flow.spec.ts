@@ -15,7 +15,7 @@ import {
   buildTruncatedExport,
 } from '../fixtures/export-fixtures.ts';
 import { formatAccountId, formatImportSummary } from '../../src/lib/ui-copy.ts';
-import { dropFiles } from './helpers.ts';
+import { dropFiles, importLine } from './helpers.ts';
 
 // =============================================================================
 // IMPORT-02 / PLATFORM-02 — success-path slice against the dashboard (03-07)
@@ -175,9 +175,10 @@ test('(a) shows stage feedback while busy, then account, summary and grouped bad
     await expect(card).toHaveCount(1);
     const fileCount = SAMPLE_FILE_COUNTS[section.folder]!;
     const rowCount = SAMPLE_ROW_COUNTS[section.folder]!;
-    await expect(card.getByTestId('section-summary')).toHaveText(
-      formatImportSummary(fileCount, rowCount),
-    );
+    // Activity_history is `ready` since 04-02 and shows these counts as its
+    // caption; the other three are `pending` and show them as their body.
+    // `importLine` reads whichever element this card renders.
+    await expect(importLine(card)).toHaveText(formatImportSummary(fileCount, rowCount));
     // DOM order is the D-02 contract, not the worker's grouping.
     if (index > 0) {
       const previousId = SUPPORTED_SECTIONS[index - 1]!.id;
@@ -425,10 +426,9 @@ test('(f) the page stays responsive while a large export is unzipped', async ({ 
     formatAccountId(SAMPLE_ACCOUNT_ROOT),
   );
 
-  // The Activity_history section summary reads "2500 files, ...".
-  const activitySummary = page
-    .getByTestId('dashboard-section-activity-history')
-    .getByTestId('section-summary');
+  // The Activity_history section counts read "2500 files, ...". The card is
+  // `ready`, so the line is the caption after the playtime block.
+  const activitySummary = importLine(page.getByTestId('dashboard-section-activity-history'));
   await expect(activitySummary).toContainText(
     formatImportSummary(LARGE_EXPORT_FILES_PER_CATEGORY, LARGE_EXPORT_FILES_PER_CATEGORY),
   );

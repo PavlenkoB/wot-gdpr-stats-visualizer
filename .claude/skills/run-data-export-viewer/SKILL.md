@@ -54,15 +54,25 @@ The driver:
 1. Loads `http://localhost:4173`, waits for `main[data-worker-ready="true"]`.
 2. Screenshots the empty dropzone.
 3. Builds a synthetic 12-file Wargaming-shaped export in memory with
-   `fflate.zipSync` and drops it through `[data-testid="file-input"]`.
+   `fflate.zipSync` and drops it through `[data-testid="file-input"]`. The
+   `Sessions.csv` it carries is built by `sessions-csv.mjs` and has the **real
+   six-column header**
+   (`SESSION_START;SESSION_END;CLIENT_BUILD;CLIENT_PLATFORM;SERVER_NAME;IP`),
+   30 usable sessions over 21 days in three servers (EU1, EU2, NA1), plus one
+   row with an empty end that the aggregator counts as excluded. A two-column
+   file is classified `no-usable-sessions`, so the shape is load-bearing.
 4. Captures the processing paragraph (the spinner + per-stage text, in
    the import bar's notice slot), then the dashboard: the identity
    header (nickname + `Account ID: …`), one card per supported section
    with its counts, and one banner per unsupported folder.
-5. Clicks Start over, screenshots its confirmation panel, confirms, and
+5. Waits for the Playtime block to reach `data-state="ready"`, logs the
+   three tile texts, the selector's option count and the calendar-cell,
+   hour-cell and duration-bin counts, then screenshots it. TILE TEXT AND
+   COUNTS ONLY — no CSV row and no address ever reaches the log.
+6. Clicks Start over, screenshots its confirmation panel, confirms, and
    screenshots the re-armed full-variant bar.
-6. Drops a `readme.txt` to demonstrate the failure banner.
-7. Closes the browser.
+7. Drops a `readme.txt` to demonstrate the failure banner.
+8. Closes the browser.
 
 Screenshots land in `/tmp/wot-viewer-shots/`:
 
@@ -70,6 +80,7 @@ Screenshots land in `/tmp/wot-viewer-shots/`:
 01-empty-dropzone.png
 02-processing.png       (may be skipped if processing is faster than the screenshot grab)
 03-dashboard.png
+03b-playtime.png
 04-start-over-confirm.png
 05-start-over-cleared.png
 06-failure-banner.png
@@ -77,6 +88,19 @@ Screenshots land in `/tmp/wot-viewer-shots/`:
 
 Override the URL with `--url http://localhost:5173` to drive the dev
 server instead of the preview (no CSP, no built artifacts required).
+
+## Checking the demo data without a browser
+
+```bash
+node .claude/skills/run-data-export-viewer/sessions-csv.mjs --check
+```
+
+Parses its own output independently (split on the carriage return, then on the
+semicolon) and asserts the closed form over the demo layout, then prints one
+summary line. This is the fast way to check a change to the demo data: the
+driver's expected tiles are 31.2 hours, 30 sessions and 21 active days, with
+366 calendar cells (2024 is a leap year), 168 hour cells, 12 duration bins and
+a four-option selector (All, EU1, EU2, NA1).
 
 ## Run (human path)
 
@@ -151,7 +175,9 @@ Node 26.10) imports `.ts` files directly. Verified working with a plain
 - **Real exports are PII** — `tests/fixtures/README.md` records the
   `fixture=synthetic` policy. Never commit a real Wargaming zip; drop
   it from anywhere outside the repo into the running app to verify the
-  end-to-end flow.
+  end-to-end flow. `tests/fixtures/private/` does not exist on a fresh
+  checkout and is gitignored; create it locally if you want to keep a
+  real export inside the repo tree.
 
 ## Troubleshooting
 

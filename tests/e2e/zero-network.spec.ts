@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { SAMPLE_NICKNAME, buildSampleExport } from '../fixtures/export-fixtures.ts';
+import { SCALE_5K_SPEC, buildSessionsExport } from '../fixtures/sessions-fixtures.ts';
 
 /**
  * PLATFORM-02 — zero network requests after initial page load, plus
@@ -80,5 +81,100 @@ test.describe('zero-network and CSP', () => {
     expect(csp).not.toBeNull();
     expect(csp).toContain("default-src 'self'");
     expect(csp).toContain("connect-src 'none'");
+  });
+
+  test('no network requests, no second worker and no CSP violation through a 5,000-session import, every selector value and chart interaction', async ({
+    page,
+    context,
+  }) => {
+    // Explicit rather than inherited: this test imports a 5,000-session
+    // archive, sweeps every selector value and then interacts with two
+    // charts, which is more than the configured default allows for on a slow
+    // CI runner. A timeout here would look like a network failure.
+    test.setTimeout(180_000);
+
+    // Before navigation, so it catches a violation raised by the first
+    // application script as well as by anything the playtime flow does.
+    await page.addInitScript(() => {
+      const w = window as unknown as { __cspViolations: string[] };
+      w.__cspViolations = [];
+      document.addEventListener(
+        'securitypolicyviolation',
+        (event) => {
+          w.__cspViolations.push((event as SecurityPolicyViolationEvent).violatedDirective);
+        },
+        true,
+      );
+    });
+
+    const requests: string[] = [];
+    const workerUrls: string[] = [];
+    context.on('request', (req) => requests.push(req.url()));
+    page.on('worker', (worker) => workerUrls.push(worker.url()));
+
+    await page.goto('/');
+    await expect(page.locator('main')).toHaveAttribute('data-worker-ready', 'true', {
+      timeout: 10_000,
+    });
+    await page.waitForLoadState('networkidle');
+
+    // The eager worker script fetch and the module graph are inside the
+    // baseline, so anything after it is the app asking for something it was
+    // not served.
+    const baselineCount = requests.length;
+    expect(baselineCount).toBeGreaterThan(0);
+    expect(workerUrls).toHaveLength(1);
+
+    const { bytes } = buildSessionsExport(SCALE_5K_SPEC);
+    await page.getByTestId('file-input').setInputFiles({
+      name: 'scale-export.zip',
+      mimeType: 'application/zip',
+      buffer: Buffer.from(bytes),
+    });
+    await expect(page.getByTestId('playtime')).toHaveAttribute('data-state', 'ready', {
+      timeout: 30_000,
+    });
+
+    // Every split value, waiting for the charts to settle on each. The wait is
+    // on the block's own state attribute, so a value that never answered would
+    // fail here rather than be measured against the previous slice.
+    const selector = page.getByTestId('playtime-selector');
+    const optionCount = await selector.locator('option').count();
+    expect(optionCount, 'All plus at least one server name').toBeGreaterThan(1);
+    for (let index = 0; index < optionCount; index += 1) {
+      await selector.selectOption({ index });
+      await expect(page.getByTestId('playtime')).toHaveAttribute('data-state', 'ready', {
+        timeout: 10_000,
+      });
+    }
+
+    // Two different interaction paths over the charts: a pointer (which opens
+    // the shared tooltip) and the keyboard (which moves the roving tab stop
+    // through the calendar).
+    await page.getByTestId('hour-cell').first().hover();
+    await page.getByTestId('calendar-cell').first().focus();
+    await page.keyboard.press('ArrowRight');
+
+    // The same short settle the first test uses, so a request queued by the
+    // interaction has reached the network stack before the count is read.
+    await page.waitForTimeout(500);
+
+    const postBaseline = requests.slice(baselineCount);
+    expect(postBaseline, `requests after the playtime flow: ${postBaseline.join(', ')}`).toEqual(
+      [],
+    );
+
+    // Still the single long-lived worker, on the same origin as the page.
+    expect(workerUrls, 'no second worker for the playtime flow').toHaveLength(1);
+    const pageOrigin = new URL(page.url()).origin;
+    for (const url of [...requests, ...workerUrls]) {
+      expect(new URL(url).origin).toBe(pageOrigin);
+    }
+
+    // The half that counting requests cannot see: nothing was even ATTEMPTED.
+    const violations = await page.evaluate(
+      () => (window as unknown as { __cspViolations: string[] }).__cspViolations,
+    );
+    expect(violations, `violated CSP directives: ${violations.join(', ')}`).toEqual([]);
   });
 });

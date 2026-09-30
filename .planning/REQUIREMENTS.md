@@ -27,10 +27,10 @@
 
 ### Activity
 
-- [ ] **ACTIVITY-01**: Total hours / sessions / active days summary
-- [ ] **ACTIVITY-02**: Calendar heatmap, year-by-year, aggregated per-day (not one SVG node per session — scale requirement)
-- [ ] **ACTIVITY-03**: Day-of-week × hour-of-day heatmap, aggregated per-bucket
-- [ ] **ACTIVITY-04**: Session-duration distribution
+- [x] **ACTIVITY-01**: Total hours / sessions / active days summary
+- [x] **ACTIVITY-02**: Calendar heatmap, year-by-year, aggregated per-day (not one SVG node per session — scale requirement)
+- [x] **ACTIVITY-03**: Day-of-week × hour-of-day heatmap, aggregated per-bucket
+- [x] **ACTIVITY-04**: Session-duration distribution
 - [ ] **ACTIVITY-05**: Login-IP history table, masked by default (e.g. last octet hidden) with a click-to-reveal toggle
 - [ ] **ACTIVITY-06**: Country-level geolocation of login IPs, rendered on a bundled world-map SVG — offline lookup only (DB-IP Lite data via `@ip-location-db/dbip-country`, pre-converted to a binary range table at build time), no live geo API, one-line attribution credit in the UI, bundled by default (small: ~1-2MB)
 - [ ] **ACTIVITY-07**: City-level geolocation available as an explicit opt-in ("load city-level detail") that lazy-loads a separate, much larger (~60-70MB) offline city-level database on demand — never bundled/downloaded by default, no live geo API
@@ -94,10 +94,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DATA-03 | Phase 3 | Complete |
 | DATA-04 | Phase 3 | Complete |
 | IDENTITY-01 | Phase 3 | Complete |
-| ACTIVITY-01 | Phase 4 | Pending |
-| ACTIVITY-02 | Phase 4 | Pending |
-| ACTIVITY-03 | Phase 4 | Pending |
-| ACTIVITY-04 | Phase 4 | Pending |
+| ACTIVITY-01 | Phase 4 | Complete |
+| ACTIVITY-02 | Phase 4 | Complete |
+| ACTIVITY-03 | Phase 4 | Complete |
+| ACTIVITY-04 | Phase 4 | Complete |
 | ACTIVITY-05 | Phase 6 | Pending |
 | ACTIVITY-06 | Phase 6 | Pending |
 | ACTIVITY-07 | Phase 6 | Pending |

@@ -16,10 +16,13 @@ export default defineConfig({
   testMatch: '**/*.spec.ts',
   // CI runs on a self-hosted runner where multi-worker test execution
   // hits resource contention (one per-test timeout cascade → global
-  // cancel with no per-test output). 1 worker is ~5.5 min locally and
-  // is the only configuration that has produced complete, traceable
-  // CI runs. Locally we keep Playwright's default (CPU-count) workers
-  // for faster feedback.
+  // cancel with no per-test output). 1 worker is the only configuration
+  // that has produced complete, traceable CI runs. Measured at 1 worker
+  // on the development machine: 109 tests in 1.8 min (Phase 1's 20-test
+  // suite was ~5.5 min). The runner's own cost is still an ESTIMATE, not
+  // a measurement — no CI run has executed the phase-4 suite. Locally we
+  // keep Playwright's default (CPU-count) workers for faster feedback:
+  // 40.9 s for the same 109 tests.
   workers: process.env.CI ? 1 : undefined,
   retries: 0,
   forbidOnly: !!process.env.CI,
@@ -36,9 +39,14 @@ export default defineConfig({
   ],
   // Global timeout inside Playwright: fail loudly with diagnostics
   // (which test, which step) instead of waiting for the shell `timeout
-  // 10m` wrapper to fire and produce "operation canceled" with no
-  // context. 8 min gives 2 min of headroom under the 10 min wrapper.
-  globalTimeout: 8 * 60 * 1000,
+  // 17m` wrapper to fire and produce "operation canceled" with no
+  // context. 15 min is 1.67x the 540 s the 109 listed tests project to
+  // (330 s pre-phase baseline + 5 s per added test + a 120 s allowance
+  // for the 60,000-session scale spec). The 1.3x floor
+  // tests/unit/ci-budget.test.ts enforces would pass at 12 min; the
+  // extra three minutes are deliberate headroom, not slack the suite is
+  // expected to use, because the 330 s baseline is an estimate.
+  globalTimeout: 15 * 60 * 1000,
   timeout: 120000,
   webServer: {
     // Direct binary invocation (NOT `pnpm run build && pnpm run preview`).

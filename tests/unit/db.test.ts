@@ -6,9 +6,15 @@ import {
   checkCache,
   clearData,
   db,
+  readSessionRowData,
   writeDataset,
+  writePlaytimeIfCurrent,
 } from '../../src/lib/worker/db.ts';
-import type { AccountIdentity, CategoryEntry } from '../../src/lib/types/worker-messages.ts';
+import type {
+  AccountIdentity,
+  CategoryEntry,
+  PlaytimeAggregates,
+} from '../../src/lib/types/worker-messages.ts';
 import type { DatasetRow } from '../../src/lib/worker/db.ts';
 
 // =============================================================================
@@ -369,5 +375,410 @@ describe('03-01 — the identity rides on the meta record (D-20)', () => {
     await writeDataset('first-hash'.padEnd(64, 'f'), 'root-a', CATEGORIES, makeRows(2), IDENTITY);
     await writeDataset('second-hash'.padEnd(64, 's'), 'root-b', CATEGORIES, makeRows(2));
     expect((await checkCache())?.identity ?? null).toBeNull();
+  });
+});
+
+// =============================================================================
+// 04-06 — the backfill seam: an atomic row snapshot and a guarded write-back
+// =============================================================================
+//
+// A `playtime-query` on a dataset whose stored aggregate is absent, null or
+// of another version recomputes it from the rows. Two properties make that
+// safe, and neither can be tested through the worker alone:
+//
+//   1. readSessionRowData reads the meta record and the Sessions rows in ONE
+//      read transaction, so a replace landing between the two cannot hand
+//      the backfill a different dataset's importedAt than its rows.
+//   2. writePlaytimeIfCurrent updates only when the stored importedAt still
+//      equals the snapshot's, so a slow backfill cannot attach the previous
+//      dataset's playtime to a newer dataset (T-04-11).
+// =============================================================================
+
+/** One Sessions.csv data row, with the header the aggregator resolves. */
+function sessionsData(index: number, server: string): DatasetRow['data'] {
+  return {
+    SESSION_START: '2020-06-01 10:00:00',
+    SESSION_END: '2020-06-01 10:30:00',
+    SERVER_NAME: server,
+    CLIENT_PLATFORM: 'win32',
+    IP: '192.0.2.99',
+    idx: String(index),
+  };
+}
+
+/**
+ * A dataset with the four row shapes the backfill has to tell apart: the
+ * Sessions file itself, the same file in a lower-cased folder with a
+ * lower-cased basename, a Logins.csv in the right folder, and a Sessions.csv
+ * nested one folder deeper.
+ */
+function mixedCategoryRows(): DatasetRow[] {
+  return [
+    {
+      category: 'Activity_history',
+      sourceFile: 'Sessions.csv',
+      rowIndex: 0,
+      data: sessionsData(0, 'eu-1'),
+    },
+    {
+      category: 'Activity_history',
+      sourceFile: 'Sessions.csv',
+      rowIndex: 1,
+      data: sessionsData(1, 'na-1'),
+    },
+    {
+      category: 'activity_history',
+      sourceFile: 'sessions.csv',
+      rowIndex: 2,
+      data: sessionsData(2, 'eu-1'),
+    },
+    {
+      category: 'Activity_history',
+      sourceFile: 'Logins.csv',
+      rowIndex: 3,
+      data: { LOGIN_DT: 'x', IP: '192.0.2.30' },
+    },
+    {
+      category: 'Activity_history',
+      sourceFile: 'sub/Sessions.csv',
+      rowIndex: 4,
+      data: sessionsData(4, 'kr-1'),
+    },
+  ];
+}
+
+/** A minimal stored aggregate; the write-back tests never read its numbers. */
+const STUB_PLAYTIME = { v: 1 } as unknown as PlaytimeAggregates;
+
+/**
+ * One real-shape `WOT_Game_Sessions.csv` data row, with the header the real
+ * export writes.
+ *
+ * 04-14: the backfill has to find these rows too. A snapshot that answered only
+ * the synthetic `Sessions.csv` would rebuild an aggregate from nothing for
+ * exactly the export that needs rebuilding, and the user would see
+ * "no session file" forever.
+ */
+function realShapeData(index: number, started: string, finished: string): DatasetRow['data'] {
+  return {
+    STARTED_AT: started,
+    FINISHED_AT: finished,
+    IP: '192.0.2.77',
+    idx: String(index),
+  };
+}
+
+/** Every stored row of a snapshot's sources, flattened, in source order. */
+function allSnapshotRows(sources: readonly { rows: readonly DatasetRow['data'][] }[]) {
+  return sources.flatMap((source) => source.rows);
+}
+
+describe('04-06 — readSessionRowData', () => {
+  beforeEach(async () => {
+    await db.delete();
+    await db.open();
+  });
+
+  afterAll(async () => {
+    await db.close();
+  });
+
+  test('returns null when there is no dataset at all', async () => {
+    expect(await readSessionRowData()).toBeNull();
+  });
+
+  test('returns the importedAt and exactly the Sessions rows, whatever the folder case', async () => {
+    const { importedAt } = await writeDataset(
+      'backfill-hash'.padEnd(64, 'b'),
+      'root-backfill',
+      CATEGORIES,
+      mixedCategoryRows(),
+    );
+
+    const snapshot = await readSessionRowData();
+    expect(snapshot).not.toBeNull();
+    expect(snapshot!.importedAt).toBe(importedAt);
+    // One source per stored session FILE: the two `Sessions.csv` rows and the
+    // one `activity_history/sessions.csv` row are two files, not one.
+    expect(snapshot!.sources).toHaveLength(2);
+    // Logins.csv is a different basename and `sub/Sessions.csv` is a different
+    // path, and the predicate ignores both — on this path exactly as it does on
+    // the import path.
+    const rows = allSnapshotRows(snapshot!.sources);
+    expect(rows).toHaveLength(3);
+    expect(rows.map((row) => row.SERVER_NAME).sort()).toEqual(['eu-1', 'eu-1', 'na-1']);
+    // The header keys come back as written, so the aggregator can resolve its
+    // columns without a second lookup.
+    expect(Object.keys(rows[0]!)).toContain('SESSION_START');
+    // The legacy file names no game, which is not the same answer as "not a
+    // session file" — hence it appears here at all.
+    expect(snapshot!.sources.map((source) => source.game)).toEqual([null, null]);
+  });
+
+  test('returns an empty source list for a dataset with no session file', async () => {
+    await writeDataset('no-sessions-hash'.padEnd(64, 'n'), 'root-no-sessions', CATEGORIES, [
+      {
+        category: 'Activity_history',
+        sourceFile: 'Logins.csv',
+        rowIndex: 0,
+        data: { LOGIN_DT: 'x' },
+      },
+    ]);
+
+    const snapshot = await readSessionRowData();
+    expect(snapshot).not.toBeNull();
+    expect(snapshot!.sources).toEqual([]);
+  });
+
+  test('scales to a few hundred rows without a multi-key query (T-04-12 timing)', async () => {
+    // 300 Sessions rows plus 20 Logins rows: the shape the backfill meets on
+    // a real export. The assertion is only that it completes; RESEARCH
+    // recorded 2,243 ms for the `anyOf` form this deliberately does not use.
+    const many: DatasetRow[] = [];
+    for (let i = 0; i < 300; i++) {
+      many.push({
+        category: 'Activity_history',
+        sourceFile: 'Sessions.csv',
+        rowIndex: i,
+        data: sessionsData(i, i % 2 === 0 ? 'eu-1' : 'na-1'),
+      });
+    }
+    for (let i = 0; i < 20; i++) {
+      many.push({
+        category: 'Activity_history',
+        sourceFile: 'Logins.csv',
+        rowIndex: 300 + i,
+        data: { LOGIN_DT: 'x' },
+      });
+    }
+    await writeDataset('many-hash'.padEnd(64, 'm'), 'root-many', CATEGORIES, many);
+
+    const snapshot = await readSessionRowData();
+    expect(allSnapshotRows(snapshot!.sources)).toHaveLength(300);
+  });
+});
+
+// =============================================================================
+// 04-14 — the same snapshot over the REAL export's per-game files
+// =============================================================================
+//
+// The reporter's case, at the layer below the worker: a dataset imported from a
+// real export is ALREADY cached in the user's browser, with an aggregate written
+// by a build that did not know about `WOT_Game_Sessions.csv`. The backfill has
+// to find those rows in storage and hand them back grouped per file, or the
+// user never sees their playtime again (UAT G-04-1, T-04-30).
+// =============================================================================
+
+describe('04-14 — readSessionRowData over the per-game files', () => {
+  beforeEach(async () => {
+    await db.delete();
+    await db.open();
+  });
+
+  afterAll(async () => {
+    await db.close();
+  });
+
+  /**
+   * The row shapes the backfill has to tell apart on a real export: two
+   * per-game files plus the legacy one, and the three non-sources beside them.
+   */
+  function perGameRows(): DatasetRow[] {
+    return [
+      {
+        category: 'Activity_history',
+        sourceFile: 'WOT_Game_Sessions.csv',
+        rowIndex: 0,
+        data: realShapeData(0, '13.03.2019 20:00', '13.03.2019 21:30'),
+      },
+      {
+        category: 'Activity_history',
+        sourceFile: 'WOT_Game_Sessions.csv',
+        rowIndex: 1,
+        data: realShapeData(1, '13.03.2019 21:00', '13.03.2019 22:00'),
+      },
+      {
+        category: 'Activity_history',
+        sourceFile: 'WOWS_Game_Sessions.csv',
+        rowIndex: 2,
+        data: realShapeData(2, '20.06.2021 18:00', '20.06.2021 18:20'),
+      },
+      {
+        category: 'activity_history',
+        sourceFile: 'wotb_game_sessions.csv',
+        rowIndex: 3,
+        data: realShapeData(3, '02.11.2020 10:00', '02.11.2020 10:30'),
+      },
+      {
+        category: 'Activity_history',
+        sourceFile: 'Sessions.csv',
+        rowIndex: 4,
+        data: sessionsData(4, 'eu-1'),
+      },
+      // Not a source: a different file in the right folder.
+      {
+        category: 'Activity_history',
+        sourceFile: 'Logins.csv',
+        rowIndex: 5,
+        data: { LOGIN_DT: 'x' },
+      },
+      // Not a source: a session-named file NESTED one folder deeper.
+      {
+        category: 'Activity_history',
+        sourceFile: 'sub/WOT_Game_Sessions.csv',
+        rowIndex: 6,
+        data: realShapeData(6, '01.01.2020 00:00', '01.01.2020 01:00'),
+      },
+      // Not a source: a session file in ANOTHER folder.
+      {
+        category: 'User_Info',
+        sourceFile: 'Sessions.csv',
+        rowIndex: 7,
+        data: sessionsData(7, 'na-1'),
+      },
+      // Not a source: the xlsx duplicate the export ships beside the csv.
+      {
+        category: 'Activity_history',
+        sourceFile: 'WOT_Game_Sessions.xlsx',
+        rowIndex: 8,
+        data: { STARTED_AT: 'x' },
+      },
+    ];
+  }
+
+  test('answers one source per stored session file, each with its game and rows', async () => {
+    const { importedAt } = await writeDataset(
+      'per-game-hash'.padEnd(64, 'p'),
+      'root-per-game',
+      CATEGORIES,
+      perGameRows(),
+    );
+
+    const snapshot = await readSessionRowData();
+    expect(snapshot).not.toBeNull();
+    expect(snapshot!.importedAt).toBe(importedAt);
+
+    // Four files: the legacy Sessions.csv, WOT, WOWS and the lower-cased WOTB.
+    // The lower-cased folder with a lower-cased basename IS a source — the
+    // export has been seen with both cases and the import path agrees.
+    //
+    // The order is the `sourceFile` INDEX's own order, because that is the order
+    // the keys are walked in, and nothing downstream depends on it: each
+    // source's rows are aggregated on their own and then merged. So this
+    // asserts the SET of games and pairs every one with its row count.
+    expect(snapshot!.sources).toHaveLength(4);
+    const byGame = new Map(
+      snapshot!.sources.map((entry) => [entry.game, entry.rows.length] as const),
+    );
+    expect(byGame.get(null)).toBe(1);
+    expect(byGame.get('WOT')).toBe(2);
+    expect(byGame.get('WOWS')).toBe(1);
+    expect(byGame.get('WOTB')).toBe(1);
+
+    // Rows stay in STORED order within their own source, and the header keys
+    // come back exactly as the file wrote them, so each source resolves its own
+    // columns.
+    const wot = snapshot!.sources.find((entry) => entry.game === 'WOT')!;
+    const wows = snapshot!.sources.find((entry) => entry.game === 'WOWS')!;
+    const wotb = snapshot!.sources.find((entry) => entry.game === 'WOTB')!;
+    const legacy = snapshot!.sources.find((entry) => entry.game === null)!;
+    expect(wot.rows).toHaveLength(2);
+    expect(wot.rows.map((row) => row.STARTED_AT)).toEqual(['13.03.2019 20:00', '13.03.2019 21:00']);
+    expect(Object.keys(wot.rows[0]!)).toContain('STARTED_AT');
+    expect(wows.rows).toHaveLength(1);
+    expect(wows.rows[0]!.FINISHED_AT).toBe('20.06.2021 18:20');
+    expect(wotb.rows).toHaveLength(1);
+    expect(wotb.rows[0]!.STARTED_AT).toBe('02.11.2020 10:00');
+    expect(Object.keys(legacy.rows[0]!)).toContain('SESSION_START');
+
+    // And the four non-sources contributed nothing: no Logins.csv, no nested
+    // path, no session file in User_Info, no xlsx duplicate.
+    expect(allSnapshotRows(snapshot!.sources)).toHaveLength(5);
+  });
+
+  test('keeps the login address out of what it hands back as a source', async () => {
+    await writeDataset(
+      'per-game-ip-hash'.padEnd(64, 'i'),
+      'root-per-game-ip',
+      CATEGORIES,
+      perGameRows(),
+    );
+
+    const snapshot = await readSessionRowData();
+    // The rows themselves DO carry the address — they are the dataset, and the
+    // export's own rows are not the aggregator's business. What must not
+    // happen is the backfill reading it: it hands rows over and names no
+    // column, and the aggregator names four that are not this one.
+    const wot = snapshot!.sources.find((source) => source.game === 'WOT');
+    expect(wot).toBeDefined();
+    expect(wot!.rows[0]!.IP).toBe('192.0.2.77');
+  });
+});
+
+describe('04-06 — writePlaytimeIfCurrent', () => {
+  beforeEach(async () => {
+    await db.delete();
+    await db.open();
+  });
+
+  afterAll(async () => {
+    await db.close();
+  });
+
+  test('stores the playtime and reports that it wrote', async () => {
+    const { importedAt } = await writeDataset(
+      'guard-hash'.padEnd(64, 'g'),
+      'root-guard',
+      CATEGORIES,
+      makeRows(2),
+    );
+    expect((await checkCache())?.playtime ?? null).toBeNull();
+
+    expect(await writePlaytimeIfCurrent(importedAt, STUB_PLAYTIME)).toBe(true);
+    expect((await checkCache())?.playtime).toEqual(STUB_PLAYTIME);
+  });
+
+  test('refuses a DIFFERENT importedAt and leaves the stored playtime exactly as it was', async () => {
+    // T-04-11: this is the replace-while-backfilling race. A stale write must
+    // attach the previous dataset's aggregate to the new one, so it is
+    // refused outright rather than merged.
+    const { importedAt } = await writeDataset(
+      'guard-hash'.padEnd(64, 'g'),
+      'root-guard',
+      CATEGORIES,
+      makeRows(2),
+    );
+    await writePlaytimeIfCurrent(importedAt, STUB_PLAYTIME);
+
+    const stale = '1999-01-01T00:00:00.000Z';
+    expect(await writePlaytimeIfCurrent(stale, { v: 99 } as unknown as PlaytimeAggregates)).toBe(
+      false,
+    );
+    expect((await checkCache())?.playtime).toEqual(STUB_PLAYTIME);
+  });
+
+  test('returns false when there is no meta record to update', async () => {
+    expect(await writePlaytimeIfCurrent('2020-01-01T00:00:00.000Z', STUB_PLAYTIME)).toBe(false);
+    expect(await checkCache()).toBeNull();
+  });
+
+  test('updates only the playtime field, leaving the rest of the record alone', async () => {
+    const before = await writeDataset(
+      'keep-hash'.padEnd(64, 'k'),
+      'root-keep',
+      CATEGORIES,
+      makeRows(3),
+      IDENTITY,
+    );
+
+    expect(await writePlaytimeIfCurrent(before.importedAt, STUB_PLAYTIME)).toBe(true);
+
+    const after = (await checkCache())!;
+    expect(after.hash).toBe('keep-hash'.padEnd(64, 'k'));
+    expect(after.accountRoot).toBe('root-keep');
+    expect(after.categories).toEqual(CATEGORIES);
+    expect(after.identity).toEqual(IDENTITY);
+    expect(after.importedAt).toBe(before.importedAt);
+    expect(after.playtime).toEqual(STUB_PLAYTIME);
   });
 });

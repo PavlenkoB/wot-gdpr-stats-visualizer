@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Ingest Foundation & Zero-Network Guard** - Toolchain, typed worker contract, unzip + 3-way category detection, generic failure state, standing zero-network CI check + CSP (completed 2026-09-28)
 - [x] **Phase 2: Defensive Parsing & Persistent Dataset** - Worker-less PapaParse, mojibake fix, Dexie schema, hash-dedup, replace-on-upload, "clear my cached data" (completed 2026-09-29)
 - [x] **Phase 3: Dashboard Shell & Account Identity** - Runes app state, single-page layout, identity header, "detected but not yet supported" banners, empty/greyed sections (completed 2026-09-29)
-- [ ] **Phase 4: Activity Time Dashboards** - Totals, year-by-year calendar heatmap, day × hour heatmap, session-duration distribution at scale
+- [x] **Phase 4: Activity Time Dashboards** - Totals, year-by-year calendar heatmap, day × hour heatmap, session-duration distribution at scale (completed 2026-10-01)
 - [ ] **Phase 5: Vehicle Stats & Financial Dashboards** - Per-vehicle stats across 4 titles, premium-time and currency timelines, per-currency real-money spend
 - [ ] **Phase 6: Login-IP History & Offline Geolocation** - Geo build step, masked IP table, country-level world map, opt-in city-level lazy-load
 - [ ] **Phase 7: Mobile Layout & Public Deploy** - Phone-width responsive layout, touch-friendly primitives, GitHub Pages deploy verified zero-network
@@ -150,7 +150,51 @@ Plans:
   4. A session-duration distribution shows how long sessions typically last.
   5. With a synthetic fixture of 50k+ sessions spanning 10-15 years, every activity chart renders without freezing the tab. The rendered SVG node count scales with buckets (days, cells, bins), not with sessions.
 
-**Plans**: TBD
+**Plans:** 16/16 plans complete
+Plans:
+**Wave 1**
+
+- [x] 04-01-PLAN.md — Tracer: Sessions.csv through the worker aggregate, Dexie meta, playtime-query and PlaytimeClient
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 04-02-PLAN.md — Status flip, minimal Playtime block, Phase 3 test migration
+- [x] 04-03-PLAN.md — Aggregation core, seeded large fixtures and independent oracle
+- [x] 04-05-PLAN.md — Pure chart models: rank scale, calendar, hour grid, bins, keyboard, tooltip clamp
+- [x] 04-07-PLAN.md — Request seam hardening (stale ids, unavailable worker)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 04-04-PLAN.md — Copy, formatHours and the teal data ramp with contrast tests
+- [x] 04-06-PLAN.md — Split column rule, per-value slices, lazy backfill
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [x] 04-08-PLAN.md — Full Playtime block: states, selector, tiles, split table, Login history heading
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [x] 04-09-PLAN.md — Weekday x hour grid, duration list, shared tooltip and legend
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [x] 04-10-PLAN.md — Year-by-year calendar heatmap
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
+- [x] 04-11-PLAN.md — Browser specs on a hand-checkable fixture
+- [x] 04-12-PLAN.md — Scale proof at 5k and 60k sessions, driver update, real-export check
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
+- [x] 04-13-PLAN.md — CI time budget for the new browser tests
+
+**Wave 9** *(gap closure — UAT G-04-1, G-04-5)*
+
+- [x] 04-14-PLAN.md — Real export shape: per-game session files, `STARTED_AT;FINISHED_AT;IP`, `DD.MM.YYYY HH:MM`, and the backfill repair
+- [x] 04-15-PLAN.md — Per-game split selector on top of the file-level game token
+- [x] 04-16-PLAN.md — Cache-cleared feedback (G-04-5)
+
 **UI hint**: yes
 
 ### Phase 5: Vehicle Stats & Financial Dashboards
@@ -215,7 +259,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 1. Ingest Foundation & Zero-Network Guard | 6/6 | Complete    | 2026-09-28 |
 | 2. Defensive Parsing & Persistent Dataset | 4/4 | Complete    | 2026-09-29 |
 | 3. Dashboard Shell & Account Identity | 7/7 | Complete    | 2026-09-29 |
-| 4. Activity Time Dashboards | 0/TBD | Not started | - |
+| 4. Activity Time Dashboards | 16/16 | Complete    | 2026-10-01 |
 | 5. Vehicle Stats & Financial Dashboards | 0/TBD | Not started | - |
 | 6. Login-IP History & Offline Geolocation | 0/TBD | Not started | - |
 | 7. Mobile Layout & Public Deploy | 0/TBD | Not started | - |

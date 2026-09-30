@@ -14,7 +14,24 @@ import { listEntryPaths } from './zip-paths.ts';
 import { digestFile } from './hash.ts';
 import { parseCsvFile } from './csv-parse.ts';
 import { extractIdentity, isUserInfoCategory, sanitizeUserInfoRow } from './identity.ts';
-import { checkCache, clearData, writeDataset, type DatasetMeta, type DatasetRow } from './db.ts';
+import {
+  buildPlaytimeFromSources,
+  isSessionsRow,
+  sessionFileGame,
+  viewFromAggregates,
+  type SessionRow,
+  type SessionSource,
+} from './playtime.ts';
+import { PLAYTIME_VERSION } from '../playtime-shared.ts';
+import {
+  checkCache,
+  clearData,
+  readSessionRowData,
+  writeDataset,
+  writePlaytimeIfCurrent,
+  type DatasetMeta,
+  type DatasetRow,
+} from './db.ts';
 
 const scope = self as unknown as WorkerScopeLike;
 
@@ -39,7 +56,109 @@ scope.onmessage = async (event: MessageEvent<IngestRequest>) => {
     await handleClearData(msg.jobId);
     return;
   }
+  // D-06: the Activity_time charts ask for their numbers. Answered from the
+  // aggregate stored on the meta record at import, so no rows are ever read
+  // for a chart and no import is ever running on this path.
+  if (msg.type === 'playtime-query') {
+    await handlePlaytimeQuery(msg.queryId, msg.valueIndex);
+    return;
+  }
 };
+
+/**
+ * Answer one `playtime-query` from the stored aggregate (D-06, D-02).
+ *
+ * Three outcomes, all on the same read:
+ *   - nothing imported — `importedAt` and `view` both null, which is not the
+ *     same statement as "imported, but this export has no session file"
+ *   - a stored aggregate whose `v` is `PLAYTIME_VERSION` — the view
+ *   - a stored aggregate that is absent, null or of an older version — the
+ *     lazy backfill below
+ *
+ * ## Why a stale aggregate is rebuilt rather than refused
+ *
+ * A cache written before this build has no split in it, and a cache whose
+ * aggregation threw at import has `playtime: null`. The rows are the dataset;
+ * the aggregate is a derived convenience over them (T-04-03), so refusing to
+ * answer would show the user an error for data the app still holds. What the
+ * The aggregate may NOT do is be cast: an old one is rebuilt from the rows by the
+ * same `buildPlaytimeFromSources` the import used, over the same per-file
+ * grouping, so the numbers are the ones the current rules produce.
+ *
+ * ## Why the answer and its data come from ONE snapshot
+ *
+ * The rebuild reads meta and rows together in `readSessionRowData` and
+ * answers with THAT snapshot's `importedAt`, never the `checkCache` one read
+ * a moment earlier. A replace that lands between the two therefore cannot
+ * produce an answer carrying the previous dataset's numbers under the new
+ * dataset's date, and `writePlaytimeIfCurrent` refuses to store an aggregate
+ * whose dataset is no longer the active one (T-04-11). A refused write costs
+ * one recomputation; a mis-attached aggregate would cost the user their
+ * numbers.
+ *
+ * A dataset with zero STORED SESSION ROWS cannot tell a missing file from a
+ * header-only one, so its backfill reports `no-session-file`. New imports
+ * record `sessionsFileSeen` from the parse loop and are exact.
+ *
+ * The detail on the error channel carries the error's name and message and
+ * nothing else: no `jobId`, no error type beyond the name, and no row data
+ * (T-04-01).
+ */
+async function handlePlaytimeQuery(queryId: number, valueIndex: number | null): Promise<void> {
+  try {
+    const meta = await checkCache();
+    if (meta === null) {
+      scope.postMessage({
+        type: 'playtime-result',
+        queryId,
+        importedAt: null,
+        view: null,
+      } satisfies IngestResponse);
+      return;
+    }
+
+    const stored = meta.playtime;
+    if (stored != null && stored.v === PLAYTIME_VERSION) {
+      scope.postMessage({
+        type: 'playtime-result',
+        queryId,
+        importedAt: meta.importedAt,
+        view: viewFromAggregates(stored, valueIndex),
+      } satisfies IngestResponse);
+      return;
+    }
+
+    const snapshot = await readSessionRowData();
+    if (snapshot === null) {
+      // The dataset was cleared between the two reads. That is the same
+      // statement as "nothing imported", and it is what the user sees.
+      scope.postMessage({
+        type: 'playtime-result',
+        queryId,
+        importedAt: null,
+        view: null,
+      } satisfies IngestResponse);
+      return;
+    }
+
+    const rebuilt = buildPlaytimeFromSources(snapshot.sources, snapshot.sources.length > 0);
+    await writePlaytimeIfCurrent(snapshot.importedAt, rebuilt);
+    scope.postMessage({
+      type: 'playtime-result',
+      queryId,
+      importedAt: snapshot.importedAt,
+      view: viewFromAggregates(rebuilt, valueIndex),
+    } satisfies IngestResponse);
+  } catch (err) {
+    const e = err instanceof Error ? err : new Error(String(err));
+    console.error('[ingest.worker] playtime-query failed', err);
+    scope.postMessage({
+      type: 'playtime-error',
+      queryId,
+      detail: `${e.name}: ${e.message}`,
+    } satisfies IngestResponse);
+  }
+}
 
 /**
  * Destructive-side counterpart of handleCheckCache: clear every row
@@ -163,6 +282,20 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
     // sanitised, so extractIdentity cannot see a stripped column.
     const accountInfoRows: Record<string, string | undefined>[] = [];
     const otherUserInfoRows: Record<string, string | undefined>[] = [];
+    // D-02: the session rows go to the playtime aggregator as well as to the
+    // rows table, one SOURCE per session file. The flag is set per FILE, before
+    // the row loop, because a header-only session file parses to zero rows and a
+    // flag set inside the loop would stay false — which would report a file that
+    // exists as an export that has none, and the UI copy treats those
+    // differently.
+    //
+    // One source per file, and not one flat list, because each file has its own
+    // HEADER: the synthetic `Sessions.csv` says `SESSION_START` while a real
+    // `WOT_Game_Sessions.csv` says `STARTED_AT`, and an export can hold both.
+    // The aggregator resolves the columns per source, so a flat list would
+    // silently exclude every row of all but the first file.
+    const sessionSources: SessionSource[] = [];
+    let sessionsFileSeen = false;
     const categoryTotal = outcome.result.categories.length;
     for (let i = 0; i < categoryTotal; i++) {
       const entry = outcome.result.categories[i]!;
@@ -190,6 +323,21 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
         if (!resolved || resolved.category !== entry.name) continue;
         const text = new TextDecoder('utf-8').decode(fileBytes);
         const parsed = parseCsvFile(text, entry.name, resolved.sourceFile);
+        const game = sessionFileGame(entry.name, resolved.sourceFile);
+        const isSessions = game !== null || isSessionsRow(entry.name, resolved.sourceFile);
+        // The source is created BEFORE the row loop, for the same reason the
+        // flag is set there: a header-only session file has no rows to create
+        // one from, and it still has to appear as a file that was seen.
+        //
+        // Its `rows` is a mutable array for the length of the loop and is
+        // typed as `SessionSource` — whose `rows` is readonly — the moment the
+        // loop is done, so no consumer can append to it afterwards.
+        const rows: SessionRow[] = [];
+        const source: SessionSource = { game, rows };
+        if (isSessions) {
+          sessionsFileSeen = true;
+          sessionSources.push(source);
+        }
         for (let r = 0; r < parsed.rows.length; r++) {
           // THE single choke point every row passes through. Dropping the
           // three sensitive User_Info columns here — rather than at the
@@ -203,6 +351,10 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
             rowIndex: rowCount + r,
             data,
           });
+          // The aggregator reads four named columns off this reference and
+          // keeps nothing else, so handing it the SAME object costs no copy
+          // and cannot change what is persisted (T-04-01).
+          if (isSessions) rows.push(data);
           if (userInfo) {
             const isAccountInfo = resolved.sourceFile.toLowerCase().endsWith('account_info.csv');
             (isAccountInfo ? accountInfoRows : otherUserInfoRows).push(data);
@@ -226,12 +378,24 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
     );
 
     scope.postMessage({ type: 'stage', jobId, stage: 'writing' } satisfies IngestResponse);
+    // T-04-03: a playtime bug must never cost the user their import. The
+    // aggregate is a derived convenience — the rows are the dataset — so a
+    // throw here logs the error object (never row contents) and the import
+    // finishes with no stored aggregate, which a later query reports as an
+    // error rather than as zero playtime.
+    let playtime = null;
+    try {
+      playtime = buildPlaytimeFromSources(sessionSources, sessionsFileSeen);
+    } catch (err) {
+      console.error('[ingest.worker] playtime aggregation failed', err);
+    }
     const { importedAt } = await writeDataset(
       hash,
       outcome.result.accountRoot,
       updatedCategories,
       allRows,
       identity,
+      playtime,
     );
 
     const finalResult: ClassifyResult = {

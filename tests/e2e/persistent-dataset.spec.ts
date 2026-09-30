@@ -26,7 +26,7 @@ import {
   REPLACE_DATASET_LABEL,
   START_OVER_LABEL,
 } from '../../src/lib/ui-copy.ts';
-import { dropFiles } from './helpers.ts';
+import { dropFiles, importLine, importLines } from './helpers.ts';
 
 // =============================================================================
 // 02-02 — DATA-01 close-the-loop (persistent dataset auto-load), re-pointed
@@ -115,14 +115,16 @@ test.describe('persistent-dataset auto-load', () => {
       // Sanity: the section carries the documented file + row counts
       // (D-05), proving the worker populated the row counts from a
       // real parse — not just the file counts from classify.
-      await expect(
-        page.getByTestId(`dashboard-section-${section.id}`).getByTestId('section-summary'),
-      ).toHaveText(expectedSectionSummary(section.folder));
+      // `importLine` reads the body a pending card renders or the caption a
+      // ready one does; Activity_history is ready since 04-02.
+      await expect(importLine(page.getByTestId(`dashboard-section-${section.id}`))).toHaveText(
+        expectedSectionSummary(section.folder),
+      );
     }
     const banners = page.getByTestId('unsupported-banner');
     await expect(banners).toHaveCount(UNSUPPORTED_FOLDERS.length);
     const bannerTextsBefore = await banners.allInnerTexts();
-    const sectionTextsBefore = await page.getByTestId('section-summary').allInnerTexts();
+    const sectionTextsBefore = await importLines(page).allInnerTexts();
     expect(sectionTextsBefore).toHaveLength(SUPPORTED_SECTIONS.length);
 
     // Capture the worker's reported importedAt for the timestamp check
@@ -148,12 +150,12 @@ test.describe('persistent-dataset auto-load', () => {
 
     // The same counts as before reload — auto-load carries the same
     // `categories` array the original import produced.
-    const sectionTextsAfter = await page.getByTestId('section-summary').allInnerTexts();
+    const sectionTextsAfter = await importLines(page).allInnerTexts();
     expect(sectionTextsAfter).toEqual(sectionTextsBefore);
     for (const section of SUPPORTED_SECTIONS) {
-      await expect(
-        page.getByTestId(`dashboard-section-${section.id}`).getByTestId('section-summary'),
-      ).toHaveText(expectedSectionSummary(section.folder));
+      await expect(importLine(page.getByTestId(`dashboard-section-${section.id}`))).toHaveText(
+        expectedSectionSummary(section.folder),
+      );
     }
 
     // The banners come back in the same order with the same text.
@@ -408,10 +410,9 @@ test.describe('persistent-dataset auto-load', () => {
 
     // The Activity_history section carries the inflated row count —
     // Activity_history has 2 templates (Sessions + Logins) in the
-    // sample layout, so 2 × 5 files × 1000 rows/file = 10,000 rows.
-    const activitySummary = page
-      .getByTestId('dashboard-section-activity-history')
-      .getByTestId('section-summary');
+    // sample layout, so 2 × 5 files × 1000 rows/file = 10,000 rows. The card
+    // is `ready` since 04-02, so the counts are its caption.
+    const activitySummary = importLine(page.getByTestId('dashboard-section-activity-history'));
     const expectedActivityRows = SCALE_10X_ROWS_PER_FILE * 2 * 5; // 2 templates × 5 files
     await expect(activitySummary).toContainText(`${expectedActivityRows.toLocaleString()} rows`);
 

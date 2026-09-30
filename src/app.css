@@ -16,6 +16,24 @@
      one edit here (UI-SPEC Spacing). Not a spacing-scale token — it is
      derived from the nav's own height plus one md of breathing room. */
   --nav-offset: 72px;
+
+  /* The Activity data ramp, and the single source of it: every heatmap cell,
+     the legend swatch and the duration bars read var(--ramp-N), so the six
+     steps can only be wrong in one place. The levels are RANK-based, not a
+     linear min-max scale (D-04) — level 5 is the top fifth of the slice's
+     non-zero values, whatever that value is — so a step is never derived from
+     the data and the ramp must not be interpolated. Lightness is strictly
+     monotonic, which is what lets darkness alone carry "more play"; the
+     measured ratios live in the spec's Color table, and
+     `tests/unit/contrast.test.ts` recomputes them from these declarations, so
+     the table is the contract and this block is its implementation. A new
+     chart component must not restate a step as literal hex. */
+  --ramp-0: #eef0f2;
+  --ramp-1: #b2dcd4;
+  --ramp-2: #7cc7bc;
+  --ramp-3: #43a89c;
+  --ramp-4: #1f7a74;
+  --ramp-5: #0d4f4c;
 }
 
 body {

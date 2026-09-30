@@ -6,8 +6,10 @@
 //   2. Runs a representative demo flow that exercises every layer the
 //      app exposes: page load, worker ready handshake, dropzone,
 //      synthetic zip upload, worker classification, the dashboard
-//      (identity header, section cards, unsupported banners), Start
-//      over with its confirmation, and the failure path.
+//      (identity header, section cards, unsupported banners), the
+//      Playtime block (totals, split selector, calendar, hour grid and
+//      duration list), Start over with its confirmation, and the
+//      failure path.
 //   3. Writes a screenshot at each milestone to /tmp/wot-viewer-shots/.
 //
 // Usage:
@@ -22,6 +24,8 @@ import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Buffer } from 'node:buffer';
 
+import { buildDemoSessionsCsv } from './sessions-csv.mjs';
+
 const url = (() => {
   const i = process.argv.indexOf('--url');
   return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : 'http://localhost:4173';
@@ -34,11 +38,18 @@ mkdirSync(shotsDir, { recursive: true });
 // (already a dep of the project). Same shape as tests/fixtures/export-fixtures.ts
 // buildSampleExport(), minus the macOS-rezipped/directory-entries variants
 // that aren't useful in a screenshot demo.
+//
+// The Sessions.csv entry carries the REAL six-column shape
+// (SESSION_START;SESSION_END;CLIENT_BUILD;CLIENT_PLATFORM;SERVER_NAME;IP) and
+// is built by sessions-csv.mjs, not written inline. The demo used to inline a
+// two-column file, which the Phase 4 pipeline classifies as
+// `no-usable-sessions` — the Playtime block came up empty and the screenshots
+// proved nothing about the charts.
 async function buildSampleZip() {
   const { zipSync, strToU8 } = await import('fflate');
   const root = '123456789';
   const entries = {
-    [`${root}/Activity_history/Sessions.csv`]: strToU8('SESSION_ID;START_AT\n1;2024-01-01\n2;2024-01-02\n'),
+    [`${root}/Activity_history/Sessions.csv`]: strToU8(buildDemoSessionsCsv()),
     [`${root}/Activity_history/Logins.csv`]: strToU8('LOGIN_AT\n2024-01-01\n'),
     [`${root}/Player_statistics/WOT_stats.csv`]: strToU8('x\n1\n2\n3\n'),
     [`${root}/Player_statistics/WOTB_stats.csv`]: strToU8('x\n1\n'),
@@ -115,6 +126,33 @@ console.log(`  nickname: "${nickname}"`);
 console.log(`  account id: "${accountId}"`);
 console.log(`  sections: ${sectionCount}, unsupported banners: ${bannerCount}`);
 await page.screenshot({ path: logShot('03-dashboard'), fullPage: true });
+
+// Playtime block. The demo data is 30 usable sessions over 21 days in three
+// servers plus one excluded row, so the block reaches `ready` with hand-
+// derivable tiles: 31.2 hours, 30 sessions, 21 active days, 366 calendar
+// cells (2024 is a leap year), 168 hour cells and 12 duration bins, and a
+// four-option selector (All, EU1, EU2, NA1).
+//
+// Only TILE TEXT and ELEMENT COUNTS are logged. Never a CSV row and never an
+// address: this output is pasted into notes and commits, and the Sessions
+// address column is never rendered by the app (T-04-01).
+await page
+  .locator('[data-testid="playtime"][data-state="ready"]')
+  .waitFor({ state: 'visible', timeout: 30_000 });
+const tileText = async (testId) =>
+  ((await page.getByTestId(testId).innerText()) ?? '').replace(/\s+/g, ' ').trim();
+console.log(`  playtime hours: "${await tileText('playtime-total-hours')}"`);
+console.log(`  playtime sessions: "${await tileText('playtime-total-sessions')}"`);
+console.log(`  playtime active days: "${await tileText('playtime-active-days')}"`);
+console.log(
+  `  playtime selector options: ${await page.locator('[data-testid="playtime-selector"] option').count()}`,
+);
+console.log(
+  `  playtime cells: ${await page.locator('[data-testid="calendar-cell"]').count()} calendar, ` +
+    `${await page.locator('[data-testid="hour-cell"]').count()} hour, ` +
+    `${await page.locator('[data-testid="duration-bin"]').count()} duration bins`,
+);
+await page.screenshot({ path: logShot('03b-playtime'), fullPage: true });
 
 // Click Start over — it CONFIRMS first (D-15/D-16), so wait for the
 // confirm panel and commit before expecting the bar to go full again.

@@ -87,8 +87,11 @@ export type SectionStatus = 'not-loaded' | 'no-export' | 'empty' | 'pending' | '
  *
  * A parameter rather than a hard-coded check, so a phase can pass its own
  * set and so a test can exercise `ready` without shipping a dashboard.
+ *
+ * `activity-history` joined the set in 04-02, which shipped the playtime
+ * block's four states and its one tile. The other three are still `pending`.
  */
-export const BUILT_DASHBOARDS: ReadonlySet<SectionId> = new Set();
+export const BUILT_DASHBOARDS: ReadonlySet<SectionId> = new Set<SectionId>(['activity-history']);
 
 /** Import diagnostics for one section, summed across every matching entry. */
 export interface SectionCounts {

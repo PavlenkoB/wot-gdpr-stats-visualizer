@@ -41,6 +41,9 @@ yarn-error.log*
 # GSD research-tool cache (transient, not source content)
 .planning/research/.cache/
 
+# GSD milestone claim lock (transient, holds a pid and a phase claim)
+.planning/milestone.lock
+
 # OS
 .DS_Store
 Thumbs.db

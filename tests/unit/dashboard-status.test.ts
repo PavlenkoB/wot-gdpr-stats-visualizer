@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import {
+  BUILT_DASHBOARDS,
   NAV_ORDER,
   SECTIONS,
   navEntries,
@@ -180,10 +181,43 @@ describe('sectionStatus', () => {
     const result = resultOf([...FULL_SUPPORTED, ['Chat_history', 'known-deferred', 1, 40]]);
     for (const { id, folder } of SECTIONS) {
       expect(sectionCounts(folder, result)).not.toBeNull();
-      expect(sectionStatus(id, result)).toBe('pending');
+      // Activity_history is the one section that has shipped a dashboard
+      // (04-02 added it to BUILT_DASHBOARDS), so `ready` — the other three
+      // stay `pending` and keep the "Dashboard coming in a later update" note.
+      expect(sectionStatus(id, result)).toBe(id === 'activity-history' ? 'ready' : 'pending');
     }
     // Only the block changes.
     expect(unsupportedBlockStatus(result)).toBe('has-items');
+  });
+
+  test('with the default built set activity-history is ready and the other three pending', () => {
+    // The one section whose dashboard shipped. The other three still show the
+    // pending note, so this is the claim 04-02 makes about the whole grid —
+    // asserted per section rather than in a loop, so a future phase that adds
+    // its own id to BUILT_DASHBOARDS has to come back and own this test.
+    const result = resultOf(FULL_SUPPORTED);
+    expect(sectionStatus('activity-history', result)).toBe('ready');
+    expect(sectionStatus('player-statistics', result)).toBe('pending');
+    expect(sectionStatus('payment-history', result)).toBe('pending');
+    expect(sectionStatus('user-info', result)).toBe('pending');
+  });
+
+  test('BUILT_DASHBOARDS holds exactly the activity-history id', () => {
+    // One id, not a prefix or a count: the id is a member of SECTIONS, so a
+    // typo here would silently disable a dashboard rather than fail the build.
+    expect([...BUILT_DASHBOARDS].sort()).toEqual(['activity-history']);
+  });
+
+  test('an empty or absent Activity_history is still empty or no-export, never ready', () => {
+    // DATA-04: `ready` means "has rows AND a dashboard". A present-but-empty
+    // section must keep saying so, or the `empty` and `no-export` claims
+    // collapse into `ready` the moment a dashboard lands.
+    expect(
+      sectionStatus('activity-history', resultOf([['Activity_history', 'supported', 2, 0]])),
+    ).toBe('empty');
+    expect(sectionStatus('activity-history', resultOf([['User_Info', 'supported', 1, 3]]))).toBe(
+      'no-export',
+    );
   });
 
   test('section order is the D-02 order whatever order the result lists categories in', () => {

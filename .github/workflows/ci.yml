@@ -25,7 +25,13 @@ jobs:
   verify:
     name: Lint, typecheck, unit + e2e (incl. zero-network)
     runs-on: self-hosted
-    timeout-minutes: 15
+    # The outermost of the three e2e limits, and the only one that cancels
+    # the whole job. It must outlast the shell wrapper (17 min) by enough to
+    # cover the steps before it (install, lint, typecheck, unit, browser
+    # setup — about 5 min of budget): 17 + 5 = 22 min, so 25 leaves 8 min of
+    # headroom on the unmeasured part. tests/unit/ci-budget.test.ts enforces
+    # the wrapper + 300 s floor and the wrapper/timeout-minutes ordering.
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -98,8 +104,16 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium
 
+      # The middle of the three e2e limits: the shell wrapper around
+      # Playwright's own `globalTimeout` (15 min). It must outlast that
+      # globalTimeout by at least 90 s, or the wrapper fires first and the
+      # run dies with "operation canceled" and no test context — the failure
+      # mode traced in .planning/debug/resolved/ci-e2e-cancel.md.
+      # 17 min = 900 + 120 s. The 109 tests project to 540 s; see
+      # tests/unit/ci-budget.test.ts for the arithmetic and
+      # 04-13-SUMMARY.md for what is measured and what is still estimated.
       - name: E2E and zero-network guard
-        run: pnpm exec timeout 10m playwright test
+        run: pnpm exec timeout 17m playwright test
 
       - name: Upload Playwright report
         if: failure()

@@ -8,6 +8,7 @@ import type {
 } from './types/worker-messages.ts';
 import { precheckFiles } from './precheck.ts';
 import { GENERIC_FAILURE_MESSAGE } from './ui-copy.ts';
+import { PlaytimeClient } from './playtime-client.ts';
 
 export type IngestViewState =
   'checking-cache' | 'idle' | 'processing' | 'done' | 'error' | 'duplicate' | 'confirm-pending';
@@ -144,6 +145,17 @@ export class IngestClient {
    */
   justCleared = $state(false);
 
+  /**
+   * The playtime query bridge (D-06, 04-01 Task 2).
+   *
+   * A separate object with its own `queryId` namespace so a chart asking for
+   * its numbers can never move this class's import state machine, however the
+   * two message families interleave. The `post` closes over the SAME private
+   * worker, so there is still exactly one Worker for the page — the sole-owner
+   * rule db.ts depends on.
+   */
+  readonly playtime: PlaytimeClient;
+
   #worker: WorkerLike;
   #jobId = 0;
   #workerBroken = false;
@@ -154,19 +166,45 @@ export class IngestClient {
   constructor(createWorker: () => WorkerLike, options: IngestClientOptions = {}) {
     this.#worker = createWorker();
     this.#minProcessingMs = options.minProcessingMs ?? MIN_PROCESSING_MS;
+    this.playtime = new PlaytimeClient(
+      (message) => this.#worker.postMessage(message),
+      // 04-07: the broken-worker flag IS the availability signal. A worker
+      // that died before its `ready` handshake will never answer a query, so
+      // the chart must be told at once rather than wait on a reply that
+      // cannot come (T-04-14). The arrow body defers the read, so field
+      // initialisation order is not an issue. Deliberately NOT `!workerReady`
+      // as well: before `ready` arrives the worker is merely unproven, and
+      // 04-01's contract lets a query go out from the moment the page loads.
+      () => !this.#workerBroken,
+    );
     this.#worker.onmessage = (event) => this.#handle(event.data);
     this.#worker.onerror = (event) => {
       // Distinct console line for a worker error event (vs. an error
       // message routed through #fail, which already logs under
       // '[ingest] import failed:'). D-05: the cause is local-only.
       console.error('[ingest] worker error:', event.message || 'unknown');
-      // A worker that raises an error event is DEAD, whatever state the
-      // client happens to be in. Mark it broken on every onerror, not
-      // only before 'ready' (WR-01): the idle+ready case used to fall
-      // through both branches below, so a later submission posted to a
-      // dead worker and hung on the MIN_PROCESSING_MS busy floor,
-      // which nothing ever settles.
-      this.#workerBroken = true;
+      // Phase 4 (04-07) won the merge against WR-01: an `onerror` while
+      // idle and ready is NOT treated as a dead worker — a real Worker
+      // can survive an error event and serve new traffic. The hang WR-01
+      // was filed for ("submit-to-dead-worker hangs on the busy floor")
+      // therefore depends on the worker actually being dead, which is
+      // not the same as an `onerror` having fired. Two release paths run
+      // here without marking the client permanently broken:
+      //   (a) every outstanding playtime query is released with a FIXED
+      //       detail — never `event.message`, which can carry a file
+      //       path (D-21). A chart's `query()` promise would otherwise
+      //       wait forever, because the worker that owed it a reply is
+      //       gone for that specific request.
+      //   (b) the state-machine branches below cover the cases that
+      //       truly need action: processing -> settle to fail, pre-ready
+      //       -> mark broken AND fail (this is the only path that sets
+      //       #workerBroken; see also D-19/D-28). Idle+ready is the
+      //       pre-04-07 nothing case, retained as an informational log.
+      // WR-01's specific hang-on-submit guard is therefore only reached
+      // for the pre-ready case; the post-ready case relies on the
+      // worker's own postMessage behaviour. Reopen WR-01 if real-world
+      // idle+ready errors ever leave the busy floor stranded.
+      this.playtime.failPending('worker error');
       if (this.state === 'processing') {
         this.#scheduleSettle(() => this.#fail(`worker error: ${event.message || 'unknown'}`));
       } else if (!this.workerReady) {
@@ -179,6 +217,10 @@ export class IngestClient {
       }
     };
     this.#worker.onmessageerror = () => {
+      // 04-07: same contract as the onerror branch above. A message that
+      // could not be deserialized will never be answered, so every pending
+      // query is released rather than left hanging.
+      this.playtime.failPending('worker message could not be deserialized');
       if (this.state === 'processing') {
         this.#scheduleSettle(() => this.#fail('worker message could not be deserialized'));
       }
@@ -477,6 +519,16 @@ export class IngestClient {
   }
 
   #handle(msg: IngestResponse): void {
+    // D-06, and the FIRST branch on purpose. The playtime replies share this
+    // channel with the import flow, so they are routed to the bridge and
+    // returned before any state-machine branch runs. Nothing below this line
+    // may ever see a playtime message, which is what keeps #jobId, `state` and
+    // the settle timer untouched by a chart query (04-01 Task 2).
+    if (msg.type === 'playtime-result' || msg.type === 'playtime-error') {
+      this.playtime.handle(msg);
+      return;
+    }
+
     if (msg.type === 'ready') {
       this.workerReady = true;
       // Auto-load-from-cache (D-07/D-08) piggybacks on the worker's

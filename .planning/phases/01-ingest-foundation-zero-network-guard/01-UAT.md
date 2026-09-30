@@ -1,9 +1,9 @@
 ---
-status: diagnosed
+status: complete
 phase: 01-ingest-foundation-zero-network-guard
 source: [01-01-SUMMARY.md, 01-02-SUMMARY.md, 01-03-SUMMARY.md, 01-04-SUMMARY.md, 01-05-SUMMARY.md]
 started: 2026-09-28T06:35:04Z
-updated: 2026-09-28T07:16:29Z
+updated: 2026-09-30T00:00:00Z
 ---
 
 ## Current Test
@@ -224,7 +224,7 @@ reported: "User confirmed — real export completed the full flow: account headi
 
 total: 42
 passed: 42
-issues: 1
+issues: 0  # G-01-20 resolved by 01-06
 pending: 0
 skipped: 0
 
@@ -232,7 +232,9 @@ skipped: 0
 
 - gap_id: G-01-20
   truth: "A real export wrapped in an extra top-level folder (or a rootless re-zip with category folders at the top level) classifies correctly, same as a normal single-root export."
-  status: failed
+  status: resolved
+  resolved_by: 01-06-PLAN.md
+  resolved_at: 2026-09-30
   reason: "User reported: adding an additional top-level folder around a real export shows the generic failure banner (\"This doesn't look like a Wargaming data export...\") instead of classifying successfully. This reproduces the documented-but-deferred limitation FA-01-03-3 (01-03-PLAN.md:344); user chose to fix it now rather than accept it as-is."
   severity: major
   test: 20

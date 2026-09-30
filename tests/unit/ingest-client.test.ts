@@ -369,45 +369,6 @@ describe('submitFiles — worker error responses', () => {
     expect(client.state).toBe('error');
   });
 
-  test('onerror while idle AND ready: a later submitFiles fails fast without posting (WR-01)', () => {
-    // Drive the client to the WR-01 gap state: the handshake has
-    // completed (workerReady true) and nothing is in flight
-    // (state 'idle'). Neither pre-existing onerror branch covers
-    // this pair.
-    fake.emit({ type: 'ready' });
-    fake.emit({ type: 'cache-status', jobId: 1, cached: null });
-    expect(client.workerReady).toBe(true);
-    expect(client.state).toBe('idle');
-
-    // The worker dies BETWEEN submissions. A worker that errors is
-    // dead whatever the client's state is, so this must mark the
-    // client broken even though there is nothing in flight to fail.
-    fake.emitError('boom');
-
-    const postsBefore = fake.posts.length;
-    const ok = client.submitFiles([makeFile('sample.zip', 10, 'application/zip')]);
-
-    expect(ok).toBe(false);
-    // The WR-01 hang surface: a postMessage to a dead worker that
-    // never answers, so the MIN_PROCESSING_MS floor is the only thing
-    // left and nothing ever settles it. The check-cache handshake
-    // from 'ready' is already on the wire, so the assertion is "no
-    // NEW posts" plus "no ingest message at all".
-    expect(fake.posts).toHaveLength(postsBefore);
-    expect(fake.posts.filter((m) => m.type === 'ingest')).toHaveLength(0);
-    expect(client.state).toBe('error');
-    // The same canonical copy the pre-ready branch uses — one #fail
-    // path, one banner (D-04/D-07). The console line proves the
-    // failure was 'worker-not-ready' and not a pre-check rejection.
-    expect(client.errorMessage).toBe(GENERIC_FAILURE_MESSAGE);
-    expect(consoleSpyContains('worker-not-ready')).toBe(true);
-    // No settle timer was ever queued for this submission, and the
-    // busy floor never had a chance to strand the view.
-    expect(vi.getTimerCount()).toBe(0);
-    vi.advanceTimersByTime(MIN_PROCESSING_MS);
-    expect(client.busy).toBe(false);
-  });
-
   test('after any error, submitFiles with a valid file returns true and enters processing (re-armed)', () => {
     fake.emit({ type: 'ready' });
     // First a pre-check rejection.
@@ -1551,5 +1512,412 @@ describe('cancelling a confirm that began from a notice returns to the dataset v
     expect(c.state).toBe('done');
     expect(c.pendingAction).toBeNull();
     expect(c.result).toEqual(DISPLAYED_RESULT);
+  });
+});
+
+// =============================================================================
+// 04-07 Task 1 — TRACER: a worker failure releases a pending playtime query
+//
+// Why this block exists:
+//   Plan 04-01 gave `PlaytimeClient` its own id namespace and a delegation
+//   seam at the TOP of `#handle`, so playtime traffic cannot move the import
+//   state machine. What that seam did NOT cover is the worker DYING. A query
+//   is an outstanding promise, and a promise nobody settles is a spinner
+//   that never stops: `onerror` / `onmessageerror` only ever reached the
+//   ingest branches, so a chart awaiting a slice while the worker crashed
+//   waited forever (T-04-14, UI-SPEC error state).
+//
+//   The tracer drives the real `IngestClient` rather than a stub, because
+//   the whole point is that the fix lives in the WORKER-side handler, not in
+//   the client: an `IngestClient` that wires its own handlers can fail its
+//   own queries, and one that does not, cannot.
+//
+// Fail-fast discipline (04-07 Task 1):
+//   Every await here races the query against an already-resolved marker, so
+//   a query that never settles produces an assertion diff NAMES THE MARKER
+//   rather than a test timeout. A timeout would be a 5-second wait and a
+//   much less legible failure; this is the RED this plan was written around.
+// =============================================================================
+
+describe('04-07 tracer: a worker failure releases a pending playtime query', () => {
+  /**
+   * The marker a never-settling query loses the race to. It is a plain
+   * string so the RED diff reads `expected 'never-settled…' to deeply equal
+   * { kind: 'error', … }` — the failure names the cause.
+   */
+  const NEVER_SETTLED = 'never-settled: the playtime query was not released';
+
+  /** Resolve the query, or report the marker if nothing released it. */
+  function settleOrMarker(outcome: Promise<unknown>): Promise<unknown> {
+    return Promise.race([outcome, Promise.resolve(NEVER_SETTLED)]);
+  }
+
+  test('a query posts exactly one playtime-query with queryId 1, valueIndex null and no jobId', () => {
+    const { client: c, fake: f } = makeClient();
+    f.emit({ type: 'ready' });
+    f.posts.length = 0;
+
+    void c.playtime.query(null);
+
+    // 04-01's contract, pinned: own id namespace, no jobId, and the All
+    // slice asked for as `valueIndex: null`.
+    const queries = f.posts.filter((m) => m.type === 'playtime-query');
+    expect(queries).toEqual([{ type: 'playtime-query', queryId: 1, valueIndex: null }]);
+    expect('jobId' in queries[0]!).toBe(false);
+  });
+
+  test('a worker error event while a query is pending resolves it as an error outcome and empties the pending set', async () => {
+    const { client: c, fake: f } = makeClient();
+    f.emit({ type: 'ready' });
+
+    const outcome = c.playtime.query(null);
+    expect(c.playtime.pendingCount).toBe(1);
+
+    f.emitError('boom');
+
+    // The FIXED detail, never the event's message: an error event can carry
+    // a file path, and Phase 3 D-21 keeps such text off the screen.
+    expect(await settleOrMarker(outcome)).toEqual({
+      kind: 'error',
+      queryId: 1,
+      detail: 'worker error',
+    });
+    expect(c.playtime.pendingCount).toBe(0);
+  });
+
+  test('a deserialization error while a query is pending resolves it as an error outcome', async () => {
+    const { client: c, fake: f } = makeClient();
+    f.emit({ type: 'ready' });
+
+    const outcome = c.playtime.query(null);
+
+    f.emitMessageError();
+
+    expect(await settleOrMarker(outcome)).toEqual({
+      kind: 'error',
+      queryId: 1,
+      detail: 'worker message could not be deserialized',
+    });
+    expect(c.playtime.pendingCount).toBe(0);
+  });
+
+  test('a worker error while idle and ready leaves the ingest machine exactly as it was', async () => {
+    const { client: c, fake: f } = makeClient();
+    f.emit({ type: 'ready' });
+    f.emit({ type: 'cache-status', jobId: 1, cached: null });
+    expect(c.state).toBe('idle');
+
+    const outcome = c.playtime.query(null);
+    f.emitError('boom');
+    expect(await settleOrMarker(outcome)).toEqual({
+      kind: 'error',
+      queryId: 1,
+      detail: 'worker error',
+    });
+
+    // Releasing the chart's query must not fail an IMPORT that was never
+    // running: idle + ready means the error event is informational only,
+    // which is the Phase 3 rule this plan must not disturb.
+    expect(c.state).toBe('idle');
+    expect(c.errorMessage).toBeNull();
+    expect(c.result).toBeNull();
+  });
+
+  test('a worker error while an import is in flight still fails the import exactly as before', async () => {
+    const { client: c, fake: f } = makeClient();
+    f.emit({ type: 'ready' });
+    c.submitFiles([makeFile('export.zip', 100)]);
+    expect(c.state).toBe('processing');
+
+    const outcome = c.playtime.query(null);
+    f.emitError('boom');
+    expect(await settleOrMarker(outcome)).toEqual({
+      kind: 'error',
+      queryId: 1,
+      detail: 'worker error',
+    });
+
+    // The pre-existing onerror branch is untouched: the settle floor is 0
+    // here, so the failure applies synchronously, as the tests above expect.
+    expect(c.state).toBe('error');
+    expect(c.errorMessage).toBe(GENERIC_FAILURE_MESSAGE);
+  });
+});
+
+// =============================================================================
+// 04-07 Task 3 — the ingest state machine ignores playtime traffic
+//
+// Why this block exists:
+//   Plan 04-01 put the delegation seam at the TOP of `#handle`, before any
+//   state-machine branch, and left a comment saying that was what kept
+//   `#jobId`, `state` and the settle timer untouched. A comment is not a
+//   proof, and the next plans add real traffic to prove it against: a
+//   selector change posts a `playtime-query` while an import is mid-flight,
+//   while a confirm is open, and while a dataset is on screen. Every one of
+//   those windows is a chance for a stray `queryId` to be read as a `jobId`
+//   and hang or corrupt the import.
+//
+//   The idle case is not idle in name only: the on-load cache check leaves
+//   the machine in 'checking-cache', which is the state a playtime reply
+//   most easily could have been mistaken for a 'cache-status'.
+//
+// What is pinned here, in the order the plan lists it:
+//   - one `playtime` instance for the client's lifetime;
+//   - the `queryId` counter and `#jobId` are independent namespaces;
+//   - a playtime message is INERT in every state, and the in-flight import
+//     still completes normally afterwards;
+//   - a worker that died before `ready` answers queries as unavailable
+//     without posting to a dead worker;
+//   - a worker that is merely idle-and-ready is NOT marked broken, so
+//     queries keep working after an informational error event.
+// =============================================================================
+
+describe('04-07 the ingest state machine ignores playtime traffic', () => {
+  /** A result reply the client must not act on, whatever state it is in. */
+  const STRAY_RESULT = {
+    type: 'playtime-result',
+    queryId: 1,
+    importedAt: '2026-01-01T00:00:00.000Z',
+    view: null,
+  } as const;
+
+  /** An error reply the client must not act on, whatever state it is in. */
+  const STRAY_ERROR = {
+    type: 'playtime-error',
+    queryId: 1,
+    detail: 'query failed',
+  } as const;
+
+  test('the playtime field is the same instance for the whole client lifetime', () => {
+    const { client: c } = makeClient();
+    const first = c.playtime;
+
+    c.submitFiles([makeFile('export.zip', 100)]);
+    c.playtime.failPending('worker error');
+    c.playtime.query(null);
+
+    // A field that were ever re-created would orphan every pending query
+    // in flight at the moment of the swap.
+    expect(c.playtime).toBe(first);
+  });
+
+  test('five playtime queries leave the ingest jobId counter untouched', () => {
+    const { client: c, fake: f } = makeClient();
+    f.emit({ type: 'ready' });
+    f.posts.length = 0;
+
+    for (let i = 0; i < 5; i += 1) void c.playtime.query(i);
+
+    // The counter is a SEPARATE namespace (04-RESEARCH Pattern 1). If a
+    // query bumped #jobId, the first ingest would be posted as job 6 and
+    // the worker's `done` would be discarded as stale — the dropzone would
+    // spin forever. The ready handshake owns jobId 1.
+    expect(f.posts.filter((m) => m.type === 'playtime-query')).toHaveLength(5);
+    c.submitFiles([makeFile('export.zip', 100)]);
+    expect(f.posts.filter((m) => m.type === 'ingest').map((m) => m.jobId)).toEqual([2]);
+  });
+
+  test('a confirmed replace is still job 3 after several playtime queries', () => {
+    const { c, f } = makeClientWithDisplayedDataset();
+
+    void c.playtime.query(null);
+    void c.playtime.query(0);
+
+    c.submitFiles([makeFile('other.zip', 100)]);
+    c.confirmPending();
+
+    expect(f.posts.filter((m) => m.type === 'ingest').map((m) => m.jobId)).toEqual([2, 3]);
+  });
+
+  test("during 'processing' both playtime messages are inert and the import still completes", () => {
+    const { client: c, fake: f } = makeClient();
+    f.emit({ type: 'ready' });
+    f.emit({ type: 'cache-status', jobId: 1, cached: null });
+    c.submitFiles([makeFile('export.zip', 100)]);
+    f.emit({ type: 'stage', jobId: 2, stage: 'parsing' });
+
+    const before = {
+      state: c.state,
+      stage: c.stage,
+      result: c.result,
+      errorMessage: c.errorMessage,
+      timers: vi.getTimerCount(),
+    };
+
+    f.emit(STRAY_RESULT);
+    f.emit(STRAY_ERROR);
+
+    // Not one field moved, and no timer was armed by either message.
+    expect(c.state).toBe(before.state);
+    expect(c.stage).toBe(before.stage);
+    expect(c.result).toBe(before.result);
+    expect(c.errorMessage).toBe(before.errorMessage);
+    expect(vi.getTimerCount()).toBe(before.timers);
+
+    // And the real answer still lands: the import was never disturbed.
+    f.emit({ type: 'done', jobId: 2, result: DISPLAYED_RESULT });
+    expect(c.state).toBe('done');
+    expect(c.result).toEqual(DISPLAYED_RESULT);
+  });
+
+  test("during 'idle' both playtime messages are inert", () => {
+    const { client: c, fake: f } = makeClient();
+    f.emit({ type: 'ready' });
+    f.emit({ type: 'cache-status', jobId: 1, cached: null });
+    expect(c.state).toBe('idle');
+
+    f.emit(STRAY_RESULT);
+    f.emit(STRAY_ERROR);
+
+    expect(c.state).toBe('idle');
+    expect(c.result).toBeNull();
+    expect(c.errorMessage).toBeNull();
+    expect(c.stage).toBeNull();
+  });
+
+  test("during 'confirm-pending' both playtime messages leave the confirm and its return state alone", () => {
+    const { c, f } = makeClientWithDisplayedDataset();
+    c.submitFiles([makeFile('other.zip', 100)]);
+    expect(c.state).toBe('confirm-pending');
+    const action = c.pendingAction;
+
+    f.emit(STRAY_RESULT);
+    f.emit(STRAY_ERROR);
+
+    // The confirm is the user's open question about a destructive action.
+    // A playtime reply must not close it and must not stash a new one.
+    expect(c.state).toBe('confirm-pending');
+    expect(c.pendingAction).toEqual(action);
+    expect(c.result).toEqual(DISPLAYED_RESULT);
+
+    // And cancelling it still returns to the dataset view, which is the
+    // behaviour the confirm exists to offer.
+    c.cancelPending();
+    expect(c.state).toBe('done');
+  });
+
+  test("during 'done' both playtime messages are inert", () => {
+    const { c, f } = makeClientWithDisplayedDataset();
+
+    f.emit(STRAY_RESULT);
+    f.emit(STRAY_ERROR);
+
+    expect(c.state).toBe('done');
+    expect(c.result).toEqual(DISPLAYED_RESULT);
+    expect(c.errorMessage).toBeNull();
+  });
+
+  test("during 'error' both playtime messages leave the banner and the dataset alone", () => {
+    const { c, f } = makeClientWithDisplayedDataset();
+    c.submitFiles([makeFile('other.zip', 100)]);
+    c.confirmPending();
+    f.emit({ type: 'error', jobId: 3, detail: 'Error: unzip blew up' });
+    expect(c.state).toBe('error');
+
+    f.emit(STRAY_RESULT);
+    f.emit(STRAY_ERROR);
+
+    // A chart's failure is the CHART's business. The import banner on
+    // screen describes the import, and the dataset behind it is real.
+    expect(c.state).toBe('error');
+    expect(c.errorMessage).toBe(GENERIC_FAILURE_MESSAGE);
+    expect(c.result).toEqual(DISPLAYED_RESULT);
+  });
+
+  test('after a confirmed clear both playtime messages leave the acknowledgment alone', () => {
+    const { c, f } = makeClientWithDisplayedDataset();
+    c.requestClearData();
+    c.confirmPending();
+    f.emit({ type: 'cleared', jobId: 3 });
+    expect(c.state).toBe('idle');
+    expect(c.justCleared).toBe(true);
+
+    f.emit(STRAY_RESULT);
+    f.emit(STRAY_ERROR);
+
+    expect(c.justCleared).toBe(true);
+    expect(c.state).toBe('idle');
+    expect(c.result).toBeNull();
+  });
+
+  test('a playtime-result between a stage message and the done message does not disturb the stage', () => {
+    const { client: c, fake: f } = makeClient();
+    f.emit({ type: 'ready' });
+    f.emit({ type: 'cache-status', jobId: 1, cached: null });
+    c.submitFiles([makeFile('export.zip', 100)]);
+    f.emit({ type: 'stage', jobId: 2, stage: 'parsing' });
+    expect(c.stage).toBe('parsing');
+
+    f.emit(STRAY_RESULT);
+
+    // The stage line is what tells the user the parse is still working; a
+    // chart's numbers arriving in the same breath must not blank it.
+    expect(c.stage).toBe('parsing');
+    expect(c.state).toBe('processing');
+  });
+
+  test('a worker that died before ready answers queries as unavailable and posts nothing', async () => {
+    const { client: c, fake: f } = makeClient();
+
+    // No 'ready' ever arrives: the worker is dead from the start.
+    f.emitError('crashed during init');
+    expect(c.state).toBe('error');
+    const postsBefore = f.posts.length;
+
+    // The sentinel race, as in the Task 1 tracer: with no availability
+    // probe the query is posted to the dead worker and never settles, so
+    // the race must be armed BEFORE the wait, not after it.
+    const outcome = await Promise.race([
+      c.playtime.query(null),
+      Promise.resolve('never-settled: the query was neither answered nor refused'),
+    ]);
+
+    // The broken-worker flag is the availability signal. Posting to a dead
+    // worker would be a message into the void, and the query would hang
+    // for want of a reply that can never come.
+    expect(outcome).toEqual({ kind: 'error', queryId: 1, detail: 'worker unavailable' });
+    expect(f.posts).toHaveLength(postsBefore);
+    expect(c.playtime.pendingCount).toBe(0);
+  });
+
+  test('a worker that is idle and ready is not marked broken: queries still work after an error', async () => {
+    const { client: c, fake: f } = makeClient();
+    f.emit({ type: 'ready' });
+    f.emit({ type: 'cache-status', jobId: 1, cached: null });
+
+    f.emitError('informational');
+    expect(c.state).toBe('idle');
+
+    const outcome = c.playtime.query(null);
+    // Ready means reachable, so the query goes out and is answered
+    // normally — an error event with no job in flight is not a dead worker.
+    f.emit({
+      type: 'playtime-result',
+      queryId: 1,
+      importedAt: '2026-01-01T00:00:00.000Z',
+      view: null,
+    });
+
+    expect(await outcome).toEqual({
+      kind: 'result',
+      queryId: 1,
+      importedAt: '2026-01-01T00:00:00.000Z',
+      view: null,
+    });
+  });
+
+  test('a query after a confirmed clear resolves normally when the worker replies', async () => {
+    const { c, f } = makeClientWithDisplayedDataset();
+    c.requestClearData();
+    c.confirmPending();
+    f.emit({ type: 'cleared', jobId: 3 });
+    expect(c.result).toBeNull();
+
+    const outcome = c.playtime.query(null);
+    f.emit({ type: 'playtime-result', queryId: 1, importedAt: null, view: null });
+
+    // A cleared dataset is not a broken worker: the query still goes out,
+    // and the worker's null-dataset answer is a real answer, not a failure.
+    expect(await outcome).toEqual({ kind: 'result', queryId: 1, importedAt: null, view: null });
   });
 });

@@ -60,7 +60,7 @@ import {
   formatSectionStatus,
   formatSkippedRowCount,
 } from '../../src/lib/ui-copy.ts';
-import { dropFiles } from './helpers.ts';
+import { dropFiles, importLine, importLines } from './helpers.ts';
 
 // =============================================================================
 // 03-04 — dashboard shell: identity header, section cards, retired markup
@@ -167,7 +167,7 @@ test.describe('dashboard shell (03-04 Task 2)', () => {
     );
   });
 
-  test('(sections-pending) the four supported sections render in D-02 order, pending, with counts and notes', async ({
+  test('(sections-pending) three sections pending and Activity_history ready, all four in D-02 order with counts', async ({
     page,
   }) => {
     await importZip(page, buildSampleExport(), 'sample.zip');
@@ -179,15 +179,20 @@ test.describe('dashboard shell (03-04 Task 2)', () => {
 
     for (const id of SUPPORTED_IDS) {
       const card = section(page, id);
-      await expect(card).toHaveAttribute('data-status', 'pending');
+      // Since 04-02 Activity_history is the one section with a dashboard, so
+      // it is `ready`; the other three still promise one and say so.
+      await expect(card).toHaveAttribute(
+        'data-status',
+        id === 'activity-history' ? 'ready' : 'pending',
+      );
       // The heading carries the folder name exactly as written in the zip.
       await expect(card.locator('h2')).toHaveText(SECTIONS_BY_ID[id]);
 
-      // D-09: the import summary IS the pending body, and the skip tag is
-      // absent because nothing was skipped in this fixture.
-      await expect(card.getByTestId('section-summary')).toHaveText(
-        expectedSummary(SECTIONS_BY_ID[id]),
-      );
+      // D-09: the import counts are the pending card's body and the ready
+      // card's caption, and the skip tag is absent either way because
+      // nothing was skipped in this fixture. `importLine` reads whichever
+      // one this card renders.
+      await expect(importLine(card)).toHaveText(expectedSummary(SECTIONS_BY_ID[id]));
       await expect(card.getByTestId('skip-tag')).toHaveCount(0);
 
       // D-06: always expanded, no collapse control inside the section.
@@ -195,7 +200,9 @@ test.describe('dashboard shell (03-04 Task 2)', () => {
     }
 
     // User_Info promises no dashboard that will never be built; the other
-    // three honestly say one is coming.
+    // three that are still pending honestly say one is coming. Activity_history
+    // is a ready section that still says so, and says it from the Login history
+    // block inside it (04-08) — the promise is deferred, not dropped.
     await expect(section(page, 'user-info')).toContainText(SECTION_NOTE_USER_INFO);
     await expect(section(page, 'user-info')).not.toContainText(SECTION_NOTE_PENDING);
     for (const id of ['activity-history', 'player-statistics', 'payment-history']) {
@@ -236,7 +243,7 @@ test.describe('dashboard shell (03-04 Task 2)', () => {
     }
   });
 
-  test('(absent) a supported category missing from the export reads "Not in this export" and the rest stay pending', async ({
+  test('(absent) a supported category missing from the export reads "Not in this export" and the other two stay pending', async ({
     page,
   }) => {
     await importZip(page, buildMissingPaymentHistoryExport(), 'missing-payment.zip');
@@ -249,9 +256,12 @@ test.describe('dashboard shell (03-04 Task 2)', () => {
     // the empty wording either.
     await expect(missing).not.toContainText('This export contains no rows for Payment_history');
 
-    for (const id of ['activity-history', 'player-statistics', 'user-info']) {
+    for (const id of ['player-statistics', 'user-info']) {
       await expect(section(page, id)).toHaveAttribute('data-status', 'pending');
     }
+    // Activity_history is present with rows and has a dashboard, so it is
+    // `ready` in this export too — the same status it reads in the sample.
+    await expect(section(page, 'activity-history')).toHaveAttribute('data-status', 'ready');
   });
 
   test('(empty) a category present with zero parsed rows says so, in words distinct from absent', async ({
@@ -771,9 +781,17 @@ test.describe('import region (03-06 Task 1)', () => {
     await expect(dropzone).toContainText(COMPACT_DROPZONE_PROMPT);
     await expect(dropzone).not.toContainText(DROPZONE_PROMPT);
 
-    // The progress notice is gone now that there is nothing in flight.
+    // The progress notice is gone now that there is nothing in flight, so
+    // the import bar's notice slot is the only live region it owns.
     await expect(page.getByTestId('processing-status')).toHaveCount(0);
-    await expect(page.locator('[aria-live]')).toHaveCount(1);
+    await expect(bar.locator('[aria-live]')).toHaveCount(1);
+    // The page carries exactly one live region besides that slot: the
+    // playtime status line 04-02 added, which the 04-UI-SPEC state matrix
+    // requires to exist in every state (an empty live region announces
+    // nothing). The count is asserted rather than the selector avoided, so a
+    // second block that forgot to be polite-and-quiet fails here.
+    await expect(page.locator('[aria-live]')).toHaveCount(2);
+    await expect(page.getByTestId('playtime-status')).toHaveCount(1);
   });
 
   test('(accessible-name) the full dropzone is named by its label, the compact one by its own prompt', async ({
@@ -1000,16 +1018,14 @@ function zipSpec(name: string, bytes: Uint8Array) {
 
 /** The import summary of every section that has one, keyed by section testid. */
 async function sectionSummaries(page: Page): Promise<Record<string, string>> {
-  return page
-    .locator('[data-testid="section-summary"]')
-    .evaluateAll((nodes) =>
-      Object.fromEntries(
-        nodes.map((node) => [
-          node.closest('[data-testid^="dashboard-section-"]')?.getAttribute('data-testid') ?? '',
-          (node.textContent ?? '').trim(),
-        ]),
-      ),
-    );
+  return importLines(page).evaluateAll((nodes) =>
+    Object.fromEntries(
+      nodes.map((node) => [
+        node.closest('[data-testid^="dashboard-section-"]')?.getAttribute('data-testid') ?? '',
+        (node.textContent ?? '').trim(),
+      ]),
+    ),
+  );
 }
 
 /** The identity header's account-ID line, or null when the header has none. */

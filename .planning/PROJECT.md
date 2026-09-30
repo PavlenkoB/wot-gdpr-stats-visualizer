@@ -14,13 +14,12 @@ Your data never leaves your machine. Every other decision — architecture, libr
 
 ### Validated
 
-(None yet — ship to validate)
+- ✓ Activity_history: total hours/sessions/active days, calendar heatmap (year-by-year), day-of-week × hour-of-day heatmap, session-duration distribution — Phase 4 (real per-game session files WOT/WOTB/WOWS_Game_Sessions.csv supported; legacy Sessions.csv still accepted)
 
 ### Active
 
 - [ ] User can drag-and-drop a Wargaming GDPR export `.zip` and have it parsed entirely client-side
 - [ ] App auto-detects the zip's root/category-folder structure rather than assuming a fixed layout
-- [ ] Activity_history: total hours/sessions/active days, calendar heatmap (year-by-year), day-of-week × hour-of-day heatmap, session-duration distribution
 - [ ] Activity_history: login-IP history table with country-level geolocation (offline, bundled dataset — no live geo API) and a world-map visualization; city-level geolocation available as an explicit opt-in lazy-load (much larger dataset, never downloaded by default)
 - [ ] Player_statistics: per-vehicle battle stats (win rate, damage, battles, etc.) across WoT, WoT Blitz, World of Warships, and World of Warplanes
 - [ ] Financial_data: premium-time operations and virtual-currency flow timelines
@@ -116,4 +115,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-27 after initialization*
+*Last updated: 2026-10-01 after Phase 4*

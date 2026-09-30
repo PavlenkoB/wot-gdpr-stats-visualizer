@@ -71,6 +71,129 @@ export interface AccountIdentity {
   createdAt: string | null;
 }
 
+/**
+ * One bucket of the playtime charts: every total the Activity_time section
+ * draws, for a single slice (all sessions, or one split value).
+ *
+ * The three grid arrays are stored FINAL rather than recomputed on read, so
+ * switching the hour basis or widening a chart never re-scans rows. 04-01
+ * creates them zero-filled; the plans that own each chart fill its own cells.
+ */
+export interface PlaytimeSlice {
+  /** Merged playtime seconds: overlapping sessions counted once (D-02). */
+  seconds: number;
+  /** Sessions that contributed a usable start and end. */
+  sessions: number;
+  /** Sessions dropped as unusable — see `buildPlaytime` for the three causes. */
+  excluded: number;
+  /**
+   * Day numbers, ascending, one entry per day with any usable session.
+   * A day number is `floor(startSeconds / 86400)`, so `dayIndex.length` IS
+   * the active-day count: no separate field could drift out of step.
+   */
+  dayIndex: number[];
+  /** Merged seconds attributed to each `dayIndex` entry, by session START day. */
+  daySeconds: number[];
+  /** Usable sessions that started on each `dayIndex` entry. */
+  daySessions: number[];
+  /**
+   * 168 cells indexed `weekday * 24 + hourOfDay`, Monday = 0. Each cell holds
+   * the seconds of playtime that OVERLAPPED that weekday hour, so a session
+   * spanning an hour boundary contributes to both cells.
+   */
+  hourOverlap: number[];
+  /**
+   * The same 168 cells, but each session's whole merged length credited to
+   * the hour it started in. Stored beside `hourOverlap` so the basis is a
+   * constant to switch rather than a re-import (see `HOUR_GRID_BASIS`).
+   */
+  hourStart: number[];
+  /**
+   * 12 duration bins, one session per bin, edges from
+   * `DURATION_BIN_EDGES_SECONDS`.
+   */
+  bins: number[];
+}
+
+/**
+ * The whole-dataset playtime aggregate, computed once in the worker at import
+ * and persisted on the dataset meta record.
+ *
+ * It is stored on the meta record and NOT on `ClassifyResult` on purpose:
+ * `IngestClient` holds the import result as a deep `$state` proxy, which
+ * would walk thousands of numbers on every replay, and the aggregate is far
+ * too large to clone across `postMessage` on each query.
+ */
+export interface PlaytimeAggregates {
+  /** `PLAYTIME_VERSION` at aggregation time; a mismatch is an error, not a cast. */
+  v: number;
+  /**
+   * True when a session file was SEEN by the classifier — the legacy
+   * `Sessions.csv` or a real `<GAME>_Game_Sessions.csv` — as opposed to parsed
+   * successfully. A header-only file sets it with zero usable rows, which is
+   * what separates `no-usable-sessions` from `no-session-file`.
+   */
+  sessionsFileSeen: boolean;
+  /**
+   * The column a later import split on, or null when no split was made.
+   *
+   * One of `GAME`, `SERVER_NAME` or `CLIENT_PLATFORM`, in the order the
+   * aggregator considers them. `GAME` leads because the real export names the
+   * game in the session file's name and carries neither of the other two
+   * columns (04-15).
+   */
+  splitColumn: string | null;
+  /** Every distinct split value, ascending, as stored in `byValue`. */
+  values: (string | null)[];
+  /** Every session, ungrouped. Always present, even when a split exists. */
+  all: PlaytimeSlice;
+  /** One slice per entry of `values`, in the same order. */
+  byValue: PlaytimeSlice[];
+}
+
+/** The "split by" menu: which column, and how many seconds each value holds. */
+export interface PlaytimeSplit {
+  column: string;
+  values: { value: string; seconds: number }[];
+  allSeconds: number;
+}
+
+/**
+ * What a `playtime-query` answers with.
+ *
+ * Three statuses, and the copy treats them as three different sentences:
+ *   - `no-session-file` — this export has no session file at all (neither
+ *     `Sessions.csv` nor a per-game one, only `Logins.csv`), so there is
+ *     nothing to say about playtime and no column to split by.
+ *   - `no-usable-sessions` — the file was there, but no row carried a usable
+ *     start and end pair, so the chart is empty and the copy names the
+ *     excluded count.
+ *   - `ready` — the charts have their numbers.
+ */
+export type PlaytimeView =
+  | { status: 'no-session-file' }
+  | { status: 'no-usable-sessions'; excluded: number }
+  | {
+      status: 'ready';
+      split: PlaytimeSplit | null;
+      /**
+       * The index of the value the answer is actually showing, or null for
+       * All.
+       *
+       * An INDEX and not the slice, because every consumer needs to name
+       * the value: `buildSplitTable(split, selected)` flags the row it is on
+       * by index, and the live-region summary reads `split.values[selected]`
+       * to say which value it is. It is the APPLIED index, so an invalid
+       * request — negative, fractional, NaN, Infinity, past the end, or
+       * left over from a replaced dataset — answers null over the All slice
+       * and the selector shows All instead of a value the view is not
+       * holding.
+       */
+      selected: number | null;
+      /** The slice the main thread is showing: the selected value's, or All. */
+      slice: PlaytimeSlice;
+    };
+
 export type IngestStage = 'hashing' | 'unzipping' | 'classifying' | 'parsing' | 'writing';
 
 export interface ParsingProgress {
@@ -82,7 +205,11 @@ export interface ParsingProgress {
 export type IngestRequest =
   | { type: 'ingest'; jobId: number; file: File }
   | { type: 'check-cache'; jobId: number } // NEW — D-07/D-08, sent once at app init
-  | { type: 'clear-data'; jobId: number }; // NEW — D-15/D-17
+  | { type: 'clear-data'; jobId: number } // NEW — D-15/D-17
+  // NEW — D-06. Its own `queryId` namespace, deliberately NOT the ingest
+  // `jobId`: charts are asked for while no import is running, and reusing
+  // `jobId` would drag the import state machine into every query.
+  | { type: 'playtime-query'; queryId: number; valueIndex: number | null };
 
 export type IngestResponse =
   | { type: 'ready' }
@@ -91,7 +218,19 @@ export type IngestResponse =
   | { type: 'done'; jobId: number; result: ClassifyResult }
   | { type: 'cache-status'; jobId: number; cached: ClassifyResult | null } // NEW — D-07
   | { type: 'cleared'; jobId: number } // NEW — D-20 ack
-  | { type: 'error'; jobId: number; detail: string };
+  | { type: 'error'; jobId: number; detail: string }
+  // NEW — D-06. `importedAt` echoes the dataset the view belongs to, so the
+  // main thread can drop a reply for a dataset it is no longer showing; both
+  // it and `view` are null when nothing is imported.
+  | {
+      type: 'playtime-result';
+      queryId: number;
+      importedAt: string | null;
+      view: PlaytimeView | null;
+    }
+  // NEW — D-06. `detail` is a name and a message only: never the error type
+  // and never a jobId, so a failed query leaks nothing about the dataset.
+  | { type: 'playtime-error'; queryId: number; detail: string };
 
 /** Main-thread view of the worker (a real Worker satisfies it structurally). */
 export interface WorkerLike {
