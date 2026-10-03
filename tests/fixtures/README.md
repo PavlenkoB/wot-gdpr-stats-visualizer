@@ -88,7 +88,7 @@ would stop testing that.
 Nothing else catches a regression here: PapaParse accepts CR, LF and CRLF
 alike, so re-wrapping these files in CRLF leaves every count, every ingest
 assertion and every e2e spec green while the sample quietly stops being the
-real format. `tests/unit/sample-export-shape.test.ts` pins the bytes and is
+real format. `tests/unit/guards/sample-export-shape.test.ts` pins the bytes and is
 the only thing standing between that edit and a passing suite.
 
 ### The NAME canary

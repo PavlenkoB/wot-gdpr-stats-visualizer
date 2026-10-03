@@ -2,7 +2,7 @@
 // Independent playtime oracle (phase 04, plan 04-03).
 //
 // WHAT THIS IS FOR
-// The aggregator in `src/lib/worker/playtime.ts` sweeps sessions in start
+// The aggregator in `src/lib/features/playtime/playtime-aggregate.ts` sweeps sessions in start
 // order, keeping a single `covered` watermark, and peels whole weeks out of
 // the weekday-hour grid. Both are compact — and both are exactly the kind of
 // shortcut that can be wrong in a way its own tests never notice, because a

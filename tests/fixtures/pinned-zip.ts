@@ -32,7 +32,7 @@ import { zipSync as fflateZipSync } from 'fflate';
  * the property this file exists to guarantee is gone for its archives — and it
  * will not fail loudly, because a test that builds one archive and asserts on
  * its contents cannot see the difference. The guard for it is in
- * `tests/unit/sample-export-shape.test.ts`.
+ * `tests/unit/guards/sample-export-shape.test.ts`.
  *
  * `SAMPLE_CREATED_AT` is the instant the export body already writes, so the
  * archive agrees with its own contents.

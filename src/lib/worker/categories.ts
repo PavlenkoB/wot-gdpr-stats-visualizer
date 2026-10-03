@@ -1,4 +1,4 @@
-import type { CategoryStatus } from '../types/worker-messages.ts';
+import type { CategoryStatus } from '../core/types/worker-messages.ts';
 
 /**
  * Top-level zip folder names whose data we render in v1.

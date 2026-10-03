@@ -7,7 +7,7 @@
 // checked only against the implementation that reads it proves nothing, because
 // both sides can be wrong in the same direction. So this module recomputes
 // every derived vehicle answer from the RAW rows with logic of its own, and
-// `tests/unit/player-stats-fixtures.test.ts` compares the fixture to THIS,
+// `tests/unit/vehicles/player-stats-fixtures.test.ts` compares the fixture to THIS,
 // never to itself.
 //
 // ORACLE INDEPENDENCE — the hard rule

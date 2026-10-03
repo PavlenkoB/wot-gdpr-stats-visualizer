@@ -6,7 +6,7 @@
 // fixtures. Hand fixtures checked only against the implementation that reads
 // them prove nothing, because both sides can be wrong in the same direction. So
 // this module recomputes every answer from the RAW rows with logic of its own,
-// and `tests/unit/finance-fixtures.test.ts` compares the fixture to THIS, never
+// and `tests/unit/finance/finance-fixtures.test.ts` compares the fixture to THIS, never
 // to itself.
 //
 // ORACLE INDEPENDENCE — the hard rule
@@ -16,7 +16,7 @@
 //
 //   date     here: two hand-written regexes, a hand-rolled leap-year table, and
 //            a month index that is `year * 12 + month - 1`.
-//            the app: `src/lib/finance-shared.ts`'s civil-date helpers.
+//            the app: `src/lib/features/finance/finance-shared.ts`'s civil-date helpers.
 //   money    here: string splitting into integer THOUSANDTHS, no float parse of
 //            the whole literal, no `BigInt`, no `Intl`, and NO two-decimal
 //            rendering at all — display formatting belongs to the app's

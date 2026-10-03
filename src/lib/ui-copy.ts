@@ -1,13 +1,13 @@
-import type { NavId, NavMutedReason, SectionStatus } from './dashboard-status.ts';
-import type { IngestStage, ParsingProgress } from './types/worker-messages.ts';
+import type { NavId, NavMutedReason, SectionStatus } from './shell/dashboard-status.ts';
+import type { IngestStage, ParsingProgress } from './core/types/worker-messages.ts';
 // Type-only: the split-column keys label strings, and a runtime import would
 // put a module in the bundle that this one only needs a union from.
-import type { HourGridBasis, SplitColumn } from './playtime-shared.ts';
+import type { HourGridBasis, SplitColumn } from './features/playtime/playtime-shared.ts';
 // A RUNTIME import, unlike the two above: `civilFromDays` and `weekdayOfDay`
 // are the pure integer date arithmetic every calendar string is built from
 // (04-01). They construct no `Date`, which is what keeps a cell's date the
 // export's date rather than the viewer's — see formatCalendarDate.
-import { civilFromDays, weekdayOfDay } from './civil-date.ts';
+import { civilFromDays, weekdayOfDay } from './core/civil-date.ts';
 
 /**
  * Single source of truth for the D-04 generic failure message.
@@ -481,7 +481,7 @@ export function formatIdentityFallbackTitle(root: string): string {
 // does so as the reason the user can already see, not as an internal.
 //
 // Every literal is the approved 04-UI-SPEC.md wording. Each comment names the
-// table and row it was copied from, and `tests/unit/ui-copy.test.ts` pins the
+// table and row it was copied from, and `tests/unit/shell/ui-copy.test.ts` pins the
 // pair, so a paraphrase is a deliberate edit to that test rather than a
 // silent change to a string a user reads.
 //
@@ -563,7 +563,7 @@ export const TILE_LABEL_SESSIONS = 'Sessions';
  * asserting `1,234,567` is asserting about the machine it ran on rather than
  * about this code. `tests/unit/setup.ts` calls this once with `en-US` so every
  * expectation in the unit suite is written in one grouping style, and
- * `tests/e2e/pin-locale.ts` does the same for the Node side of a Playwright
+ * `tests/e2e/_support/pin-locale.ts` does the same for the Node side of a Playwright
  * assertion. The determinism belongs to the tests; the app keeps the viewer's.
  *
  * Application code must not import this (05-08 guards that at the source
@@ -829,7 +829,7 @@ export const DURATION_LIST_ARIA_LABEL = 'Sessions by length';
  * The twelve duration-bin labels. "New copy" table, Duration bins row.
  *
  * Index-aligned with `DURATION_BIN_EDGES_SECONDS` in playtime-shared, so
- * `DURATION_BIN_LABELS[i]` names bin `i`. `tests/unit/ui-copy.test.ts` asserts
+ * `DURATION_BIN_LABELS[i]` names bin `i`. `tests/unit/shell/ui-copy.test.ts` asserts
  * the length against `DURATION_BIN_COUNT`; the two arrays must change together.
  */
 export const DURATION_BIN_LABELS: readonly string[] = [
@@ -1223,7 +1223,7 @@ export const HOUR_GRID_START_BASIS_NOTE =
 // components exist. Plans 05-10 to 05-15 build in parallel waves and must not
 // edit this module concurrently, so the inventory is settled here and every
 // later plan is a pure consumer. Each constant below carries the UI-SPEC row it
-// implements; `tests/unit/ui-copy.test.ts` asserts the same literal, so a
+// implements; `tests/unit/shell/ui-copy.test.ts` asserts the same literal, so a
 // wording change has to edit the spec, the test and this file, in that order.
 //
 // Three rules run through all of it:
@@ -1238,15 +1238,15 @@ export const HOUR_GRID_START_BASIS_NOTE =
 //     come from the export and are interpolated as plain text, never as markup.
 // =============================================================================
 
-import { formatDecimalAmount, formatMoneyAmount, numberFormatter } from './decimal.ts';
-import { monthParts, SECONDS_PER_DAY } from './finance-shared.ts';
+import { formatDecimalAmount, formatMoneyAmount, numberFormatter } from './core/decimal.ts';
+import { monthParts, SECONDS_PER_DAY } from './features/finance/finance-shared.ts';
 import type {
   ColumnKind,
   SpecialKey,
   TitleState,
   VehicleCell,
   VehicleTitleId,
-} from './vehicle-shared.ts';
+} from './features/vehicles/vehicle-shared.ts';
 
 /** The character a negative axis label uses: U+2212, not the ASCII hyphen. */
 const MINUS_SIGN = '−';
@@ -1475,12 +1475,12 @@ export const VEHICLE_BLANK_NAME = '(not recorded)';
  * so a key per export header would give the table 17 names per view.
  *
  * They are the worker's own `VehicleColumn.key` values — `winRate`,
- * `avgDamage`, `xp` and so on, from `src/lib/worker/vehicle-stats.ts` — and
+ * `avgDamage`, `xp` and so on, from `src/lib/features/vehicles/vehicle-aggregate.ts` — and
  * they are the keys that reach the DOM in `data-testid="vehicle-sort-{key}"`
  * and 05-14's `column-toggle-{key}`. Spelling them differently here would put
  * a second vocabulary between the worker and the table, and the table's header
  * would fall through to printing the key itself: a column headed `winRate`
- * instead of `Win rate`. `tests/unit/vehicle-blocks.test.ts` builds a real view
+ * instead of `Win rate`. `tests/unit/vehicles/vehicle-blocks.test.ts` builds a real view
  * and fails if any column key is missing from this object, which is what keeps
  * the two sides from drifting apart again.
  */
@@ -1751,7 +1751,7 @@ export function formatFinancialNoRows(block: FinancialBlock): string {
  * chart silently omits while the pill reports a smaller number: a premium value
  * that is not a duration, a value that is a withdrawal (a removal of time, not a
  * grant), and a date that cannot be read (no month to place it in). The wording
- * is asserted in `tests/unit/ui-copy.test.ts` against the amended UI-SPEC row.
+ * is asserted in `tests/unit/shell/ui-copy.test.ts` against the amended UI-SPEC row.
  */
 export const PREMIUM_EXCLUDED_EXPLANATION =
   'Rows whose premium value is not a recognisable duration or is a withdrawal, or whose date cannot be read, are not counted in the chart.';

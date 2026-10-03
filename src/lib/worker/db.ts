@@ -3,7 +3,7 @@ import type {
   AccountIdentity,
   CategoryEntry,
   PlaytimeAggregates,
-} from '../types/worker-messages.ts';
+} from '../core/types/worker-messages.ts';
 import {
   isLegacySessionsFileName,
   isSessionsRow,
@@ -11,7 +11,7 @@ import {
   sessionFileNameGame,
   type SessionRow,
   type SessionSource,
-} from './playtime.ts';
+} from '../features/playtime/playtime-aggregate.ts';
 
 /**
  * Dexie schema + transactional write (RESEARCH.md Pattern 3, DATA-01).

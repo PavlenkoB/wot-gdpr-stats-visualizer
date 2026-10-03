@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import { ingestClient } from './lib/ingest-client.ts';
+  import { ingestClient } from './lib/import/ingest-client.ts';
   import {
     CACHE_CHECK_TEXT,
     CONFIRM_CLEAR_MESSAGE,
@@ -13,10 +13,10 @@
     formatImportedOn,
     formatParsingProgress,
   } from './lib/ui-copy.ts';
-  import type { PendingAction } from './lib/worker-client.svelte.ts';
-  import ConfirmPanel from './lib/components/ConfirmPanel.svelte';
-  import Dashboard from './lib/components/Dashboard.svelte';
-  import ImportBar from './lib/components/ImportBar.svelte';
+  import type { PendingAction } from './lib/import/worker-client.svelte.ts';
+  import ConfirmPanel from './lib/shell/ConfirmPanel.svelte';
+  import Dashboard from './lib/shell/Dashboard.svelte';
+  import ImportBar from './lib/shell/ImportBar.svelte';
 
   let importBar: ReturnType<typeof ImportBar> | undefined = $state();
 

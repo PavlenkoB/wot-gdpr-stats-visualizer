@@ -8,7 +8,7 @@ import type {
   IngestResponse,
   ParsingProgress,
   WorkerScopeLike,
-} from '../types/worker-messages.ts';
+} from '../core/types/worker-messages.ts';
 import { analyzeExport, resolveCsvFileCategory, sortCategoryEntries } from './classify.ts';
 import { CATEGORY_STATUS_ORDER, classifyFolder } from './categories.ts';
 import { listEntryPaths } from './zip-paths.ts';
@@ -22,8 +22,8 @@ import {
   viewFromAggregates,
   type SessionRow,
   type SessionSource,
-} from './playtime.ts';
-import { PLAYTIME_VERSION } from '../playtime-shared.ts';
+} from '../features/playtime/playtime-aggregate.ts';
+import { PLAYTIME_VERSION } from '../features/playtime/playtime-shared.ts';
 import {
   answerDataQuery,
   clearDataQueryMemo,

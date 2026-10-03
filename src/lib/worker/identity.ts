@@ -1,4 +1,4 @@
-import type { AccountIdentity } from '../types/worker-messages.ts';
+import type { AccountIdentity } from '../core/types/worker-messages.ts';
 
 /**
  * Sanitise-then-extract for the User_Info category (03-01, D-17/D-18/D-20).

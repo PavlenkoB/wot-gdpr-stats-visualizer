@@ -33,7 +33,7 @@ pnpm run dev
 
 The dev server applies no CSP meta tag — that tag is injected at build time,
 so it only exists in `dist/`. The zero-network assertion (PLATFORM-02, checked
-by `tests/e2e/zero-network.spec.ts`) therefore applies only to
+by `tests/e2e/guards/zero-network.spec.ts`) therefore applies only to
 `pnpm run build && pnpm run preview` and to CI's e2e step, never to
 `pnpm run dev`. Use the dev server for editing with HMR, and verify any privacy
 or network change against the built preview.
@@ -47,7 +47,7 @@ pnpm run test:unit      # Vitest: 337 unit tests
 pnpm run test:e2e       # Playwright: 86 e2e tests against the built app
 ```
 
-The Playwright suite includes `tests/e2e/zero-network.spec.ts` — it asserts
+The Playwright suite includes `tests/e2e/guards/zero-network.spec.ts` — it asserts
 exactly one worker URL is loaded eagerly, every URL is same-origin, and
 zero requests happen after the initial-load baseline. CI runs the same four
 gates on every push (see `.github/workflows/ci.yml`).

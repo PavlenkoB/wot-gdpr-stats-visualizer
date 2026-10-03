@@ -29,7 +29,7 @@ jobs:
     # The whole job. It must outlast the shell wrapper (27 min) by enough to
     # cover the steps before it (install, lint, typecheck, unit, browser
     # setup — about 5 min of budget): 27 + 5 = 32 min, so 35 leaves 3 min of
-    # headroom on the unmeasured part. tests/unit/ci-budget.test.ts enforces
+    # headroom on the unmeasured part. tests/unit/guards/ci-budget.test.ts enforces
     # the wrapper + 300 s floor and the wrapper/timeout-minutes ordering.
     #
     # Raised from 25 in plan 05-12, with the wrapper and `globalTimeout`,
@@ -135,7 +135,7 @@ jobs:
       # run dies with "operation canceled" and no test context — the failure
       # mode traced in .planning/debug/resolved/ci-e2e-cancel.md.
       # 27 min = 1500 + 120 s, against the rule's 1500 + 90 s floor. The
-      # 184 tests project to 980 s; see tests/unit/ci-budget.test.ts for the
+      # 184 tests project to 980 s; see tests/unit/guards/ci-budget.test.ts for the
       # arithmetic and 04-13-SUMMARY.md for what is measured and what is
       # still estimated.
       - name: E2E and zero-network guard

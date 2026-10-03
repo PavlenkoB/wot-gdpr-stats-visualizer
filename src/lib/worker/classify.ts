@@ -1,4 +1,8 @@
-import type { CategoryEntry, CategoryStatus, ClassifyResult } from '../types/worker-messages.ts';
+import type {
+  CategoryEntry,
+  CategoryStatus,
+  ClassifyResult,
+} from '../core/types/worker-messages.ts';
 import { CATEGORY_STATUS_ORDER, classifyFolder } from './categories.ts';
 
 /**

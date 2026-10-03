@@ -1,14 +1,14 @@
-import { buildCurrency, buildPremium, buildSpend } from './finance.ts';
-import type { FinanceRow } from '../finance-shared.ts';
+import { buildCurrency, buildPremium, buildSpend } from '../features/finance/finance-aggregate.ts';
+import type { FinanceRow } from '../features/finance/finance-shared.ts';
 import {
   buildVehicleView,
   VEHICLE_FILE_NAMES,
   type VehicleFileFacts,
   type VehicleFiles,
-} from './vehicle-stats.ts';
-import type { DataQuery, DataResult } from '../types/worker-messages.ts';
+} from '../features/vehicles/vehicle-aggregate.ts';
+import type { DataQuery, DataResult } from '../core/types/worker-messages.ts';
 import type { RowsSnapshot } from './db.ts';
-import { MAX_BATTLE_TYPE_LENGTH, VEHICLE_TITLES } from '../vehicle-shared.ts';
+import { MAX_BATTLE_TYPE_LENGTH, VEHICLE_TITLES } from '../features/vehicles/vehicle-shared.ts';
 
 // =============================================================================
 // data-queries.ts — the four channels, answered from ONE Dexie snapshot (05-07)

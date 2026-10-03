@@ -3,7 +3,7 @@ import type {
   IngestRequest,
   IngestResponse,
   WorkerScopeLike,
-} from '../../src/lib/types/worker-messages.ts';
+} from '../../src/lib/core/types/worker-messages.ts';
 
 // =============================================================================
 // worker-harness.ts — drive ingest.worker.ts under Vitest (05-03-PLAN Task 1)
@@ -23,7 +23,7 @@ import type {
 //
 //   So the technique is: fake `self`, dynamic-import the worker module, and
 //   poke its wired `onmessage`. That technique already exists inline in
-//   `tests/unit/ingest-worker.test.ts`, but as private helpers of ONE test
+//   `tests/unit/import/ingest-worker.test.ts`, but as private helpers of ONE test
 //   file. Plan 05-07 needs the same driver to read a dataset back through
 //   the worker, and this plan needs it for the replay path — extracting it
 //   here keeps one copy of the tricky part (install the fake `self` BEFORE
@@ -31,7 +31,7 @@ import type {
 //   lets each test file state only what it is proving.
 //
 //   REUSE NOTE (plan 05-07): import these helpers rather than re-deriving
-//   the fake-`self` dance. `tests/unit/ingest-worker.test.ts` deliberately
+//   the fake-`self` dance. `tests/unit/import/ingest-worker.test.ts` deliberately
 //   keeps its own copy: it was written first, its `waitForTerminal` carries
 //   a per-call timeout parameter the scale tests need, and rewriting a file
 //   four phases of tests depend on is not worth the dedup. Two copies of a

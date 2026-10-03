@@ -30,7 +30,7 @@
 //
 // EVERY NUMBER BELOW IS DERIVED BY HAND from `REAL_SHAPE_WOT_ROWS` and
 // `REAL_SHAPE_WOWS_ROWS`, in the comment beside it. None of it is read back from
-// the UI, and `tests/unit/playtime-real-shape-fixture.test.ts` recomputes all of
+// the UI, and `tests/unit/playtime/playtime-real-shape-fixture.test.ts` recomputes all of
 // it with the INDEPENDENT per-second oracle from plan 04-03 — an implementation
 // that shares no primitive with the aggregator it checks. A wrong hand number
 // fails in Node, in seconds, rather than in a browser run hours later.

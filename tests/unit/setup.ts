@@ -8,7 +8,7 @@ import 'fake-indexeddb/auto';
  * Vitest setup file.
  *
  * Defines `$state` as a global identity function so that `.svelte.ts`
- * modules (e.g. `src/lib/worker-client.svelte.ts`) can be imported
+ * modules (e.g. `src/lib/import/worker-client.svelte.ts`) can be imported
  * and instantiated in plain Node tests without the Svelte compiler
  * being in the build pipeline. The unit tests in this directory
  * exercise the IngestClient state machine via its public fields

@@ -14,7 +14,7 @@
 // WHY THE ANSWERS LIVE HERE AT ALL
 // Each hand fixture's expected object is DERIVED BY HAND from the rows, with
 // the derivation in the comment beside the number, and
-// `tests/unit/finance-fixtures.test.ts` recomputes every one of them with the
+// `tests/unit/finance/finance-fixtures.test.ts` recomputes every one of them with the
 // INDEPENDENT oracle in `tests/helpers/finance-oracle.ts`, which shares no
 // primitive with any implementation: dates are parsed by string splitting and
 // money by integer thousandths. A wrong hand number therefore fails in Node in
@@ -833,7 +833,7 @@ export const CURRENCY_INCOME_ONLY_EXPECTED: CurrencyHandExpected = {
  *
  * The builder exists so the canary cells CANNOT be forgotten on one row: the
  * coupon, the aggregator description, the package list and the order id are the
- * same on all sixteen rows, and `tests/unit/finance-fixtures.test.ts` asserts
+ * same on all sixteen rows, and `tests/unit/finance/finance-fixtures.test.ts` asserts
  * that over the PARSED CSV rather than over this source.
  */
 function orderRow(

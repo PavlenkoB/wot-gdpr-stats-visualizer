@@ -15,8 +15,8 @@ import { defineConfig } from 'vitest/config';
 // .svelte.ts files under test (01-04)
 // =============================================================================
 //
-// tests/unit/ingest-client.test.ts imports `IngestClient` from
-// src/lib/worker-client.svelte.ts. That class uses Svelte 5 runes
+// tests/unit/import/ingest-client.test.ts imports `IngestClient` from
+// src/lib/import/worker-client.svelte.ts. That class uses Svelte 5 runes
 // (`$state(...)`). The Svelte 5 runes compiler rewrites those calls
 // at compile time; in a plain Node test we have no compile pass and
 // `$state` would throw ReferenceError at module load.
@@ -52,8 +52,8 @@ import { defineConfig } from 'vitest/config';
 // pushed either past 5 s:
 //
 //   Error: Test timed out in 5000ms.
-//     FAIL tests/unit/ci-budget.test.ts > playwright test --list ...
-//     FAIL tests/unit/playtime-model.test.ts > agrees with the oracle across a
+//     FAIL tests/unit/guards/ci-budget.test.ts > playwright test --list ...
+//     FAIL tests/unit/playtime/playtime-model.test.ts > agrees with the oracle across a
 //          seeded random export spanning two years
 //
 // 20 s leaves the slowest legitimate test (~0.8 s) an order of magnitude of

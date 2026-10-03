@@ -25,7 +25,7 @@
      the data and the ramp must not be interpolated. Lightness is strictly
      monotonic, which is what lets darkness alone carry "more play"; the
      measured ratios live in the spec's Color table, and
-     `tests/unit/contrast.test.ts` recomputes them from these declarations, so
+     `tests/unit/charts/contrast.test.ts` recomputes them from these declarations, so
      the table is the contract and this block is its implementation. A new
      chart component must not restate a step as literal hex. */
   --ramp-0: #eef0f2;
@@ -56,7 +56,7 @@
 
      A component must not restate either value as literal hex; read
      var(--flow-in) / var(--flow-out). The Color table is the contract and
-     `tests/unit/contrast.test.ts` recomputes the recorded 8.17 / 6.01 (white)
+     `tests/unit/charts/contrast.test.ts` recomputes the recorded 8.17 / 6.01 (white)
      and 7.34 / 5.40 (hover surface) ratios from these declarations. */
   --flow-in: #4c3fa6;
   --flow-out: #a14a00;

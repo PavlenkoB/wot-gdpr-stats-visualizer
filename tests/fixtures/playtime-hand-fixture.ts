@@ -45,7 +45,10 @@
 // (duration bins), D-06 (the totals).
 // =============================================================================
 
-import { HOUR_GRID_BASIS, type HourGridBasis } from '../../src/lib/playtime-shared.ts';
+import {
+  HOUR_GRID_BASIS,
+  type HourGridBasis,
+} from '../../src/lib/features/playtime/playtime-shared.ts';
 import { SESSION_FIXTURE_IP } from './sessions-fixtures.ts';
 
 /** The Sessions.csv column order the export writes, for indexing `HAND_ROWS`. */

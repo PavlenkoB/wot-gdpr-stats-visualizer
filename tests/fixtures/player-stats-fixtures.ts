@@ -701,7 +701,7 @@ export const PLAYER_STATS_SAMPLE_ROW_COUNT = 47;
  *
  * Every number below is DERIVED BY HAND from the rows above, with the
  * arithmetic in the comment beside it, and
- * `tests/unit/player-stats-fixtures.test.ts` recomputes every one of them with
+ * `tests/unit/vehicles/player-stats-fixtures.test.ts` recomputes every one of them with
  * the INDEPENDENT oracle in `tests/helpers/vehicle-oracle.ts` — which imports
  * nothing at all, shares no ratio rule, no sort comparator and no code ordering
  * with any implementation. A wrong hand number therefore fails in Node in

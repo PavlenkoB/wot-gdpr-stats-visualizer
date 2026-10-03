@@ -153,7 +153,7 @@ Node 26.10) imports `.ts` files directly. Verified working with a plain
   test passed (a pnpm-wrapped `vite preview` escaping Playwright's
   process-group SIGKILL) is fixed in `playwright.config.ts` (direct
   binary invocation, no pnpm wrapper) and guarded by
-  `tests/unit/webserver-teardown.test.ts`. If a webServer teardown hang
+  `tests/unit/guards/webserver-teardown.test.ts`. If a webServer teardown hang
   recurs, check that `webServer.command` is still on the direct-binary
   form before anything else — config drift is the most likely cause.
 - **`pnpm` not on PATH on Node 26+** — Node 26 dropped corepack. Install
@@ -170,7 +170,7 @@ Node 26.10) imports `.ts` files directly. Verified working with a plain
   dev`) doesn't need it.
 - **CSP blocks `connect-src`** — the served HTML has
   `default-src 'self'; connect-src 'none'`. No fetch/XHR/WS to anywhere.
-  Verified by `tests/e2e/zero-network.spec.ts`. Don't try to call an
+  Verified by `tests/e2e/guards/zero-network.spec.ts`. Don't try to call an
   external API from the app.
 - **Real exports are PII** — `tests/fixtures/README.md` records the
   `fixture=synthetic` policy. Never commit a real Wargaming zip; drop
@@ -185,7 +185,7 @@ Node 26.10) imports `.ts` files directly. Verified working with a plain
   summary never prints and the command never returns**: it is hanging in
   webServer teardown, which means `playwright.config.ts`'s
   `webServer.command` has drifted back to a pnpm-wrapped form. Restore
-  the direct-binary invocation — `tests/unit/webserver-teardown.test.ts`
+  the direct-binary invocation — `tests/unit/guards/webserver-teardown.test.ts`
   fails on exactly that drift.
 - **`http://localhost:4173 is already used`**: kill the listener
   (`lsof -ti:4173 | xargs -r kill`) and retry.

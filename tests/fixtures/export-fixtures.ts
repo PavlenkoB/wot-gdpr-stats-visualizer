@@ -1,5 +1,5 @@
 import { zipSync } from './pinned-zip.ts';
-import type { CategoryStatus } from '../../src/lib/types/worker-messages.ts';
+import type { CategoryStatus } from '../../src/lib/core/types/worker-messages.ts';
 import {
   CURRENCY_HAND_CSV,
   CURRENCY_HAND_ROWS,

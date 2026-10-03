@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * Phase 1 has a single end-to-end spec (tests/e2e/zero-network.spec.ts).
+ * Phase 1 has a single end-to-end spec (tests/e2e/guards/zero-network.spec.ts).
  * It always runs against the BUILT app served by `vite preview`, never
  * against `vite dev`. The dev server has an HMR websocket and no CSP,
  * so a zero-network assertion there would be meaningless.
@@ -34,7 +34,7 @@ export default defineConfig({
     // that asserts on a grouped number is otherwise asserting on whatever the
     // machine's locale happens to be. This pins the BROWSER side of that
     // assertion; the Node side — the formatter a spec calls to build its
-    // expected string — is pinned by `tests/e2e/pin-locale.ts`, which every
+    // expected string — is pinned by `tests/e2e/_support/pin-locale.ts`, which every
     // spec importing `ui-copy` loads. Both sides have to be pinned, and they
     // are pinned separately, because they are separate default locales.
     locale: 'en-US',
@@ -53,7 +53,7 @@ export default defineConfig({
   // 19 min was raised from 18 for the 168 listed tests: the same arithmetic
   // (330 s pre-phase baseline + 5 s per added test + a 120 s allowance for
   // the 60,000-session scale spec) projects 835 s, and the 1.3x floor
-  // tests/unit/ci-budget.test.ts enforces wants 1085.5 s — so 18 min
+  // tests/unit/guards/ci-budget.test.ts enforces wants 1085.5 s — so 18 min
   // (1080 s) no longer passed and the guard was right to fail.
   //
   // 20 min is 05-15's raise, for the ten new spend specs: 178 tests project
@@ -63,7 +63,7 @@ export default defineConfig({
   //
   // 25 min is 05-16's raise, and this comment is where its arithmetic lives.
   // Every input below is either measured on this machine or an ESTIMATE
-  // labelled as one; tests/unit/ci-budget.test.ts holds the same constants and
+  // labelled as one; tests/unit/guards/ci-budget.test.ts holds the same constants and
   // enforces the 1.3x floor against them, so this comment cannot drift away
   // from the number that is actually compared.
   //
@@ -80,7 +80,7 @@ export default defineConfig({
   //
   // The two block allowances are subtracted from the per-test count because
   // each of those files imports its export ONCE and its other tests read the
-  // same DOM — see the header of tests/unit/ci-budget.test.ts. 20 min was the
+  // same DOM — see the header of tests/unit/guards/ci-budget.test.ts. 20 min was the
   // value before this raise, which is what the guard rejected: 05-16 added one
   // zero-network test and five finance-scale tests, and the projection moved
   // from 885 s to 980 s, so the 1.3x floor moved from 1150.5 s to 1274 s and
@@ -104,7 +104,7 @@ export default defineConfig({
     // globalTimeout. Invoking the vite binary directly keeps it in the same
     // process group as the spawned shell, so the group-kill reaches it and
     // 'close' fires immediately. See .planning/debug/resolved/ci-e2e-cancel.md
-    // and tests/unit/webserver-teardown.test.ts.
+    // and tests/unit/guards/webserver-teardown.test.ts.
     command: './node_modules/.bin/vite build && ./node_modules/.bin/vite preview',
     url: 'http://localhost:4173',
     reuseExistingServer: false,
