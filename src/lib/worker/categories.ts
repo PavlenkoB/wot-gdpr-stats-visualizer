@@ -4,15 +4,19 @@ import type { CategoryStatus } from '../types/worker-messages.ts';
  * Top-level zip folder names whose data we render in v1.
  *
  * These are the literal folder names verified in PROJECT.md's Context
- * section. The dashboard-section name used in PROJECT.md / ROADMAP.md
- * prose for the financial story is intentionally not a folder name —
- * it does not appear here.
+ * section, with one addition since Phase 5: `Financial_data` is a REAL
+ * top-level folder in Wargaming's export — its own readme describes it as
+ * the deposit and withdrawal operations on virtual currencies and the
+ * premium balance deltas — and Phase 5 D-01 promoted it from a
+ * dashboard-section name to a supported category so those rows get parsed,
+ * stored and rendered instead of parked as an unknown folder.
  */
 export const SUPPORTED: readonly string[] = [
   'Activity_history',
   'Player_statistics',
   'User_Info',
   'Payment_history',
+  'Financial_data',
 ];
 
 /**

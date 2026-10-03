@@ -1,12 +1,16 @@
+import './pin-locale';
 import { expect, test } from '@playwright/test';
 import {
   RENAMED_ACCOUNT_ROOT,
   SAMPLE_ACCOUNT_ROOT,
   SAMPLE_BADGE_ORDER,
+  SAMPLE_EXPECTED_COUNTS,
   SAMPLE_FILE_COUNTS,
   SAMPLE_NICKNAME,
   SAMPLE_ROW_COUNTS,
+  SCALE_10X_FILES_PER_CATEGORY,
   SCALE_10X_ROWS_PER_FILE,
+  SCALE_TEMPLATES_BY_FOLDER,
   buildMalformedRowsExport,
   buildRenamedRootExport,
   buildSampleExport,
@@ -20,6 +24,7 @@ import {
   DELETE_CACHED_DATA_LABEL,
   formatAccountId,
   formatImportSummary,
+  formatNumber,
   formatParsingProgress,
   KEEP_CACHED_DATA_LABEL,
   KEEP_CURRENT_DATA_LABEL,
@@ -63,16 +68,29 @@ function expectedSectionSummary(folder: string): string {
   return formatImportSummary(SAMPLE_FILE_COUNTS[folder]!, SAMPLE_ROW_COUNTS[folder]!);
 }
 
-/** The four supported sections in D-02 order. */
+/** The five supported sections in D-02 order. */
 const SUPPORTED_SECTIONS = [
   { id: 'activity-history', folder: 'Activity_history' },
   { id: 'player-statistics', folder: 'Player_statistics' },
+  { id: 'financial-data', folder: 'Financial_data' },
   { id: 'payment-history', folder: 'Payment_history' },
   { id: 'user-info', folder: 'User_Info' },
 ] as const;
 
-/** The four unsupported folders, in the worker's order. */
-const UNSUPPORTED_FOLDERS = SAMPLE_BADGE_ORDER.slice(4) as readonly string[];
+/**
+ * The unsupported folders, in the worker's order.
+ *
+ * `SAMPLE_BADGE_ORDER` is the worker's status-grouped order, so the
+ * supported group is always a PREFIX and the banners are always what
+ * follows it. The offset is therefore derived from the expected supported
+ * COUNT rather than written as a bare literal — 05-03 added
+ * `Financial_data` as a fifth supported category and moved the boundary,
+ * and a fixed number would have started reading the supported group as
+ * banners.
+ */
+const UNSUPPORTED_FOLDERS = SAMPLE_BADGE_ORDER.slice(
+  SAMPLE_EXPECTED_COUNTS.supported,
+) as readonly string[];
 
 /** Wait for the dataset to be displayed: the bar is slim (D-25). */
 async function expectSlimBar(page: import('@playwright/test').Page): Promise<void> {
@@ -408,20 +426,37 @@ test.describe('persistent-dataset auto-load', () => {
       formatParsingProgress({ category: 'Activity_history', categoryIndex: 1, categoryTotal: 8 }),
     ).toMatch(/^Parsing \S+ \(\d+\/\d+\)\.\.\.$/);
 
-    // The Activity_history section carries the inflated row count —
-    // Activity_history has 2 templates (Sessions + Logins) in the
-    // sample layout, so 2 × 5 files × 1000 rows/file = 10,000 rows. The card
-    // is `ready` since 04-02, so the counts are its caption.
+    // The Activity_history section carries the inflated row count. Every
+    // factor is read from the fixture module that owns it (05-06): the
+    // number of Activity_history TEMPLATES in `SCALE_ROW_TEMPLATES` (2 —
+    // Sessions and Logins), the copies written per template, and the rows
+    // in each. The test used to type the first two, which meant a template
+    // added to that folder would have failed here as a wrong number rather
+    // than as a missing expectation.
     const activitySummary = importLine(page.getByTestId('dashboard-section-activity-history'));
-    const expectedActivityRows = SCALE_10X_ROWS_PER_FILE * 2 * 5; // 2 templates × 5 files
-    await expect(activitySummary).toContainText(`${expectedActivityRows.toLocaleString()} rows`);
+    const activityTemplates = SCALE_TEMPLATES_BY_FOLDER.get('Activity_history') ?? 0;
+    const expectedActivityRows =
+      activityTemplates * SCALE_10X_FILES_PER_CATEGORY * SCALE_10X_ROWS_PER_FILE;
+    expect(activityTemplates).toBe(2);
+    // Built with the app's own formatter, not with a local conversion. The
+    // browser renders this number grouped by ITS locale and this spec builds
+    // the expectation in Node from the machine's locale; those are two
+    // separate defaults, and a raw conversion here made the assertion depend
+    // on the box rather than on the code. Both sides are pinned to en-US by
+    // `playwright.config.ts` and by the locale pin this file imports.
+    await expect(activitySummary).toContainText(`${formatNumber(expectedActivityRows)} rows`);
 
     // No main-thread long task ≥ 1000 ms starting at or after the
     // submission mark. Same threshold `import-flow.spec.ts` test (f)
-    // already locked in (the postMessage structured-clone of a
-    // multi-MB File can spend 300-500 ms on the main thread on slow
-    // hardware; 1 s is the conventional "noticeable but not blocking"
-    // boundary — anything over 1 s is the real regression to catch).
+    // uses: 1 s is the conventional "noticeable but not blocking"
+    // boundary — anything over 1 s is the real regression to catch.
+    // This upload is an in-memory buffer, which Playwright decodes on
+    // the page's main thread before the app sees the file (the cost of
+    // that is proportional to the payload: ~12 ms for this 42 KB zip, but
+    // ~140 ms for (f)'s 3.6 MB one, which is why (f) picks by path — see
+    // `pickExportFromDisk` in helpers.ts). It is NOT the postMessage of
+    // the File, which hands the worker a handle and costs the main
+    // thread nothing.
     const offenders = await page.evaluate((mark) => {
       const tasks = (
         window as unknown as { __longTasks: { startTime: number; duration: number }[] }

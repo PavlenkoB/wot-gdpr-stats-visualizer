@@ -21,6 +21,7 @@
 //
 // =============================================================================
 
+import './pin-locale';
 import { test, expect, type Page } from '@playwright/test';
 import { gotoApp, importExport, playtimeBlock, SYNTHETIC_ZIP_NAME } from './helpers';
 import { HAND_ALL, HAND_ROWS } from '../fixtures/playtime-hand-fixture.ts';

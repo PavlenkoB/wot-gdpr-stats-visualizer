@@ -1,3 +1,4 @@
+import './pin-locale';
 import { expect, test } from '@playwright/test';
 import {
   EXTRA_UNKNOWN_FOLDER,
@@ -5,6 +6,7 @@ import {
   RENAMED_ACCOUNT_ROOT,
   SAMPLE_ACCOUNT_ROOT,
   SAMPLE_BADGE_ORDER,
+  SAMPLE_EXPECTED_COUNTS,
   SAMPLE_FILE_COUNTS,
   SAMPLE_NICKNAME,
   SAMPLE_ROW_COUNTS,
@@ -15,7 +17,7 @@ import {
   buildTruncatedExport,
 } from '../fixtures/export-fixtures.ts';
 import { formatAccountId, formatImportSummary } from '../../src/lib/ui-copy.ts';
-import { dropFiles, importLine } from './helpers.ts';
+import { dropFiles, importLine, pickExportFromDisk } from './helpers.ts';
 
 // =============================================================================
 // IMPORT-02 / PLATFORM-02 — success-path slice against the dashboard (03-07)
@@ -26,7 +28,7 @@ import { dropFiles, importLine } from './helpers.ts';
 //     spinner and STAGE_TEXT-driven text (D-26), and the dropzone is
 //     disabled and busy (D-08, D-10).
 //   - On success the bar goes slim, the identity header shows the raw
-//     account root, the four supported sections appear in D-02 order with
+//     account root, the five supported sections appear in D-02 order with
 //     a `section-summary` built by `formatImportSummary`, and the four
 //     unsupported folders become `unsupported-banner` cards in worker
 //     order (D-01, D-02, D-03, D-11, D-12, D-13).
@@ -50,11 +52,28 @@ import { dropFiles, importLine } from './helpers.ts';
 // actually shipped. Nothing was dropped — each one moved.
 // =============================================================================
 
+/**
+ * Every stage text the notice slot may show while an import is busy.
+ *
+ * The five sequential stages, PLUS the per-category progress string the
+ * worker posts while it parses (D-11, `formatParsingProgress` in
+ * `ui-copy.ts`, asserted in its own right by the 10x-scale test in
+ * `persistent-dataset.spec.ts`).
+ *
+ * The per-category form was added to this list by 05-06, and the reason is
+ * worth keeping: the snapshot below is deliberately atomic, and the sample
+ * used to be small enough that it always landed on one of the five coarse
+ * stages. Growing the sample to the real 29 files means it can equally land
+ * on `Parsing Player_statistics (1/9)...` — which is still a processing
+ * stage, still the right text, and was simply missing from the allow-list.
+ * Without it the test reported a product regression for a stage the product
+ * is documented to emit.
+ */
 const STAGE_PATTERN =
-  /^\s*(Checking for a duplicate\.\.\.|Unzipping\.\.\.|Classifying folders\.\.\.|Parsing categories\.\.\.|Saving to local storage\.\.\.)\s*$/;
+  /^\s*(Checking for a duplicate\.\.\.|Unzipping\.\.\.|Classifying folders\.\.\.|Parsing categories\.\.\.|Saving to local storage\.\.\.|Parsing \S+ \(\d+\/\d+\)\.\.\.)\s*$/;
 
 /**
- * The four supported sections in D-02 order, paired with the fixture
+ * The five supported sections in D-02 order, paired with the fixture
  * folder each one counts. This is the order the DOM must present, and it
  * is NOT `SAMPLE_BADGE_ORDER` (that constant is the worker's
  * status-grouped order, still asserted below for the banners).
@@ -62,20 +81,37 @@ const STAGE_PATTERN =
 const SUPPORTED_SECTIONS = [
   { id: 'activity-history', folder: 'Activity_history' },
   { id: 'player-statistics', folder: 'Player_statistics' },
+  { id: 'financial-data', folder: 'Financial_data' },
   { id: 'payment-history', folder: 'Payment_history' },
   { id: 'user-info', folder: 'User_Info' },
 ] as const;
 
 /**
- * The four unsupported folders, in the order the worker reports them
- * (`SAMPLE_BADGE_ORDER.slice(4)`), with the status each banner carries.
+ * Where the supported group ENDS inside `SAMPLE_BADGE_ORDER`, i.e. the
+ * first non-supported entry.
+ *
+ * DERIVED, never a literal: `SAMPLE_BADGE_ORDER` is the worker's
+ * status-grouped order, so the supported group is always a prefix and the
+ * unsupported banners are always whatever follows it. 05-03 added
+ * `Financial_data` as a fifth supported category, which moved this boundary
+ * from 4 to 5 — and a hardcoded index would have silently compared the wrong
+ * folder against the wrong `data-status`, which reads as a passing test
+ * until the fixture changes again.
  */
-const UNSUPPORTED_BANNERS = [
-  { folder: SAMPLE_BADGE_ORDER[4]!, status: 'known-deferred' },
-  { folder: SAMPLE_BADGE_ORDER[5]!, status: 'known-deferred' },
-  { folder: SAMPLE_BADGE_ORDER[6]!, status: 'unknown' },
-  { folder: SAMPLE_BADGE_ORDER[7]!, status: 'unknown' },
-] as const;
+const UNSUPPORTED_START = SAMPLE_EXPECTED_COUNTS.supported;
+
+/**
+ * The four unsupported folders, in the order the worker reports them, with
+ * the status each banner carries. Built from the badge order by slicing off
+ * the supported prefix rather than by indexing literal offsets.
+ */
+const UNSUPPORTED_BANNERS = SAMPLE_BADGE_ORDER.slice(UNSUPPORTED_START).map((folder, index) => ({
+  folder,
+  // The worker emits known-deferred first, then unknown — so within the
+  // unsupported suffix the tiers are still grouped, and the boundary lands
+  // where SAMPLE_EXPECTED_COUNTS says the other two live.
+  status: index < SAMPLE_EXPECTED_COUNTS['known-deferred'] ? 'known-deferred' : 'unknown',
+})) as readonly { folder: string; status: string }[];
 
 // -----------------------------------------------------------------------------
 // Page setup — wait for worker ready
@@ -168,16 +204,18 @@ test('(a) shows stage feedback while busy, then account, summary and grouped bad
     formatAccountId(SAMPLE_ACCOUNT_ROOT),
   );
 
-  // The four supported sections, in D-02 order, each with the summary
+  // The five supported sections, in D-02 order, each with the summary
   // built by the SAME formatter the component uses.
   for (const [index, section] of SUPPORTED_SECTIONS.entries()) {
     const card = page.getByTestId(`dashboard-section-${section.id}`);
     await expect(card).toHaveCount(1);
     const fileCount = SAMPLE_FILE_COUNTS[section.folder]!;
     const rowCount = SAMPLE_ROW_COUNTS[section.folder]!;
-    // Activity_history is `ready` since 04-02 and shows these counts as its
-    // caption; the other three are `pending` and show them as their body.
-    // `importLine` reads whichever element this card renders.
+    // Two sections are `ready` — Activity_history since 04-02 and
+    // Financial_data since 05-10 — and show these counts as their caption; the
+    // other three are `pending` and show them as their body. `importLine`
+    // reads whichever element this card renders, so the assertion is about the
+    // counts rather than about which of the two the card chose.
     await expect(importLine(card)).toHaveText(formatImportSummary(fileCount, rowCount));
     // DOM order is the D-02 contract, not the worker's grouping.
     if (index > 0) {
@@ -190,8 +228,9 @@ test('(a) shows stage feedback while busy, then account, summary and grouped bad
     }
   }
 
-  // Four unsupported banners in worker order (SAMPLE_BADGE_ORDER.slice(4)),
-  // with the status each carries and its counts line.
+  // Four unsupported banners in worker order (the suffix of
+  // SAMPLE_BADGE_ORDER after the supported group), with the status each
+  // carries and its counts line.
   const banners = page.getByTestId('unsupported-banner');
   await expect(banners).toHaveCount(UNSUPPORTED_BANNERS.length);
   for (const [index, expected] of UNSUPPORTED_BANNERS.entries()) {
@@ -378,7 +417,9 @@ test('(e) every upload in a session reuses the one worker and makes zero network
 // (f) Responsiveness — no main-thread long task ≥ 1000 ms at 20,000 entries
 // -----------------------------------------------------------------------------
 
-test('(f) the page stays responsive while a large export is unzipped', async ({ page }) => {
+test('(f) the page stays responsive while a large export is unzipped', async ({
+  page,
+}, testInfo) => {
   // Install the PerformanceObserver BEFORE any app script runs so it
   // captures every long task from the moment the worker starts.
   await page.addInitScript(() => {
@@ -410,13 +451,12 @@ test('(f) the page stays responsive while a large export is unzipped', async ({ 
       [];
   });
 
-  // Mark the submission moment, then upload.
+  // Mark the submission moment, then upload. BY PATH, not by an in-memory
+  // buffer: a buffer is decoded on the page's main thread by Playwright itself
+  // before the app ever sees the file, and that decode is a long task of its
+  // own (see `pickExportFromDisk`, and the note on the assertion below).
   const t0 = await page.evaluate(() => performance.now());
-  await page.getByTestId('file-input').setInputFiles({
-    name: 'large-export.zip',
-    mimeType: 'application/zip',
-    buffer: Buffer.from(buildLargeExport()),
-  });
+  await pickExportFromDisk(page, testInfo, 'large-export.zip', buildLargeExport());
 
   // Processing paragraph appears; then the dashboard with a 30 s budget
   // (20k-entry unzip is well under 30 s even on slow hardware).
@@ -433,14 +473,33 @@ test('(f) the page stays responsive while a large export is unzipped', async ({ 
     formatImportSummary(LARGE_EXPORT_FILES_PER_CATEGORY, LARGE_EXPORT_FILES_PER_CATEGORY),
   );
 
-  // No recorded long task starting at or after the submission mark
-  // lasted 1000 ms or more. The original plan called for 250 ms; we
-  // relax to 1000 ms because the postMessage structured-clone of a
-  // multi-MB File can spend ~300-500 ms on the main thread on slower
-  // hardware (e.g. self-hosted CI runners), even when the worker is
-  // doing all the unzip work off-thread. 1 s is the conventional
-  // "noticeable but not blocking" boundary — anything over 1 s is the
-  // real regression to catch.
+  // No recorded long task starting at or after the submission mark lasted
+  // 1000 ms or more.
+  //
+  // What this window contains. Because the file arrives by path, the only
+  // main-thread work between `t0` and the dashboard is the app's: the change
+  // handler and pre-check (~0.2 ms: measured from a capture-phase to a
+  // bubble-phase `change` listener), the `postMessage` of a disk-backed `File`
+  // handle, and the handler for the worker's results message. Measured against
+  // this 3.6 MB / 20,000-entry fixture the largest of those is that results
+  // handler at ~9 ms (LoAF attributes it to `Worker.onmessage`); under CDP CPU
+  // throttling it is 80 ms at 10x and ~175 ms at 20x. 1 s is therefore more
+  // than 100x the app's own worst task, so a failure here means the app blocked
+  // the page, not that the runner was slow.
+  //
+  // What it used to contain, and why the old reading was wrong. An in-memory
+  // `setInputFiles({ buffer })` makes Playwright decode the whole 3.6 MB
+  // payload on the page's main thread (one task, 140 ms on a fast machine, 1,052
+  // to 1,420 ms at 8-10x throttle, 1,216 ms on the CI runner that failed this
+  // spec) and dispatch `change` only at the END of that task. This comment used
+  // to blame "the postMessage structured clone of a multi-MB File"; the app
+  // never touches the bytes on the main thread, and the 1000 ms bound was
+  // relaxed from the original 250 ms for a cost that was the harness's.
+  //
+  // What it does not claim. It is a backstop for a gross block (the pipeline,
+  // or an O(n^2) pass over the 20,000 entries, landing on the main thread), not
+  // a micro-budget: unzipping this fixture on the main thread costs only ~19 ms
+  // (~190 ms at 10x), well under the bound.
   const offenders = await page.evaluate((mark) => {
     const tasks = (window as unknown as { __longTasks: { startTime: number; duration: number }[] })
       .__longTasks;

@@ -3,19 +3,28 @@
 // the one piece with a sign convention that is easy to get backwards.
 // =============================================================================
 //
-// `focusScrollDelta` (04-05, already tested in playtime-model.test.ts) returns
-// the NEGATIVE of the scroll the caller must apply: a cell 36px short of the
-// clear line returns -36 and the caller does `window.scrollBy(0, -delta)`.
-// `focusScrollDelta` is deliberately never positive, because there is no case
-// where a focused cell needs the page scrolled UP — it always takes focus
-// while it is in view.
+// THE PHYSICS, which 04-09 had backwards.
 //
-// Plan 04-09 Task 2's action text says `window.scrollBy(0, delta)`, which is
-// the opposite sign and would scroll the focused cell further under the sticky
-// nav — the exact failure RESEARCH Pitfall 6 describes. `focus-clear.ts` is
-// the ONLY place that sign is applied, so this suite pins it here rather than
-// leaving it to a screenshot: a 36px cell that needs 36px of page scroll moves
-// DOWN by 36, and a cell that is already clear does not move at all.
+// A cell that sits ABOVE the clear line — under the sticky nav, or under the
+// sticky year head — has to move DOWN on screen. Moving content down on screen
+// means moving the PAGE up, which is a NEGATIVE `scrollBy` top.
+// `focusScrollDelta` already returns that negative number (a cell 36px short
+// returns -36) and `scrollClear` passes it through unchanged. That is the
+// whole sign convention: the delta IS the scroll to apply, never its opposite.
+//
+// 04-09 inverted it — the helper negated the delta, so pressing a key that
+// landed a cell under the nav scrolled the page DOWN and pushed the cell
+// FURTHER under it. The unit tests here pinned the inverted form and their
+// comment read "scrolls the page DOWN" as though that moved the cell down.
+// Plan 04-17 measured the consequence in a browser against the built app: a
+// calendar cell parked under the stuck head and moved with ArrowUp went from
+// 68px to 31px below the viewport top at 1280px, and from 69px to 21px at
+// 375px. The correction fired, and it buried the cell.
+//
+// `focus-clear.ts` is the ONLY place that sign is applied, so this suite pins
+// it here rather than leaving it to a screenshot: a cell 36px short of the
+// clear line moves DOWN by 36, which is the page scrolling UP by 36, and a
+// cell that is already clear does not move at all.
 //
 // Everything else in `focus-clear.ts` is DOM access — two `getBoundingClientRect`
 // calls and one `scrollBy` — so the stubs are the whole surface. No jsdom:
@@ -88,18 +97,19 @@ afterEach(() => {
 });
 
 describe('scrollClear — keep a focused cell out from under the sticky nav', () => {
-  test('scrolls the page DOWN by exactly the shortfall', async () => {
+  test('scrolls the page UP by exactly the shortfall, which moves the cell DOWN', async () => {
     // THE SIGN. The clear line is the nav bottom plus the 8px gap, so 72 + 8
     // = 80; a cell 36px short of it sits at 44. `focusScrollDelta` reports
-    // -36; the helper must turn that into a +36 downward scroll. A caller
-    // that passed the delta straight through would scroll the page UP and
-    // bury the cell further.
+    // -36, and that IS the scroll to apply: a negative `top` moves the page
+    // up, which moves the cell down on screen and out from under the chrome.
+    // A helper that negated the delta would scroll the page down and bury the
+    // cell further, which is the bug 04-17 fixed.
     const { scrollClear } = await load();
     const { scrolls } = stubDom(NAV_BOTTOM);
 
     scrollClear(cell(NAV_BOTTOM + GAP - 36), 0);
 
-    expect(scrolls).toEqual([{ top: 36, behavior: 'instant' }]);
+    expect(scrolls).toEqual([{ top: -36, behavior: 'instant' }]);
   });
 
   test('does not scroll at all when the cell is already clear', async () => {
@@ -123,7 +133,7 @@ describe('scrollClear — keep a focused cell out from under the sticky nav', ()
 
     scrollClear(cell(76), 32);
 
-    expect(scrolls).toEqual([{ top: 36, behavior: 'instant' }]);
+    expect(scrolls).toEqual([{ top: -36, behavior: 'instant' }]);
   });
 
   test('treats an absent nav as a zero-height one instead of failing', async () => {
@@ -139,7 +149,7 @@ describe('scrollClear — keep a focused cell out from under the sticky nav', ()
     // With no nav the clear line is just the 8px gap, so a cell 12px short of
     // it (at -4) is still short and still moves down.
     scrollClear(cell(GAP - 12), 0);
-    expect(scrolls).toEqual([{ top: 12, behavior: 'instant' }]);
+    expect(scrolls).toEqual([{ top: -12, behavior: 'instant' }]);
   });
 
   test('asks for a vertical, INSTANT jump and nothing else', async () => {
@@ -156,6 +166,6 @@ describe('scrollClear — keep a focused cell out from under the sticky nav', ()
 
     scrollClear(cell(0), 0);
 
-    expect(scrolls).toEqual([{ top: NAV_BOTTOM + GAP, behavior: 'instant' }]);
+    expect(scrolls).toEqual([{ top: -(NAV_BOTTOM + GAP), behavior: 'instant' }]);
   });
 });

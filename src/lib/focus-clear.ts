@@ -23,13 +23,21 @@ import { focusScrollDelta, type Rect } from './playtime-model.ts';
  *
  * ## The sign, and why the scroll is instant
  *
- * `focusScrollDelta` returns the NEGATIVE of the scroll to apply: a cell 36px
- * short returns -36, and this helper turns it into a 36px downward scroll.
- * The value is never positive, because a focused cell is always in view when
- * it takes focus — there is no case where the page needs scrolling back UP.
- * (Plan 04-09's Task 2 action text says `window.scrollBy(0, delta)`, which is
- * the opposite sign and would bury the cell further under the nav; the
- * deviation is recorded in the plan's SUMMARY.)
+ * `focusScrollDelta` returns the scroll TO APPLY, with its own sign: a cell
+ * 36px short of the clear line returns -36, and a negative `top` scrolls the
+ * PAGE up, which moves the cell DOWN on screen and out from under the chrome.
+ * The value is never positive, so this helper passes it through unchanged and
+ * never has to think about direction.
+ *
+ * 04-09 had this inverted — it negated the delta — and the unit tests pinned
+ * the inverted form, so the mistake survived four plans. Plan 04-17 measured
+ * what it cost in a browser against the built app: a calendar cell parked
+ * under the stuck head and moved with ArrowUp went from 68px to 31px below
+ * the viewport top at 1280px, and from 69px to 21px at 375px. The correction
+ * fired, and it pushed the cell FURTHER under the nav it was meant to clear.
+ * (04-11 read this path as unreachable, because the browser's own `focus()`
+ * centres a cell that is off screen; it is reachable exactly when the cell is
+ * on screen and under the chrome.)
  *
  * The scroll opts out of the page's `scroll-behavior: smooth`, and it has to.
  * The tooltip closes on scroll (UI-SPEC section 8), so a SMOOTH correction
@@ -55,5 +63,5 @@ export function scrollClear(element: Element, headHeight: number): void {
   // 0 is the caller's cue to leave the page alone, so a cell that is already
   // clear is not scrolled "just in case".
   const delta = focusScrollDelta(rect, navBottom, headHeight);
-  if (delta !== 0) window.scrollBy({ top: -delta, behavior: 'instant' });
+  if (delta !== 0) window.scrollBy({ top: delta, behavior: 'instant' });
 }

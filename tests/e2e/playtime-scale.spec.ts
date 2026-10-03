@@ -1,3 +1,4 @@
+import './pin-locale';
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
 import {

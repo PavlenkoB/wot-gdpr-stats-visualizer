@@ -83,7 +83,7 @@ const cellsOf = <T>(rows: readonly T[][]): T[] => rows.flat();
 //
 //   col = floor((365 + 2) / 7) = floor(52.428) = 52
 //   row = (365 + 2) % 7         = 367 - 364       = 3
-//   x   = 32 + 52 * 11 = 604    y = 20 + 3 * 11 = 53
+//   x   = 40 + 52 * 11 = 612    y = 20 + 3 * 11 = 53
 //
 // Every expectation below is written from that arithmetic and from Date.UTC,
 // never read back out of the module. RESEARCH verified the same formula
@@ -203,7 +203,7 @@ describe('04-05 tracer: rank scale and a one-day calendar', () => {
     expect(drawn[0]).toMatchObject({
       col: 52,
       row: 3,
-      x: 604,
+      x: 612,
       y: 53,
       level: 1,
       seconds: 3600,
@@ -385,7 +385,7 @@ describe('calendar layout', () => {
     const mondayBlock = mondayYear.blocks[0]!;
     if (mondayBlock.kind !== 'year') throw new Error('expected a year block');
     expect(mondayBlock.monthLabels).toHaveLength(12);
-    expect(mondayBlock.monthLabels[0]).toMatchObject({ month: 1, col: 0, x: 32 });
+    expect(mondayBlock.monthLabels[0]).toMatchObject({ month: 1, col: 0, x: 40 });
 
     // 2020-01-01 was a Wednesday, so the first days of January fill the top of
     // week column 0 and its label is still column 0 — while February 1 (a
@@ -396,8 +396,8 @@ describe('calendar layout', () => {
     const block = buildCalendarModel(sliceWithDays([day(2020, 12, 31)], [3600], [2])).blocks[0]!;
     if (block.kind !== 'year') throw new Error('expected a year block');
     expect(block.monthLabels).toHaveLength(12);
-    expect(block.monthLabels[0]).toMatchObject({ month: 1, col: 0, x: 32 });
-    expect(block.monthLabels[1]).toMatchObject({ month: 2, col: 4, x: 76 });
+    expect(block.monthLabels[0]).toMatchObject({ month: 1, col: 0, x: 40 });
+    expect(block.monthLabels[1]).toMatchObject({ month: 2, col: 4, x: 84 });
     for (let i = 1; i < block.monthLabels.length; i += 1) {
       expect(block.monthLabels[i]!.x - block.monthLabels[i - 1]!.x).toBeGreaterThanOrEqual(44);
     }
@@ -477,6 +477,53 @@ describe('calendar layout', () => {
     );
     expect(model.cellCount).toBe(drawn);
     expect(elapsed).toBeLessThan(100);
+  });
+});
+
+// =============================================================================
+// calendar gutter — the room the weekday labels need (UAT G-04-UI-1, plan 04-17)
+//
+// The gutter was 32px because the UI-SPEC's row said 32 "fits Mon at 14px", and
+// it did not: the labels are drawn `text-anchor: end` with a pad inside the
+// gutter, so the room is the gutter MINUS the pad, and the widest label is
+// wider than what was left. The UI audit measured Mon starting at x = -4.23 and
+// Wed at -5.02, which the scroller clipped, in every year of every export.
+//
+// The measured label widths, taken in Chromium on macOS at 14px system-ui on
+// 2026-10-02, are Wed 29.02px, Mon 28.23px and Fri 16.36px. 33.02 is the widest
+// of those plus the 4px of clearance to the first column, and the gutter holds
+// 36px of room today — about 7px of slack, which is what a self-hosted runner
+// with a wider fallback face needs. The browser test in
+// tests/e2e/playtime-ui-review.spec.ts asserts the same thing as a MEASURED
+// text box, because the runner's face is not this machine's.
+// =============================================================================
+
+describe('calendar gutter and weekday label room', () => {
+  it('derives the width from the gutter and still fits the card', async () => {
+    const { CALENDAR_LAYOUT: layout } = await load();
+
+    // The width is not an independent number: it is the gutter plus the widest
+    // year the grid can be asked for. A width written by hand would keep
+    // passing after a gutter change and let the 54th column fall outside the
+    // svg, which is the failure this describe exists to prevent.
+    expect(layout.width).toBe(layout.gutter + layout.maxColumns * layout.pitch);
+
+    // 640px is the card content width the calendar is fitted to
+    // (04-UI-SPEC Spacing exceptions). 54 columns at an 11px pitch is 594px,
+    // so the gutter can grow to 46px before the grid stops fitting — the
+    // assertion is the boundary, not the current value.
+    expect(layout.width).toBeLessThanOrEqual(640);
+  });
+
+  it('leaves the widest measured weekday label inside the gutter', async () => {
+    const { CALENDAR_LAYOUT: layout } = await load();
+
+    // The room is the gutter MINUS the label pad, because the label is
+    // right-aligned at `gutter - labelPad` and runs leftwards from there. A
+    // test that compared the room with the raw gutter would pass on the 32px
+    // gutter this replaced, which is the bug.
+    const room = layout.gutter - layout.labelPad;
+    expect(room).toBeGreaterThanOrEqual(33.02);
   });
 });
 
@@ -1005,10 +1052,11 @@ describe('focus scroll delta and hoursAttribute', () => {
     // `right` and `bottom` as well) without adapting it first.
     //
     // The required clear line is navBottom 56 + head 32 + the 8px gap = 96, and
-    // the cell's top is 60, so it is 36px short. The value is the NEGATIVE of
-    // the scroll the caller applies, so the component does
-    // `window.scrollBy(0, -delta)`; a cell already clear reports 0 and the
-    // component must not scroll at all.
+    // the cell's top is 60, so it is 36px short. The value is the vertical
+    // scroll TO APPLY, passed to `window.scrollBy` unchanged: a negative top
+    // scrolls the page up, which moves the cell down on screen and out from
+    // under the chrome. A cell already clear reports 0 and the component must
+    // not scroll at all.
     expect(focusScrollDelta({ left: 0, top: 60, width: 10, height: 10 }, 56, 32)).toBe(-36);
     expect(focusScrollDelta({ left: 0, top: 200, width: 10, height: 10 }, 56, 32)).toBe(0);
   });

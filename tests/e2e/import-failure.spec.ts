@@ -1,3 +1,4 @@
+import './pin-locale';
 import { expect, test } from '@playwright/test';
 import {
   buildMultiRootZip,

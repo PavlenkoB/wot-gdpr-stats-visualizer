@@ -44,9 +44,11 @@
     anchor?: Element | null;
     /** Close it — Escape, a scroll, a resize, or a pointer leaving a cell. */
     onDismiss: () => void;
+    /** Optional test id override for the tooltip element. Defaults to "chart-tooltip". */
+    testId?: string;
   }
 
-  let { request, anchor, onDismiss }: Props = $props();
+  let { request, anchor, onDismiss, testId = 'chart-tooltip' }: Props = $props();
 
   let element = $state<HTMLDivElement | null>(null);
 
@@ -133,7 +135,7 @@
 <div
   bind:this={element}
   class="tooltip"
-  data-testid="chart-tooltip"
+  data-testid={testId}
   aria-hidden="true"
   hidden={request === null}
 >
@@ -142,6 +144,11 @@
        weight, not from a second colour. -->
   <p class="line-one">{request?.line1 ?? ''}</p>
   <p class="line-two">{request?.line2 ?? ''}</p>
+  {#if request?.extra}
+    {#each request.extra as extraLine (extraLine)}
+      <p class="line-two">{extraLine}</p>
+    {/each}
+  {/if}
 </div>
 
 <style>

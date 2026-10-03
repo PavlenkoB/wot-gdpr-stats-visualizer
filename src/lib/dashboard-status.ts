@@ -28,27 +28,34 @@ import type { CategoryEntry, ClassifyResult } from './types/worker-messages.ts';
 // facts, get different statuses, and get different wording (D-10).
 
 /**
- * The four supported dashboard sections, in D-02 order.
+ * The five supported dashboard sections, in D-02 order.
  *
  * The order is declared HERE, explicitly, and not derived from `SUPPORTED`
  * in `worker/categories.ts` — that array is `Activity_history`,
- * `Player_statistics`, `User_Info`, `Payment_history`, which is a different
- * order (and exists for the worker, not for the page). The same trap waits
- * for anyone tempted to reuse `SAMPLE_BADGE_ORDER` from the fixtures.
+ * `Player_statistics`, `User_Info`, `Payment_history`, `Financial_data`,
+ * which is a different order (and exists for the worker, not for the page).
+ * The same trap waits for anyone tempted to reuse `SAMPLE_BADGE_ORDER` from
+ * the fixtures.
  */
 export const SECTIONS = [
   { id: 'activity-history', folder: 'Activity_history' },
   { id: 'player-statistics', folder: 'Player_statistics' },
+  // Third since Phase 5 D-01: Financial_data joins the page as a section of
+  // its own rather than sharing Payment_history's card. Both folders hold
+  // money data, but they are different files with different headers, and one
+  // section summing two folders would make a card's counts untraceable back
+  // to a file the user can find in the zip they unzipped.
+  { id: 'financial-data', folder: 'Financial_data' },
   { id: 'payment-history', folder: 'Payment_history' },
   { id: 'user-info', folder: 'User_Info' },
 ] as const;
 
-/** Anchor id of one of the four supported sections. */
+/** Anchor id of one of the five supported sections. */
 export type SectionId = (typeof SECTIONS)[number]['id'];
 
 /**
  * Anchor id of the "Not yet supported" block. It shares the section shell
- * and the nav with the four above, so it is modelled as a fifth id rather
+ * and the nav with the five above, so it is modelled as a sixth id rather
  * than as a special case (D-22).
  */
 export const NOT_YET_SUPPORTED_ID = 'not-yet-supported';
@@ -57,13 +64,14 @@ export const NOT_YET_SUPPORTED_ID = 'not-yet-supported';
 export type NavId = SectionId | typeof NOT_YET_SUPPORTED_ID;
 
 /**
- * The nav's link order: the four sections in D-02 order, then the
+ * The nav's link order: the five sections in D-02 order, then the
  * unsupported block. Fixed, and independent of the order the worker's
  * `ClassifyResult` happens to list its categories in (D-02).
  */
 export const NAV_ORDER = [
   'activity-history',
   'player-statistics',
+  'financial-data',
   'payment-history',
   'user-info',
   NOT_YET_SUPPORTED_ID,
@@ -88,10 +96,34 @@ export type SectionStatus = 'not-loaded' | 'no-export' | 'empty' | 'pending' | '
  * A parameter rather than a hard-coded check, so a phase can pass its own
  * set and so a test can exercise `ready` without shipping a dashboard.
  *
- * `activity-history` joined the set in 04-02, which shipped the playtime
- * block's four states and its one tile. The other three are still `pending`.
+ * Two ids, and each was added by the plan that gave its section a body rather
+ * than by the plan that gave the section its card:
+ *
+ *   `activity-history` — Phase 4, plan 04-02, which shipped the playtime
+ *     block's states and its tile.
+ *   `player-statistics` — Phase 5, plan 05-12, which flipped the card to
+ *     `ready` in the same commit that mounted the Vehicle statistics block.
+ *   `financial-data`   — Phase 5, plan 05-10, which flipped the card to
+ *     `ready` in the same commit that mounted the Premium block.
+ *   `payment-history`  — Phase 5, plan 05-15, which flipped the card to
+ *     `ready` in the same commit that mounted the Real-money spend block.
+ *
+ * The flip and the body land together on purpose, in every Phase 5 case: a
+ * `ready` section with no body is a card that promises a dashboard and shows an
+ * empty one, and a body with no flip is a dashboard no card will ever render.
+ *
+ * `user-info` is the one id that stays `pending` forever, which is why its card
+ * promises no dashboard at all (`SECTION_NOTE_USER_INFO`) rather than the
+ * "coming in a later update" note the other `pending` states use. The
+ * `SECTION_NOTE_PENDING` loop in `tests/e2e/dashboard.spec.ts` is therefore
+ * empty, and that is the shape the phase ends in — not a gap in it.
  */
-export const BUILT_DASHBOARDS: ReadonlySet<SectionId> = new Set<SectionId>(['activity-history']);
+export const BUILT_DASHBOARDS: ReadonlySet<SectionId> = new Set<SectionId>([
+  'activity-history',
+  'player-statistics',
+  'financial-data',
+  'payment-history',
+]);
 
 /** Import diagnostics for one section, summed across every matching entry. */
 export interface SectionCounts {
@@ -190,7 +222,7 @@ export function unsupportedBlockStatus(result: ClassifyResult | null): Unsupport
 
 /**
  * The block's status in the shared `SectionStatus` vocabulary, so the block
- * renders through the same D-07 section shell as the four sections. A block
+ * renders through the same D-07 section shell as the five sections. A block
  * with nothing to list is `empty` (with its own status text), and a block
  * with banners is `ready` — its content is the banner list.
  */
@@ -223,7 +255,7 @@ function mutedReasonFor(status: SectionStatus): NavMutedReason | null {
 }
 
 /**
- * The five nav links, in `NAV_ORDER`, each with its muted state and the
+ * The six nav links, in `NAV_ORDER`, each with its muted state and the
  * reason behind it.
  *
  * Derived by calling `sectionStatus` and `unsupportedBlockStatus` — the same

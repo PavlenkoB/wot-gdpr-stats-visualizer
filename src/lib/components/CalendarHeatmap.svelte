@@ -39,7 +39,7 @@
    * `overflow` container sticks to THAT CONTAINER rather than to the page, so
    * a head nested in the scroller would stop sticking the moment the year slid
    * sideways — which at 375px is the normal state, not an edge case. The head
-   * carries the year, so it is the one thing a reader scrolling a 626px grid
+   * carries the year, so it is the one thing a reader scrolling a 634px grid
    * inside a 295px card must never lose.
    *
    * ## Why every day of an active year is drawn
@@ -55,7 +55,7 @@
    *
    * No `viewBox`, for the same reason the hour grid has none: the month and
    * weekday labels are set in the Caption role and must stay 14px, and the
-   * 626 x 97 geometry is what fits 54 week columns. At 375px the SCRIMMER
+   * 634 x 97 geometry is what fits 54 week columns. At 375px the SCRIMMER
    * moves and the chart does not.
    *
    * ## Why the fill is a class and never an attribute
@@ -493,14 +493,20 @@
 
             <!--
               The weekday labels for the three rows that carry one (Mon, Wed,
-              Fri), right-aligned against the first cell and vertically
-              centred on their row, at the same place the UI-SPEC geometry row
-              puts them: the left gutter, `text-anchor: end`.
+              Fri), right-aligned `labelPad` inside the first column's edge and
+              vertically centred on their row, at the same place the UI-SPEC
+              geometry row puts them: the left gutter, `text-anchor: end`.
+
+              The pad is `CALENDAR_LAYOUT.labelPad` and not a literal, because
+              the room these labels have is the gutter MINUS it: at an 8px pad
+              the 32px gutter left 24px for a 29px "Wed", which started at a
+              negative x and had its first letter clipped by the scroller in
+              every year (UAT G-04-UI-1, 04-UI-SPEC Amendment A-1).
             -->
             {#each CALENDAR_LAYOUT.weekdayLabelRows as row (row)}
               <text
                 class="axis"
-                x={CALENDAR_LAYOUT.gutter - 8}
+                x={CALENDAR_LAYOUT.gutter - CALENDAR_LAYOUT.labelPad}
                 y={row * CALENDAR_LAYOUT.pitch + 27}
                 text-anchor="end"
                 aria-hidden="true"
@@ -647,7 +653,7 @@
   /*
     The chart: the hint, then the year blocks, then the one legend. `min-width:
     0` is what lets each year's scroller shrink inside the card instead of the
-    card widening to 626px.
+    card widening to 634px.
   */
   .calendar {
     display: flex;

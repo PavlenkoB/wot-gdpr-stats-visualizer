@@ -46,6 +46,22 @@ export interface DatasetRow {
   data: Record<string, string | undefined>;
 }
 
+/**
+ * One file the import saw, recorded so a later query can tell a file that was
+ * NEVER in the archive from one that was in it and parsed to no data rows
+ * (D-02, D-05). The rows table alone cannot: a header-only file stores no row,
+ * so it is indistinguishable from an absent one.
+ *
+ * `category` and `sourceFile` are kept EXACTLY as the export wrote them, not
+ * lower-cased, so a later plan can show the user's own spelling. Matching is
+ * the reader's job and is done case-insensitively there.
+ */
+export interface DatasetFile {
+  category: string;
+  sourceFile: string;
+  rowCount: number;
+}
+
 export interface DatasetMeta {
   id: 'active';
   hash: string;
@@ -77,7 +93,39 @@ export interface DatasetMeta {
    * normal optional property and the `version(2)` upgrader above is untouched.
    */
   playtime?: PlaytimeAggregates | null;
+  /**
+   * The per-file presence facts recorded at import, for the Player_statistics,
+   * Financial_data and Payment_history files (05-07). One entry per file the
+   * parse loop actually read, holding its category, its name and how many data
+   * rows it produced.
+   *
+   * This is the ONE new stored field of the phase and it is what lets D-02 and
+   * D-05 say "not in this export" about a file that was absent and "no rows"
+   * about one that was present and empty — a distinction the rows table cannot
+   * make, because the empty file leaves no row behind.
+   *
+   * A cache written before this plan has no list. Consumers must treat `null`
+   * and `undefined` as LEGACY and answer the sentence that is true of both
+   * cases (no rows) rather than the absence claim they cannot support.
+   *
+   * No Dexie version bump and NO migration: this is a non-indexed field of the
+   * existing `meta` record, whose store definition is unchanged, so an existing
+   * database reads it as a normal optional property and the `version(2)`
+   * upgrader is untouched.
+   */
+  files?: DatasetFile[] | null;
 }
+
+/**
+ * The cap on how many presence facts one dataset records (T-05-21).
+ *
+ * A crafted archive with thousands of files in those three folders must not be
+ * able to make the meta record grow without bound. Overflowing the cap costs
+ * only the presence facts of the files past it — their rows are still stored
+ * and still answer `ready` — so the cap degrades a claim about a file rather
+ * than the data behind it.
+ */
+export const MAX_PRESENCE_FILES = 500;
 
 export const ROWS_PER_BULKPUT_CHUNK = 1000;
 
@@ -151,6 +199,11 @@ export const db = new AppDb();
  * that same `meta.put`, so the aggregate is as atomic as the rows and
  * needs no schema version: a dataset is either all rows plus its aggregate
  * or neither.
+ *
+ * `files` is the seventh parameter and is OPTIONAL for the same reason (05-07).
+ * It rides in that same `meta.put`, so presence facts are as atomic as the rows
+ * they describe: a crash mid-write can never leave a file listed with no rows,
+ * which is precisely the state a `no-rows` claim is made of.
  */
 export async function writeDataset(
   hash: string,
@@ -159,6 +212,7 @@ export async function writeDataset(
   rows: DatasetRow[],
   identity: AccountIdentity | null = null,
   playtime: PlaytimeAggregates | null = null,
+  files: DatasetFile[] | null = null,
 ): Promise<{ importedAt: string }> {
   const importedAt = new Date().toISOString();
   await db.transaction('rw', db.rows, db.meta, async () => {
@@ -174,6 +228,7 @@ export async function writeDataset(
       categories,
       identity,
       playtime,
+      files,
     });
   });
   return { importedAt };
@@ -296,6 +351,98 @@ export async function readSessionRowData(): Promise<{
  */
 function isSessionFileName(sourceFile: string): boolean {
   return sessionFileNameGame(sourceFile) !== null || isLegacySessionsFileName(sourceFile);
+}
+
+/**
+ * One dataset read for the Phase 5 query path (05-07).
+ *
+ * `files` is the stored presence list, or null for a legacy cache written
+ * before this plan recorded one. It is returned rather than interpreted here so
+ * the LEGACY case stays visible to the caller: a null list must not be read as
+ * "no file was present", which would turn every file of an older cache into a
+ * "not in this export" claim the data cannot support.
+ */
+export interface RowsSnapshot {
+  importedAt: string;
+  files: DatasetFile[] | null;
+  rows: Map<string, Record<string, string | undefined>[]>;
+}
+
+/**
+ * Read the rows of the named files, plus the meta record, in ONE read
+ * transaction (05-07).
+ *
+ * ## Why the answer and its data come from ONE snapshot
+ *
+ * Exactly the discipline `readSessionRowData` established (T-04-11, repeated
+ * here for T-05-19): `importedAt` is read inside the same transaction as the
+ * rows, and the answer carries THAT string. A caller that read meta first and
+ * rows afterwards could be handed a NEW dataset's date and an OLD dataset's
+ * rows, and would then show one export's numbers under another's date — the
+ * exact tear the playtime pair had to defend against.
+ *
+ * ## Why the distinct keys are listed rather than the multi-key form
+ *
+ * The `sourceFile` index offers a form that takes a LIST of keys in a single
+ * call. Phase 4 measured it at 2,243 ms on 3,000 rows in fake-indexeddb
+ * (RESEARCH Pattern 2), against 9 ms for the index-only walk below, because its
+ * cost is a function of the number of KEYS rather than of the rows. This walks
+ * the index with `orderBy().uniqueKeys()` — index-only, no row is touched —
+ * keeps the keys whose lower-cased text is in `names`, and issues ONE
+ * single-key read per survivor. That form is never used in this file and must
+ * not be: the sixteen vehicle file names alone would put every query on the
+ * slow path.
+ *
+ * ## Why the file screen is lower-cased, and why the category check is too
+ *
+ * `names` is a set of already-lower-cased exact file names, because the
+ * `sourceFile` index holds what the export wrote and a real archive spells a
+ * file `WOT_Vehicle_Statistics.csv` while a fixture may not. The stored
+ * category is compared the same way, and deliberately so: a folder spelled
+ * `player_statistics` classifies as the same supported category as
+ * `Player_statistics`, so a case-sensitive compare would drop those rows and
+ * report a title as absent when the export plainly had it.
+ *
+ * Rows are pushed in stored order and keyed by the LOWER-CASED file name, which
+ * is the same key the builders' file maps use, so a reader and a builder cannot
+ * disagree about which file a row came from.
+ */
+export async function readRowsByFile(
+  names: ReadonlySet<string>,
+  categories: readonly string[],
+): Promise<RowsSnapshot | null> {
+  return db.transaction('r', db.rows, db.meta, async () => {
+    const meta = await db.meta.get('active');
+    if (meta === undefined) return null;
+
+    // The category test is a lower-cased set, built once per read rather than
+    // per row: it is consulted once per stored row.
+    const wanted = new Set(categories.map((c) => c.toLowerCase()));
+    const keys = await db.rows.orderBy('sourceFile').uniqueKeys();
+    const rows = new Map<string, Record<string, string | undefined>[]>();
+    for (const key of keys) {
+      if (typeof key !== 'string') continue;
+      const name = key.toLowerCase();
+      // The name-only screen: cheap, index-driven. A name nobody asked for is
+      // never read at all, so the cost of this reader tracks the files that
+      // were requested rather than the size of the dataset.
+      if (!names.has(name)) continue;
+      const matches = await db.rows.where('sourceFile').equals(key).toArray();
+      for (const row of matches) {
+        if (!wanted.has(row.category.toLowerCase())) continue;
+        const bucket = rows.get(name);
+        if (bucket === undefined) {
+          rows.set(name, [row.data]);
+        } else {
+          // The accumulator behind the map's value type, for the same reason
+          // the session reader casts: the map is built inside this function and
+          // handed out as readonly data.
+          (bucket as Record<string, string | undefined>[]).push(row.data);
+        }
+      }
+    }
+    return { importedAt: meta.importedAt, files: meta.files ?? null, rows };
+  });
 }
 
 /**

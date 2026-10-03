@@ -1,5 +1,28 @@
-import { zipSync } from 'fflate';
+import { zipSync } from './pinned-zip.ts';
 import type { CategoryStatus } from '../../src/lib/types/worker-messages.ts';
+import {
+  CURRENCY_HAND_CSV,
+  CURRENCY_HAND_ROWS,
+  ORDERS_HAND_CSV,
+  ORDERS_HAND_ROWS,
+  ORDERS_HEADER_12,
+  PREMIUM_HAND_CSV,
+  PREMIUM_HAND_ROWS,
+} from './finance-fixtures.ts';
+import {
+  PLAYER_STATS_SAMPLE_FILES,
+  PLAYER_STATS_SAMPLE_ROW_COUNT,
+} from './player-stats-fixtures.ts';
+import { SAMPLE_ACCOUNT_ROOT } from './sample-account.ts';
+
+/**
+ * Re-exported from the leaf module so the importer surface every existing
+ * test already uses is unchanged. The DEFINITION lives in
+ * `./sample-account.ts` because a data module (sessions-fixtures, via
+ * finance-fixtures) needs it too, and importing it from here would close a
+ * cycle through this file's module body. See that file's header.
+ */
+export { SAMPLE_ACCOUNT_ROOT };
 
 /**
  * Synthetic, PII-free Wargaming-export fixtures, generated in memory.
@@ -24,8 +47,6 @@ import type { CategoryStatus } from '../../src/lib/types/worker-messages.ts';
 // Constants
 // -----------------------------------------------------------------------------
 
-export const SAMPLE_ACCOUNT_ROOT = '123456789';
-
 export const RENAMED_ACCOUNT_ROOT = 'renamed-root-2026';
 
 export const EXTRA_UNKNOWN_FOLDER = 'Future_category_2026';
@@ -45,12 +66,19 @@ export const WRAPPER_FOLDER_NAME = 'personal_data_export';
  * Per-category file counts for the SAMPLE_ACCOUNT_ROOT fixture. The
  * directory is the unit of the badge; the counts ARE the proof the
  * folder was actually opened (D-02).
+ *
+ * The three Phase 5 folders are DERIVED from the fixture modules that
+ * own the data, never typed: a count that is re-typed here is a second
+ * answer to a question the module already answers, and the two only
+ * agree by accident until one of them is edited (05-RESEARCH Pitfall 3,
+ * which is what this rewrite exists to close).
  */
 export const SAMPLE_FILE_COUNTS: Record<string, number> = {
   Activity_history: 2,
   Payment_history: 1,
-  Player_statistics: 4,
+  Player_statistics: Object.keys(PLAYER_STATS_SAMPLE_FILES).length,
   User_Info: 1,
+  Financial_data: 2,
   Chat_history: 1,
   Clans: 1,
   Bans: 1,
@@ -58,20 +86,26 @@ export const SAMPLE_FILE_COUNTS: Record<string, number> = {
 };
 
 /**
- * Per-category ROW counts for the SAMPLE_ACCOUNT_ROOT fixture. The
- * sample uses one synthetic data row per file (every `_ROW` constant
- * is appended once), so the row count per category equals its file
- * count. D-05 requires every category badge to display "N rows" —
- * never blank, never omitted — so this map is the single source of
- * truth that both the unit tests (db.test.ts, ingest-worker.test.ts)
- * and the Playwright e2e spec (import-flow.spec.ts test (a)) assert
- * against.
+ * Per-category ROW counts for the SAMPLE_ACCOUNT_ROOT fixture. D-05
+ * requires every category badge to display "N rows" — never blank, never
+ * omitted — so this map is the single source of truth that both the unit
+ * tests (db.test.ts, ingest-worker.test.ts) and the Playwright e2e specs
+ * (import-flow.spec.ts test (a), dashboard.spec.ts) assert against.
+ *
+ * Most categories carry one synthetic data row per file, so their row
+ * count still equals their file count. The three Phase 5 folders do not:
+ * their rows come from the 05-01 and 05-02 hand fixtures and are
+ * therefore computed from those modules' own row arrays —
+ *   Player_statistics — 05-02's hand-derived total across 19 files
+ *   Financial_data    — 05-01's premium rows plus its currency rows
+ *   Payment_history   — 05-01's hand Orders rows
  */
 export const SAMPLE_ROW_COUNTS: Record<string, number> = {
   Activity_history: 2,
-  Payment_history: 1,
-  Player_statistics: 4,
+  Payment_history: ORDERS_HAND_ROWS.length,
+  Player_statistics: PLAYER_STATS_SAMPLE_ROW_COUNT,
   User_Info: 1,
+  Financial_data: PREMIUM_HAND_ROWS.length + CURRENCY_HAND_ROWS.length,
   Chat_history: 1,
   Clans: 1,
   Bans: 1,
@@ -79,7 +113,7 @@ export const SAMPLE_ROW_COUNTS: Record<string, number> = {
 };
 
 export const SAMPLE_EXPECTED_COUNTS: Record<CategoryStatus, number> = {
-  supported: 4,
+  supported: 5,
   'known-deferred': 2,
   unknown: 2,
 };
@@ -170,7 +204,7 @@ export const LONG_UNKNOWN_FOLDER =
  * of the SAMPLE_FILE_COUNTS set.
  */
 export const RENAMED_EXPECTED_COUNTS: Record<CategoryStatus, number> = {
-  supported: 4,
+  supported: 5,
   'known-deferred': 2,
   unknown: 3,
 };
@@ -179,9 +213,16 @@ export const RENAMED_EXPECTED_COUNTS: Record<CategoryStatus, number> = {
  * Canonical badge order for buildSampleExport(). Mirrors the canonical
  * analyzeExport ordering: status group, then lowercase code-unit, then
  * raw name as a tie-break (no locale awareness — D-05 / FA-01-03-2).
+ *
+ * `Financial_data` is second because the order is by NAME inside the
+ * supported group: `activity_history` < `financial_data` < `payment_history`
+ * (`pa`+`y` loses to `pl`+`a`... in code units `l` < `y`). It is not the
+ * second SUPPORTED category in `categories.ts`, and not the third section in
+ * the D-02 page order — three different orders, deliberately.
  */
 export const SAMPLE_BADGE_ORDER: readonly string[] = [
   'Activity_history',
+  'Financial_data',
   'Payment_history',
   'Player_statistics',
   'User_Info',
@@ -230,33 +271,6 @@ const SESSIONS_ROW = [
 const LOGINS_HEADER = 'LOGIN_DT;IP;COUNTRY_CODE;USER_AGENT';
 const LOGINS_ROW = '2020-06-01 12:00:00;192.0.2.30;US;Mozilla/5.0';
 
-const WOT_STATS_HEADER =
-  'BATTLES;WINS;LOSSES;DRAWS;SURVIVED_BATTLES;DAMAGE_DEALT;DAMAGE_RECEIVED;FRAGS;EXPERIENCE;WIN_RATE';
-const WOT_STATS_ROW = '100;55;40;5;30;50000;48000;100;2000;55.0';
-
-const WOTB_STATS_HEADER = WOT_STATS_HEADER;
-const WOTB_STATS_ROW = '50;28;20;2;15;25000;24000;50;1000;56.0';
-
-const WOWS_STATS_HEADER = WOT_STATS_HEADER;
-const WOWS_STATS_ROW = '75;42;30;3;22;38000;36000;80;1500;56.0';
-
-const WOWP_19_STATS_HEADER = WOT_STATS_HEADER;
-const WOWP_19_STATS_ROW = '25;12;12;1;8;12000;11500;25;500;48.0';
-
-const ORDERS_HEADER =
-  'ACTION_DT;GAME_CODE;ITEM_CNT;PAYMENT_CURRENCY;PAYED_IN_CURR_AMT;IS_GIFT;ORDER_UUID;PAY_COUPON_NAME;PAY_ORDER_STATUS_CODE';
-const ORDERS_ROW = [
-  '2020-07-15 18:00:00',
-  'wot',
-  '1',
-  'USD',
-  '9.99',
-  '0',
-  '00000000-0000-0000-0000-000000000001',
-  '',
-  'PAID',
-].join(';');
-
 const MESSAGES_HEADER = 'MESSAGE_DT;CHANNEL_ID;MESSAGE_BODY';
 const MESSAGES_ROW = '2020-08-01 20:00:00;1;Hello from the synthetic fixture.';
 
@@ -269,10 +283,46 @@ const BANS_ROW = '2020-09-01 00:00:00;synthetic_reason;2020-09-08 00:00:00';
 const DEVICES_HEADER = 'DEVICE_ID;DEVICE_TYPE;OS;OS_VERSION;FIRST_SEEN;LAST_SEEN';
 const DEVICES_ROW = 'device-001;pc;macos;13.0;2020-01-01 00:00:00;2020-12-31 23:59:59';
 
+// -----------------------------------------------------------------------------
+// The Phase 5 folders (05-06, D-03/D-04)
+// -----------------------------------------------------------------------------
+//
+// The three folders this phase owns are no longer assembled from literals
+// here. Each is written EXACTLY as its owning fixture module renders it:
+//
+//   Player_statistics — `PLAYER_STATS_SAMPLE_FILES`, plan 05-02's nineteen
+//     real-named files with the real per-title headers
+//   Financial_data    — `PREMIUM_HAND_CSV` and `CURRENCY_HAND_CSV`, plan
+//     05-01's hand fixtures under the export's own file names
+//   Payment_history   — `ORDERS_HAND_CSV`, the full 12-column Orders file
+//
+// Two consequences follow, and both are the point of the rewrite:
+//
+//   1. THE PHYSICAL SHAPE IS THE REAL ONE. These files are written in the
+//      export's payments-era format: an unquoted header line, quote-all
+//      data cells, and a BARE CR terminator with no line feed anywhere.
+//      The other sample files keep their CRLF style, so the sample carries
+//      BOTH shapes at once — which is what the real archive does, and what
+//      Phase 2's parser was built to handle. A CRLF re-wrap here would make
+//      a green suite prove nothing about the format it stands in for.
+//
+//   2. THE COUNTS FOLLOW THE DATA. `SAMPLE_FILE_COUNTS` and
+//      `SAMPLE_ROW_COUNTS` above are computed from these modules, so adding
+//      a row to a hand fixture cannot leave a stale count behind.
+//
+// THE MODULE ORDER IS A LEAF RULE, NOT AN ACCIDENT: the data modules import
+// nothing from this file, so this builder may import them. (`05-03` could
+// not do this and transcribed the two finance headers by hand, with a
+// lockstep test to hold the copy honest; the duplication is gone.)
+
 /**
- * The canonical 12-file path-to-bytes map. Used by every fixture that
+ * The canonical 29-file path-to-bytes map. Used by every fixture that
  * wants the real archive's layout. Keys are joined with `root` so the
  * resulting archive can be placed under any folder name.
+ *
+ * Nine folders: five supported (Activity_history, Player_statistics,
+ * Financial_data, Payment_history, User_Info), two known-deferred
+ * (Chat_history, Clans) and two unknown (Bans, Device_info).
  *
  * IMPORTANT: keep this list stable — 01-01's zero-network Playwright
  * spec depends on the exact set of names produced by buildSampleExport().
@@ -286,24 +336,19 @@ function sampleEntries(root: string): Record<string, Uint8Array> {
   out[`${root}/Activity_history/Logins.csv`] = encode(
     CRLF + LOGINS_HEADER + CRLF + LOGINS_ROW + CRLF,
   );
-  out[`${root}/Player_statistics/WOT_stats.csv`] = encode(
-    CRLF + WOT_STATS_HEADER + CRLF + WOT_STATS_ROW + CRLF,
-  );
-  out[`${root}/Player_statistics/WOTB_stats.csv`] = encode(
-    CRLF + WOTB_STATS_HEADER + CRLF + WOTB_STATS_ROW + CRLF,
-  );
-  out[`${root}/Player_statistics/WOWS_stats.csv`] = encode(
-    CRLF + WOWS_STATS_HEADER + CRLF + WOWS_STATS_ROW + CRLF,
-  );
-  out[`${root}/Player_statistics/WOWP_19_stats.csv`] = encode(
-    CRLF + WOWP_19_STATS_HEADER + CRLF + WOWP_19_STATS_ROW + CRLF,
-  );
+  // Player_statistics: 05-02's nineteen real-named files, verbatim. Encoded
+  // without any CRLF wrapping — the module already renders the export's own
+  // bare-CR terminator, and re-wrapping would silently replace the format
+  // this file exists to exercise.
+  for (const [fileName, csv] of Object.entries(PLAYER_STATS_SAMPLE_FILES)) {
+    out[`${root}/Player_statistics/${fileName}`] = encode(csv);
+  }
   out[`${root}/User_Info/Account_Info.csv`] = encode(
     CRLF + ACCOUNT_INFO_HEADER + CRLF + ACCOUNT_INFO_ROW + CRLF,
   );
-  out[`${root}/Payment_history/Orders.csv`] = encode(
-    CRLF + ORDERS_HEADER + CRLF + ORDERS_ROW + CRLF,
-  );
+  out[`${root}/Payment_history/Orders.csv`] = encode(ORDERS_HAND_CSV);
+  out[`${root}/Financial_data/Operations_with_Premium_Days.csv`] = encode(PREMIUM_HAND_CSV);
+  out[`${root}/Financial_data/Virtual_Currencies_Operations.csv`] = encode(CURRENCY_HAND_CSV);
 
   // known-deferred
   out[`${root}/Chat_history/Messages.csv`] = encode(
@@ -494,7 +539,7 @@ export function buildEmptyZip(): Uint8Array {
 }
 
 /**
- * G-01-20 fixture: the sample's 12 entries re-keyed one folder deeper,
+ * G-01-20 fixture: the sample's entries re-keyed one folder deeper,
  * under `${WRAPPER_FOLDER_NAME}/${SAMPLE_ACCOUNT_ROOT}/...`. A real
  * player re-zipped their downloaded archive into an extra top-level
  * folder; before the depth-tolerant retry in classify.ts this shape
@@ -513,8 +558,8 @@ export function buildWrapperExport(): Uint8Array {
 }
 
 /**
- * G-01-20 fixture: the sample's 12 entries with the
- * `${SAMPLE_ACCOUNT_ROOT}/` prefix stripped, so the 8 category folders
+ * G-01-20 fixture: the sample's entries with the
+ * `${SAMPLE_ACCOUNT_ROOT}/` prefix stripped, so the 9 category folders
  * sit directly at the top level. A real player re-zipped an export and
  * the re-zip tool flattened the account-ID folder away. Before the
  * depth-tolerant retry in classify.ts this shape surfaced as the generic
@@ -522,7 +567,7 @@ export function buildWrapperExport(): Uint8Array {
  * first segments and bails out before categoryFoldersUnder runs).
  *
  * Successful classify returns accountRoot === '' — there IS no
- * account-ID folder in this shape — and the same 8 categories with the
+ * account-ID folder in this shape — and the same 9 categories with the
  * same counts as the sample.
  */
 export function buildRootlessExport(): Uint8Array {
@@ -775,8 +820,12 @@ export function buildMalformedRowsExport(): Uint8Array {
  * archive carries realistic row content at roughly 10x the 2021
  * sample's ~4,200 data rows:
  *
- *   8 categories × 5 files per category × ~1,000 rows per file
- *     ≈ 40,000 data rows total
+ *   14 templates × 5 files per template × ~1,000 rows per file
+ *     ≈ 70,000 data rows total
+ *
+ * (The template count is `SCALE_ROW_TEMPLATES.length`; it was 12 before
+ * 05-06 gave the scale export its two Financial_data templates and the real
+ * per-title vehicle file names.)
  *
  * Distinct from `buildLargeExport()` (Phase 1), which inflates file
  * COUNT to 20,000 (one row per file) to stress fflate's per-entry
@@ -792,21 +841,51 @@ export function buildMalformedRowsExport(): Uint8Array {
  * assertion.
  */
 export const SCALE_10X_ROWS_PER_FILE = 1000;
-const SCALE_10X_FILES_PER_CATEGORY = 5;
 
 /**
- * Per-category template mapping for the 10x fixture. Each entry
- * pins the canonical CSV header + row template (the same constants
- * `sampleEntries()` uses) so the inflated CSV bodies are byte-
- * realistic — same number of fields, same column shape, same field
+ * How many copies of each template the 10x export writes.
+ *
+ * Exported (05-06) because the responsive-imports e2e test asserts a
+ * category's inflated row count, and the multiplier is one of the three
+ * factors in that number. It was a private constant, so the test could
+ * only reach the total by typing `5` beside `SCALE_10X_ROWS_PER_FILE` —
+ * a second answer to a question this module already owns.
+ */
+export const SCALE_10X_FILES_PER_CATEGORY = 5;
+
+/**
+ * Take a fixture module's rendered CSV text and return the header line and
+ * the first data row, which are exactly the two lines a template needs.
+ *
+ * The fixture modules render with a BARE CR terminator, so splitting on `CR`
+ * yields the cells already quote-wrapped and semicolon-joined — the same
+ * bytes the parser will see at scale. Reading the template out of the
+ * rendered text rather than retyping a header and a row is what keeps this
+ * list from becoming a second, silently-diverged copy of the data.
+ */
+function templateOf(csv: string): { header: string; row: string } {
+  const [header = '', row = ''] = csv.split(CR);
+  return { header, row };
+}
+
+/**
+ * Per-category template mapping for the 10x fixture. Each entry pins the
+ * canonical CSV header + row template so the inflated CSV bodies are
+ * byte-realistic — same number of fields, same column shape, same field
  * widths as the real archive.
  *
- * Two categories need more than one template:
- *   - Activity_history: 2 files (Sessions, Logins)
- *   - Player_statistics: 4 files (WOT/WOTB/WOWS/WOWP)
- * The others use 1 each — mirroring the sample layout. The total
- * file count comes out to 12 × SCALE_10X_FILES_PER_CATEGORY = 60
- * files total, ~1,000 rows per file, ~60,000 data rows total.
+ * The four non-Phase-5 templates use this file's own header/row constants.
+ * The seven Phase-5 ones take theirs from the owning fixture module's
+ * rendered text via `templateOf`, so the scale export carries the REAL file
+ * names and the REAL columns: before 05-06 this list named four invented
+ * `*_stats.csv` files with a ten-column header that matches no export.
+ *
+ * Several categories need more than one template — Activity_history has
+ * Sessions and Logins, Player_statistics has the four per-title main files,
+ * and Financial_data has its two operations files. The file count is
+ * `SCALE_ROW_TEMPLATES.length × SCALE_10X_FILES_PER_CATEGORY`; the array
+ * length is the single source of that number rather than a comment's
+ * arithmetic.
  */
 const SCALE_ROW_TEMPLATES: ReadonlyArray<{
   folder: string;
@@ -821,30 +900,40 @@ const SCALE_ROW_TEMPLATES: ReadonlyArray<{
     row: SESSIONS_ROW,
   },
   { folder: 'Activity_history', baseName: 'Logins.csv', header: LOGINS_HEADER, row: LOGINS_ROW },
-  { folder: 'Payment_history', baseName: 'Orders.csv', header: ORDERS_HEADER, row: ORDERS_ROW },
   {
-    folder: 'Player_statistics',
-    baseName: 'WOT_stats.csv',
-    header: WOT_STATS_HEADER,
-    row: WOT_STATS_ROW,
+    folder: 'Payment_history',
+    baseName: 'Orders.csv',
+    ...templateOf(ORDERS_HAND_CSV),
+  },
+  {
+    folder: 'Financial_data',
+    baseName: 'Operations_with_Premium_Days.csv',
+    ...templateOf(PREMIUM_HAND_CSV),
+  },
+  {
+    folder: 'Financial_data',
+    baseName: 'Virtual_Currencies_Operations.csv',
+    ...templateOf(CURRENCY_HAND_CSV),
   },
   {
     folder: 'Player_statistics',
-    baseName: 'WOTB_stats.csv',
-    header: WOTB_STATS_HEADER,
-    row: WOTB_STATS_ROW,
+    baseName: 'WOT_Vehicle_Statistics.csv',
+    ...templateOf(PLAYER_STATS_SAMPLE_FILES['WOT_Vehicle_Statistics.csv']!),
   },
   {
     folder: 'Player_statistics',
-    baseName: 'WOWS_stats.csv',
-    header: WOWS_STATS_HEADER,
-    row: WOWS_STATS_ROW,
+    baseName: 'WOTB_Vehicle_Statistics.csv',
+    ...templateOf(PLAYER_STATS_SAMPLE_FILES['WOTB_Vehicle_Statistics.csv']!),
   },
   {
     folder: 'Player_statistics',
-    baseName: 'WOWP_19_stats.csv',
-    header: WOWP_19_STATS_HEADER,
-    row: WOWP_19_STATS_ROW,
+    baseName: 'WOWS_Ship_Statistics.csv',
+    ...templateOf(PLAYER_STATS_SAMPLE_FILES['WOWS_Ship_Statistics.csv']!),
+  },
+  {
+    folder: 'Player_statistics',
+    baseName: 'WOWP_19_Plane_Statistics.csv',
+    ...templateOf(PLAYER_STATS_SAMPLE_FILES['WOWP_19_Plane_Statistics.csv']!),
   },
   {
     folder: 'User_Info',
@@ -864,8 +953,25 @@ const SCALE_ROW_TEMPLATES: ReadonlyArray<{
 ];
 
 /**
+ * How many TEMPLATES each folder contributes to the 10x export — so a test
+ * can compute a category's inflated row total as
+ * `templates × SCALE_10X_FILES_PER_CATEGORY × SCALE_10X_ROWS_PER_FILE`
+ * without knowing the template list.
+ *
+ * Counted with a `Map` rather than an object literal: 05-02's answer key hit
+ * the `__proto__` trap the moment a hostile key met a plain object, and this
+ * map is keyed on folder names that come from fixture data.
+ */
+export const SCALE_TEMPLATES_BY_FOLDER: ReadonlyMap<string, number> = new Map(
+  SCALE_ROW_TEMPLATES.reduce((counts, template) => {
+    counts.set(template.folder, (counts.get(template.folder) ?? 0) + 1);
+    return counts;
+  }, new Map<string, number>()),
+);
+
+/**
  * 10x-scale synthetic export under SAMPLE_ACCOUNT_ROOT. Each of the
- * 12 canonical CSVs from the sample layout is multiplied to
+ * canonical CSVs from the sample layout is multiplied to
  * SCALE_10X_FILES_PER_CATEGORY files, each carrying
  * SCALE_10X_ROWS_PER_FILE rows of the canonical row template.
  *
@@ -882,7 +988,8 @@ export function buildScaleExport(): Uint8Array {
   for (const { folder, baseName, header, row } of SCALE_ROW_TEMPLATES) {
     for (let f = 0; f < SCALE_10X_FILES_PER_CATEGORY; f++) {
       // Suffix variant file names so they coexist in the same folder
-      // without collision (e.g. WOT_stats.csv, WOT_stats_1.csv, ...).
+      // without collision (the real file name, then the same name with
+      // `_1`, `_2`, ... before the extension).
       const fileName = f === 0 ? baseName : baseName.replace(/\.csv$/, `_${f}.csv`);
       let body = header;
       for (let r = 0; r < SCALE_10X_ROWS_PER_FILE; r++) {
@@ -928,17 +1035,37 @@ export interface CustomExportOptions {
    * a string (encoded as UTF-8) or raw bytes.
    */
   overrides?: Record<string, string | Uint8Array>;
+  /**
+   * Individual files to leave out, as paths RELATIVE to the root, matched
+   * case-SENSITIVELY against the sample's own file names.
+   *
+   * Why this exists alongside `omitFolders`: a folder-level omission is the
+   * only kind the sample export's other builders needed, and it cannot
+   * express "Player_statistics is present but holds ONE of its four titles".
+   * Plan 05-12 Task 3 has to — D-05's `not-in-export` and `no-rows` states
+   * are two DIFFERENT facts about the same folder, and the only way to reach
+   * `not-in-export` for a title is for that title's files to be ABSENT while
+   * its siblings are not. Overriding a file with a header-only CSV reaches
+   * `no-rows` but not `not-in-export`, so the two states would have been
+   * tested by one builder that only proves one of them.
+   *
+   * Applied before `overrides`, so an override of an omitted file puts it
+   * back — the order the reader expects from the option list.
+   */
+  omitFiles?: readonly string[];
 }
 
 export function buildCustomExport(options: CustomExportOptions = {}): Uint8Array {
-  const { root = SAMPLE_ACCOUNT_ROOT, omitFolders = [], overrides = {} } = options;
+  const { root = SAMPLE_ACCOUNT_ROOT, omitFolders = [], overrides = {}, omitFiles = [] } = options;
   const omitted = new Set(omitFolders);
+  const omittedFiles = new Set(omitFiles);
   const entries: Record<string, Uint8Array> = {};
 
   for (const [path, bytes] of Object.entries(sampleEntries(root))) {
     const relative = path.slice(root.length + 1);
     const folder = relative.slice(0, relative.indexOf('/'));
     if (omitted.has(folder)) continue;
+    if (omittedFiles.has(relative)) continue;
     entries[path] = bytes;
   }
 
@@ -975,11 +1102,11 @@ export function buildMissingPaymentHistoryExport(): Uint8Array {
 /** Payment_history present but holding a header-only CSV: the empty half of DATA-04. */
 export function buildZeroRowPaymentExport(): Uint8Array {
   return buildCustomExport({
-    overrides: { 'Payment_history/Orders.csv': renderCsv(ORDERS_HEADER, []) },
+    overrides: { 'Payment_history/Orders.csv': renderCsv(ORDERS_HEADER_12.join(';'), []) },
   });
 }
 
-/** Only the four supported categories: the "nothing detected but unsupported" state. */
+/** Only the five supported categories: the "nothing detected but unsupported" state. */
 export function buildOnlySupportedExport(): Uint8Array {
   return buildCustomExport({
     omitFolders: ['Chat_history', 'Clans', 'Bans', 'Device_info'],

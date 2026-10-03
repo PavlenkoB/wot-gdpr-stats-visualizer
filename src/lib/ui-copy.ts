@@ -63,13 +63,14 @@ export function formatFileCount(n: number): string {
 
 /**
  * "1 row" / "N rows" — sibling of formatFileCount. D-05 requires every
- * category badge to display both the file count and the row count,
- * with the singular form preserved ("1 row", not "1 rows"). Locale-
- * aware thousands separators match the D-05 example in CONTEXT.md
- * ("1,204 rows").
+ * category badge to display both the file count and the row count, with the
+ * singular form preserved ("1 row", not "1 rows"). The count groups through
+ * `formatNumber`, so it follows the viewer's locale like every other number on
+ * the page (D-25) — CONTEXT.md's D-05 example "1,204 rows" is a comma-grouping
+ * illustration, not a locale mandate.
  */
 export function formatRowCount(n: number): string {
-  return n === 1 ? '1 row' : `${n.toLocaleString()} rows`;
+  return n === 1 ? '1 row' : `${formatNumber(n)} rows`;
 }
 
 /**
@@ -78,10 +79,11 @@ export function formatRowCount(n: number): string {
  * CategoryBadge.svelte, not here) — this helper exists purely to
  * keep the singular/plural copy consistent with formatRowCount /
  * formatFileCount, and to centralise the literal text for any future
- * Playwright assertion.
+ * Playwright assertion. Grouped through `formatNumber` for the same
+ * reason as its sibling: one locale rule for the page, not two.
  */
 export function formatSkippedRowCount(n: number): string {
-  return n === 1 ? '1 row skipped' : `${n.toLocaleString()} rows skipped`;
+  return n === 1 ? '1 row skipped' : `${formatNumber(n)} rows skipped`;
 }
 
 /**
@@ -198,7 +200,7 @@ export const CLEARED_ACK_MESSAGE = 'Cached data cleared';
 /**
  * The visible title of each nav link and section card, keyed by nav id.
  *
- * The four folder names are written EXACTLY as they appear in the export,
+ * The five folder names are written EXACTLY as they appear in the export,
  * not prettified — `Activity_history` with its underscore is what the user
  * sees in the zip they unzipped, and matching it is the point (D-02).
  * The block's title is prose rather than a folder name because it has none.
@@ -210,6 +212,7 @@ export const CLEARED_ACK_MESSAGE = 'Cached data cleared';
 export const SECTION_TITLES: Record<NavId, string> = {
   'activity-history': 'Activity_history',
   'player-statistics': 'Player_statistics',
+  'financial-data': 'Financial_data',
   'payment-history': 'Payment_history',
   'user-info': 'User_Info',
   'not-yet-supported': 'Not yet supported',
@@ -375,11 +378,17 @@ export const IDENTITY_ARIA_LABEL = 'Account identity';
 export const IDENTITY_CAPTION = 'As of export';
 
 /**
- * The `dt` label for the region row (D-13). The value is the raw `REGION`
- * string from the export, never mapped to a friendly name; "(per export)"
- * says so before the user wonders why it reads as a code.
+ * The `dt` label for the region row (D-13, amended after UAT G-05-7).
+ *
+ * The value is still the raw `REGION` cell, never mapped to a friendly
+ * name. What changed is the WORD: a real export's `REGION` is a numeric
+ * regional code stored beside a city ("30", next to a city name), not a
+ * game realm, so a label starting with "Region" invited the reader to look
+ * for a server that the value is not. "Location code" says the value is
+ * opaque, and "(per export)" still attributes it to the file rather than to
+ * the reader's account.
  */
-export const IDENTITY_REGION_LABEL = 'Region (per export)';
+export const IDENTITY_REGION_LABEL = 'Location code (per export)';
 
 /** The `dt` label for the creation-date row (D-15). */
 export const IDENTITY_CREATED_LABEL = 'Account created';
@@ -539,15 +548,55 @@ export const TILE_LABEL_SESSIONS = 'Sessions';
 // =============================================================================
 
 /**
- * A count with `en-US` thousands separators.
+ * The locale every number in this module groups by when no explicit locale is
+ * given, and the single seam that changes it.
  *
- * The locale is pinned rather than left to the viewer's: the UI-SPEC gives
- * `1,204 hours` and `1,203 sessions` as literal expected text (D-06), and a
- * viewer in a comma-grouping locale would otherwise see the spec's own example
- * render differently from the spec.
+ * `undefined` is the deliberate production value. It is the platform's own
+ * locale — the browser's, in the app — which is the whole point: every number
+ * on the page should group the way the reader's other numbers group (D-25,
+ * 05-UI-SPEC "UI Considerations"). A comma in Berlin and a dot in Kyiv are not
+ * bugs, they are the reader's own conventions, and Phase 4's blanket `en-US`
+ * pin was quietly imposing the author's locale on everyone else's screen.
+ *
+ * Why the setter exists at all, given `undefined` is the right default: Node
+ * gives tests a different default than the browser gives the app, so a test
+ * asserting `1,234,567` is asserting about the machine it ran on rather than
+ * about this code. `tests/unit/setup.ts` calls this once with `en-US` so every
+ * expectation in the unit suite is written in one grouping style, and
+ * `tests/e2e/pin-locale.ts` does the same for the Node side of a Playwright
+ * assertion. The determinism belongs to the tests; the app keeps the viewer's.
+ *
+ * Application code must not import this (05-08 guards that at the source
+ * level): a page whose grouping could be changed underneath the reader is a
+ * page whose copy we can no longer promise.
  */
-export function formatNumber(n: number): string {
-  return n.toLocaleString('en-US');
+let defaultNumberLocale: string | undefined = undefined;
+
+/**
+ * Pin the default grouping locale for every formatter in this module that is
+ * not given an explicit locale.
+ *
+ * @param locale A BCP 47 tag such as `'en-US'`; `undefined` restores the
+ *   platform default the app actually runs with.
+ */
+export function setDefaultNumberLocale(locale: string | undefined): void {
+  defaultNumberLocale = locale;
+}
+
+/**
+ * A count with thousands separators, grouped by the viewer's locale.
+ *
+ * The locale is the viewer's rather than a hardcoded `en-US`: the UI-SPEC
+ * writes `1,204 hours` and `1,203 sessions` as *illustrations of magnitude*,
+ * not as literal expected text, and a viewer in a dot-grouping locale should
+ * see `1.204 hours`. A single grouping style across the whole page is the
+ * requirement; which style is the reader's.
+ *
+ * Tests pin the default in `tests/unit/setup.ts`, so `en-US` remains the
+ * expected output there and on a CI box set to `en_US.UTF-8`.
+ */
+export function formatNumber(n: number, locale?: string): string {
+  return numberFormatter(locale ?? defaultNumberLocale).format(n);
 }
 
 /** The number and unit of a formatted duration, as two separately styled parts. */
@@ -1165,3 +1214,929 @@ export function formatHourCellLabel(
  */
 export const HOUR_GRID_START_BASIS_NOTE =
   'Each session is counted in the weekday and hour it starts.';
+
+// =============================================================================
+// Phase 5 — the vehicle-statistics, financial and spend copy (05-08)
+// =============================================================================
+//
+// Everything a Phase 5 component can say, in one file, before any of those
+// components exist. Plans 05-10 to 05-15 build in parallel waves and must not
+// edit this module concurrently, so the inventory is settled here and every
+// later plan is a pure consumer. Each constant below carries the UI-SPEC row it
+// implements; `tests/unit/ui-copy.test.ts` asserts the same literal, so a
+// wording change has to edit the spec, the test and this file, in that order.
+//
+// Three rules run through all of it:
+//
+//   - Numbers are grouped by the VIEWER's locale (D-25). Every formatter takes
+//     an optional trailing `locale` and falls back to the module default, which
+//     the test setup pins to en-US and the app leaves as the platform's.
+//   - Exact figures are exact everywhere except a chart's axis. A compacted
+//     number in a table cell is a number the reader cannot add up.
+//   - No formatter takes an account nickname, an order id or a coupon, so none
+//     can print one (T-05-25). Currency codes, vehicle ids and battle-type codes
+//     come from the export and are interpolated as plain text, never as markup.
+// =============================================================================
+
+import { formatDecimalAmount, formatMoneyAmount, numberFormatter } from './decimal.ts';
+import { monthParts, SECONDS_PER_DAY } from './finance-shared.ts';
+import type {
+  ColumnKind,
+  SpecialKey,
+  TitleState,
+  VehicleCell,
+  VehicleTitleId,
+} from './vehicle-shared.ts';
+
+/** The character a negative axis label uses: U+2212, not the ASCII hyphen. */
+const MINUS_SIGN = '−';
+
+// -----------------------------------------------------------------------------
+// Shared formatters
+// -----------------------------------------------------------------------------
+
+const COMPACT_OPTIONS: Intl.NumberFormatOptions = { notation: 'compact', maximumFractionDigits: 1 };
+
+/**
+ * A compact magnitude for a chart axis label — `27M`, `26.1M`, `1.2K`.
+ *
+ * Compact notation with at most one fraction digit (D-25), and the spec's own
+ * example is corrected to match what this produces: 26,986,204 renders `27M`,
+ * never `26.9M`, because one fraction digit cannot express both the 26 and the
+ * 9. Axis labels only — a table cell, a tooltip or a summary sentence carries
+ * the exact figure, and every axis label also carries the exact value in an
+ * SVG `<title>` so the abbreviation is never the only record of the number.
+ *
+ * A negative value is the real minus sign followed by the magnitude, formatted
+ * separately. Doing it that way rather than formatting the negative number is
+ * what guarantees the label is `−27M` and not a locale's own negative spelling
+ * or an ASCII hyphen, which is both a different character to a screen reader
+ * and narrower than the digit it sits beside.
+ */
+export function formatCompactNumber(n: number, locale?: string): string {
+  const effective = locale ?? defaultNumberLocale;
+  if (n < 0) {
+    return `${MINUS_SIGN}${numberFormatter(effective, COMPACT_OPTIONS).format(-n)}`;
+  }
+  return numberFormatter(effective, COMPACT_OPTIONS).format(n);
+}
+
+/**
+ * A percentage with exactly one decimal and a percent sign: `55.3%`.
+ *
+ * The input is already a percentage, not a 0-to-1 ratio — `55.333` is
+ * fifty-five and a third percent, not five thousand. The vehicle percent cells
+ * scale their ratio before calling this, so there is one formatter and one
+ * rounding rule for win rate, hit ratio, survival rate and the cells that show
+ * them.
+ */
+export function formatPercent(value: number, locale?: string): string {
+  return `${numberFormatter(locale ?? defaultNumberLocale, {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(value)}%`;
+}
+
+/**
+ * A rounded, grouped integer: the average-damage column's `714`.
+ *
+ * Rounds half away from zero through `Intl`, never through a hand-rolled
+ * `Math.round` on a string, so 714.28 and 714.5 group identically in every
+ * locale rather than picking up a locale-specific separator the caller did not
+ * ask for.
+ */
+export function formatWholeNumber(value: number, locale?: string): string {
+  return numberFormatter(locale ?? defaultNumberLocale, { maximumFractionDigits: 0 }).format(value);
+}
+
+/**
+ * A month as `YYYY-MM`, built from the month index with integer arithmetic.
+ *
+ * No `Date`, deliberately (D-26). The index is a count of months from year zero
+ * and the label is a restatement of the year and month the export wrote, so
+ * routing it through a `Date` would put it through the viewer's timezone and
+ * shift the label by a month for anyone west of UTC — a chart whose bars sit
+ * under the wrong month, and an axis that disagrees with the data table below
+ * it. Four-digit year, two-digit month, both zero-padded.
+ */
+export function formatMonthLabel(monthIndexValue: number): string {
+  const { year, month } = monthParts(monthIndexValue);
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}`;
+}
+
+/**
+ * Premium time as a day count with its unit: `1 day`, `2.5 days`, `0 days`.
+ *
+ * The same rule `formatHoursParts` applies to hours, for the same reason: a
+ * whole number shows no decimal, anything else shows exactly one, and the unit
+ * is decided by the RENDERED NUMERAL rather than by the value. That is why 90
+ * seconds is `0 days` and not `0.0 days` — rounding a real, non-zero amount
+ * down to `0.0` reads as a measurement, where `0` reads as "effectively
+ * nothing", and it is the numeral that decides, so a value rounding to exactly
+ * 1 day says `1 day`.
+ *
+ * The input is seconds, an integer, because the sum is accumulated in integer
+ * seconds and only converted here. No rounding can therefore enter the total.
+ */
+export function formatPremiumDays(seconds: number, locale?: string): string {
+  const total = Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
+  const days = total / SECONDS_PER_DAY;
+  const rounded = Math.round(days * 10) / 10;
+  // `String` drops a trailing `.0` on its own, which is the whole trick: a
+  // whole number renders as an integer and a fraction keeps exactly one digit.
+  const numeral = numberFormatter(locale ?? defaultNumberLocale, {
+    maximumFractionDigits: 1,
+  }).format(rounded);
+  const isOne = rounded === 1;
+  return `${numeral} ${isOne ? 'day' : 'days'}`;
+}
+
+/**
+ * A real-money amount as the code as written, a space, and two decimals:
+ * `USD 15.50`.
+ *
+ * Three rules from the UI-SPEC, each of which is a decision rather than a
+ * default. Never a symbol: `$15.50` is ambiguous to a reader who has seen two
+ * currencies in one card, and the code is what the export and the bank both
+ * use. Never converted: this app cannot know a rate, and a converted total is a
+ * number the user cannot check. Never re-cased: `usd` stays `usd`, because the
+ * code is data the user recognises from their own statement.
+ *
+ * A null code is the unknown-currency case — the UI-SPEC's "no valid
+ * three-letter currency code, so the amount has no unit" — and renders the bare
+ * amount rather than inventing a unit, because inventing one is exactly the
+ * false statement the UI-SPEC warns about. The amount itself is computed by the
+ * decimal module, so no float ever touches a currency value.
+ */
+export function formatMoney(code: string | null, units: bigint, locale?: string): string {
+  const amount = formatMoneyAmount(units, locale ?? defaultNumberLocale);
+  return code === null ? amount : `${code} ${amount}`;
+}
+
+/**
+ * A virtual-currency amount, exact and grouped: `30,435,000`.
+ *
+ * Unlike money, these are NOT money and are not two-decimal: the UI-SPEC carries
+ * the raw export figure, and rounding a virtual balance to cents would be
+ * inventing precision the data does not have. Compact notation appears on a
+ * chart axis only, via {@link formatCompactNumber}.
+ */
+export function formatFlowAmount(units: bigint, locale?: string): string {
+  return formatDecimalAmount(units, locale ?? defaultNumberLocale);
+}
+
+// -----------------------------------------------------------------------------
+// Vehicle statistics — STATS-01, D-05..D-14
+// -----------------------------------------------------------------------------
+
+/** UI-SPEC New copy: Player sub-heading. */
+export const PLAYER_STATS_HEADING = 'Vehicle statistics';
+/** UI-SPEC New copy: Loading. */
+export const PLAYER_STATS_LOADING = 'Calculating vehicle statistics...';
+/** UI-SPEC New copy: Updating. */
+export const PLAYER_STATS_UPDATING = 'Updating table...';
+/** UI-SPEC Error state — vehicle statistics. Destructive chrome, `role="alert"`. */
+export const PLAYER_STATS_ERROR =
+  'Vehicle statistics could not be calculated from this export. Your imported data is unchanged. Drop the export again to retry.';
+
+/** UI-SPEC New copy: Game control label and options. */
+export const TITLE_CONTROL_LABEL = 'Game';
+/** UI-SPEC Battle type control: label. */
+export const BATTLE_TYPE_CONTROL_LABEL = 'Battle type';
+/** UI-SPEC Battle type control: the all-battles option. */
+export const BATTLE_TYPE_ALL_OPTION = 'All battles';
+/** UI-SPEC New copy: Search. */
+export const VEHICLE_SEARCH_LABEL = 'Search vehicles';
+/** UI-SPEC Per-title header labels. */
+export const HEADER_LIFETIME_BATTLES_LABEL = 'Lifetime battles';
+export const HEADER_PREMIUM_EXPIRES_LABEL = 'Premium expires';
+
+/**
+ * The four game labels, keyed by the id the export and the shared types use.
+ *
+ * The labels are the reader's names for the games, not the export's folder
+ * names: the section card says `Financial_data` because that is what the export
+ * calls the folder, but a `<select>` saying `Player_statistics` would be
+ * meaningless to anyone who has not opened the zip.
+ */
+export const VEHICLE_TITLE_LABELS: Readonly<Record<VehicleTitleId, string>> = {
+  wot: 'WoT',
+  wotb: 'WoT Blitz',
+  wows: 'Warships',
+  wowp: 'Warplanes',
+};
+
+/**
+ * One option in the Game control: the label, plus a suffix when the title is
+ * not chartable.
+ *
+ * The suffixes are in the option text rather than beside it so a reader can see,
+ * in the list they are choosing from, that a title has no data. `ready` carries
+ * no suffix: "Warplanes (no rows in this export)" on a title that does have rows
+ * would be a lie, and the empty state exists to say the other thing.
+ */
+export function formatTitleOption(title: VehicleTitleId, state: TitleState): string {
+  const label = VEHICLE_TITLE_LABELS[title];
+  if (state === 'not-in-export') return `${label} (not in this export)`;
+  if (state === 'no-rows') return `${label} (no rows in this export)`;
+  return label;
+}
+
+/**
+ * A battle type as the export numbers it: `Battle type 3`.
+ *
+ * Never named. The export records a code and no label, and a lookup table would
+ * be a guess about a game's internal enum that a future version could renumber
+ * without anyone noticing.
+ */
+export function formatBattleTypeLabel(code: string): string {
+  return `Battle type ${code}`;
+}
+
+/** UI-SPEC Special values: the six non-numeric cell readings. */
+export const VALUE_NOT_DEFINED = 'not defined';
+export const VALUE_NOT_AVAILABLE = 'not available';
+export const VALUE_NOT_IN_EXPORT = 'not in export';
+export const VALUE_DASH = '—';
+export const VALUE_NO_BATTLES_HIDDEN = 'no battles';
+export const VALUE_NO_SHOTS_HIDDEN = 'no shots';
+export const VALUE_PER_BATTLE_TYPE = 'Available per battle type';
+/** UI-SPEC Garage values. */
+export const GARAGE_YES = 'Yes';
+export const GARAGE_NO = 'No';
+/** Shown in the Vehicle column when the export wrote no usable name. */
+export const VEHICLE_BLANK_NAME = '(not recorded)';
+
+/**
+ * The 17 column headers, keyed by the canonical column key.
+ *
+ * The keys are canonical and the export's own header names are not: the same
+ * logical column is `FRAGS_COUNT` in one title's file and `FRAGS` in another's,
+ * so a key per export header would give the table 17 names per view.
+ *
+ * They are the worker's own `VehicleColumn.key` values — `winRate`,
+ * `avgDamage`, `xp` and so on, from `src/lib/worker/vehicle-stats.ts` — and
+ * they are the keys that reach the DOM in `data-testid="vehicle-sort-{key}"`
+ * and 05-14's `column-toggle-{key}`. Spelling them differently here would put
+ * a second vocabulary between the worker and the table, and the table's header
+ * would fall through to printing the key itself: a column headed `winRate`
+ * instead of `Win rate`. `tests/unit/vehicle-blocks.test.ts` builds a real view
+ * and fails if any column key is missing from this object, which is what keeps
+ * the two sides from drifting apart again.
+ */
+export const VEHICLE_COLUMN_LABELS = {
+  vehicle: 'Vehicle',
+  battles: 'Battles',
+  winRate: 'Win rate',
+  avgDamage: 'Avg damage',
+  frags: 'Frags',
+  xp: 'Total XP',
+  survival: 'Survival rate',
+  hitRatio: 'Hit ratio',
+  maxDamage: 'Max damage',
+  maxFrags: 'Max frags',
+  maxXp: 'Max XP',
+  damageReceived: 'Damage received',
+  spotted: 'Spotted',
+  planesDestroyed: 'Planes destroyed',
+  distance: 'Distance',
+  lastBattle: 'Last battle',
+  inGarage: 'In garage',
+} as const;
+
+/** UI-SPEC Column picker: summary and legend. */
+export const COLUMN_PICKER_SUMMARY = 'Choose columns';
+export const COLUMN_PICKER_LEGEND = 'Extra columns';
+
+/** UI-SPEC Vehicle table title and hints. */
+export const VEHICLE_TABLE_TITLE = 'Vehicles';
+export const VEHICLE_SCROLL_HINT =
+  'Focus the table, then use the arrow keys or Page Up and Page Down to scroll.';
+export const VEHICLE_FIND_HINT =
+  "Only the rows on screen are loaded into the page, so use Search vehicles rather than your browser's find.";
+
+/** UI-SPEC New copy: No search match, Derived-value note, Warships note. */
+export const VEHICLE_NO_MATCH = 'No vehicles match your search.';
+export const VEHICLE_DERIVED_NOTE =
+  "Win rate and average damage are calculated here from the export's totals (wins ÷ battles, damage dealt ÷ battles).";
+export const WARSHIPS_ALL_NOTE =
+  'Warships all-battles rows only record battles. Choose a battle type to see wins and damage.';
+
+/** UI-SPEC Battle-type notes: WoT/Blitz, and Warships. */
+export const BATTLE_TYPE_NOTE_TANKS =
+  'Battle-type data covers only part of your battles, so these rows will not add up to the All battles totals.';
+export const BATTLE_TYPE_NOTE_WARSHIPS =
+  'Each Warships battle is counted under two battle types, so rows from different battle types cannot be added together.';
+
+/** UI-SPEC Battle-type summary heading, caption, disclosure, headers, note. */
+export const BATTLE_TYPE_SUMMARY_HEADING = 'Battles by battle type';
+export const BATTLE_TYPE_SUMMARY_CAPTION =
+  'Battle types are numbered in the export but not named, so they are shown as "Battle type N".';
+export const BATTLE_TYPE_SUMMARY_DISCLOSURE = 'Battle types';
+export const BATTLE_TYPE_SUMMARY_HEADERS = ['Battle type', 'Battles', 'Wins', 'Damage dealt'];
+export const BATTLE_TYPE_SUMMARY_NOTE_WARSHIPS =
+  'In Warships each battle is counted under two battle types, so these rows add up to more than your battle count.';
+
+/**
+ * The Warplanes 20-row note, with all four of its singular/plural decisions.
+ *
+ * A four-part sentence with two counts in it, and the UI-SPEC gives its
+ * singular forms explicitly: `1 plane record ... has` and `1 battle`. The verb
+ * agrees with the record count and the trailing verb with the battle count, so
+ * one record and one battle reads correctly, four and eight reads correctly, and
+ * four records with one battle — the shape an export with one flown plane
+ * actually has — reads correctly too.
+ */
+export function formatWarplanes20Note(records: number, battles: number, locale?: string): string {
+  const n = formatNumber(records, locale);
+  const b = formatNumber(battles, locale);
+  // Both verbs key on the RECORD count, not the battle count. The sentence has
+  // one subject — the plane records — so "1 plane record ... has ... It records
+  // 1 battle" has to agree twice; a note that said "They" about a single record
+  // is the kind of thing that makes a reader distrust the count next to it.
+  return (
+    `${n} plane record${records === 1 ? '' : 's'} in the newer Warplanes file ` +
+    `${records === 1 ? 'has' : 'have'} no names in the export. ` +
+    `${records === 1 ? 'It records' : 'They record'} ${b} ` +
+    `battle${battles === 1 ? '' : 's'} in total.`
+  );
+}
+
+/**
+ * The table's accessible name: `Vehicle statistics, WoT, all battles`.
+ *
+ * The same string the region's `aria-label` and the hidden `<caption>` carry,
+ * so a screen reader announces the scroller with its context rather than as an
+ * unlabelled region. A null battle type reads `all battles`; a code reads
+ * `Battle type {code}`, the same words the control and the note use, so the
+ * three never disagree about what is being shown.
+ */
+export function formatVehicleRegionName(title: VehicleTitleId, battleType: string | null): string {
+  const label = VEHICLE_TITLE_LABELS[title];
+  const scope = battleType === null ? 'all battles' : `Battle type ${battleType}`;
+  return `Vehicle statistics, ${label}, ${scope}`;
+}
+
+/**
+ * What the live region announces when the title or battle type changes:
+ * `Showing WoT, all battles: 42 vehicles.`
+ *
+ * The count is in the announcement because the row count changes with the
+ * filter and a reader who is not watching the table has no other way to know
+ * that a change landed, or how much of their data is now on screen. The
+ * singular is explicit, because "1 vehicles" is the kind of thing a reader stops
+ * trusting the rest of the page over.
+ */
+export function formatVehicleAnnouncement(
+  title: VehicleTitleId,
+  battleType: string | null,
+  count: number,
+  locale?: string,
+): string {
+  const label = VEHICLE_TITLE_LABELS[title];
+  const scope = battleType === null ? 'all battles' : `Battle type ${battleType}`;
+  return `Showing ${label}, ${scope}: ${formatNumber(count, locale)} vehicle${count === 1 ? '' : 's'}.`;
+}
+
+/**
+ * The count line above the table: `1,204 vehicles · 3 with no battles`.
+ *
+ * The zero-battle part is omitted entirely at zero rather than shown as
+ * "· 0 with no battles": a vehicle list where every row has battles is the
+ * ordinary case, and a trailing zero there is noise that costs a clause of
+ * reading for no information. Both counts have explicit singulars, and a single
+ * vehicle with no battles is the case most likely to be seen and least likely to
+ * be written by hand.
+ */
+export function formatVehicleCount(total: number, zeroBattle: number, locale?: string): string {
+  const t = formatNumber(total, locale);
+  const first = `${t} vehicle${total === 1 ? '' : 's'}`;
+  if (zeroBattle === 0) return first;
+  return `${first} · ${formatNumber(zeroBattle, locale)} with no battles`;
+}
+
+/** The count line with a search active: `3 of 5,000 vehicles shown`. */
+export function formatVehicleSearchCount(shown: number, total: number, locale?: string): string {
+  return `${formatNumber(shown, locale)} of ${formatNumber(total, locale)} vehicles shown`;
+}
+
+/** UI-SPEC Empty state body — title absent, and title with no rows. */
+export function formatTitleNotInExport(titleLabel: string): string {
+  return `${titleLabel} is not in this export`;
+}
+
+/** UI-SPEC Empty state body — title with no rows. */
+export function formatTitleNoRows(titleLabel: string): string {
+  return `This export contains no vehicle rows for ${titleLabel}`;
+}
+
+/** One table cell as the page renders it: what it says, and how it is styled. */
+export type VehicleCellView = {
+  /** The visible text. */
+  text: string;
+  /** True when the cell is a non-value and should read as muted chrome. */
+  muted: boolean;
+  /** Text for a screen reader when the visible text says too little, else null. */
+  hidden: string | null;
+};
+
+/** What each non-numeric special key renders as. */
+const SPECIAL_VALUES: Readonly<Record<SpecialKey, { text: string; hidden: string | null }>> = {
+  nd: { text: VALUE_NOT_DEFINED, hidden: null },
+  na: { text: VALUE_NOT_AVAILABLE, hidden: null },
+  missing: { text: VALUE_NOT_IN_EXPORT, hidden: null },
+  'no-battles': { text: VALUE_DASH, hidden: VALUE_NO_BATTLES_HIDDEN },
+  'no-shots': { text: VALUE_DASH, hidden: VALUE_NO_SHOTS_HIDDEN },
+  'per-type': { text: VALUE_PER_BATTLE_TYPE, hidden: null },
+};
+
+/**
+ * One table cell, as text plus the two things a cell needs beyond its text.
+ *
+ * The kind decides the format, so the table never has to guess (D-25): `count`
+ * and `whole` are exact grouped integers, `percent` is one decimal with a `%`,
+ * `text` and `date` pass the export's characters through untouched, and `garage`
+ * is Yes/No.
+ *
+ * A `percent` cell's number IS the percentage — 55, not 0.55 — because the
+ * worker's `derived` spec scales the ratio once, when it builds the cell, and
+ * `formatPercent` is named for the value it is given. There is deliberately NO
+ * second multiply here: doing it in both places is what made plan 05-14 find a
+ * Warplanes win rate of `5,000.0%` where the export says two wins in four
+ * games. One place scales, and it is the builder.
+ *
+ * Every special is muted and none is, which is the whole reason the flag
+ * exists: a row of `not available` must not read as a row of numbers, and a
+ * muted number would be a real value made unreadable. The two dashes carry
+ * hidden text because a dash on its own tells a screen-reader user that nothing
+ * is there and not why; `no battles` and `no shots` are different facts, and the
+ * difference is the point of the column.
+ *
+ * A date cell prints the export's own text. Parsing it into a local date and
+ * reformatting would move it by a day for a reader west of UTC (D-01), and the
+ * export's string is the one the user recognises from their own file.
+ */
+export function formatVehicleCell(
+  cell: VehicleCell,
+  kind: ColumnKind,
+  locale?: string,
+): VehicleCellView {
+  if (cell.t === 'x') {
+    const special = SPECIAL_VALUES[cell.v];
+    return { text: special.text, muted: true, hidden: special.hidden };
+  }
+  if (cell.t === 's' || cell.t === 'd') {
+    return { text: cell.v, muted: false, hidden: null };
+  }
+  if (cell.t === 'b') {
+    return { text: cell.v ? GARAGE_YES : GARAGE_NO, muted: false, hidden: null };
+  }
+  // `t === 'n'`: the only kind any arithmetic may touch, and the only one the
+  // column's kind has an opinion about.
+  const value = cell.v;
+  switch (kind) {
+    case 'count':
+      return { text: formatNumber(value, locale), muted: false, hidden: null };
+    case 'whole':
+      return { text: formatWholeNumber(value, locale), muted: false, hidden: null };
+    case 'percent':
+      return { text: formatPercent(value, locale), muted: false, hidden: null };
+    default:
+      return { text: String(value), muted: false, hidden: null };
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Financial data — FINANCE-01..02, D-15..D-20
+// -----------------------------------------------------------------------------
+
+/** UI-SPEC New copy: Financial sub-headings. */
+export const FINANCIAL_PREMIUM_HEADING = 'Premium time';
+export const FINANCIAL_CURRENCY_HEADING = 'Virtual currency';
+/** UI-SPEC New copy: Financial loading. */
+export const FINANCIAL_LOADING = 'Calculating financial data...';
+/** UI-SPEC Empty state body — Financial sub-blocks: the whole file is absent. */
+export const FINANCIAL_NOT_IN_EXPORT = 'Not in this export';
+/** UI-SPEC Error state — financial data. */
+export const FINANCIAL_ERROR =
+  'Financial data could not be calculated from this export. Your imported data is unchanged. Drop the export again to retry.';
+/** UI-SPEC Empty state body — nothing usable, per sub-block. */
+export const PREMIUM_NO_USABLE =
+  'No premium operations with a recognisable duration were found in this export.';
+export const CURRENCY_NO_USABLE =
+  'No virtual-currency operations with a known type and a numeric amount were found in this export.';
+/** UI-SPEC Premium chart title. */
+export const PREMIUM_CHART_TITLE = 'Premium days granted per month';
+
+/** Which Financial sub-block an empty-state string is for. */
+export type FinancialBlock = 'premium' | 'currency';
+
+/**
+ * The per-block empty state when the file was present but held no rows:
+ * `This export contains no rows for Premium time`.
+ *
+ * Naming the file, not the category, because "no rows" and "not in this export"
+ * are different problems for the reader: the first means the export omitted this
+ * game's data, the second means this export has no such file at all, and only
+ * one of them is fixed by exporting a wider date range.
+ */
+export function formatFinancialNoRows(block: FinancialBlock): string {
+  return `This export contains no rows for ${block === 'premium' ? FINANCIAL_PREMIUM_HEADING : FINANCIAL_CURRENCY_HEADING}`;
+}
+
+/**
+ * The premium exclusion explanation, amended in 05-08.
+ *
+ * All three reasons, because a row dropped without being counted is a row the
+ * chart silently omits while the pill reports a smaller number: a premium value
+ * that is not a duration, a value that is a withdrawal (a removal of time, not a
+ * grant), and a date that cannot be read (no month to place it in). The wording
+ * is asserted in `tests/unit/ui-copy.test.ts` against the amended UI-SPEC row.
+ */
+export const PREMIUM_EXCLUDED_EXPLANATION =
+  'Rows whose premium value is not a recognisable duration or is a withdrawal, or whose date cannot be read, are not counted in the chart.';
+
+/**
+ * The currency exclusion explanation, amended in 05-08.
+ *
+ * Same reason as the premium side, plus the date clause for the same reason. A
+ * negative amount is covered by "non-numeric" on purpose: an export that records
+ * a withdrawal as a negative deposit must not have it summed as an inflow, and
+ * the reader is told the row is excluded rather than that it was reversed.
+ */
+export const CURRENCY_EXCLUDED_EXPLANATION =
+  'Operations with an unknown type, a non-numeric amount or a date that cannot be read are not counted in any chart or total below.';
+
+/** UI-SPEC New copy: Currency block caption, and the basis caption. */
+export const CURRENCY_BLOCK_CAPTION =
+  'Each currency has its own scale, so bar heights cannot be compared between charts. Dates are as recorded in the export.';
+export const BAR_CHART_BASIS_CAPTION = 'Dates are as recorded in the export.';
+/** UI-SPEC New copy: Chart keyboard hint. */
+export const BAR_CHART_KEYBOARD_HINT = 'Use the left and right arrow keys to move between months.';
+/** The tooltip's final line, which is the caption without its full stop. */
+export const TOOLTIP_BASIS_LINE = 'Dates as recorded in the export';
+
+/** UI-SPEC New copy: Flow legend. The words, not the swatches, carry it. */
+export const FLOW_LEGEND_DEPOSITED = 'Deposited (above the line)';
+export const FLOW_LEGEND_WITHDRAWN = 'Withdrawn (below the line)';
+
+/** UI-SPEC New copy: Other currencies. */
+export const OTHER_CURRENCIES_HEADING = 'Other currencies';
+export const OTHER_CURRENCIES_CAPTION = 'These currencies have too few operations for a chart.';
+/** The label for a currency code the export left blank. */
+export const CURRENCY_BLANK_CODE = '(not recorded)';
+
+/** UI-SPEC New copy: Monthly data table. */
+export const MONTHLY_TABLE_DISCLOSURE = 'Monthly data table';
+export const PREMIUM_TABLE_HEADERS = ['Month', 'Days granted', 'Grants'];
+export const CURRENCY_TABLE_HEADERS = ['Month', 'Deposited', 'Withdrawn', 'Operations'];
+
+/**
+ * The excluded-row pill: `7 premium rows excluded`, or the empty string at zero.
+ *
+ * Zero is the empty string so the component has one condition instead of two —
+ * the UI-SPEC says the pill is never rendered at zero, and returning a label
+ * there would invite a caller to render it. Each of the three pills follows
+ * this shape and each has an explicit singular, because a lone excluded row is
+ * a normal thing to see in a small export and "1 premium rows excluded" is the
+ * kind of error that makes a reader distrust the count itself.
+ */
+export function formatPremiumExcludedPill(n: number, locale?: string): string {
+  if (n === 0) return '';
+  return `${formatNumber(n, locale)} premium row${n === 1 ? '' : 's'} excluded`;
+}
+
+/** The currency block's excluded-row pill: `4 operation rows excluded`. */
+export function formatOperationExcludedPill(n: number, locale?: string): string {
+  if (n === 0) return '';
+  return `${formatNumber(n, locale)} operation row${n === 1 ? '' : 's'} excluded`;
+}
+
+/** The spend block's excluded-row pill: `3 paid orders excluded`. */
+export function formatPaidExcludedPill(n: number, locale?: string): string {
+  if (n === 0) return '';
+  return `${formatNumber(n, locale)} paid order${n === 1 ? '' : 's'} excluded`;
+}
+
+/**
+ * The premium disclosure heading: `Premium values not charted (3)`.
+ *
+ * Renamed in 05-08 from a heading that said "unrecognised". It no longer lists
+ * only unrecognised values: a withdrawal row's premium string parses fine and is
+ * still not charted, so the old heading told the reader something false about
+ * the string in front of them. The `data-testid` stays `premium-unrecognised` so
+ * the consumer plan and its tests keep the hook they were written against.
+ */
+export function formatPremiumUnrecognisedDisclosure(count: number): string {
+  return `Premium values not charted (${formatNumber(count)})`;
+}
+
+/**
+ * The disclosure's overflow line: `and 12 more`.
+ *
+ * The listed strings are capped at 20, so the count is of what was NOT listed.
+ * A reader who needs to know which of their rows were dropped has to be able to
+ * see that the list is partial rather than assuming it is everything.
+ */
+export function formatUnrecognisedOverflow(remaining: number): string {
+  return `and ${formatNumber(remaining)} more`;
+}
+
+/** The figures a premium summary sentence is built from. */
+export type PremiumSummaryFigures = {
+  /** How many drawn months had at least one grant. */
+  monthsWithGrants: number;
+  /** How many months the chart draws in total. */
+  spanMonths: number;
+  /** Total granted time in whole seconds — an integer, never a rounded float. */
+  totalSeconds: number;
+  /** How many operations contributed. */
+  grants: number;
+  /** Month index of the largest month. */
+  peakMonth: number;
+  /** The largest month's granted time in whole seconds. */
+  peakSeconds: number;
+};
+
+/**
+ * The premium block's summary sentence: `Premium time was granted in 2 of 5
+ * months: 5 in total across 3 operations. The largest month was 2019-03 with 3.`
+ *
+ * "2 of 5 months" rather than "5 days in March" because the gaps are the finding:
+ * a block that granted time in two of five months is a different fact from one
+ * that granted five days' worth in total, and only the first says the export is
+ * sparse. The largest month is named because that is the row a reader will want
+ * next, and it is rendered through the same day formatter as everything else, so
+ * a single day reads `1 day`.
+ */
+export function formatPremiumSummary(figures: PremiumSummaryFigures, locale?: string): string {
+  const { monthsWithGrants, spanMonths, totalSeconds, grants, peakMonth, peakSeconds } = figures;
+  return (
+    `Premium time was granted in ${formatNumber(monthsWithGrants, locale)} of ` +
+    `${formatNumber(spanMonths, locale)} months: ` +
+    `${formatPremiumDays(totalSeconds, locale)} in total across ` +
+    `${formatNumber(grants, locale)} operation${grants === 1 ? '' : 's'}. ` +
+    `The largest month was ${formatMonthLabel(peakMonth)} with ` +
+    `${formatPremiumDays(peakSeconds, locale)}.`
+  );
+}
+
+/** The figures a currency block's summary sentence is built from. */
+export type CurrencySummaryFigures = {
+  /** Deposited total, in micro-units. */
+  inUnits: bigint;
+  /** Withdrawn total, in micro-units. */
+  outUnits: bigint;
+  /** Usable operations in the block. */
+  ops: number;
+  firstMonth: number;
+  lastMonth: number;
+};
+
+/**
+ * The shared "one month versus many" clause.
+ *
+ * `from 2019-01 to 2019-07` and `in 2019-03` are the same fact stated honestly:
+ * a single-month block is a currency with one month of history, and "from
+ * 2019-03 to 2019-03" reads like a bug in the date handling.
+ */
+function monthSpan(firstMonth: number, lastMonth: number): string {
+  if (firstMonth === lastMonth) return `in ${formatMonthLabel(firstMonth)}`;
+  return `from ${formatMonthLabel(firstMonth)} to ${formatMonthLabel(lastMonth)}`;
+}
+
+/**
+ * A currency block's summary: `Deposited 1 and withdrew 2.5 across 9 operations,
+ * from 2019-01 to 2019-07.`
+ *
+ * Both directions are named, not just the net, because a currency can be heavily
+ * two-way and a single figure would hide the churn. The amounts are exact —
+ * the compact form is for the axis only, and the axis carries the exact value in
+ * its `<title>`.
+ */
+export function formatCurrencySummary(figures: CurrencySummaryFigures, locale?: string): string {
+  const { inUnits, outUnits, ops, firstMonth, lastMonth } = figures;
+  return (
+    `Deposited ${formatFlowAmount(inUnits, locale)} and withdrew ` +
+    `${formatFlowAmount(outUnits, locale)} across ${formatNumber(ops, locale)} ` +
+    `operation${ops === 1 ? '' : 's'}, ${monthSpan(firstMonth, lastMonth)}.`
+  );
+}
+
+/** The figures one "Other currencies" row is built from. */
+export type OtherCurrencyFigures = {
+  /** The code as the export wrote it, or null when it wrote none. */
+  code: string | null;
+  inUnits: bigint;
+  outUnits: bigint;
+  ops: number;
+  firstMonth: number;
+  lastMonth: number;
+};
+
+/**
+ * One row of the Other currencies list: `Deposited 0 · Withdrawn 0 · 2019-05 ·
+ * 1 operation`.
+ *
+ * Every currency code in the export appears in either a chart or this list, so
+ * this row is the only place a reader learns a currency exists at all. It
+ * therefore shows the same span and operation count as a charted block, with the
+ * separator dots of a compact line rather than a sentence, because a list of
+ * eight one-line rows of full sentences is unreadable.
+ */
+export function formatOtherCurrencyRow(figures: OtherCurrencyFigures, locale?: string): string {
+  const { inUnits, outUnits, ops, firstMonth, lastMonth } = figures;
+  // A single month shows the bare `YYYY-MM`, exactly as the summary sentence
+  // does: "2019-05 to 2019-05" reads like a date-range bug rather than like one
+  // month of history. The code is not in this string — the component renders it
+  // in the Label role beside the Caption, so a screen reader reads the code and
+  // the figures as one row without the code being part of the sentence.
+  const span =
+    firstMonth === lastMonth
+      ? formatMonthLabel(firstMonth)
+      : `${formatMonthLabel(firstMonth)} to ${formatMonthLabel(lastMonth)}`;
+  return (
+    `Deposited ${formatFlowAmount(inUnits, locale)} · ` +
+    `Withdrawn ${formatFlowAmount(outUnits, locale)} · ` +
+    `${span} · ` +
+    `${formatNumber(ops, locale)} operation${ops === 1 ? '' : 's'}`
+  );
+}
+
+/** One month of premium time, as the tooltip and the cell label receive it. */
+export type PremiumMonthFigure = {
+  /** Month index. */
+  month: number;
+  /** Granted time in whole seconds; 0 for an empty month. */
+  seconds: number;
+  /** Grants in the month; 0 for an empty month. */
+  grants: number;
+  /** Distinct grant sizes as `[seconds, count]`, already ordered and truncated. */
+  sizes: ReadonlyArray<readonly [seconds: number, count: number]>;
+  /** How many sizes were dropped from `sizes`. */
+  moreSizes: number;
+};
+
+/** A tooltip's two fixed lines and its extra lines, in render order. */
+export type TooltipLines = {
+  line1: string;
+  line2: string;
+  extra: string[];
+};
+
+/**
+ * The premium tooltip: month, grant line, one sizes line, then the basis line.
+ *
+ * The sizes are ONE line joined by commas rather than one line per size, because
+ * the tooltip is capped at 240px and a month with four sizes would push the basis
+ * line — the one that stops the reader assuming a timezone conversion — off the
+ * bottom. Dropped sizes leave a trailing `+{k} more sizes` so the line never
+ * looks complete when it is not.
+ *
+ * An empty month says so in line 2 and keeps only the basis line: there is no
+ * grant line to restate and no sizes to show, and an empty chart column is a
+ * fact rather than a gap in the data.
+ */
+export function formatPremiumTooltip(month: PremiumMonthFigure, locale?: string): TooltipLines {
+  const line1 = formatMonthLabel(month.month);
+  const basis = [TOOLTIP_BASIS_LINE];
+  if (month.grants === 0) {
+    return { line1, line2: 'No premium granted', extra: basis };
+  }
+  const days = formatPremiumDays(month.seconds, locale);
+  const line2 = `${days} granted · ${formatNumber(month.grants, locale)} grant${month.grants === 1 ? '' : 's'}`;
+  const extra: string[] = [];
+  if (month.sizes.length > 0) {
+    const parts = month.sizes.map(
+      ([seconds, count]) =>
+        `${formatPremiumDays(seconds, locale)} × ${formatNumber(count, locale)}`,
+    );
+    if (month.moreSizes > 0) {
+      parts.push(`+${formatNumber(month.moreSizes, locale)} more sizes`);
+    }
+    extra.push(parts.join(', '));
+  }
+  extra.push(TOOLTIP_BASIS_LINE);
+  return { line1, line2, extra };
+}
+
+/** One month of virtual-currency flow, as the tooltip and cell label receive it. */
+export type CurrencyMonthFigure = {
+  month: number;
+  /** Micro-units deposited; 0n for an empty month. */
+  inUnits: bigint;
+  /** Micro-units withdrawn; 0n for an empty month. */
+  outUnits: bigint;
+  inOps: number;
+  outOps: number;
+};
+
+/**
+ * The currency tooltip: month, deposit line, withdrawal line, basis line.
+ *
+ * The two directions get one line each rather than being netted, matching the
+ * legend and the table. An empty month reads `No operations` — "no operations"
+ * rather than "no deposits", because a month with withdrawals and no deposits
+ * is a real month the reader is looking at, not an empty one.
+ */
+export function formatCurrencyTooltip(month: CurrencyMonthFigure, locale?: string): TooltipLines {
+  const line1 = formatMonthLabel(month.month);
+  if (month.inOps === 0 && month.outOps === 0) {
+    return { line1, line2: 'No operations', extra: [TOOLTIP_BASIS_LINE] };
+  }
+  const inOps = formatNumber(month.inOps, locale);
+  const outOps = formatNumber(month.outOps, locale);
+  return {
+    line1,
+    line2: `Deposited ${formatFlowAmount(month.inUnits, locale)} · ${inOps} operation${month.inOps === 1 ? '' : 's'}`,
+    extra: [
+      `Withdrawn ${formatFlowAmount(month.outUnits, locale)} · ${outOps} operation${month.outOps === 1 ? '' : 's'}`,
+      TOOLTIP_BASIS_LINE,
+    ],
+  };
+}
+
+/**
+ * The accessible name of a premium month cell, read by a screen reader when the
+ * month takes focus: `2019-03: 5 days granted, 3 grants`.
+ *
+ * The figures are restated rather than pointing at the tooltip, because the cell
+ * a keyboard user has focused is the only thing they are told about, and the
+ * tooltip is a pointer affordance they have not opened. The empty month's form
+ * is the one that matters most here — a bare dash or an empty cell would
+ * announce as nothing at all.
+ */
+export function formatPremiumCellLabel(month: PremiumMonthFigure, locale?: string): string {
+  const label = formatMonthLabel(month.month);
+  if (month.grants === 0) return `${label}: no premium granted`;
+  const days = formatPremiumDays(month.seconds, locale);
+  return `${label}: ${days} granted, ${formatNumber(month.grants, locale)} grant${month.grants === 1 ? '' : 's'}`;
+}
+
+/** The accessible name of a currency month cell. */
+export function formatCurrencyCellLabel(month: CurrencyMonthFigure, locale?: string): string {
+  const label = formatMonthLabel(month.month);
+  if (month.inOps === 0 && month.outOps === 0) return `${label}: no operations`;
+  const ops = formatNumber(month.inOps + month.outOps, locale);
+  return (
+    `${label}: deposited ${formatFlowAmount(month.inUnits, locale)}, ` +
+    `withdrawn ${formatFlowAmount(month.outUnits, locale)}, ` +
+    `${ops} operation${ops === '1' ? '' : 's'}`
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Real-money spend — FINANCE-03, D-21..D-24
+// -----------------------------------------------------------------------------
+
+/** UI-SPEC New copy: Spend sub-heading and intro. */
+export const SPEND_HEADING = 'Real-money spend';
+export const SPEND_INTRO =
+  'Only paid orders are totalled. Failed and new orders are counted separately. Each currency has its own total: nothing is converted or added across currencies.';
+/** UI-SPEC Spend loading. */
+export const SPEND_LOADING = 'Calculating spend...';
+/** UI-SPEC Empty state body — nothing usable. */
+export const SPEND_NO_USABLE = 'No orders with a recognisable status were found in this export.';
+/** UI-SPEC Error state — spend summary. */
+export const SPEND_ERROR =
+  'The spend summary could not be calculated from this export. Your imported data is unchanged. Drop the export again to retry.';
+
+/** UI-SPEC Spend card figure labels. */
+export const SPEND_LABEL_FAILED = 'Failed';
+export const SPEND_LABEL_NEW = 'New';
+export const SPEND_LABEL_OTHER = 'Other status';
+
+/** UI-SPEC New copy: Spend breakdown. */
+export const SPEND_BREAKDOWN_DISCLOSURE = 'Breakdown by year and game code';
+export const SPEND_BY_YEAR = 'By year';
+export const SPEND_BY_GAME = 'By game code';
+export const SPEND_BREAKDOWN_HEADERS = ['Year', 'Game code', 'Paid orders', 'Total'];
+export const SPEND_UNKNOWN_YEAR = 'Unknown year';
+export const SPEND_BLANK_GAME = '(not recorded)';
+
+/** UI-SPEND Spend excluded pill and explanation. */
+export const SPEND_EXCLUDED_EXPLANATION =
+  'Paid orders with a non-numeric amount are not included in any total.';
+
+/** UI-SPEND Unknown currency: heading and caption. */
+export const UNKNOWN_CURRENCY_HEADING = 'Unknown currency';
+export const UNKNOWN_CURRENCY_CAPTION =
+  'These orders have no valid three-letter currency code, so the amount has no unit and may mix different currencies.';
+
+/** The spend card's paid-order count: `1 paid order`, `4 paid orders`. */
+export function formatPaidOrders(n: number, locale?: string): string {
+  return `${formatNumber(n, locale)} paid order${n === 1 ? '' : 's'}`;
+}
+
+/**
+ * The gift-order line: `Includes 2 gift orders worth USD 5.01.`
+ *
+ * The worth arrives already formatted by the caller, deliberately. This
+ * formatter is about the COUNT and its singular; the amount is a currency value
+ * and currency values go through {@link formatMoney} at the point they are
+ * computed, so there is exactly one place a currency is rendered and this one
+ * cannot invent a second code or a symbol for it.
+ */
+export function formatGiftLine(count: number, worth: string): string {
+  return `Includes ${formatNumber(count)} gift order${count === 1 ? '' : 's'} worth ${worth}.`;
+}

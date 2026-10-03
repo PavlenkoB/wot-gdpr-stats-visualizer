@@ -6,3 +6,5 @@
 *.gif
 *.bmp
 *.tiff
+interaction/
+*.json

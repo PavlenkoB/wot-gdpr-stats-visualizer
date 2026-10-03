@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Defensive Parsing & Persistent Dataset** - Worker-less PapaParse, mojibake fix, Dexie schema, hash-dedup, replace-on-upload, "clear my cached data" (completed 2026-09-29)
 - [x] **Phase 3: Dashboard Shell & Account Identity** - Runes app state, single-page layout, identity header, "detected but not yet supported" banners, empty/greyed sections (completed 2026-09-29)
 - [x] **Phase 4: Activity Time Dashboards** - Totals, year-by-year calendar heatmap, day × hour heatmap, session-duration distribution at scale (completed 2026-10-01)
-- [ ] **Phase 5: Vehicle Stats & Financial Dashboards** - Per-vehicle stats across 4 titles, premium-time and currency timelines, per-currency real-money spend
+- [x] **Phase 5: Vehicle Stats & Financial Dashboards** - Per-vehicle stats across 4 titles, premium-time and currency timelines, per-currency real-money spend (completed 2026-10-02)
 - [ ] **Phase 6: Login-IP History & Offline Geolocation** - Geo build step, masked IP table, country-level world map, opt-in city-level lazy-load
 - [ ] **Phase 7: Mobile Layout & Public Deploy** - Phone-width responsive layout, touch-friendly primitives, GitHub Pages deploy verified zero-network
 
@@ -150,7 +150,7 @@ Plans:
   4. A session-duration distribution shows how long sessions typically last.
   5. With a synthetic fixture of 50k+ sessions spanning 10-15 years, every activity chart renders without freezing the tab. The rendered SVG node count scales with buckets (days, cells, bins), not with sessions.
 
-**Plans:** 16/16 plans complete
+**Plans:** 18/18 plans executed
 Plans:
 **Wave 1**
 
@@ -195,6 +195,11 @@ Plans:
 - [x] 04-15-PLAN.md — Per-game split selector on top of the file-level game token
 - [x] 04-16-PLAN.md — Cache-cleared feedback (G-04-5)
 
+**UI-review gap closure** *(UAT gaps G-04-UI-1 to G-04-UI-3, filed after the Phase 4 UI audit)*
+
+- [x] 04-17-PLAN.md — G-04-UI-1, G-04-UI-3 (head clause): calendar weekday labels fit a 40px gutter (grid 634px, still inside 640px), and a key move into a cell under the sticky nav or year head scrolls the page up instead of down (Wave 1)
+- [x] 04-18-PLAN.md — G-04-UI-2, G-04-UI-3 (legend clause): hours tile never breaks inside its numeral or unit at 375px, legend note on its own line 8px under the swatch row, UI-SPEC amendments A-1 to A-4 (Wave 2, after 04-17)
+
 **UI hint**: yes
 
 ### Phase 5: Vehicle Stats & Financial Dashboards
@@ -209,7 +214,57 @@ Plans:
   3. A timeline shows virtual-currency flow, with income and spending over time.
   4. The real-money spend summary shows a separate total for each currency (e.g. USD, RUB, UAH), counting only PAID `Payment_history` orders. No blended or converted grand total appears anywhere. This is checked against a synthetic multi-currency fixture.
 
-**Plans**: TBD
+**Plans:** 19/22 plans complete
+Plans:
+**Wave 1**
+
+- [x] 05-01-PLAN.md — Real-header Financial_data and Orders fixtures, hand-derived keys, independent money oracle, seeded 10k/50k/20-year generators
+- [x] 05-02-PLAN.md — Real-named Player_statistics fixtures for four titles, NAME canary, vehicle oracle, 5,000-vehicle generator
+- [x] 05-03-PLAN.md — Financial_data supported, replay re-classification of old caches, five sections and six nav links, Financial_data in the shared sample
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 05-04-PLAN.md — Pure premium, currency and spend builders over exact BigInt decimals
+- [x] 05-05-PLAN.md — Pure vehicle view builder: column maps, special values, battle types, Warships and Warplanes cases
+- [x] 05-06-PLAN.md — Real-shaped shared sample, derived count constants, real-named scale templates
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 05-07-PLAN.md — Channel-scoped QueryClient, data-query contract, one-snapshot row reader, per-file presence, worker handler and memo
+- [x] 05-08-PLAN.md — Viewer-locale numbers pinned to en-US in tests, UI-SPEC amendments, flow colours, the full Phase 5 copy inventory
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [x] 05-09-PLAN.md — Pure bar-chart and vehicle-table models, six-link nav that keeps its current link visible
+- [x] 05-10-PLAN.md — Financial_data card live: Premium block, generalised excluded notice, unrecognised-strings list
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [x] 05-11-PLAN.md — Premium monthly bar chart, extended tooltip, collapsible monthly data table
+- [x] 05-12-PLAN.md — Player_statistics card live: title switcher, windowed sortable searchable vehicle table
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [x] 05-13-PLAN.md — Virtual currency block: small-multiple diverging charts, other-currency rows, 240-month proof
+- [x] 05-14-PLAN.md — Battle-type filter and summary, per-title header, Warships and Warplanes views, column picker
+- [x] 05-15-PLAN.md — Payment_history card live: per-currency spend cards, gifts, breakdowns, no blended total
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
+- [x] 05-16-PLAN.md — 50,000-operation scale proof, zero-network through every Phase 5 flow, CI e2e budget, validation map
+
+**Gap closure** *(UAT gaps G-05-3, G-05-4 and G-05-7, filed after the Phase 5 real-export UAT)*
+
+- [x] 05-17-PLAN.md — G-05-4: income counts as up in the currency totals (D-18), income-only fixture, oracle and answer-key corrections, browser and scale guards (Wave 1)
+- [x] 05-19-PLAN.md — G-05-7: identity header relabels the REGION value as a location code instead of a realm; Phase 3 copy contract amended (Wave 1)
+- [x] 05-18-PLAN.md — G-05-3: premium chart buckets by CURR_PREMIUM (the real operation datetime) with a per-file CREATED fallback, real-shaped fixtures and oracle, D-19 amended (Wave 2, after 05-17)
+
+**UI-review gap closure** *(UAT gaps G-05-8, G-05-9 and G-05-10, filed after the Phase 5 UI audit)*
+
+- [x] 05-20-PLAN.md — G-05-8, G-05-10: Vehicle statistics controls render as a row, every text size at the 14px floor with a source and live guard, battle-type table contained and focusable at 375px (Wave 1)
+- [x] 05-21-PLAN.md — G-05-9 (colour and empty-axis clauses): chart zero line and hairlines match the Color table, currency plot split on one shared scale with exact end labels, UI-SPEC amendments appendix; G-05-9 stays partial until 05-22 (Wave 1)
+- [x] 05-22-PLAN.md — G-05-9 (width clause, user chose a finer integer pitch): whole-pixel bar pitch 4 to 16 that fills the 576px plot, 24-month label stride below pitch 8, UI-SPEC amendment; closes G-05-9 in full (Wave 2, after 05-21)
+
 **UI hint**: yes
 
 ### Phase 6: Login-IP History & Offline Geolocation
@@ -259,7 +314,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 1. Ingest Foundation & Zero-Network Guard | 6/6 | Complete    | 2026-09-28 |
 | 2. Defensive Parsing & Persistent Dataset | 4/4 | Complete    | 2026-09-29 |
 | 3. Dashboard Shell & Account Identity | 7/7 | Complete    | 2026-09-29 |
-| 4. Activity Time Dashboards | 16/16 | Complete    | 2026-10-01 |
-| 5. Vehicle Stats & Financial Dashboards | 0/TBD | Not started | - |
+| 4. Activity Time Dashboards | 18/18 | In Progress|  |
+| 5. Vehicle Stats & Financial Dashboards | 19/19 | Complete    | 2026-10-02 |
 | 6. Login-IP History & Offline Geolocation | 0/TBD | Not started | - |
 | 7. Mobile Layout & Public Deploy | 0/TBD | Not started | - |

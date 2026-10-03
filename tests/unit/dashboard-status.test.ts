@@ -9,6 +9,7 @@ import {
   unsupportedBlockStatus,
   unsupportedEntries,
   unsupportedSectionStatus,
+  type SectionId,
 } from '../../src/lib/dashboard-status.ts';
 import { NAV_STATUS_SUFFIX, SECTION_TITLES, formatSectionStatus } from '../../src/lib/ui-copy.ts';
 import type {
@@ -63,15 +64,16 @@ function resultOf(entries: EntrySpec[], accountRoot = '123456789'): ClassifyResu
   return { accountRoot, categories, counts };
 }
 
-/** The four supported folders, all populated — the "everything is fine" export. */
+/** The five supported folders, all populated — the "everything is fine" export. */
 const FULL_SUPPORTED: EntrySpec[] = [
   ['Activity_history', 'supported', 2, 1204],
   ['Player_statistics', 'supported', 3, 8123],
+  ['Financial_data', 'supported', 2, 17],
   ['Payment_history', 'supported', 1, 12],
   ['User_Info', 'supported', 1, 1],
 ];
 
-/** The sample shape: the four supported folders plus four others (worker order). */
+/** The sample shape: the five supported folders plus four others (worker order). */
 const SAMPLE: EntrySpec[] = [
   ...FULL_SUPPORTED,
   ['Chat_history', 'known-deferred', 1, 40],
@@ -113,13 +115,13 @@ describe('tracer: ClassifyResult to visible-text accessible name', () => {
 // -----------------------------------------------------------------------------
 
 describe('sectionStatus', () => {
-  test('a null result is not-loaded for all four sections and for the block', () => {
+  test('a null result is not-loaded for all five sections and for the block', () => {
     for (const { id } of SECTIONS) {
       expect(sectionStatus(id, null)).toBe('not-loaded');
     }
     expect(unsupportedBlockStatus(null)).toBe('not-loaded');
     expect(unsupportedEntries(null)).toEqual([]);
-    expect(navEntries(null)).toHaveLength(5);
+    expect(navEntries(null)).toHaveLength(6);
   });
 
   test('a header-only entry (rowCount 0) is empty', () => {
@@ -146,8 +148,11 @@ describe('sectionStatus', () => {
   });
 
   test('rowCount above zero is pending', () => {
+    // Payment_history is `ready` in the DEFAULT set since 05-15, so this
+    // asserts the pending half explicitly with a built set that excludes it —
+    // the same shape 05-10 and 05-12 used for their own ids.
     const result = resultOf([['Payment_history', 'supported', 1, 12]]);
-    expect(sectionStatus('payment-history', result)).toBe('pending');
+    expect(sectionStatus('payment-history', result, new Set(['user-info']))).toBe('pending');
   });
 
   test('ready only when the section id is in the built set', () => {
@@ -181,31 +186,71 @@ describe('sectionStatus', () => {
     const result = resultOf([...FULL_SUPPORTED, ['Chat_history', 'known-deferred', 1, 40]]);
     for (const { id, folder } of SECTIONS) {
       expect(sectionCounts(folder, result)).not.toBeNull();
-      // Activity_history is the one section that has shipped a dashboard
-      // (04-02 added it to BUILT_DASHBOARDS), so `ready` — the other three
-      // stay `pending` and keep the "Dashboard coming in a later update" note.
-      expect(sectionStatus(id, result)).toBe(id === 'activity-history' ? 'ready' : 'pending');
+      // Four sections have shipped a dashboard and read `ready` — the last
+      // one stays `pending` and keeps the "Dashboard coming in a later
+      // update" note. Named per id rather than counted, so a phase that adds
+      // its own id to BUILT_DASHBOARDS has to come back and own this line.
+      expect(sectionStatus(id, result)).toBe(
+        id === 'activity-history' ||
+          id === 'player-statistics' ||
+          id === 'financial-data' ||
+          id === 'payment-history'
+          ? 'ready'
+          : 'pending',
+      );
     }
     // Only the block changes.
     expect(unsupportedBlockStatus(result)).toBe('has-items');
   });
 
-  test('with the default built set activity-history is ready and the other three pending', () => {
-    // The one section whose dashboard shipped. The other three still show the
-    // pending note, so this is the claim 04-02 makes about the whole grid —
-    // asserted per section rather than in a loop, so a future phase that adds
-    // its own id to BUILT_DASHBOARDS has to come back and own this test.
+  test('with the default built set the four shipped sections are ready and only user-info is pending', () => {
+    // Named per section rather than in a loop, so a future phase that adds its
+    // own id to BUILT_DASHBOARDS has to come back and own this test.
     const result = resultOf(FULL_SUPPORTED);
+    // Phase 4 (04-02) shipped the playtime block; Phase 5 flipped financial-data
+    // in plan 05-10, the same commit that gave it a Premium block to render,
+    // player-statistics in 05-12 with the Vehicle statistics block, and
+    // payment-history in 05-15 with the Real-money spend block.
     expect(sectionStatus('activity-history', result)).toBe('ready');
-    expect(sectionStatus('player-statistics', result)).toBe('pending');
-    expect(sectionStatus('payment-history', result)).toBe('pending');
+    expect(sectionStatus('player-statistics', result)).toBe('ready');
+    expect(sectionStatus('financial-data', result)).toBe('ready');
+    expect(sectionStatus('payment-history', result)).toBe('ready');
+    // `User_Info` is the one section no phase builds a dashboard for, and it
+    // is the ONLY pending section this phase ends with. Its card says so with
+    // SECTION_NOTE_USER_INFO rather than the "coming in a later update" note.
     expect(sectionStatus('user-info', result)).toBe('pending');
   });
 
-  test('BUILT_DASHBOARDS holds exactly the activity-history id', () => {
-    // One id, not a prefix or a count: the id is a member of SECTIONS, so a
-    // typo here would silently disable a dashboard rather than fail the build.
-    expect([...BUILT_DASHBOARDS].sort()).toEqual(['activity-history']);
+  test('BUILT_DASHBOARDS holds exactly the four shipped section ids', () => {
+    // Named members of SECTIONS, not a prefix or a count: the id is a
+    // SectionId, so a typo here would silently disable a dashboard rather
+    // than fail the build.
+    expect([...BUILT_DASHBOARDS].sort()).toEqual([
+      'activity-history',
+      'financial-data',
+      'payment-history',
+      'player-statistics',
+    ]);
+  });
+
+  test('an empty or absent Financial_data is still empty or no-export, never ready', () => {
+    // DATA-04, for the id 05-10 flipped. `ready` means "has rows AND a
+    // dashboard", and adding an id to BUILT_DASHBOARDS must not weaken the
+    // other half of that: a present-but-empty or absent Financial_data keeps
+    // saying so, or the `empty` and `no-export` claims collapse into `ready`
+    // the moment a dashboard lands.
+    expect(sectionStatus('financial-data', resultOf([['Financial_data', 'supported', 2, 0]]))).toBe(
+      'empty',
+    );
+    expect(
+      sectionStatus('financial-data', resultOf([['Financial_data', 'supported', 1, 0, 4]])),
+    ).toBe('empty');
+    // …and absent is `no-export`, never `empty`, with the D-10 wording intact.
+    const absent = resultOf([['User_Info', 'supported', 1, 1]]);
+    expect(sectionStatus('financial-data', absent)).toBe('no-export');
+    expect(formatSectionStatus('no-export', SECTION_TITLES['financial-data'])).toBe(
+      'Not in this export',
+    );
   });
 
   test('an empty or absent Activity_history is still empty or no-export, never ready', () => {
@@ -221,12 +266,15 @@ describe('sectionStatus', () => {
   });
 
   test('section order is the D-02 order whatever order the result lists categories in', () => {
-    // SUPPORTED in categories.ts is Activity, Player, User_Info, Payment —
-    // a different order. The result below is deliberately shuffled again.
+    // SUPPORTED in categories.ts is Activity, Player, User_Info, Payment,
+    // Financial — a different order. The result below is deliberately
+    // shuffled again. The page's order is the D-02 order, with Financial_data
+    // third (05-03 D-01).
     const result = resultOf([...SAMPLE].reverse());
     expect(navEntries(result).map((e) => e.id)).toEqual([
       'activity-history',
       'player-statistics',
+      'financial-data',
       'payment-history',
       'user-info',
       'not-yet-supported',
@@ -234,19 +282,72 @@ describe('sectionStatus', () => {
     expect(NAV_ORDER).toEqual([
       'activity-history',
       'player-statistics',
+      'financial-data',
       'payment-history',
       'user-info',
       'not-yet-supported',
     ]);
   });
 
+  test('financial-data status follows the summed rows of its folder (D-02)', () => {
+    // The reason D-02 needed no new status code. `Financial_data` holds TWO
+    // files in a real export, and the ladder must read their SUM rather than
+    // the first entry: a folder whose first file is header-only and whose
+    // second has rows is `pending`/`ready`, not `empty`.
+    //
+    // An explicit built set holding an UNRELATED id is passed, so the `ready`
+    // branch is exercised without this test depending on which ids the default
+    // set happens to contain — the default set is pinned by its own test above.
+    const builtWithoutIt = new Set<SectionId>(['activity-history']);
+
+    const mixed = resultOf([
+      ['Financial_data', 'supported', 1, 0],
+      ['Financial_data', 'supported', 1, 5],
+    ]);
+    expect(sectionCounts('Financial_data', mixed)).toEqual({
+      fileCount: 2,
+      rowCount: 5,
+      skippedRowCount: 0,
+    });
+    // Rows are not enough on their own: a built set that does not name the id
+    // leaves it `pending`, whatever it parsed. That is the `ready` branch's
+    // other half, and it is why the `built` parameter exists rather than the
+    // two states collapsing.
+    expect(sectionStatus('financial-data', mixed, builtWithoutIt)).toBe('pending');
+    // The default set names it since 05-10, so the same export is `ready`
+    // without a parameter.
+    expect(sectionStatus('financial-data', mixed)).toBe('ready');
+    // …and a set that does name it reaches `ready` for the same reason.
+    expect(sectionStatus('financial-data', mixed, new Set(['financial-data']))).toBe('ready');
+
+    const bothEmpty = resultOf([
+      ['Financial_data', 'supported', 1, 0],
+      ['Financial_data', 'supported', 1, 0],
+    ]);
+    expect(sectionStatus('financial-data', bothEmpty, new Set(['financial-data']))).toBe('empty');
+
+    // DATA-04, the case that matters for a user who never had the folder:
+    // absent is `no-export`, never `empty`, and keeps the unchanged wording.
+    const absent = resultOf([['User_Info', 'supported', 1, 1]]);
+    expect(sectionStatus('financial-data', absent)).toBe('no-export');
+    expect(formatSectionStatus('no-export', SECTION_TITLES['financial-data'])).toBe(
+      'Not in this export',
+    );
+  });
+
   test('absent and present-but-empty stay distinct in both status and wording', () => {
     // The plan prohibition for DATA-04: "missing" must never be shown as
     // "present but empty", and vice versa.
-    const absent = resultOf([['Payment_history', 'supported', 1, 5]]);
+    //
+    // The first result holds FIVE rows, so it is the present-with-data case
+    // rather than the absent one — it reads `ready` since 05-15 flipped this id
+    // into BUILT_DASHBOARDS, and it must NOT read `empty` or `no-export`. The
+    // genuinely absent case is the following test, where an unmatched folder
+    // gives `sectionCounts` null.
+    const present = resultOf([['Payment_history', 'supported', 1, 5]]);
     const empty = resultOf([['Payment_history', 'supported', 1, 0]]);
 
-    expect(sectionStatus('payment-history', absent)).toBe('pending');
+    expect(sectionStatus('payment-history', present)).toBe('ready');
     expect(sectionStatus('payment-history', empty)).toBe('empty');
     expect(formatSectionStatus('no-export', 'Payment_history')).toBe('Not in this export');
     expect(formatSectionStatus('empty', 'Payment_history')).toBe(
@@ -323,19 +424,20 @@ describe('unsupported block', () => {
 // -----------------------------------------------------------------------------
 
 describe('navEntries', () => {
-  test('a null result gives five muted entries with reason not-loaded, in NAV_ORDER', () => {
+  test('a null result gives six muted entries with reason not-loaded, in NAV_ORDER', () => {
     expect(navEntries(null)).toEqual([
       { id: 'activity-history', muted: true, reason: 'not-loaded' },
       { id: 'player-statistics', muted: true, reason: 'not-loaded' },
+      { id: 'financial-data', muted: true, reason: 'not-loaded' },
       { id: 'payment-history', muted: true, reason: 'not-loaded' },
       { id: 'user-info', muted: true, reason: 'not-loaded' },
       { id: 'not-yet-supported', muted: true, reason: 'not-loaded' },
     ]);
   });
 
-  test('the sample export gives five unmuted entries', () => {
+  test('the sample export gives six unmuted entries', () => {
     const entries = navEntries(resultOf(SAMPLE));
-    expect(entries).toHaveLength(5);
+    expect(entries).toHaveLength(6);
     for (const entry of entries) {
       expect(entry.muted).toBe(false);
       expect(entry.reason).toBeNull();

@@ -49,7 +49,7 @@
     "security_block_on": "high",
     "ui_review": true,
     "tdd_mode": false,
-    "use_worktrees": true,
+    "use_worktrees": false,
     "_auto_chain_active": false,
     "build_command": "pnpm run build",
     "test_command": "pnpm run test:unit && pnpm exec playwright test",

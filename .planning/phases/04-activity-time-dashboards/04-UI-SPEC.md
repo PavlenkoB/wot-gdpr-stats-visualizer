@@ -81,6 +81,8 @@ The Playtime block is one flex column with `gap: 24px` inside the section card (
 | Tile minimum width | 128px | Two tiles per row still fit at 375px |
 | Focus halo | 1px surface-coloured inner ring inside the 3px accent ring | Needed on dark cells, see Color |
 
+> **Amended 2026-10-02 (plan 04-17)** — this amends the 2026-09-29 approval, after UI audit gaps G-04-UI-1 and G-04-UI-3. The Calendar cell, Calendar weekday gutter and Calendar SVG size rows above, and the focus-correction statement in section 5, are superseded by Amendments A-1 and A-2 at the end of this document. The original rows are kept as history. Where the two disagree, the amendment governs.
+
 ---
 
 ## Typography
@@ -464,3 +466,141 @@ Non-blocking flags carried to the planner:
 - The sticky year head is fixed at 32px, but its summary can wrap at narrow widths (about 48px). Guarantee a single line or derive `scroll-margin-top` and sticky `top` from its real height, and do not assume the nav is exactly 56px.
 - Weekday × hour attributes a midnight-crossing session by overlap while D-02 attributes by start day (same total). Needs a call before planning; swap text is in UI Considerations.
 - The `Login history` placeholder `h3` is Phase 6 scope, kept only to hold the Phase 3 D-02 structure.
+
+## Amendments
+
+The entries below are dated. Each one amends the 2026-09-29 approval and the
+earlier 2026-10-01 amendments named in it; the text above is kept as history and
+is not rewritten; and where the two disagree, the amendment below governs. They
+are written as prose and bullets rather than as a table, and carry no colour
+values, so the sections this document's own guard tests parse keep their shape.
+Each entry names the UAT gap that filed it and the plan that closed it.
+
+### A-1 — 2026-10-02, plan 04-17, UAT gap G-04-UI-1: the calendar weekday gutter
+
+The 32px weekday gutter could not hold the weekday labels, and the row above was
+wrong when it said 32 "fits Mon at 14px". The labels are drawn
+`text-anchor: end` with a pad inside the gutter, so the room they actually have
+is the gutter MINUS that pad: 32 - 8 = 24px. Measured in Chromium on macOS at
+14px system-ui on 2026-10-02, the widest label is "Wed" at 29.02px, "Mon" is
+28.23px and "Fri" is 16.36px, so "Mon" and "Wed" both start at a negative x —
+about -4.23 and -5.02 — inside an svg whose overflow is clipped by the scroller.
+The audit saw the first letter of both cut off in every year block, at both
+widths.
+
+The gutter is now 40px, and the pad is a named `labelPad` of 4px, so the label's
+right edge sits at `gutter - labelPad`. That is 36px of room, about 7px more
+than the widest measured label. The slack is deliberate: the CI runner is
+self-hosted and its fallback face may set these three words wider than this
+machine's system-ui does.
+
+- The calendar svg is therefore **634 × 97** (`40 + 54 * 11 = 634` wide). It
+  still fits the 640px card content width with 6px to spare, and it still holds
+  the 54-column year. A 12px pitch still does not fit.
+- Cell `x` is `40 + col * 11` and the month labels move with it. 2020-12-31 is
+  at column 52, row 3, `x = 612`, `y = 53`.
+- Unchanged: the 10px cell, the 11px pitch, the 20px month-label band, the 97px
+  height, and the weekday label rows (Monday, Wednesday, Friday).
+- Superseded: the Calendar cell row's 626px derivation, the Calendar weekday
+  gutter row, the Calendar SVG size row, the `svg 626 × 97` line in section 5,
+  and the geometry sentence `Cell x = 32 + col * 11`.
+- The acceptance check is a **measured text box in a browser** — `getBBox` inside
+  the gutter, at 1280px and at 375px, against the smallest cell `x` that same
+  svg drew — and not a pixel literal, so the check follows the runner's face
+  rather than this machine's.
+
+### A-2 — 2026-10-02, plan 04-17, UAT gap G-04-UI-3 (sticky-head clause): the year head's height and the focus correction
+
+These are recorded as **observations, not constants**. The year head declares a
+32px `min-height` on a content-box element with 4px of vertical padding and a
+1px rule, so its used height is 41px with the summary on one line (1280px) and
+52px with the summary wrapped (375px) in the synthetic export measured on
+2026-10-02 — and it grows again if the summary wraps to a third line. The
+"32px tall" above is the declared minimum and was never the used height. The
+head's height is therefore not changed: making a phone head a single line is not
+possible without truncating the per-year summary, which is the non-colour relief
+for the ramp.
+
+So nothing may assume 32. The sticky `top` is the nav offset alone
+(`calc(var(--nav-offset) - 16px)`), and the focus correction reads the focused
+cell's own year head's `offsetHeight` after focus settles, and clears the nav,
+that measured height and the 8px gap.
+
+Two statements above are superseded by this entry:
+
+- The section 5 claim that the focused cell is scrolled into view with
+  `scroll-margin-top` is superseded: `scroll-margin-top` is not honoured on an
+  SVG `<rect>`, so the correction is a **measured instant scroll** instead.
+- The direction is stated here because it was inverted in the build until
+  04-17. A focused cell above the clear line moves **down on screen** by the
+  page scrolling **up**, so the scroll is negative. The weekday-by-hour grid
+  uses the same helper with a head height of 0, so a cell there is cleared of the
+  nav by 8px. `focusScrollDelta` returns the scroll to apply with its own sign
+  and the caller passes it through unchanged.
+
+### A-3 — 2026-10-02, plan 04-18, UAT gap G-04-UI-2: the summary tile's value at narrow widths
+
+A tile's value is a FORMATTED NUMBER and a fixed word. It is not the child the
+Spacing section describes, so that section's sentence — every flex or grid child
+that can hold untrusted text sets `min-width: 0` and `overflow-wrap: anywhere` —
+is read as applying to children that hold untrusted text, which a tile value does
+not. The anywhere value was applied here by that blanket reading, and it is what
+broke the figure.
+
+Measured in Chromium against the BUILT app with the synthetic 5,000-session
+export on 2026-10-02, all three tiles in a two-per-row 375px card: a tile's
+inner width is 104.5px, a four-digit hours numeral set in the Display role
+measures 76.5px, and its unit set in Label measures 38.4px — 118.9px of the
+104.5px they share, once the 4px gap between them is counted. A flex item's
+minimum width under `overflow-wrap: anywhere` is one character, so both parts
+shrank instead of either wrapping: the numeral rendered across two lines and the
+unit as "hour" over "s", in a dd 67.2px tall inside a 124.8px tile. At 1280px the
+same pair measured 76.5px and 38.4px on one line, and does still.
+
+The amended rule:
+
+- A tile's value is a wrapping flex row of two parts that are never broken: the
+  numeral, and the unit.
+- Those two share a baseline on one line when they fit, and the unit takes its
+  own line UNDER the numeral when they do not. The phone case is the second one,
+  and it is the reading the summary needs at 375px. The unit itself never breaks
+  either, so "hours" is never read as "hour" over "s".
+- `overflow-wrap: anywhere` remains for the untrusted text in this component —
+  the split table's values and the explanatory notes — and does not apply to the
+  three tile values.
+- The accepted limit: a numeral wider than a tile's inner width (seven digits
+  with separators, over a million sessions) overflows its padding rather than
+  breaking. A number split across lines is a wrong reading of a figure, not a
+  degraded one, and the scale target is 60,000 sessions.
+- Unchanged by this amendment: the 128px tile minimum, two tiles per row at
+  375px and three at the card's full width, the 16px tile padding and gap, and
+  the Display numeral / Label unit role assignment. Raising the tile minimum to
+  force one tile per row was considered and declined; stacking the unit keeps the
+  two-per-row contract and does not lengthen the summary by a tile row.
+
+### A-4 — 2026-10-02, plan 04-18, UAT gap G-04-UI-3 (legend clause): the legend note
+
+The Legend (both heatmaps) paragraph in Color says the note follows the swatches.
+It is amended: the note is ALWAYS its own line, spanning the width of the legend,
+with 8px — the Spacing scale's `sm` step — between the Less / swatches / More row
+and the note. The 4px gap between the words and the swatches is kept.
+
+Measured in Chromium against the built app with the same synthetic export on
+2026-10-02, before the amendment: the weekday-by-hour legend's shorter note
+followed More on the same line at 1280px, 166.56px indented under the swatch row;
+the calendar's longer note sat on its own line only because it did not fit beside
+More. Each had 4px between itself and the row above it, at both widths.
+
+- The legend row's gap is the 8px `sm` step between the ROWS, with the existing
+  4px column gap unchanged, so Less, the swatches and More stay 4px apart.
+- The note takes a full-width flex basis, so its placement is a rule rather than a
+  consequence of the sentence's length. That is the difference the audit saw
+  between the two legends, and the amendment removes it.
+- The note keeps its `min-width: 0` and `overflow-wrap: anywhere`: it embeds a
+  formatted hours value and can be long.
+- No DOM node, attribute or class was added or removed, so the node counts the
+  scale spec compares between the 5,000- and 60,000-session presets are
+  unchanged.
+- This entry covers the shared `ChartLegend` the two Playtime heatmaps import. The
+  Phase 5 flow legend is a separate copy of the same chrome and is not governed
+  by this amendment.

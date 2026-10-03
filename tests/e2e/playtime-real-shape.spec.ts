@@ -1,3 +1,4 @@
+import './pin-locale';
 import { expect, test } from '@playwright/test';
 import {
   SYNTHETIC_ZIP_NAME,

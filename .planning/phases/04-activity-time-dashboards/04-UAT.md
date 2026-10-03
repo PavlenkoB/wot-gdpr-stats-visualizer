@@ -3,7 +3,7 @@ status: complete
 phase: 04-activity-time-dashboards
 source: [04-VERIFICATION.md, 04-01-SUMMARY.md, 04-02-SUMMARY.md, 04-03-SUMMARY.md, 04-04-SUMMARY.md, 04-05-SUMMARY.md, 04-06-SUMMARY.md, 04-07-SUMMARY.md, 04-08-SUMMARY.md, 04-09-SUMMARY.md, 04-10-SUMMARY.md, 04-11-SUMMARY.md, 04-12-SUMMARY.md, 04-13-SUMMARY.md]
 started: 2026-09-30T11:20:56.690724Z
-updated: 2026-10-01T00:00:00Z
+updated: 2026-10-02T21:07:53Z
 ---
 
 ## Current Test
@@ -95,6 +95,15 @@ how: |
   With the app loaded, open a SECOND browser tab on the same origin and confirm
   'Clear my cached data'. Return to the first tab and change the split selector.
 source_coverage: [04-08:D3]
+
+### 6. UI review findings (04-UI-REVIEW.md, 15/24)
+expected: Playtime UI meets 04-UI-SPEC.md: weekday labels fully visible, summary tile values never break mid-word at 375px, legend notes separated, no content clipped.
+result: pass
+previous_result: issue
+reported: "UI audit (real-archive captures + code) found clipped calendar weekday labels, a tile that breaks 'hours' mid-word at 375px, a run-on hour-grid legend; user asked to plan fixes"
+note: "Re-verified by headless drive of the rebuilt app with a real export (kept outside the repo): weekday labels unclipped in every year grid at 1280 and 375, summary tile numeral on one line with the unit stacked below at 375, no page overflow. No real figures recorded here."
+fixed_by: "04-17, 04-18"
+source: 04-UI-REVIEW.md
 
 ## Auto-passed coverage (54 entries — see 04-VERIFICATION.md for the canonical list)
 
@@ -679,8 +688,8 @@ verification_refs:
 
 ## Summary
 
-total: 59  # 5 human + 54 auto-passed
-passed: 59
+total: 60  # 6 human + 54 auto-passed
+passed: 60
 issues: 0
 pending: 0
 skipped: 0
@@ -780,6 +789,54 @@ automated: 54
   test: null
   artifacts: []
   missing: []
+
+- gap_id: G-04-UI-1
+  truth: "Calendar weekday labels (Mon, Wed, Fri) are fully visible in every year grid at both widths"
+  status: resolved
+  resolved_by: 04-17-PLAN.md
+  resolved_at: 2026-10-02
+  reason: "UI-REVIEW priority 1: labels clipped at the left edge of all year grids (text-anchor end at x = gutter - 8 = 24; 'Mon' at 14px is wider than 24px so it starts at negative x inside a clipped SVG)"
+  severity: major
+  test: 6
+  root_cause: "Calendar gutter (32px) and label pad (8px) leave 24px for a label wider than that."
+  artifacts:
+    - path: "src/lib/components (calendar chart component) and its geometry model"
+      issue: "gutter/label x; grid width 626px derived from gutter"
+  missing:
+    - "Widen the gutter or reduce the label pad; re-derive the 626px width and hand-derived geometry literals in unit/e2e tests; amend 04-UI-SPEC Spacing exceptions (dated appendix, original text kept as history); keep the 54-column fit"
+  debug_session: ""
+
+- gap_id: G-04-UI-2
+  truth: "Playtime summary tile values never break mid-word at 375px (numeral on one line, unit 'hours' intact)"
+  status: resolved
+  resolved_by: 04-18-PLAN.md
+  resolved_at: 2026-10-02
+  reason: "UI-REVIEW priority 2: at 375px the Total playtime tile splits the numeral and renders 'hour / s'"
+  severity: major
+  test: 6
+  root_cause: "overflow-wrap: anywhere on dd in PlaytimeSummary.svelte (~line 223) lets a shrunk flex child break inside words."
+  artifacts:
+    - path: "src/lib/components/PlaytimeSummary.svelte"
+      issue: "overflow-wrap anywhere on dd; three tiles squeezed into two columns"
+  missing:
+    - "Unit white-space: nowrap; numerals overflow-wrap: normal (anywhere only for untrusted text); or stack numeral and unit / raise tile minmax; add a 375px e2e check that no tile value wraps mid-word"
+  debug_session: ""
+
+- gap_id: G-04-UI-3
+  truth: "Hour-grid legend and its note are visually separate; sticky year head offset matches its real height at phone width"
+  status: resolved
+  resolved_by: 04-17-PLAN.md and 04-18-PLAN.md
+  resolved_at: 2026-10-02
+  reason: "UI-REVIEW items 4 and 6: legend and note run together on one line on desktop; sticky year head wraps to ~48px on phone against the 32px the offset assumes"
+  severity: minor
+  test: 6
+  root_cause: "Note follows 'More' with no gap/wrap boundary; sticky offset derived from min-height 32px, not the wrapped height."
+  artifacts:
+    - path: "src/lib/components (hour-grid legend, calendar year head)"
+      issue: "legend spacing; sticky/scroll-margin offset"
+  missing:
+    - "Note on its own line with the spec's 8px gap; derive scroll-margin/sticky offset from the real height or make the phone year head a single line; tests pin both"
+  debug_session: ""
 
 ## Deferred Follow-Ups
 

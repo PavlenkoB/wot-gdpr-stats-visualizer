@@ -309,6 +309,49 @@ function resolveAccountRootAndCategories(
 // -----------------------------------------------------------------------------
 
 /**
+ * Sort category entries into the canonical order: status group, then
+ * lower-case code-unit name, then raw name.
+ *
+ * Ordering within a status group is locale-INDEPENDENT: lowercase
+ * code-unit order, then raw code-unit order as the tie-break. Plain JS
+ * less-than is used (no locale-aware string comparison), because Node and
+ * the browser can disagree on locale tables and D-05 / FA-01-03-2 demand
+ * identical ordering on both ends.
+ *
+ * ## Why this is exported (05-03, D-01)
+ *
+ * This body used to live inline in `analyzeExport`. It now has a second
+ * caller: `resultFromMeta` in `ingest.worker.ts`, which re-derives a
+ * user's STORED category statuses on every replay (a Phase-4 cache says
+ * `Financial_data: unknown`, and the repair moves that entry from the
+ * unknown group into the supported one).
+ *
+ * One comparator for both is the point. A replay that sorted by anything
+ * else would produce a list ordered differently from the import that wrote
+ * it, and the user would see the same export's categories reorder itself
+ * across a page reload — with nothing wrong enough to report.
+ *
+ * Returns a NEW array (the input is not mutated), so a caller can keep the
+ * original ordering — `analyzeExport` builds `statusCounts` from the
+ * entries before sorting, and mutating in place would make the two depend
+ * on evaluation order.
+ */
+export function sortCategoryEntries(entries: readonly CategoryEntry[]): CategoryEntry[] {
+  return [...entries].sort((a, b) => {
+    const sa = CATEGORY_STATUS_ORDER.indexOf(a.status);
+    const sb = CATEGORY_STATUS_ORDER.indexOf(b.status);
+    if (sa !== sb) return sa - sb;
+    const la = a.name.toLowerCase();
+    const lb = b.name.toLowerCase();
+    if (la < lb) return -1;
+    if (la > lb) return 1;
+    if (a.name < b.name) return -1;
+    if (a.name > b.name) return 1;
+    return 0;
+  });
+}
+
+/**
  * Build a ClassifyResult from a list of raw entry paths. Returns a
  * `not-ok` outcome with a named reason when the archive is not
  * recognizable enough to be called a Wargaming export:
@@ -341,11 +384,9 @@ function resolveAccountRootAndCategories(
  * resolveAccountRootAndCategories() for the bounded retry + top-level
  * fallback that powers this.
  *
- * Ordering within a status group is locale-INDEPENDENT: lowercase
- * code-unit order, then raw code-unit order as the tie-break. Plain
- * JS less-than is used (no locale-aware string comparison), because
- * Node and the browser can disagree on locale tables and D-05 / FA-
- * 01-03-2 demand identical ordering on both ends.
+ * Ordering is owned by `sortCategoryEntries` below — status group, then
+ * lower-case code-unit order, then raw name — which the replay path in
+ * `ingest.worker.ts` shares.
  */
 export function analyzeExport(paths: string[]): AnalyzeOutcome {
   const prepared = prepare(paths);
@@ -368,24 +409,11 @@ export function analyzeExport(paths: string[]): AnalyzeOutcome {
       statusCounts[status] += 1;
     }
 
-    entries.sort((a, b) => {
-      const sa = CATEGORY_STATUS_ORDER.indexOf(a.status);
-      const sb = CATEGORY_STATUS_ORDER.indexOf(b.status);
-      if (sa !== sb) return sa - sb;
-      const la = a.name.toLowerCase();
-      const lb = b.name.toLowerCase();
-      if (la < lb) return -1;
-      if (la > lb) return 1;
-      if (a.name < b.name) return -1;
-      if (a.name > b.name) return 1;
-      return 0;
-    });
-
     return {
       ok: true,
       result: {
         accountRoot: root,
-        categories: entries,
+        categories: sortCategoryEntries(entries),
         counts: statusCounts,
       },
     };

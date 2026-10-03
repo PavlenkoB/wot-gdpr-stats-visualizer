@@ -26,12 +26,37 @@ jobs:
     name: Lint, typecheck, unit + e2e (incl. zero-network)
     runs-on: self-hosted
     # The outermost of the three e2e limits, and the only one that cancels
-    # the whole job. It must outlast the shell wrapper (17 min) by enough to
+    # The whole job. It must outlast the shell wrapper (27 min) by enough to
     # cover the steps before it (install, lint, typecheck, unit, browser
-    # setup — about 5 min of budget): 17 + 5 = 22 min, so 25 leaves 8 min of
+    # setup — about 5 min of budget): 27 + 5 = 32 min, so 35 leaves 3 min of
     # headroom on the unmeasured part. tests/unit/ci-budget.test.ts enforces
     # the wrapper + 300 s floor and the wrapper/timeout-minutes ordering.
-    timeout-minutes: 25
+    #
+    # Raised from 25 in plan 05-12, with the wrapper and `globalTimeout`,
+    # because the vehicle table's thirteen new browser tests pushed the
+    # projected run from 665 s to 730 s and the guard below failed; again from
+    # 26 in plan 05-14, because the battle-type, header, Warships,
+    # Warplanes, picker, drift, 375px and reset specs took the projection to
+    # 835 s and the 1.3x floor to 1085.5 s; again from 27 in plan 05-15,
+    # because the ten new spend specs took it to 885 s and the floor to
+    # 1150.5 s; and again from 28 in plan 05-16, because the five
+    # finance-scale tests and the sixth zero-network test took it to 980 s and
+    # the floor to 1274 s. The three limits move together: raising one alone
+    # would just move which of them fires first, which is the exact failure the
+    # guard exists to prevent.
+    #
+    # 05-16's arithmetic, J = W + 8 with W = 25 + 2 = 27:
+    #
+    #   L = 184 tests in 16 files   MEASURED (`playwright test --list`)
+    #   E = 980 s                  330 baseline + 5 * 88 + 120 + 90
+    #   G = 25 min                 ceil(1.3 * 980 / 60) + 3, and >= 15
+    #   W = 27 min                 G + 2
+    #   J = 35 min                 W + 8
+    #
+    # The two orderings the guard enforces both hold with room: 27 min is 1620 s
+    # against globalTimeout + 90 s = 1590 s, and 35 min is 2100 s against
+    # wrapper + 300 s = 1920 s.
+    timeout-minutes: 35
 
     steps:
       - name: Checkout
@@ -105,15 +130,16 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
 
       # The middle of the three e2e limits: the shell wrapper around
-      # Playwright's own `globalTimeout` (15 min). It must outlast that
+      # Playwright's own `globalTimeout` (25 min). It must outlast that
       # globalTimeout by at least 90 s, or the wrapper fires first and the
       # run dies with "operation canceled" and no test context — the failure
       # mode traced in .planning/debug/resolved/ci-e2e-cancel.md.
-      # 17 min = 900 + 120 s. The 109 tests project to 540 s; see
-      # tests/unit/ci-budget.test.ts for the arithmetic and
-      # 04-13-SUMMARY.md for what is measured and what is still estimated.
+      # 27 min = 1500 + 120 s, against the rule's 1500 + 90 s floor. The
+      # 184 tests project to 980 s; see tests/unit/ci-budget.test.ts for the
+      # arithmetic and 04-13-SUMMARY.md for what is measured and what is
+      # still estimated.
       - name: E2E and zero-network guard
-        run: pnpm exec timeout 17m playwright test
+        run: pnpm exec timeout 27m playwright test
 
       - name: Upload Playwright report
         if: failure()

@@ -4,6 +4,7 @@
   import {
     buildRootMargin,
     isAtPageBottom,
+    navScrollLeftFor,
     parseNavOffset,
     pickActiveSection,
   } from '../scroll-spy.ts';
@@ -142,6 +143,66 @@
       window.removeEventListener('resize', onViewportChange);
     };
   });
+
+  /**
+   * The nav element itself, for the horizontal scroll below.
+   *
+   * A plain `let`, NOT `$state`, on purpose: the nav is the component's root
+   * element, so it is never re-created, and making it reactive would add a
+   * dependency to every effect that reads it for no benefit. `bind:this` on a
+   * non-reactive variable is the Svelte 5 idiom for "a handle, not state".
+   */
+  let navEl: HTMLElement | null = null;
+
+  // Six links no longer fit the 720px column, so the nav scrolls inside itself
+  // and has to MOVE ITS OWN SCROLL to follow the spy (D-01, 05-09).
+  //
+  // `activeId` is the ONLY reactive value read here, so this runs exactly when
+  // the spy moves the highlight and never for any other reason. The rule itself
+  // is `navScrollLeftFor`, out in `scroll-spy.ts`, because it is arithmetic over
+  // five numbers and this repo's Vitest has no DOM to test it in.
+  //
+  // The native scroll-into-view call is deliberately NOT used: it scrolls every
+  // scrollable ancestor, the PAGE included, so marking a section current would
+  // move the page vertically as a side effect of a horizontal convenience.
+  $effect(() => {
+    const currentId: string = activeId;
+
+    const nav: HTMLElement | null = navEl;
+    if (nav === null) return;
+
+    // Found by the attribute the spy writes, so the highlight and this scroll
+    // can never be driven by two different sources of truth. The href check
+    // pins the two together: if they ever disagreed, nothing would scroll
+    // rather than the wrong link being brought into view.
+    const link: HTMLElement | null = nav.querySelector('a[aria-current="location"]');
+    if (link === null || link.getAttribute('href') !== `#${currentId}`) return;
+
+    // The inset is the nav's own padding, read rather than repeated, so the
+    // rule and the stylesheet cannot drift apart. It is what keeps a link's 3px
+    // underline and its focus ring from being clipped at either end.
+    const inset: number = Number.parseFloat(getComputedStyle(nav).paddingLeft) || 0;
+    const navRect: DOMRect = nav.getBoundingClientRect();
+    const linkRect: DOMRect = link.getBoundingClientRect();
+    // `scrollLeft` and `clientWidth` are both measured from the padding box, so
+    // the link's edges are reported from the same origin rather than from the
+    // viewport.
+    const origin: number = navRect.left + nav.clientLeft;
+
+    const next: number = navScrollLeftFor({
+      scrollLeft: nav.scrollLeft,
+      clientWidth: nav.clientWidth,
+      linkLeft: linkRect.left - origin,
+      linkRight: linkRect.right - origin,
+      inset,
+    });
+    // The write is instant: `scroll-behavior` is not inherited and the nav
+    // declares none, so this never animates. The guard skips the no-op write
+    // that would otherwise fire on every spy tick.
+    if (next !== nav.scrollLeft) {
+      nav.scrollLeft = next;
+    }
+  });
 </script>
 
 <!--
@@ -162,7 +223,7 @@
   (see the stylesheet), and the absence of whitespace in the markup keeps the
   two runs adjacent (D-03).
 -->
-<nav aria-label={NAV_ARIA_LABEL} data-testid="dashboard-nav">
+<nav aria-label={NAV_ARIA_LABEL} data-testid="dashboard-nav" bind:this={navEl}>
   <ul>
     {#each links as link (link.id)}
       <li>
@@ -192,11 +253,37 @@
     padding: 8px;
     display: flex;
     flex-wrap: nowrap;
-    /* The row never wraps. At 375px it scrolls inside this box and the page
-       never gains a horizontal scrollbar; keyboard focus scrolls the focused
-       link into view natively. */
+    /* The row never wraps. Six links no longer fit the 720px column, so it
+       scrolls inside this box and the page never gains a horizontal
+       scrollbar. The current link is brought into view by the nav's OWN scroll
+       position — see the effect in the script, and `navScrollLeftFor`. */
     overflow-x: auto;
     overflow-y: hidden;
+
+    /* The scrollbar is hidden, and this is a HEIGHT contract rather than a
+       taste one (RESEARCH Pitfall 12, 05-09).
+
+       The nav's height is `auto` and the page has exactly one `--nav-offset` for
+       every anchor's `scroll-margin-top` and for the observer band. A classic
+       scrollbar is ~15px of height on the platforms that draw one, so with the
+       nav's own scrollbar visible its height — and therefore that one constant —
+       would differ between a machine that shows scrollbars and one that does
+       not. Headless Chromium draws none, so CI would never see the difference
+       and a reader on a desktop browser would get an off-by-15px anchor offset.
+
+       Both engines are covered because they take different declarations:
+       `scrollbar-width` is the standard property, and the WebKit pseudo-element
+       is what older WebKit actually honours.
+
+       Nothing is lost. The nav still scrolls — by wheel, by trackpad, by
+       dragging, and by keyboard focus, which scrolls the focused link into view
+       natively — and the rule above is what a screen-reader and keyboard reader
+       get as a visible highlight rather than an invisible one. */
+    scrollbar-width: none;
+  }
+
+  nav::-webkit-scrollbar {
+    display: none;
   }
 
   ul {

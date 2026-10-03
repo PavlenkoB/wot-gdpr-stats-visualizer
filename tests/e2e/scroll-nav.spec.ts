@@ -1,3 +1,4 @@
+import './pin-locale';
 import { expect, test, type Page } from '@playwright/test';
 import {
   buildLongTextExport,
@@ -37,7 +38,7 @@ import { NAV_STATUS_SUFFIX, SECTION_TITLES } from '../../src/lib/ui-copy.ts';
 /**
  * Reduced motion plus a short, wide viewport.
  *
- * The short height is deliberate: at 1280x400 the five Phase 3 section cards
+ * The short height is deliberate: at 1280x400 the six Phase 5 section cards
  * cannot all fit on screen, so the page scrolls and the top/bottom rules are
  * actually reachable. Reduced motion is the other half — `scroll-behavior:
  * smooth` is gated on `prefers-reduced-motion: no-preference`, and Playwright
@@ -108,7 +109,7 @@ test('(tracer) the spy marks the first link on load, the last at the bottom, and
   await importZip(page, buildSampleExport(), 'sample.zip');
   await expect(page.getByTestId('identity-nickname')).toBeVisible({ timeout: 30_000 });
 
-  // The nav exists at all, with all five links, in NAV_ORDER.
+  // The nav exists at all, with all six links, in NAV_ORDER.
   await expect(navLink(page, FIRST_ID)).toHaveCount(1, { timeout: 10_000 });
   expect(await nav(page).locator('a').count()).toBe(NAV_ORDER.length);
 
@@ -329,6 +330,133 @@ test('(reduced-motion) the smooth-scroll rule follows the reader preference', as
   expect(await page.evaluate(() => getComputedStyle(document.documentElement).scrollBehavior)).toBe(
     'auto',
   );
+});
+
+// -----------------------------------------------------------------------------
+// Task 3 — six links, and the nav keeping its own current link in view (05-09)
+// -----------------------------------------------------------------------------
+
+/**
+ * The nav's geometry, measured in one round trip.
+ *
+ * The link's edges are reported against the nav's own LEFT BORDER EDGE rather
+ * than against the viewport, because that is the frame `navScrollLeftFor` works
+ * in: `scrollLeft` and `clientWidth` are both measured from the padding box, so
+ * the assertion has to be too or the two would be comparing different origins.
+ */
+async function navGeometry(
+  page: Page,
+  id: string,
+): Promise<{
+  navLeft: number;
+  navRight: number;
+  clientLeft: number;
+  linkLeft: number;
+  linkRight: number;
+  scrollLeft: number;
+  clientWidth: number;
+  scrollWidth: number;
+  offsetHeight: number;
+}> {
+  return page.evaluate((sectionId: string) => {
+    const nav = document.querySelector('[data-testid="dashboard-nav"]') as HTMLElement;
+    const link = document.querySelector(`[data-testid="nav-link-${sectionId}"]`) as HTMLElement;
+    const navRect = nav.getBoundingClientRect();
+    const linkRect = link.getBoundingClientRect();
+    return {
+      navLeft: navRect.left,
+      navRight: navRect.right,
+      clientLeft: nav.clientLeft,
+      linkLeft: linkRect.left,
+      linkRight: linkRect.right,
+      scrollLeft: nav.scrollLeft,
+      clientWidth: nav.clientWidth,
+      scrollWidth: nav.scrollWidth,
+      offsetHeight: nav.offsetHeight,
+    };
+  }, id);
+}
+
+test('(six-links) the nav keeps the current link inside itself at 1280 and 375', async ({
+  page,
+}) => {
+  await loadSample(page);
+
+  for (const width of [1280, 375]) {
+    await page.setViewportSize({ width, height: 400 });
+    const where = `${width}px`;
+
+    // At 1280 the 720px column holds the six links by only a few pixels, and
+    // which side of the line they land on depends on the host's UI font: the
+    // developer's macOS font overflows it by 12px, a Linux runner's narrower
+    // face does not overflow it at all. So the nav is pinned narrower than the
+    // links' natural width, and the overflow the rest of this test needs is
+    // true on every host. At 375 the column is already narrower than that.
+    await nav(page).evaluate((el) => {
+      (el as HTMLElement).style.maxWidth = '480px';
+    });
+
+    // Six links no longer fit the pinned column, so the nav MUST overflow its
+    // own box. If it stopped doing so the rest of this test would be proving
+    // nothing, so the precondition is asserted rather than assumed.
+    const top = await navGeometry(page, FIRST_ID);
+    expect(top.scrollWidth, `${where} nav scrollWidth`).toBeGreaterThan(top.clientWidth);
+
+    // At the top of the page the FIRST link is current and the nav is unscrolled.
+    await scrollTo(page, 0);
+    await expect(navLink(page, FIRST_ID)).toHaveAttribute('aria-current', 'location', {
+      timeout: 10_000,
+    });
+    const atTop = await navGeometry(page, FIRST_ID);
+    expect(atTop.scrollLeft, `${where} scrollLeft at the top`).toBe(0);
+
+    // Scrolling the PAGE to the last section moves the spy, and the nav must
+    // follow with its OWN scroll so the last link is fully inside its box. The
+    // 8px is the nav's padding, which is the inset the rule works to, so the
+    // 3px underline and the focus ring are never clipped at either end.
+    await scrollTo(page, await pageHeight(page));
+    await expect(navLink(page, LAST_ID)).toHaveAttribute('aria-current', 'location', {
+      timeout: 10_000,
+    });
+    await expect
+      .poll(async () => (await navGeometry(page, LAST_ID)).scrollLeft, {
+        message: `the nav scrolls itself at ${where}`,
+      })
+      .toBeGreaterThan(0);
+
+    const atBottom = await navGeometry(page, LAST_ID);
+    expect(atBottom.linkLeft, `${where} last link left`).toBeGreaterThanOrEqual(
+      atBottom.navLeft + atBottom.clientLeft + 8 - 0.5,
+    );
+    expect(atBottom.linkRight, `${where} last link right`).toBeLessThanOrEqual(
+      atBottom.navRight - atBottom.clientLeft + 0.5,
+    );
+
+    // Going back to the top returns the nav to its start, so the first link is
+    // in view again rather than stranded off the left edge.
+    await scrollTo(page, 0);
+    await expect(navLink(page, FIRST_ID)).toHaveAttribute('aria-current', 'location', {
+      timeout: 10_000,
+    });
+    await expect
+      .poll(async () => (await navGeometry(page, FIRST_ID)).scrollLeft, {
+        message: `the nav returns to its start at ${width}px`,
+      })
+      .toBe(0);
+
+    // The page itself never scrolls sideways: the nav scrolls INSIDE itself.
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+      where,
+    ).toBeLessThanOrEqual(width);
+
+    // The nav's own height cannot depend on its scrollbar, or --nav-offset —
+    // one constant for the whole page — would move with it. The scrollbar is
+    // hidden for that reason, so this holds at both widths and while the
+    // scrollLeft changes.
+    const wide = await navGeometry(page, FIRST_ID);
+    expect(Math.abs(atTop.offsetHeight - wide.offsetHeight), where).toBeLessThanOrEqual(1);
+  }
 });
 
 test.describe('phone width', () => {

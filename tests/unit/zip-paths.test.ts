@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { unzipSync } from 'fflate';
 import {
+  SAMPLE_FILE_COUNTS,
   buildBackslashExport,
   buildEmptyZip,
   buildInflateTrapExport,
@@ -9,6 +10,20 @@ import {
   buildTruncatedExport,
 } from '../fixtures/export-fixtures.ts';
 import { listEntryPaths } from '../../src/lib/worker/zip-paths.ts';
+
+/**
+ * How many entries `buildSampleExport()` must enumerate: the sum of every
+ * category's file count.
+ *
+ * DERIVED, never typed. This file held the literal 14, then 12 before that,
+ * and each time the sample grew a folder a fixed number had to be found and
+ * corrected by hand (05-03 hit it once already). `SAMPLE_FILE_COUNTS` is the
+ * per-category contract the badge and the e2e summaries already read, so the
+ * entry count follows the same source — and the lister is still doing the
+ * real work, because a category count that disagreed with the archive would
+ * now fail here rather than pass quietly.
+ */
+const SAMPLE_ENTRY_COUNT = Object.values(SAMPLE_FILE_COUNTS).reduce((a, b) => a + b, 0);
 
 // =============================================================================
 // listEntryPaths — path-only zip enumeration
@@ -31,11 +46,22 @@ import { listEntryPaths } from '../../src/lib/worker/zip-paths.ts';
 // =============================================================================
 
 describe('listEntryPaths — happy path', () => {
-  test('buildSampleExport yields 12 names, including the supported-csv names', () => {
+  test('buildSampleExport yields every name in the sample file-count contract, including the supported-csv names', () => {
     const names = listEntryPaths(buildSampleExport());
-    expect(names).toHaveLength(12);
+    // The claim is the EXACT set of names: the lister must enumerate the
+    // archive WITHOUT inflating anything, so every entry has to be there.
+    // The count comes from SAMPLE_FILE_COUNTS rather than a literal, so a
+    // sample that gains a file fails here only if the archive and the
+    // contract genuinely disagree.
+    expect(names).toHaveLength(SAMPLE_ENTRY_COUNT);
     expect(names).toContain('123456789/User_Info/Account_Info.csv');
     expect(names).toContain('123456789/Payment_history/Orders.csv');
+    expect(names).toContain('123456789/Financial_data/Virtual_Currencies_Operations.csv');
+    // 05-06: the real per-title vehicle file name is enumerated, and none
+    // of the invented `*_stats.csv` names it replaced survives.
+    expect(names).toContain('123456789/Player_statistics/WOT_Vehicle_Statistics.csv');
+    expect(names).toContain('123456789/Player_statistics/WOWP_20_Plane_Statistics.csv');
+    expect(names.some((n) => n.endsWith('/WOT_stats.csv'))).toBe(false);
   });
 
   test("backslashed keys come back VERBATIM (normalization is classify's job, not the lister's)", () => {
@@ -66,7 +92,7 @@ describe('listEntryPaths — valid empty zip does NOT throw', () => {
 });
 
 describe('listEntryPaths — never inflates entry data (zip-bomb immunity)', () => {
-  test('buildInflateTrapExport enumerates all 12 names, while a full unzipSync on the same bytes throws', () => {
+  test('buildInflateTrapExport enumerates every sample name, while a full unzipSync on the same bytes throws', () => {
     const bytes = buildInflateTrapExport();
 
     // Control: a full unzip must throw, proving the trap bytes really
@@ -74,9 +100,10 @@ describe('listEntryPaths — never inflates entry data (zip-bomb immunity)', () 
     // silently become a no-op and the entire trap is invalidated.
     expect(() => unzipSync(bytes)).toThrow();
 
-    // The lister must still report every entry by name.
+    // The lister must still report every entry by name. The trap builder
+    // appends the whole sample, so the count is the same contract.
     const names = listEntryPaths(bytes);
-    expect(names).toHaveLength(12);
+    expect(names).toHaveLength(SAMPLE_ENTRY_COUNT);
     expect(names).toContain('123456789/User_Info/Account_Info.csv');
     expect(names).toContain('123456789/Payment_history/Orders.csv');
   });

@@ -52,7 +52,7 @@
 // are counted and are not sessions), D-05 (duration bins), D-06 (the totals).
 // =============================================================================
 
-import { zipSync } from 'fflate';
+import { zipSync } from './pinned-zip.ts';
 
 import { SAMPLE_ACCOUNT_ROOT, WRAPPER_FOLDER_NAME } from './export-fixtures.ts';
 

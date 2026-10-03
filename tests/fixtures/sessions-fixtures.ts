@@ -1,6 +1,6 @@
-import { zipSync } from 'fflate';
+import { zipSync } from './pinned-zip.ts';
 
-import { SAMPLE_ACCOUNT_ROOT } from './export-fixtures.ts';
+import { SAMPLE_ACCOUNT_ROOT } from './sample-account.ts';
 
 /**
  * Seeded, PII-free Sessions.csv fixtures with an ANALYTIC answer key

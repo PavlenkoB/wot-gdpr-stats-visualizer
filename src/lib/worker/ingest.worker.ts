@@ -3,13 +3,14 @@ import { unzipSync } from 'fflate';
 import type {
   CategoryEntry,
   ClassifyResult,
+  DataQuery,
   IngestRequest,
   IngestResponse,
   ParsingProgress,
   WorkerScopeLike,
 } from '../types/worker-messages.ts';
-import { analyzeExport, resolveCsvFileCategory } from './classify.ts';
-import { CATEGORY_STATUS_ORDER } from './categories.ts';
+import { analyzeExport, resolveCsvFileCategory, sortCategoryEntries } from './classify.ts';
+import { CATEGORY_STATUS_ORDER, classifyFolder } from './categories.ts';
 import { listEntryPaths } from './zip-paths.ts';
 import { digestFile } from './hash.ts';
 import { parseCsvFile } from './csv-parse.ts';
@@ -24,16 +25,41 @@ import {
 } from './playtime.ts';
 import { PLAYTIME_VERSION } from '../playtime-shared.ts';
 import {
+  answerDataQuery,
+  clearDataQueryMemo,
+  DATA_FILES,
+  getDataQueryMemo,
+  isDataQuery,
+  setDataQueryMemo,
+} from './data-queries.ts';
+import {
   checkCache,
   clearData,
+  MAX_PRESENCE_FILES,
+  readRowsByFile,
   readSessionRowData,
   writeDataset,
   writePlaytimeIfCurrent,
+  type DatasetFile,
   type DatasetMeta,
   type DatasetRow,
 } from './db.ts';
 
 const scope = self as unknown as WorkerScopeLike;
+
+/**
+ * The categories whose per-file presence facts are recorded at import (05-07).
+ *
+ * These are exactly the three the Phase 5 blocks read, and the set is spelled
+ * here in lower case because the comparison is: a folder spelled
+ * `financial_data` classifies as the same supported category as
+ * `Financial_data` and its files need the same facts.
+ */
+const PRESENCE_CATEGORIES: ReadonlySet<string> = new Set([
+  'player_statistics',
+  'financial_data',
+  'payment_history',
+]);
 
 scope.onmessage = async (event: MessageEvent<IngestRequest>) => {
   const msg = event.data;
@@ -61,6 +87,14 @@ scope.onmessage = async (event: MessageEvent<IngestRequest>) => {
   // for a chart and no import is ever running on this path.
   if (msg.type === 'playtime-query') {
     await handlePlaytimeQuery(msg.queryId, msg.valueIndex);
+    return;
+  }
+  // 05-07: the four Phase 5 blocks ask for their numbers the same way. Answered
+  // ON DEMAND from the stored rows rather than from an aggregate on the meta
+  // record: the builders are pure and the presence facts are recorded at
+  // import, so there is nothing to precompute (CONTEXT Claude's discretion).
+  if (msg.type === 'data-query') {
+    await handleDataQuery(msg.queryId, msg.query);
     return;
   }
 };
@@ -161,6 +195,110 @@ async function handlePlaytimeQuery(queryId: number, valueIndex: number | null): 
 }
 
 /**
+ * Answer one `data-query` from ONE Dexie snapshot (05-07, T-05-19).
+ *
+ * The shape mirrors `handlePlaytimeQuery` and inherits its load-bearing rule:
+ * the answer and the rows behind it come from the SAME read. `checkCache`
+ * decides only whether anything is imported at all; the numbers and the date
+ * the caller is told about both come from `readRowsByFile`'s snapshot. A
+ * replace landing between the two reads therefore cannot produce an answer
+ * carrying the previous dataset's numbers under the new dataset's date.
+ *
+ * ## Why a builder failure is this block's problem and not the import's
+ *
+ * The catch here answers with `data-error` and changes nothing else. A bug in
+ * one builder costs that one block its numbers — the user sees an error in one
+ * section, the dataset on screen is untouched, and a later query still works.
+ * That is the same "a playtime bug must never cost the user their import"
+ * discipline (T-04-03), applied to the query side.
+ *
+ * ## Why the detail is the error NAME only (T-05-20)
+ *
+ * A builder's message can echo a cell — `BigInt` on a non-numeric amount, a
+ * decimal parser on a 200-character string — and Phase 3 D-21 keeps dataset
+ * text off the screen and out of every outcome. The real error object goes to
+ * the console, where it is a local debugging aid and never a message.
+ */
+async function handleDataQuery(queryId: number, query: DataQuery): Promise<void> {
+  try {
+    // T-05-18: the message is validated BEFORE anything reads it. A rejected
+    // query never reaches a builder, and never reaches the channel table either
+    // — `DATA_FILES[query.channel]` on an unknown channel would be undefined,
+    // and the reader would then be handed undefined names.
+    if (!isDataQuery(query)) {
+      scope.postMessage({
+        type: 'data-error',
+        queryId,
+        // FIXED, and the same for every malformed shape: the detail must not
+        // echo the message that failed the check.
+        detail: 'invalid query',
+      } satisfies IngestResponse);
+      return;
+    }
+
+    const meta = await checkCache();
+    if (meta === null) {
+      scope.postMessage({
+        type: 'data-result',
+        queryId,
+        importedAt: null,
+        result: null,
+      } satisfies IngestResponse);
+      return;
+    }
+
+    // The memo is consulted against the CURRENT meta's importedAt, so a hit is
+    // by construction an answer for the dataset on screen. A hit therefore
+    // skips the row read entirely — and still echoes the meta's own date, which
+    // equals the entry's.
+    const memoised = getDataQueryMemo(query, meta.importedAt);
+    if (memoised !== null) {
+      scope.postMessage({
+        type: 'data-result',
+        queryId,
+        importedAt: memoised.importedAt,
+        result: memoised.result,
+      } satisfies IngestResponse);
+      return;
+    }
+
+    const files = DATA_FILES[query.channel];
+    const snapshot = await readRowsByFile(files.names, files.categories);
+    if (snapshot === null) {
+      // Cleared between the two reads — the same statement as "nothing
+      // imported", and what the user sees.
+      scope.postMessage({
+        type: 'data-result',
+        queryId,
+        importedAt: null,
+        result: null,
+      } satisfies IngestResponse);
+      return;
+    }
+
+    // Stored only after the builder SUCCEEDED, so a throwing builder leaves no
+    // half-answer behind for a later query to find.
+    const result = answerDataQuery(query, snapshot);
+    setDataQueryMemo(query, snapshot.importedAt, result);
+    scope.postMessage({
+      type: 'data-result',
+      queryId,
+      importedAt: snapshot.importedAt,
+      result,
+    } satisfies IngestResponse);
+  } catch (err) {
+    console.error('[ingest.worker] data-query failed', err);
+    scope.postMessage({
+      type: 'data-error',
+      queryId,
+      // The NAME, never the message. `err` may be a non-Error thrown value,
+      // in which case there is no name worth sending either.
+      detail: err instanceof Error ? err.name : 'Error',
+    } satisfies IngestResponse);
+  }
+}
+
+/**
  * Destructive-side counterpart of handleCheckCache: clear every row
  * and delete the 'active' meta record in one Dexie transaction, then
  * post a single 'cleared' message. The main thread is in
@@ -173,6 +311,10 @@ async function handlePlaytimeQuery(queryId: number, valueIndex: number | null): 
 async function handleClearData(jobId: number): Promise<void> {
   try {
     await clearData();
+    // 05-07: a clear removes the dataset every remembered answer was computed
+    // from. The importedAt check already refuses those, but emptying here is
+    // what keeps the bound meaningful rather than full of dead entries.
+    clearDataQueryMemo();
     scope.postMessage({ type: 'cleared', jobId } satisfies IngestResponse);
   } catch (err) {
     const e = err instanceof Error ? err : new Error(String(err));
@@ -225,12 +367,46 @@ async function handleCheckCache(jobId: number): Promise<void> {
  * re-drop but not after a reload, which is exactly the kind of drift this
  * helper exists to prevent. It also guarantees the identity is served
  * straight off the meta record with no row query (D-20).
+ *
+ * ## Why every status is re-derived here (05-03, D-01, T-05-05)
+ *
+ * `meta.categories[].status` is a CACHE OF A CLASSIFICATION, not a fact
+ * about the export. A record written by an older build therefore carries
+ * statuses that are now wrong — concretely, `Financial_data: unknown`,
+ * stored before Phase 5 promoted it to supported, while its rows sit
+ * happily in the `rows` table because the worker has always parsed every
+ * category regardless of status. Reading that stored label back would tell
+ * a returning user "Not in this export" for a folder they demonstrably
+ * have, and list it under "Not yet supported".
+ *
+ * So the status is recomputed from the stored NAME with `classifyFolder`
+ * — the same call `analyzeExport` makes — and the list is re-sorted with
+ * the same comparator, because a status change moves an entry between
+ * groups and a repaired list left in the old order would show the folder
+ * still sitting among the unknown ones.
+ *
+ * `counts` is derived AFTER the remap, never before: counting first would
+ * report `supported: 4` over a list whose five entries all say supported.
+ *
+ * ## Why this is NOT a Dexie version bump
+ *
+ * The rows are valid and only a derived label is stale. `version(3)` with
+ * an `upgrade` callback would discard a returning user's cached dataset —
+ * their imported-at timestamp, their identity, every parsed row — to fix a
+ * word. Re-deriving at read time is backward safe by construction: it
+ * costs one `classifyFolder` call per stored category on a page load that
+ * already read the whole meta record, and it cannot lose data because it
+ * writes nothing. `db.verno` therefore stays 2 and the `version(2)`
+ * upgrader is untouched (db.ts's two-rules comment still holds).
  */
 function resultFromMeta(meta: DatasetMeta): ClassifyResult {
+  const categories = sortCategoryEntries(
+    meta.categories.map((entry) => ({ ...entry, status: classifyFolder(entry.name) })),
+  );
   return {
     accountRoot: meta.accountRoot,
-    categories: meta.categories,
-    counts: recomputeStatusCounts(meta.categories),
+    categories,
+    counts: recomputeStatusCounts(categories),
     importedAt: meta.importedAt,
     identity: meta.identity ?? null,
   };
@@ -296,6 +472,12 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
     // silently exclude every row of all but the first file.
     const sessionSources: SessionSource[] = [];
     let sessionsFileSeen = false;
+    // 05-07: one presence fact per file of the three categories this phase
+    // reads, pushed BEFORE the row loop for the same reason the session flag
+    // is set there — a header-only file parses to zero rows, and a fact set
+    // inside the loop would never be recorded for exactly the file whose
+    // presence the fact exists to prove (D-02, D-05).
+    const presenceFiles: DatasetFile[] = [];
     const categoryTotal = outcome.result.categories.length;
     for (let i = 0; i < categoryTotal; i++) {
       const entry = outcome.result.categories[i]!;
@@ -337,6 +519,21 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
         if (isSessions) {
           sessionsFileSeen = true;
           sessionSources.push(source);
+        }
+        // Same before-the-loop rule, for the same reason. The category is
+        // matched LOWER-CASED because a folder spelled `player_statistics`
+        // classifies as the same supported category (D-18) and its files are
+        // exactly the ones these blocks need presence for. The cap bounds a
+        // crafted archive (T-05-21): past it the facts stop, the rows do not.
+        if (
+          presenceFiles.length < MAX_PRESENCE_FILES &&
+          PRESENCE_CATEGORIES.has(entry.name.toLowerCase())
+        ) {
+          presenceFiles.push({
+            category: entry.name,
+            sourceFile: resolved.sourceFile,
+            rowCount: parsed.rows.length,
+          });
         }
         for (let r = 0; r < parsed.rows.length; r++) {
           // THE single choke point every row passes through. Dropping the
@@ -396,7 +593,14 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
       allRows,
       identity,
       playtime,
+      // 05-07: the presence facts ride in the SAME meta.put as the rows, so a
+      // dataset is either all rows with their facts or neither. A fact without
+      // its rows would be exactly the state a `no-rows` claim is made of.
+      presenceFiles,
     );
+    // 05-07: a successful import REPLACED the dataset, so every remembered
+    // answer belongs to a dataset the user is no longer looking at.
+    clearDataQueryMemo();
 
     const finalResult: ClassifyResult = {
       ...outcome.result,

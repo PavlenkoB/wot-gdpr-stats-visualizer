@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import {
   buildRootMargin,
   isAtPageBottom,
+  navScrollLeftFor,
   parseNavOffset,
   pickActiveSection,
 } from '../../src/lib/scroll-spy.ts';
@@ -188,5 +189,144 @@ describe('parseNavOffset', () => {
     expect(parseNavOffset('', 64)).toBe(64);
     expect(parseNavOffset('abc', 64)).toBe(64);
     expect(parseNavOffset('96px', 64)).toBe(96);
+  });
+});
+
+// =============================================================================
+// navScrollLeftFor — the nav's OWN scroll position (05-09)
+// =============================================================================
+//
+// Six links no longer fit the 720px column, so the nav scrolls inside itself.
+// The scroll-spy says WHICH link is current; this says WHERE the nav must scroll
+// so that link is actually visible. The two are separate questions and the
+// second one has to be answerable without a DOM, so it is a pure function over
+// five numbers the component measures.
+//
+// It exists rather than a native scroll-into-view because that call scrolls
+// EVERY scrollable ancestor, page included: it would move the page to wherever
+// the nav happened to be while the reader was trying to stay where they were.
+// The rule moves the nav's own `scrollLeft` and nothing else.
+// =============================================================================
+
+describe('navScrollLeftFor', () => {
+  test('leaves the position alone when the link is already inside the inset', () => {
+    expect(
+      navScrollLeftFor({
+        scrollLeft: 40,
+        clientWidth: 300,
+        linkLeft: 100,
+        linkRight: 180,
+        inset: 8,
+      }),
+    ).toBe(40);
+  });
+
+  test('scrolls left just far enough to clear the left inset', () => {
+    // The link's left edge is 4px in and the inset is 8, so 4px of scroll.
+    expect(
+      navScrollLeftFor({
+        scrollLeft: 100,
+        clientWidth: 300,
+        linkLeft: 4,
+        linkRight: 84,
+        inset: 8,
+      }),
+    ).toBe(96);
+  });
+
+  test('scrolls right just far enough to clear the right inset', () => {
+    // 296 is 4px past the 292px right limit, so 4px of scroll.
+    expect(
+      navScrollLeftFor({
+        scrollLeft: 0,
+        clientWidth: 300,
+        linkLeft: 200,
+        linkRight: 296,
+        inset: 8,
+      }),
+    ).toBe(4);
+  });
+
+  test('never returns a negative position', () => {
+    expect(
+      navScrollLeftFor({
+        scrollLeft: 2,
+        clientWidth: 300,
+        linkLeft: 0,
+        linkRight: 80,
+        inset: 8,
+      }),
+    ).toBe(0);
+    expect(
+      navScrollLeftFor({
+        scrollLeft: 0,
+        clientWidth: 300,
+        linkLeft: -50,
+        linkRight: 30,
+        inset: 8,
+      }),
+    ).toBe(0);
+  });
+
+  test('shows the LEFT edge of a link too wide for the nav', () => {
+    // A 300px link in a 100px nav cannot be shown whole, and scrolling to its
+    // right edge would leave the reader looking at the middle of a name. The
+    // left edge is the useful half: it is the start of the word.
+    expect(
+      navScrollLeftFor({
+        scrollLeft: 0,
+        clientWidth: 100,
+        linkLeft: 0,
+        linkRight: 300,
+        inset: 8,
+      }),
+    ).toBe(0);
+    expect(
+      navScrollLeftFor({
+        scrollLeft: 50,
+        clientWidth: 100,
+        linkLeft: -50,
+        linkRight: 250,
+        inset: 8,
+      }),
+    ).toBe(0);
+  });
+
+  test('returns to the very start when the first link becomes current again', () => {
+    // The first link sits at the nav's own padding, so as the nav scrolls it
+    // goes negative and the rule pulls all the way back.
+    expect(
+      navScrollLeftFor({
+        scrollLeft: 100,
+        clientWidth: 300,
+        linkLeft: -92,
+        linkRight: -12,
+        inset: 8,
+      }),
+    ).toBe(0);
+  });
+
+  test('a zero inset means no breathing room, so a flush link is left alone', () => {
+    // The same geometry, and only the inset differs: at 8px the link is 8px
+    // past the right limit and the nav scrolls; at 0px it ends exactly on the
+    // edge and the nav does not move.
+    const geometry = { scrollLeft: 0, clientWidth: 100, linkLeft: 10, linkRight: 100 };
+
+    expect(navScrollLeftFor({ ...geometry, inset: 0 })).toBe(0);
+    expect(navScrollLeftFor({ ...geometry, inset: 8 })).toBe(8);
+  });
+
+  test('survives a non-finite measurement rather than producing NaN', () => {
+    // A NaN `scrollLeft` would silently stop the nav scrolling, with no error
+    // anywhere — the same failure mode `parseNavOffset`'s fallback exists for.
+    expect(
+      navScrollLeftFor({
+        scrollLeft: Number.NaN,
+        clientWidth: 300,
+        linkLeft: 100,
+        linkRight: 180,
+        inset: 8,
+      }),
+    ).toBe(0);
   });
 });

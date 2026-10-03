@@ -9,6 +9,7 @@ import type {
 import { precheckFiles } from './precheck.ts';
 import { GENERIC_FAILURE_MESSAGE } from './ui-copy.ts';
 import { PlaytimeClient } from './playtime-client.ts';
+import { QueryClient } from './query-client.ts';
 
 export type IngestViewState =
   'checking-cache' | 'idle' | 'processing' | 'done' | 'error' | 'duplicate' | 'confirm-pending';
@@ -156,6 +157,22 @@ export class IngestClient {
    */
   readonly playtime: PlaytimeClient;
 
+  /**
+   * The four Phase 5 blocks' query bridge (05-07).
+   *
+   * A second object, and NOT a second instance of the playtime bridge: the two
+   * families differ in the one rule that matters. `PlaytimeClient` supersedes
+   * every pending query when a new one is issued, which is right for its single
+   * selector and wrong for four blocks that each ask on mount — three mounting
+   * in one tick would starve each other and two would load forever (RESEARCH
+   * Pitfall 1). `QueryClient` narrows supersede to the channel, so a block
+   * asking again releases only its own older question.
+   *
+   * The `post` closes over the SAME private worker, so the page still has
+   * exactly one Worker — the sole-owner rule db.ts depends on.
+   */
+  readonly data: QueryClient;
+
   #worker: WorkerLike;
   #jobId = 0;
   #workerBroken = false;
@@ -175,6 +192,14 @@ export class IngestClient {
       // initialisation order is not an issue. Deliberately NOT `!workerReady`
       // as well: before `ready` arrives the worker is merely unproven, and
       // 04-01's contract lets a query go out from the moment the page loads.
+      () => !this.#workerBroken,
+    );
+    // 05-07: same post closure, and the SAME availability probe with the same
+    // reasoning — the four Phase 5 blocks are charts of the same kind, so a
+    // dead worker is the same signal for them and the `ready` flag is no more
+    // of a gate here than it is for playtime.
+    this.data = new QueryClient(
+      (message) => this.#worker.postMessage(message),
       () => !this.#workerBroken,
     );
     this.#worker.onmessage = (event) => this.#handle(event.data);
@@ -205,6 +230,10 @@ export class IngestClient {
       // worker's own postMessage behaviour. Reopen WR-01 if real-world
       // idle+ready errors ever leave the busy floor stranded.
       this.playtime.failPending('worker error');
+      // 05-07: the four Phase 5 blocks are released by the same event for the
+      // same reason, with the same FIXED detail. A chart's `query()` promise
+      // would otherwise wait forever on a reply that cannot come.
+      this.data.failPending('worker error');
       if (this.state === 'processing') {
         this.#scheduleSettle(() => this.#fail(`worker error: ${event.message || 'unknown'}`));
       } else if (!this.workerReady) {
@@ -221,6 +250,8 @@ export class IngestClient {
       // could not be deserialized will never be answered, so every pending
       // query is released rather than left hanging.
       this.playtime.failPending('worker message could not be deserialized');
+      // 05-07: same release for the four data channels, same fixed detail.
+      this.data.failPending('worker message could not be deserialized');
       if (this.state === 'processing') {
         this.#scheduleSettle(() => this.#fail('worker message could not be deserialized'));
       }
@@ -526,6 +557,17 @@ export class IngestClient {
     // the settle timer untouched by a chart query (04-01 Task 2).
     if (msg.type === 'playtime-result' || msg.type === 'playtime-error') {
       this.playtime.handle(msg);
+      return;
+    }
+
+    // 05-07, and the SECOND query branch on purpose, for the same reason the
+    // playtime one is first: the data replies share this channel with the
+    // import flow, so they are routed to their bridge and returned before any
+    // state-machine branch runs. Nothing below this line may ever see a data
+    // message, which is what keeps #jobId, `state` and the settle timer
+    // untouched by a block's question.
+    if (msg.type === 'data-result' || msg.type === 'data-error') {
+      this.data.handle(msg);
       return;
     }
 

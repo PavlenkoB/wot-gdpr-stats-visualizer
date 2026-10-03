@@ -26,13 +26,25 @@ import config from '../../playwright.config';
 // 109) while these three numbers stayed at their Phase-1 values, so this
 // guard now pins the projection the plan derived AND the ordering.
 //
-// The projection (see 04-13-SUMMARY.md for the measured inputs):
+// The projection (see 04-13-SUMMARY.md for the measured inputs, and
+// 05-16-SUMMARY.md for the finance block and the raise it forced):
 //
 //   E = PRE_PHASE_SECONDS
-//     + SECONDS_PER_NEW_TEST * (L - PRE_PHASE_TEST_COUNT - SCALE_SPEC_TEST_COUNT)
+//     + SECONDS_PER_NEW_TEST * (L - PRE_PHASE_TEST_COUNT
+//                              - SCALE_SPEC_TEST_COUNT
+//                              - FINANCE_SCALE_TEST_COUNT)
 //     + SCALE_SPEC_SECONDS
+//     + FINANCE_SCALE_SECONDS
 //
 //   L = the number of tests `playwright test --list` actually reports.
+//
+// TWO scale specs, priced as BLOCKS. Both files open a browser context, build
+// a multi-megabyte export in Node and import it, and then their remaining
+// tests read one already-rendered DOM — so a per-test increment would charge
+// each of their cheap assertions for the import that only the first one pays.
+// Each is therefore subtracted from the per-test count and added back as one
+// allowance, which is why a fifth test in either file costs 0 s and the sixth
+// browser test anywhere costs 5 s.
 //
 // Every constant below is either MEASURED in this repository or an ESTIMATE
 // carried forward from an earlier phase, and is labelled as such. The
@@ -67,6 +79,34 @@ const SCALE_SPEC_TEST_COUNT = 5;
  * per test. */
 const SCALE_SPEC_SECONDS = 120;
 
+/** Tests in finance-scale.spec.ts — MEASURED with `playwright test --list` at
+ * the end of 05-16 Task 1: 184 tests in 16 files, five of them in this file. */
+const FINANCE_SCALE_TEST_COUNT = 5;
+
+/**
+ * Allowance for the 50,000-operation finance scale spec — ESTIMATE from 05-16,
+ * and the FLOOR is what binds. Plan 05-16 Task 2 defines the value as "the
+ * Task 1 measured 50,000-row import time rounded up plus the 10,000-row
+ * replace, never below 90". Task 1 MEASURED both on this machine:
+ *
+ *   50,000 operations, submission to `ready`:  1,414 ms  -> 2 s rounded up
+ *   10,000 operations, replace to `ready`:         947 ms  -> 1 s rounded up
+ *   computed:                                                        3 s
+ *   floor:                                                           90 s
+ *
+ * so this is 90, and the reason the floor exists is visible in that
+ * arithmetic: the two import timings are the WHOLE cost of the expensive part,
+ * and they leave out everything else the block pays — a browser context, the
+ * Vite preview server's first module graph, rendering six charts and a
+ * 5.5 MB CSV in Node, and a second context for the replace. Those are what
+ * 04-13's 120 s block is really made of, and they are unmeasured on a CI
+ * runner. 90 is deliberately below the 60,000-session spec's 120 s: the
+ * finance block imports a 5.5 MB export where the activity block imports a
+ * 60,000-session one, and a floor that overstates this block would raise all
+ * three limits further than the evidence supports.
+ */
+const FINANCE_SCALE_SECONDS = 90;
+
 /** Per-test increment for a browser-backed test — ESTIMATE from the phase. */
 const SECONDS_PER_NEW_TEST = 5;
 
@@ -86,8 +126,13 @@ const MIN_JOB_OVERHEAD_SECONDS = 300;
 const LIST_TIMEOUT_MS = 60_000;
 
 function projectedE2eSeconds(listedTests: number): number {
-  const newTests = Math.max(0, listedTests - PRE_PHASE_TEST_COUNT - SCALE_SPEC_TEST_COUNT);
-  return PRE_PHASE_SECONDS + SECONDS_PER_NEW_TEST * newTests + SCALE_SPEC_SECONDS;
+  const newTests = Math.max(
+    0,
+    listedTests - PRE_PHASE_TEST_COUNT - SCALE_SPEC_TEST_COUNT - FINANCE_SCALE_TEST_COUNT,
+  );
+  return (
+    PRE_PHASE_SECONDS + SECONDS_PER_NEW_TEST * newTests + SCALE_SPEC_SECONDS + FINANCE_SCALE_SECONDS
+  );
 }
 
 function listedTestTotal(): { total: number; files: number } {
@@ -157,13 +202,18 @@ describe('CI e2e budget', () => {
   });
 
   test('the projection is the arithmetic the plan derived', () => {
-    // The 109-test, 5-test scale-spec shape measured at the end of 04-12:
-    // 330 + 5 * (109 - 86 - 5) + 120.
-    expect(projectedE2eSeconds(109)).toBe(540);
-    // One test beyond the baseline and the scale spec is worth exactly one
-    // increment; the projection never falls below the baseline + allowance.
-    expect(projectedE2eSeconds(PRE_PHASE_TEST_COUNT + SCALE_SPEC_TEST_COUNT + 1)).toBe(455);
-    expect(projectedE2eSeconds(PRE_PHASE_TEST_COUNT)).toBe(450);
+    // The 184-test, 5-test-per-scale-spec shape MEASURED at the end of 05-16
+    // Task 1: 330 + 5 * (184 - 86 - 5 - 5) + 120 + 90 = 980.
+    expect(projectedE2eSeconds(184)).toBe(980);
+    // One test beyond the baseline and BOTH scale specs is worth exactly one
+    // increment; the projection never falls below the baseline + both
+    // allowances, even when a caller passes a count below the baseline.
+    expect(
+      projectedE2eSeconds(
+        PRE_PHASE_TEST_COUNT + SCALE_SPEC_TEST_COUNT + FINANCE_SCALE_TEST_COUNT + 1,
+      ),
+    ).toBe(545);
+    expect(projectedE2eSeconds(PRE_PHASE_TEST_COUNT)).toBe(540);
   });
 
   test('globalTimeout is at least 1.3x the projected e2e duration', () => {

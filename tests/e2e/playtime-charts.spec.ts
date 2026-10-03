@@ -1,3 +1,4 @@
+import './pin-locale';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { SYNTHETIC_ZIP_NAME, gotoApp, importExport, playtimeBlock } from './helpers.ts';
 import {
@@ -289,12 +290,15 @@ test('calendar: (sticky head) the year head is a SIBLING of the scroller and is 
   // reality are already different, so a focus correction that hard-coded the
   // declared number would be wrong by a visible amount on a real render.
   //
-  // It is deliberately NOT a claim that the correction fires. Across twenty key
-  // sequences the browser's own `focus()` lands the cell roughly 355px below the
-  // top of the viewport — far under a nav of 57px plus a head of 41px — so
-  // `focusScrollDelta` returns 0 every time and the passed-in value is never
-  // used. The value is correct by construction and unit-tested; no behavioural
-  // browser proof of it exists. See 04-11-SUMMARY.
+  // It is deliberately NOT a claim that the correction fires; that is a
+  // separate test. Reaching the correction needs the cell to be ON screen and
+  // UNDER the chrome, which `focus()` will not produce on its own — the
+  // browser centres a cell that is off screen, about 355px below the top of
+  // the viewport on this fixture, far clear of a nav of 57px plus a head of
+  // 41px. tests/e2e/playtime-ui-review.spec.ts parks a cell under the stuck
+  // head by hand, presses a real key and proves the correction fires, clears
+  // it, and uses the head's MEASURED height (see 04-17-SUMMARY for the
+  // mutation check that hard-coding 32 makes that test fail).
   expect(nesting.head).toBeGreaterThan(32);
 
   // And it parks UNDER the nav rather than under it: the sticky's `top` is
@@ -1049,8 +1053,9 @@ for (const [width, headFits] of [
     // At 375px the head is TALLER than at 1280px, because its summary wraps
     // below the year instead of sitting beside it. This is the reason the focus
     // correction measures the head rather than trusting its declared 32px, and
-    // it is observable here even though the correction itself is not reachable
-    // from a real key sequence (see 04-11-SUMMARY).
+    // tests/e2e/playtime-ui-review.spec.ts proves the difference matters: with
+    // the measured height the correction clears the head, and with 32
+    // hard-coded the same test fails at 375px by about 11px.
     if (headFits) {
       // Wide: the year and the summary share a line, so the head is short.
       expect(observed!.headHeight).toBeLessThan(60);

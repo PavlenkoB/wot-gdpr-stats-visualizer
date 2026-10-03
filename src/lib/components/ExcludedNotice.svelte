@@ -2,7 +2,7 @@
   import { PLAYTIME_EXCLUDED_EXPLANATION, formatExcludedPill } from '../ui-copy.ts';
 
   /**
-   * The excluded-row notice (D-02).
+   * The excluded-row notice (D-02), shared by every block that drops rows.
    *
    * Two rules, both of which are why this is a component and not a paragraph:
    *
@@ -20,22 +20,60 @@
    * It renders in two places — under a ready slice, and under the
    * `no-usable-sessions` message — because "every row was excluded" and "some
    * rows were excluded" are the same fact at different magnitudes.
+   *
+   * ## Generalised in 05-10, without changing what it renders
+   *
+   * Phase 5 gives the premium, currency and spend blocks the same notice with
+   * their own nouns: "7 premium rows excluded", "4 operation rows excluded",
+   * "3 paid orders excluded". Four blocks that each name their own dropped rows
+   * are four copies of the same amber pill, and a copy is a chrome that drifts
+   * — the fourth one would end up a different radius or a different muted grey.
+   *
+   * So `pill`, `explanation` and `testId` became optional props, and the three
+   * defaults are the Phase 4 values. That is the whole change: the two existing
+   * callers pass `count` alone and are byte-for-byte unchanged, which is what
+   * keeps the generalisation from being a rewrite of a shipped component.
+   *
+   * The alternative — a `noun` prop and a suffix built here — was rejected
+   * because the three phrases are not one phrase with a different noun. Each
+   * block's pill sentence is copy the Phase 5 inventory already owns and tests
+   * (`formatPremiumExcludedPill` and its two siblings), and a component that
+   * assembled them would be a second place for that wording to live.
    */
   interface Props {
     /** Rows that carried no usable start and end pair, for the slice on screen. */
     count: number;
+    /**
+     * The pill's own words, resolved by the caller. `undefined` falls back to
+     * the Phase 4 playtime pill for `count`.
+     */
+    pill?: string;
+    /** Why the rows were dropped. Defaults to the Phase 4 playtime wording. */
+    explanation?: string;
+    /** The `data-testid` on the notice. Defaults to `playtime-excluded`. */
+    testId?: string;
   }
 
-  let { count }: Props = $props();
+  let { count, pill, explanation, testId }: Props = $props();
 
-  /** Empty for zero, which is the whole of the "render nothing" rule. */
-  const pill = $derived(formatExcludedPill(count));
+  /**
+   * The three resolved values, and the zero rule in one place.
+   *
+   * The `{#if}` below tests `pillText` — the RESOLVED pill — rather than
+   * `count`. That is what keeps a caller honest: a block that passes
+   * `formatXExcludedPill(0)` gets `''` and the notice disappears, so the zero
+   * case is unrepresentable from outside instead of being a rule each caller
+   * has to remember.
+   */
+  const pillText = $derived(pill ?? formatExcludedPill(count));
+  const explanationText = $derived(explanation ?? PLAYTIME_EXCLUDED_EXPLANATION);
+  const noticeTestId = $derived(testId ?? 'playtime-excluded');
 </script>
 
-{#if pill !== ''}
-  <p data-testid="playtime-excluded">
-    <span class="pill">{pill}</span>
-    <span class="explanation">{PLAYTIME_EXCLUDED_EXPLANATION}</span>
+{#if pillText !== ''}
+  <p data-testid={noticeTestId}>
+    <span class="pill">{pillText}</span>
+    <span class="explanation">{explanationText}</span>
   </p>
 {/if}
 

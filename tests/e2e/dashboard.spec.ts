@@ -1,3 +1,4 @@
+import './pin-locale';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   EXTRA_UNKNOWN_FOLDER,
@@ -76,10 +77,11 @@ import { dropFiles, importLine, importLines } from './helpers.ts';
 // on, so a change to them must break a test here rather than be absorbed.
 // =============================================================================
 
-/** The four supported section ids in D-02 order, block excluded (Task 3). */
+/** The five supported section ids in D-02 order, block excluded (Task 3). */
 const SUPPORTED_IDS = [
   'activity-history',
   'player-statistics',
+  'financial-data',
   'payment-history',
   'user-info',
 ] as const;
@@ -93,6 +95,7 @@ const SUPPORTED_IDS = [
 const SECTIONS_BY_ID: Record<(typeof SUPPORTED_IDS)[number], string> = {
   'activity-history': 'Activity_history',
   'player-statistics': 'Player_statistics',
+  'financial-data': 'Financial_data',
   'payment-history': 'Payment_history',
   'user-info': 'User_Info',
 };
@@ -167,23 +170,32 @@ test.describe('dashboard shell (03-04 Task 2)', () => {
     );
   });
 
-  test('(sections-pending) three sections pending and Activity_history ready, all four in D-02 order with counts', async ({
+  test('(sections-pending) four sections ready and only User_Info pending, all five in D-02 order with counts', async ({
     page,
   }) => {
     await importZip(page, buildSampleExport(), 'sample.zip');
     await expect(page.getByTestId('identity-nickname')).toBeVisible({ timeout: 30_000 });
 
-    // The document order of all five cards — with the unsupported block
+    // The document order of all six cards — with the unsupported block
     // last — is asserted once, by the `(order)` test in the block describe
     // below. This test is about what each card SAYS.
 
     for (const id of SUPPORTED_IDS) {
       const card = section(page, id);
-      // Since 04-02 Activity_history is the one section with a dashboard, so
-      // it is `ready`; the other three still promise one and say so.
+      // Four sections have a dashboard and read `ready` — Activity_history
+      // since 04-02, Player_statistics since 05-12, Financial_data since
+      // 05-10 and Payment_history since 05-15 — and User_Info is the one that
+      // still says it will never have one. Named rather than counted, so a
+      // phase that adds its own id to BUILT_DASHBOARDS has to come back and
+      // own this line.
       await expect(card).toHaveAttribute(
         'data-status',
-        id === 'activity-history' ? 'ready' : 'pending',
+        id === 'activity-history' ||
+          id === 'player-statistics' ||
+          id === 'financial-data' ||
+          id === 'payment-history'
+          ? 'ready'
+          : 'pending',
       );
       // The heading carries the folder name exactly as written in the zip.
       await expect(card.locator('h2')).toHaveText(SECTIONS_BY_ID[id]);
@@ -195,23 +207,79 @@ test.describe('dashboard shell (03-04 Task 2)', () => {
       await expect(importLine(card)).toHaveText(expectedSummary(SECTIONS_BY_ID[id]));
       await expect(card.getByTestId('skip-tag')).toHaveCount(0);
 
-      // D-06: always expanded, no collapse control inside the section.
-      await expect(card.locator('button, details')).toHaveCount(0);
+      // D-06: the SECTION is always expanded, and nothing inside any card is a
+      // control that collapses the section.
+      //
+      // The `button` half holds for every card but Player_statistics, and
+      // 05-12 is why. The Vehicle statistics table's sort buttons are controls
+      // over the DATA — which column the drawn rows are ordered by — and the
+      // column picker of 05-14 is a control over which columns are drawn. A
+      // `ready` section may hold those; what it may not hold is a control
+      // over ITS OWN visibility, and `DashboardSection` is what would have to
+      // render one. So the section's expansion is asserted where it is
+      // decided, by the `details` half below and by the `(no-collapse)` shape
+      // Phase 3 added, and this line keeps its claim only where it is true.
+      if (id !== 'player-statistics') {
+        await expect(card.locator('button')).toHaveCount(0);
+      } else {
+        // Named rather than merely allowed: the buttons that exist are the
+        // table's six sort buttons, and nothing else in the card is one.
+        await expect(card.getByTestId('vehicle-table').locator('button')).toHaveCount(6);
+      }
+      // The `details` half is narrower, and deliberately so. A `pending` card is
+      // a promise with no dashboard, so a disclosure inside it would be a
+      // control over content that does not exist yet. A `ready` card may hold a
+      // `details` that is part of its dashboard: Financial_data's Premium block
+      // discloses the premium values it could not chart (05-10, D-20), and
+      // Player_statistics' Vehicle block discloses the export's own per-battle-
+      // type coverage (05-14, D-07). Both are disclosures about the DATA, not
+      // collapse controls for the section, and the section around them is still
+      // always expanded. Player_statistics holds two of them for the same
+      // reason: the battle-type summary and the column picker are both
+      // controls over the DATA it draws.
+      if (
+        id === 'activity-history' ||
+        id === 'financial-data' ||
+        id === 'player-statistics' ||
+        id === 'payment-history'
+      ) {
+        // Not a hole: the disclosure each of those cards DOES hold is
+        // named here, so a card that grew a disclosure over ITS OWN content —
+        // which is what D-06 forbids — would fail rather than pass by omission.
+        if (id === 'player-statistics') {
+          // Both of them named, and the count pinned — so a third disclosure
+          // is a test failure to own rather than a silent widening of what
+          // this card is allowed to contain.
+          await expect(card.getByTestId('battle-type-summary-disclosure')).toHaveCount(1);
+          await expect(card.getByTestId('column-picker')).toHaveCount(1);
+          await expect(card.locator('details')).toHaveCount(2);
+        }
+        continue;
+      }
+      await expect(card.locator('details')).toHaveCount(0);
     }
 
-    // User_Info promises no dashboard that will never be built; the other
-    // three that are still pending honestly say one is coming. Activity_history
-    // is a ready section that still says so, and says it from the Login history
-    // block inside it (04-08) — the promise is deferred, not dropped.
+    // User_Info is the ONLY pending section this phase ends with, and it
+    // promises no dashboard that will ever be built — so the
+    // SECTION_NOTE_PENDING loop that stood here through 05-10, 05-12 and 05-13
+    // is now EMPTY and is removed rather than left iterating over nothing.
+    // Its assertion, that the four READY cards say no longer "a dashboard is
+    // coming", is the part that carries the contract.
     await expect(section(page, 'user-info')).toContainText(SECTION_NOTE_USER_INFO);
     await expect(section(page, 'user-info')).not.toContainText(SECTION_NOTE_PENDING);
-    for (const id of ['activity-history', 'player-statistics', 'payment-history']) {
-      await expect(section(page, id)).toContainText(SECTION_NOTE_PENDING);
-    }
 
-    // D-11: Phase 3 makes no claim about any game title inside
-    // Player_statistics, so the card must not name one.
-    await expect(section(page, 'player-statistics')).not.toContainText(/world of tanks|\bwot\b/i);
+    // The four READY sections must NOT carry the promise any more, and this is
+    // the assertion the 05-10, 05-12 and 05-15 flips have to keep: a `ready`
+    // card that still says a dashboard is coming is a card that contradicts
+    // itself. Activity_history is a ready section that still says so, and says
+    // it from the Login history block inside it (04-08) — the promise is
+    // deferred, not dropped. Financial_data, Player_statistics and
+    // Payment_history say nothing of the kind, because their blocks ARE the
+    // dashboards they would have promised.
+    await expect(section(page, 'activity-history')).toContainText(SECTION_NOTE_PENDING);
+    await expect(section(page, 'financial-data')).not.toContainText(SECTION_NOTE_PENDING);
+    await expect(section(page, 'player-statistics')).not.toContainText(SECTION_NOTE_PENDING);
+    await expect(section(page, 'payment-history')).not.toContainText(SECTION_NOTE_PENDING);
   });
 
   test('(retired) the badge list, summary line, account heading and results wrapper are gone', async ({
@@ -243,7 +311,7 @@ test.describe('dashboard shell (03-04 Task 2)', () => {
     }
   });
 
-  test('(absent) a supported category missing from the export reads "Not in this export" and the other two stay pending', async ({
+  test('(absent) a supported category missing from the export reads "Not in this export" and the other four keep their statuses', async ({
     page,
   }) => {
     await importZip(page, buildMissingPaymentHistoryExport(), 'missing-payment.zip');
@@ -256,12 +324,18 @@ test.describe('dashboard shell (03-04 Task 2)', () => {
     // the empty wording either.
     await expect(missing).not.toContainText('This export contains no rows for Payment_history');
 
-    for (const id of ['player-statistics', 'user-info']) {
-      await expect(section(page, id)).toHaveAttribute('data-status', 'pending');
-    }
-    // Activity_history is present with rows and has a dashboard, so it is
-    // `ready` in this export too — the same status it reads in the sample.
+    // User_Info is the one supported category no phase builds a dashboard for,
+    // so it is the only one left `pending` after this one.
+    await expect(section(page, 'user-info')).toHaveAttribute('data-status', 'pending');
+    // The three shipped sections are `ready` in this export too — the same
+    // statuses they read in the sample, which is the point: removing one
+    // folder must not change another section's status.
     await expect(section(page, 'activity-history')).toHaveAttribute('data-status', 'ready');
+    // Financial_data left the pending set in 05-10, Player_statistics in
+    // 05-12 and Payment_history in 05-15, each in the same commit that mounted
+    // its block, so both are `ready` here as well.
+    await expect(section(page, 'financial-data')).toHaveAttribute('data-status', 'ready');
+    await expect(section(page, 'player-statistics')).toHaveAttribute('data-status', 'ready');
   });
 
   test('(empty) a category present with zero parsed rows says so, in words distinct from absent', async ({
@@ -556,7 +630,7 @@ test.describe('not yet supported block (03-04 Task 3)', () => {
     await expect(page.locator('[data-testid="dashboard-section-user-info"]')).toHaveCount(1);
   });
 
-  test('(order) the five section cards render in D-02 order with the block last', async ({
+  test('(order) the six section cards render in D-02 order with the block last', async ({
     page,
   }) => {
     await importZip(page, buildSampleExport(), 'sample.zip');
@@ -567,6 +641,7 @@ test.describe('not yet supported block (03-04 Task 3)', () => {
     expect(await sectionIdsInOrder(page)).toEqual([
       'activity-history',
       'player-statistics',
+      'financial-data',
       'payment-history',
       'user-info',
       'not-yet-supported',
@@ -785,13 +860,17 @@ test.describe('import region (03-06 Task 1)', () => {
     // the import bar's notice slot is the only live region it owns.
     await expect(page.getByTestId('processing-status')).toHaveCount(0);
     await expect(bar.locator('[aria-live]')).toHaveCount(1);
-    // The page carries exactly one live region besides that slot: the
-    // playtime status line 04-02 added, which the 04-UI-SPEC state matrix
-    // requires to exist in every state (an empty live region announces
-    // nothing). The count is asserted rather than the selector avoided, so a
-    // second block that forgot to be polite-and-quiet fails here.
-    await expect(page.locator('[aria-live]')).toHaveCount(2);
+    // The page carries exactly two live regions besides that slot: the
+    // playtime status line 04-02 added and the player-stats status line
+    // 05-12 added, both of which their UI-SPEC state matrices require to
+    // exist in every state (an empty live region announces nothing). The
+    // count is asserted rather than the selector avoided, so a second block
+    // that forgot to be polite-and-quiet fails here. The error paragraphs use
+    // `role="alert"` and NO `aria-live` attribute, so they are implicit live
+    // regions and are deliberately not in this count.
+    await expect(page.locator('[aria-live]')).toHaveCount(3);
     await expect(page.getByTestId('playtime-status')).toHaveCount(1);
+    await expect(page.getByTestId('player-stats-status')).toHaveCount(1);
   });
 
   test('(accessible-name) the full dropzone is named by its label, the compact one by its own prompt', async ({
@@ -1364,6 +1443,10 @@ test.describe('cache check window (03-06 Task 3)', () => {
     await expect(page.getByTestId('import-bar')).toHaveAttribute('data-variant', 'full');
     await expect(page.getByTestId('identity-header')).toBeVisible();
     await expect(page.getByTestId('dashboard-nav')).toBeVisible();
-    await expect(page.locator('[data-testid^="dashboard-section-"]')).toHaveCount(5);
+    // Five supported sections plus the block (05-03 D-01). Derived from the
+    // id list so a future sixth section cannot leave this stale.
+    await expect(page.locator('[data-testid^="dashboard-section-"]')).toHaveCount(
+      SUPPORTED_IDS.length + 1,
+    );
   });
 });

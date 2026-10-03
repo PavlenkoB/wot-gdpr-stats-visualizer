@@ -39,4 +39,25 @@ import 'fake-indexeddb/auto';
 // is the only thing this setup file needs to add.
 (globalThis as unknown as { $state: <T>(value: T) => T }).$state = <T>(value: T): T => value;
 
+// -----------------------------------------------------------------------------
+// Test-side locale pin (05-08, D-25)
+// -----------------------------------------------------------------------------
+// The app groups numbers by the VIEWER's locale, which is the right product
+// behaviour and the wrong thing for an assertion to depend on: Node resolves
+// its default locale from `LANG`/`LC_ALL`, so `(1204).toLocaleString()` is
+// `1,204` on an en-US box, `1.204` on a de_DE one, and `1 204` on a uk_UA one.
+// Every expectation in tests/unit is written in comma grouping, and that
+// expectation is a statement about this code — not about the laptop it ran on.
+//
+// This is what RESEARCH.md "Pitfall 7" (formatting determinism) and the
+// deferred `ui-copy.test.ts:207` failure both point at. The fix is deliberately
+// on this side of the line: the production default stays the viewer's, and the
+// tests declare which locale they are asserting in. Do not "fix" it by pinning
+// a locale inside src/ — that re-introduces the Phase 4 behaviour of imposing
+// the author's locale on the reader, and the 05-08 tracer asserts that this
+// module is the only one that can pin anything at all.
+import { setDefaultNumberLocale } from '../../src/lib/ui-copy';
+
+setDefaultNumberLocale('en-US');
+
 export {};

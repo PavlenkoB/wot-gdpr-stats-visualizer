@@ -46,6 +46,7 @@
  * This module is pure: no `Date`, no worker globals, no `self`.
  */
 
+import { cell, headerKey } from './csv-columns.ts';
 import { daysFromCivil, daysInMonth, weekdayOfDay } from '../civil-date';
 import {
   DURATION_BIN_COUNT,
@@ -296,11 +297,6 @@ export function isLegacySessionsFileName(sourceFile: string): boolean {
   return sourceFile.toLowerCase() === 'sessions.csv';
 }
 
-/** The header cell as a comparable key: trimmed and upper-cased. */
-function headerKey(name: string): string {
-  return name.trim().toUpperCase();
-}
-
 /**
  * Resolve the four columns from the KEYS of one row, first match wins.
  *
@@ -332,11 +328,6 @@ export function resolveSessionColumns(row: SessionRow): SessionColumns {
     }
   }
   return columns;
-}
-
-/** Read one cell through a resolved column key, or undefined when absent. */
-function cell(row: SessionRow, key: string | null): string | undefined {
-  return key === null ? undefined : row[key];
 }
 
 /**

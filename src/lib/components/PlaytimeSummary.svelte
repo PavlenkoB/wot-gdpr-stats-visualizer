@@ -178,8 +178,9 @@
   /*
     The grid of three tiles (04-UI-SPEC Page Anatomy 4). `auto-fit` with a
     128px minimum is what makes them wrap to two per row at 375px rather than
-    overflow, and `min-width: 0` on the grid lets a long numeral wrap instead
-    of widening the card.
+    overflow, and `min-width: 0` lets the track shrink to that minimum instead
+    of widening the card; what happens INSIDE a tile is the dd rule's business,
+    not the grid's.
   */
   dl {
     display: grid;
@@ -209,18 +210,32 @@
 
   /* Display role for the number, with the unit in Label beside it. `baseline`
      alignment is what puts "1,204" and "hours" on one line's baseline rather
-     than centring a 14px word against a 28px numeral. */
+     than centring a 14px word against a 28px numeral.
+
+     A tile value is a FORMATTED NUMBER plus a fixed word, and never untrusted
+     text, so `overflow-wrap: anywhere` does not apply to it. That rule was
+     inherited here from the UI-SPEC's blanket sentence about children that can
+     hold untrusted text, and it is the reason this tile used to read "2,46 / 7"
+     over "hour / s" at 375px: with anywhere a flex item's minimum width is one
+     character, so both parts shrank rather than either wrapping. `normal` plus
+     a wrapping row gives the only two outcomes that keep a figure readable —
+     both parts on one line, or the WHOLE unit on its own line under the WHOLE
+     numeral (what happens at 375px, where the pair needs 118.9px inside a
+     105px tile). It stays `anywhere` for the untrusted text elsewhere in this
+     component: the split table's cells and the notes below. */
   dd {
     display: flex;
+    flex-wrap: wrap;
     align-items: baseline;
-    gap: 4px;
+    row-gap: 0;
+    column-gap: 4px;
     margin: 0;
     min-width: 0;
     font-size: 28px;
     font-weight: 600;
     line-height: 1.2;
     color: #08060d;
-    overflow-wrap: anywhere;
+    overflow-wrap: normal;
   }
 
   .unit {
@@ -228,6 +243,10 @@
     font-weight: 600;
     line-height: 1.4;
     color: #5f6368;
+    /* One word, always: the smallest breakable thing in this component, and
+       the part that read as "hour" over "s" before the dd rule above was
+       fixed. */
+    white-space: nowrap;
   }
 
   /* The table block, its caption and its note are one flex column at the

@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 4
+open_count: 8
 waived_count: 0
 fixed_count: 1
-total_count: 5
-last_updated: 2026-09-30T18:35:22.674Z
+total_count: 9
+last_updated: 2026-10-02T12:30:00.000Z
 ---
 
 # Broken Windows Ledger
@@ -20,6 +20,10 @@ last_updated: 2026-09-30T18:35:22.674Z
 | 3 | 01 | todo | src/lib/worker/classify.ts | 271 | Rootless-first ordering (01-07) newly ACCEPTS any archive whose top-level folder is named after a recognized category regardless of content, e.g. ['Payment_history/invoice.pdf'] returns ok with accountRoot '' and 0 CSVs inflate, so a non-Wargaming zip produces a successful empty import instead of the clear rejection. Broader than the CR-01 disclosure in 01-07-SUMMARY.md, which named only the User_Info/Account_Info.csv case. | open |  | 2026-09-30T17:09:08.495Z |  |
 | 4 | 01 | todo | package.json | 32 | pnpm run check is now 'tsc -b', which places 0 of 11 .svelte files in the TypeScript program, so Svelte components are no longer type-checked in CI. svelte-check@^4.7.6 remains an unused dependency and tsconfig.app.json:15 / ci.yml:60 still reference it in prose. Decide whether to re-add svelte-check as its own CI step. | open |  | 2026-09-30T17:09:08.583Z |  |
 | 5 | 01 | todo | src/lib/worker-client.svelte.ts | 184 | WR-01 RE-OPENED during the phase-4 rebase merge. Plan 01-08's fix (mark worker broken on every onerror) was intentionally dropped because it conflicts with phase 4's 04-07 design assumption that a Worker can survive an idle+ready error event and serve new queries. The hang-on-busy-floor symptom WR-01 was filed for may resurface if real workers DO die on idle+ready errors. Open question: verify in a real browser whether an idle+ready worker error actually leaves a subsequent submitFiles() stranded on the MIN_PROCESSING_MS floor. If yes, restore WR-01 with a separate submit-gate flag (option C from the merge decision). | open |  | 2026-09-30T18:35:22.674Z |  |
+| 6 | 05 | skipped-test | tests/unit/ui-copy.test.ts | 207 | pre-existing locale-dependent failure: formatImportSummary groups with the machine locale, so the en-US literal fails on a uk_UA box | open |  | 2026-10-01T17:05:31.713Z |  |
+| 7 | 05 | deviation | tests/e2e/finance.spec.ts |  | monthly-table-disclosure and bar-scroller are per-chart hooks now; 05-10's premium table spec had to be scoped to its block | open |  | 2026-10-01T21:48:40.951Z |  |
+| 8 | 05 | skipped-test | tests/e2e/finance.spec.ts | 1519 | ORDER-DEPENDENT FLAKE, measured not anecdotal: at 05-15's HEAD 1e0d491 the full Playwright suite passed 1 run in 6; the other five failed this test with `TypeError: Cannot read properties of null (reading 'y')`, because `boundingBox()` returns null when ChartTooltip dismisses the tooltip in response to the scroll event that `window.scrollTo` delivers ASYNCHRONOUSLY after the test's `hover()`. It is 05-13's spec, passes 5/5 in isolation, and still fails with 05-15's spend specs EXCLUDED from the run, so 05-15's added spec load is not the trigger; 05-15 does add a spend-channel query plus five cards with two breakdown tables to every import this spec makes, which may have widened the window but was NOT proved. NOT FIXED by 05-15 (documentation-only close-out; the baseline experiment at 8837739 was refused by the permission layer as a product-file overwrite). Fix is test-side ordering: scroll and let the event land BEFORE hovering, as the sibling `(keys)` test in the same describe already does. | open |  | 2026-10-02T12:30:00.000Z |  |
+| 9 | 05 | deviation | src/lib/dashboard-status.ts | 99 | 05-15's Task 1 said to update the BUILT_DASHBOARDS comment for the four built sections, and the per-id list below the sentence WAS updated with the payment-history entry — but the count in the sentence that introduces it still reads "Two ids". Comment only, nothing behavioural depends on it and no test reads it, but it now disagrees with tests/unit/dashboard-status.test.ts, whose own comment says "Four sections have shipped". Left unfixed for the orchestrator to decide on a re-dispatch; a one-word edit. | open |  | 2026-10-02T12:30:00.000Z |  |
 
 ````json
 [
@@ -82,6 +86,58 @@ last_updated: 2026-09-30T18:35:22.674Z
     "reason": "",
     "recorded_at": "2026-09-30T18:35:22.674Z",
     "resolved_at": null
+  },
+  {
+    "id": 6,
+    "kind": "skipped-test",
+    "phase": "05",
+    "file": "tests/unit/ui-copy.test.ts",
+    "line": 207,
+    "description": "pre-existing locale-dependent failure: formatImportSummary groups with the machine locale, so the en-US literal fails on a uk_UA box",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-10-01T17:05:31.713Z",
+    "resolved_at": null,
+    "milestone": null
+  },
+  {
+    "id": 7,
+    "kind": "deviation",
+    "phase": "05",
+    "file": "tests/e2e/finance.spec.ts",
+    "line": null,
+    "description": "monthly-table-disclosure and bar-scroller are per-chart hooks now; 05-10's premium table spec had to be scoped to its block",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-10-01T21:48:40.951Z",
+    "resolved_at": null,
+    "milestone": null
+  },
+  {
+    "id": 8,
+    "kind": "skipped-test",
+    "phase": "05",
+    "file": "tests/e2e/finance.spec.ts",
+    "line": 1519,
+    "description": "ORDER-DEPENDENT FLAKE, measured not anecdotal: at 05-15's HEAD 1e0d491 the full Playwright suite passed 1 run in 6; the other five failed this test with TypeError: Cannot read properties of null (reading 'y'), because boundingBox() returns null when ChartTooltip dismisses the tooltip in response to the scroll event that window.scrollTo delivers ASYNCHRONOUSLY after the test's hover(). It is 05-13's spec, passes 5/5 in isolation, and still fails with 05-15's spend specs EXCLUDED from the run, so 05-15's added spec load is not the trigger; 05-15 does add a spend-channel query plus five cards with two breakdown tables to every import this spec makes, which may have widened the window but was NOT proved. NOT FIXED by 05-15 (documentation-only close-out; the baseline experiment at 8837739 was refused by the permission layer as a product-file overwrite). Fix is test-side ordering: scroll and let the event land BEFORE hovering, as the sibling (keys) test in the same describe already does.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-10-02T12:30:00.000Z",
+    "resolved_at": null,
+    "milestone": null
+  },
+  {
+    "id": 9,
+    "kind": "deviation",
+    "phase": "05",
+    "file": "src/lib/dashboard-status.ts",
+    "line": 99,
+    "description": "05-15's Task 1 said to update the BUILT_DASHBOARDS comment for the four built sections, and the per-id list below the sentence WAS updated with the payment-history entry - but the count in the sentence that introduces it still reads 'Two ids'. Comment only, nothing behavioural depends on it and no test reads it, but it now disagrees with tests/unit/dashboard-status.test.ts, whose own comment says 'Four sections have shipped'. Left unfixed for the orchestrator to decide on a re-dispatch; a one-word edit.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-10-02T12:30:00.000Z",
+    "resolved_at": null,
+    "milestone": null
   }
 ]
 ````

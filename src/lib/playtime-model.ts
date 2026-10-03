@@ -33,9 +33,12 @@
  * ## Geometry is stated, not derived from a magic number
  *
  * Both layouts below carry the arithmetic in comments, because the numbers are
- * checked by tests rather than by a designer: a 626px-wide calendar is
- * `32 + 54 * 11` and a 97px-tall one is `20 + 7 * 11`, and 54 is the widest
- * year in 1990-2060 (2012, which begins on a Sunday).
+ * checked by tests rather than by a designer: a 634px-wide calendar is
+ * `40 + 54 * 11` and a 97px-tall one is `20 + 7 * 11`, and 54 is the widest
+ * year in 1990-2060 (2012, which begins on a Sunday). The calendar gutter is
+ * 40 rather than the original 32 because the 32 held a 29px "Wed" plus an 8px
+ * pad and clipped the label's first letter in every year (UAT G-04-UI-1,
+ * 04-UI-SPEC Amendment A-1).
  *
  * ## Colour is rank-based, never linear min-max (D-04)
  *
@@ -76,12 +79,22 @@ export const CALENDAR_LAYOUT = {
   cell: 10,
   /** Cell pitch: 11, so the 1px stroke sits in the gap rather than on the cell. */
   pitch: 11,
-  /** Left gutter: 32px for the "Mon"/"Wed"/"Fri" row labels, text-anchor end. */
-  gutter: 32,
+  /** Left gutter: 40px for the "Mon"/"Wed"/"Fri" row labels, text-anchor end. */
+  gutter: 40,
+  /**
+   * Clearance between a weekday label's right edge and the first column, so
+   * the label's right edge is at `gutter - labelPad`.
+   *
+   * Named rather than written as an inline subtraction, because the room the
+   * labels actually have is the gutter MINUS this number, and a bare 8 hidden
+   * in a template is how a 32px gutter ended up holding 24px of room for a
+   * 29px label (UAT G-04-UI-1, 04-UI-SPEC Amendment A-1).
+   */
+  labelPad: 4,
   /** Top band: 20px for the month labels. */
   band: 20,
-  /** 32 + 54 * 11 = 626. 54 columns is the widest year in 1990-2060 (2012). */
-  width: 626,
+  /** 40 + 54 * 11 = 634. 54 columns is the widest year in 1990-2060 (2012). */
+  width: 634,
   /** 20 + 7 * 11 = 97, for seven weekday rows. */
   height: 97,
   /** Widest year between 1990 and 2060 needs 54 columns (verified in RESEARCH). */
@@ -828,6 +841,8 @@ export interface TooltipRequest {
   line1: string;
   /** Second line: its hours and session count, or "no sessions". */
   line2: string;
+  /** Optional extra lines (e.g. grant sizes or as-recorded lines in financial timelines). */
+  extra?: readonly string[];
 }
 
 /** Where the shared tooltip goes, and which side of the cell it opened on. */
@@ -876,14 +891,17 @@ export function clampTooltip(
  *
  * `scroll-margin-top` is not reliable on an SVG `<rect>`, so the caller
  * measures the rect and corrects. The required clear line is the nav's bottom
- * plus the 32px year head plus the 8px gap; anything at or below it is
- * already clear and reports 0, so the caller must not scroll at all.
+ * plus the year head's measured height plus the 8px gap; anything at or below
+ * it is already clear and reports 0, so the caller must not scroll at all.
  *
- * THE SIGN: the return is the NEGATIVE of the scroll the caller applies — a
- * cell 36px short returns -36 and the caller does
- * `window.scrollBy(0, -delta)`. 0 means "do not scroll", which is why the
- * value is never positive: there is no case where a focused cell needs the
- * page scrolled upward, since it is always in view when it takes focus.
+ * THE SIGN: the return is the vertical scroll TO APPLY, passed through to
+ * `window.scrollBy` unchanged. It is negative when the cell is short of the
+ * clear line, and a negative top scrolls the page UP, which moves the cell
+ * down on screen and out from under the chrome — a focused cell that is
+ * behind the nav or the head needs exactly that, whenever it takes focus while
+ * on screen and under the chrome, which is the normal state while scrolling
+ * down through the stacked years. 0 means "do not scroll". The value is
+ * therefore never positive.
  */
 export function focusScrollDelta(rect: Rect, navBottom: number, headHeight: number): number {
   const requiredTop = navBottom + headHeight + TOOLTIP_GAP;

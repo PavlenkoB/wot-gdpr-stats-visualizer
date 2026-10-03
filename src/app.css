@@ -34,6 +34,32 @@
   --ramp-3: #43a89c;
   --ramp-4: #1f7a74;
   --ramp-5: #0d4f4c;
+
+  /* The flow colours: one hue for money and premium time coming IN, one for it
+     going OUT. These are marks ONLY — never text, never chrome, never a status
+     colour. They paint bars, the legend swatch and the monthly table's sign
+     column, and nothing else; a flow hue on a heading or a border would be
+     borrowing a meaning the spec does not grant it.
+
+     Unlike the ramp above, these are deliberately NOT a lightness scale. A
+     diverging chart's meaning is which side of the zero line a bar is on, not
+     how large it is, so lightness would be solving the wrong problem and the
+     two directions would still need a second channel to tell them apart.
+
+     That second channel is why the two are only about 1.36:1 apart: close
+     enough to read as one family of "money", far enough apart to tell at a
+     glance, and close enough that colour must never be the ONLY cue. Above and
+     below the zero line, the legend's words, the tooltip's line and the monthly
+     table all state the same thing in text — a reader who cannot separate these
+     two hues loses nothing, and a reader who cannot read colour at all does not
+     lose the direction either.
+
+     A component must not restate either value as literal hex; read
+     var(--flow-in) / var(--flow-out). The Color table is the contract and
+     `tests/unit/contrast.test.ts` recomputes the recorded 8.17 / 6.01 (white)
+     and 7.34 / 5.40 (hover surface) ratios from these declarations. */
+  --flow-in: #4c3fa6;
+  --flow-out: #a14a00;
 }
 
 body {

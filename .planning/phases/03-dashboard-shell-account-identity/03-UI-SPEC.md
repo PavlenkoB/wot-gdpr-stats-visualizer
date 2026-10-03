@@ -64,7 +64,7 @@ Page layout: `main` stays `max-width: 720px`, `margin: 0 auto`, `padding: 24px` 
 **Exceptions (pre-existing, continued — no new ones beyond those listed):**
 - `12px` — notice padding-y and the gap between a notice and the next element in the import bar (same as `FailureBanner` and the Phase 2 banners). Also the padding-y of the slim import bar and the gap between the spinner and its text.
 - `20px` — `.dropzone` padding in the full-size variant (unchanged). The compact variant uses `8px 12px` (both multiples of 4).
-- Nav link horizontal padding is `8px` (sm); the nav container's horizontal padding is `8px`. Rationale: the five links must fit one row at the 720px column width (estimated 637px of link text plus padding, about 653px, against 672px of content width) and the container must leave room for the 3px + 2px focus ring so `overflow-x: auto` does not clip it.
+- Nav link horizontal padding is `8px` (sm); the nav container's horizontal padding is `8px`. Rationale: the five links must fit one row at the 720px column width (estimated 637px of link text plus padding, about 653px, against 672px of content width) and the container must leave room for the 3px + 2px focus ring so `overflow-x: auto` does not clip it. (amended by Phase 5 D-01: the row estimate now carries a sixth link, `Financial_data`, and Phase 5 amended the nav to six links that scroll inside their own container below about 800px rather than fitting one 720px row.)
 - `--nav-offset: 72px` (a multiple of 4; not a scale token): the value of `scroll-margin-top` on every anchor target. Derived as nav height (about 56px: 8 + 39 + 8 + 1px border) + 16px md breathing room. It is a single custom property in `app.css` so Phase 7 can change it in one place.
 - Stroke widths (1px, 2px, 3px borders and outlines) are not spacing tokens. The active-link underline is 3px, matching the focus-ring width already in the codebase.
 - `1px` visually-hidden clip pattern (already used in `Dropzone.svelte`) is reused for the screen-reader-only status suffix on nav links; not a layout dimension.
@@ -219,7 +219,7 @@ Internal order (top to bottom), all children separated by 12px:
 
 ### Sticky anchor nav (D-01, D-03, D-04, D-05)
 
-- `<nav aria-label="Dashboard sections" data-testid="dashboard-nav">` containing a `<ul>` (no bullets) of five `<li><a href="#…">` in fixed order: Activity_history, Player_statistics, Payment_history, User_Info, Not yet supported.
+- `<nav aria-label="Dashboard sections" data-testid="dashboard-nav">` containing a `<ul>` (no bullets) of six `<li><a href="#…">` in fixed order: Activity_history, Player_statistics, Financial_data, Payment_history, User_Info, Not yet supported. (amended by Phase 5 D-01: `Financial_data` is the third item; the original five-item list is unchanged otherwise.)
 - `position: sticky; top: 0; z-index: 1`. Sticky at all widths; it is the only sticky element (the import bar scrolls away).
 - Surface: bg `#f7f7fa`, `1px solid #dadce0`, radius 6px, `padding: 8px`. Opaque so scrolled content never shows through. No box-shadow.
 - Layout: `display: flex; flex-wrap: nowrap; gap: 0; overflow-x: auto`. **The nav never wraps and never causes page-level horizontal scroll.** At 720px it is expected to fit; at 375px it scrolls inside its own container (all links reachable by swipe and by keyboard Tab, which scrolls the focused link into view natively). Its height is therefore constant (about 56px), which is what makes the single `--nav-offset` correct. Phase 7 may refine the phone treatment.
@@ -238,7 +238,7 @@ Current wins over muted for weight and underline, so a muted current link reads 
 - **Accessible name carries status (D-03):** every muted link contains a visually-hidden suffix span so its name is, for example, `Payment_history, not in this export`. Suffix strings are in the Copywriting Contract. Default links have no suffix. Do not use `aria-label` (it would override the visible text).
 - **Links are native `#hash` anchors.** No `click` handler that calls `scrollIntoView`; no `hashchange` listener; nothing is restored from the URL on load (D-04). The URL hash may change.
 - **Smooth scroll:** `html { scroll-behavior: smooth }` only inside `@media (prefers-reduced-motion: no-preference)`. Otherwise jumps are instant.
-- **Scroll-spy (D-05):** one `IntersectionObserver` over the five section elements is the single source of truth for `aria-current`; clicks do not set it manually. Active section = the topmost section intersecting the band that starts at `--nav-offset` from the top and ends at 40% of the viewport height (`rootMargin: "-72px 0px -60% 0px"`). If no section intersects the band (a long section spans it), the previous active link is kept. Initial active link = the first section. When the page is scrolled to the very bottom (`scrollY + innerHeight >= scrollHeight - 1`), the last link is current (so the short final block can be reached). The observer is created after the sections mount and disconnected on destroy. It runs in every state, including the skeleton, and needs no fallback for reduced motion because it changes no motion.
+- **Scroll-spy (D-05):** one `IntersectionObserver` over the six section elements is the single source of truth for `aria-current`; clicks do not set it manually. Active section = the topmost section intersecting the band that starts at `--nav-offset` from the top and ends at 40% of the viewport height (`rootMargin: "-72px 0px -60% 0px"`). If no section intersects the band (a long section spans it), the previous active link is kept. Initial active link = the first section. When the page is scrolled to the very bottom (`scrollY + innerHeight >= scrollHeight - 1`), the last link is current (so the short final block can be reached). The observer is created after the sections mount and disconnected on destroy. It runs in every state, including the skeleton, and needs no fallback for reduced motion because it changes no motion. (amended by Phase 5 D-01: the observed element count is six, not five — `Financial_data` is a section like any other.)
 
 ### DashboardSection (D-07, D-08, D-09, D-10, D-11)
 
@@ -268,7 +268,7 @@ Status comes from one pure function over `ClassifyResult` shared by the nav and 
 **Loaded** (white card, `1px solid #dadce0`), in this order:
 1. Nickname `<h2 data-testid="identity-nickname">` (Display 28/600/1.2, `#08060d`). Plain text, wraps, no truncation, no tooltip, no `title`, no aria-label.
 2. Caption `As of export` (Label, muted). Not a heading. No export date is shown, because `importedAt` is the import time (D-12).
-3. `<dl>` grid (`grid-template-columns: max-content 1fr`, gap `4px 16px`): `Region (per export)` → raw `REGION` value, never mapped to friendly names (D-13); `Account created` → date only.
+3. `<dl>` grid (`grid-template-columns: max-content 1fr`, gap `4px 16px`): `Location code (per export)` → raw `REGION` value, never mapped to friendly names (D-13, **amended after UAT G-05-7 (Phase 5)**: a real export's `REGION` is a numeric regional code stored beside a city, not a game realm, so the old `Region (per export)` label read as a server); `Account created` → date only.
 4. Secondary line `Account ID: {accountRoot}` (Label, muted, `data-testid="identity-account-id"`). Root is an untrusted zip-entry string: plain text interpolation only, wraps.
 
 - **Created date (D-15):** display the date portion exactly as written: the text before the first space or `T` of `CREATED_AT`. No `Date` parsing, no locale formatting, no timezone conversion (the field has no timezone). Example `2015-03-11`. This intentionally differs from the `Imported on Sep 28, 2026` style so the two dates are not confused.
@@ -336,7 +336,7 @@ New: `import-bar` (with `data-variant`), `notice-slot`, `dashboard-nav`, `nav-li
 |---------|------|--------|
 | Nav labels (visible, in order) | `Activity_history` · `Player_statistics` · `Payment_history` · `User_Info` · `Not yet supported` | D-03, CONTEXT specifics |
 | Nav `aria-label` | `Dashboard sections` | discretion |
-| Section titles | Same five strings as the nav labels | D-02 |
+| Section titles | Same six strings as the nav labels | D-02 (amended by Phase 5 D-01: five folder names plus the block's prose title, since `Financial_data` became the fifth section) |
 | Nav hidden suffix, `no-export` | `, not in this export` | D-03 |
 | Nav hidden suffix, `empty` | `, no rows in this export` | D-03 |
 | Nav hidden suffix, `not-loaded` | `, no export loaded` | D-03 |
@@ -353,7 +353,7 @@ New: `import-bar` (with `data-variant`), `notice-slot`, `dashboard-nav`, `nav-li
 | Unsupported banner | `{Folder} — detected but not yet supported` (identical for known-deferred and unknown) | D-22 |
 | Identity region `aria-label` | `Account identity` | D-21 (static, no nickname) |
 | Identity caption | `As of export` | D-12 |
-| Identity region label | `Region (per export)` | D-13 |
+| Identity region label | `Location code (per export)` (was `Region (per export)`; **amended after UAT G-05-7 (Phase 5)** — the value is a numeric regional code, not a realm, so the label names it a code) | D-13 |
 | Identity created label | `Account created` | D-15 |
 | Identity account ID line | `Account ID: {accountRoot}` (new `formatAccountId`, replaces `formatAccountHeading`'s "Account: …") | D-14 |
 | Identity missing value | `Unknown` | D-16 |
@@ -374,7 +374,7 @@ Applicable state considerations resolved: 13 covered, 3 backstop, 1 unresolved.
 
 | Category | Element(s) | Status | Resolution / Reason |
 |----------|------------|--------|---------------------|
-| empty | Dashboard sections and nav, no export loaded | ✅ covered | All five sections render greyed with the status line "Drop an export to see this section"; nav links all muted with the "no export loaded" hidden suffix; identity header shows the "No export loaded" skeleton |
+| empty | Dashboard sections and nav, no export loaded | ✅ covered | All six sections render greyed with the status line "Drop an export to see this section"; nav links all muted with the "no export loaded" hidden suffix; identity header shows the "No export loaded" skeleton (amended by Phase 5 D-01: six sections — five plus the block — not five) |
 | empty | Supported category absent from the export (e.g. no Payment_history) | ✅ covered | Section stays in place, greyed, status text "Not in this export"; nav link muted with the "not in this export" suffix (DATA-04) |
 | empty | Supported category present with zero parsed rows | ✅ covered | Greyed section with the distinct text "This export contains no rows for {Category}"; nav suffix "no rows in this export" |
 | empty | Not yet supported block with zero non-supported folders | ✅ covered | Greyed block, status "No unsupported categories were detected in this export", nav link muted with the "none detected" suffix |
@@ -388,7 +388,7 @@ Applicable state considerations resolved: 13 covered, 3 backstop, 1 unresolved.
 | duplicate-drop | Re-drop of the identical zip | ✅ covered | Neutral-info notice in the slot; dashboard unchanged; drop area re-enabled |
 | cleared | After Clear my cached data / Start over confirm | ✅ covered | Skeleton plus the "Cached data cleared" notice; focus moves to the full-size dropzone |
 | reduced-motion | Smooth scroll and spinner | ✅ covered | Smooth scroll only under `prefers-reduced-motion: no-preference`; spinner static under `reduce`; no other animation exists |
-| overflow | Sticky nav with five links at 375px | 🧪 backstop | Nav is single-row and scrolls inside its own container; needs a Playwright check at 375px that the page has no horizontal scroll, that focusing the last link reveals it, and a visual check that the 3px underline and focus ring are not clipped |
+| overflow | Sticky nav with six links at 375px | 🧪 backstop | Nav is single-row and scrolls inside its own container; needs a Playwright check at 375px that the page has no horizontal scroll, that focusing the last link reveals it, and a visual check that the 3px underline and focus ring are not clipped (amended by Phase 5 D-01: six links, not five) |
 | long-text | Nickname, account root and unknown folder names (untrusted, unbounded) | 🧪 backstop | Plain text, `overflow-wrap: anywhere`, no truncation; needs a visual check with a 60+ character unbroken nickname and folder name at 375px and 720px |
 | scroll-spy | Highlight of the current section, including the short last block and skeleton | 🧪 backstop | Band-based `IntersectionObserver` rule with bottom-of-page override; needs a Playwright test that scrolling to each section and to the page bottom moves `aria-current="location"` to the matching link |
 

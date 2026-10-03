@@ -1,3 +1,9 @@
+// Type-only imports of the four view types. The worker owns the pure builders
+// (05-04 vehicle, 05-05 finance) and this module names only their output
+// shapes, so a block can render a view without importing the worker or Dexie.
+import type { VehicleTitleId, VehicleView } from '../vehicle-shared.ts';
+import type { CurrencyView, PremiumView, SpendView } from '../finance-shared.ts';
+
 export type CategoryStatus = 'supported' | 'known-deferred' | 'unknown';
 
 export interface CategoryEntry {
@@ -196,6 +202,35 @@ export type PlaytimeView =
 
 export type IngestStage = 'hashing' | 'unzipping' | 'classifying' | 'parsing' | 'writing';
 
+/**
+ * What one block asks for. Every field a channel does not use is absent rather
+ * than null, so a malformed or hostile message is a shape the validator can
+ * reject (T-05-18) instead of a set of defaults to guess at.
+ *
+ * `title` and `battleType` are nullable because D-05's default title and D-07's
+ * "All battles" are real requests, not missing ones.
+ *
+ * The channel is one per dashboard block (D-01, D-02, FINANCE-01..03, STATS-01)
+ * and is what scopes the client's supersede: a block asking again supersedes
+ * only its OWN pending question, so three blocks mounting in one tick cannot
+ * starve each other (RESEARCH Pitfall 1).
+ */
+export type DataQuery =
+  | { channel: 'vehicles'; title: VehicleTitleId | null; battleType: string | null }
+  | { channel: 'premium' }
+  | { channel: 'currency' }
+  | { channel: 'spend' };
+
+/**
+ * The answer to one `DataQuery`, discriminated by the same channel as the
+ * question, so a client can route a reply without a second lookup.
+ */
+export type DataResult =
+  | { channel: 'vehicles'; view: VehicleView }
+  | { channel: 'premium'; view: PremiumView }
+  | { channel: 'currency'; view: CurrencyView }
+  | { channel: 'spend'; view: SpendView };
+
 export interface ParsingProgress {
   category: string;
   categoryIndex: number; // 1-based
@@ -209,7 +244,13 @@ export type IngestRequest =
   // NEW — D-06. Its own `queryId` namespace, deliberately NOT the ingest
   // `jobId`: charts are asked for while no import is running, and reusing
   // `jobId` would drag the import state machine into every query.
-  | { type: 'playtime-query'; queryId: number; valueIndex: number | null };
+  | { type: 'playtime-query'; queryId: number; valueIndex: number | null }
+  // 05-07. The four Phase 5 blocks share ONE request variant rather than four:
+  // a channel per message would multiply the union and drift. `queryId` is the
+  // same shared namespace idea the playtime pair established, and deliberately
+  // NOT the ingest `jobId` — a block asking for numbers must not move the
+  // import state machine.
+  | { type: 'data-query'; queryId: number; query: DataQuery };
 
 export type IngestResponse =
   | { type: 'ready' }
@@ -230,7 +271,21 @@ export type IngestResponse =
     }
   // NEW — D-06. `detail` is a name and a message only: never the error type
   // and never a jobId, so a failed query leaks nothing about the dataset.
-  | { type: 'playtime-error'; queryId: number; detail: string };
+  | { type: 'playtime-error'; queryId: number; detail: string }
+  // 05-07. `importedAt` echoes the ONE Dexie snapshot the answer was computed
+  // from, so the main thread can drop a reply for a dataset it is no longer
+  // showing (D-28) — the same pairing the playtime pair uses. Both it and
+  // `result` are null when nothing is imported.
+  | {
+      type: 'data-result';
+      queryId: number;
+      importedAt: string | null;
+      result: DataResult | null;
+    }
+  // 05-07 (T-05-20). `detail` is the error NAME only, never its message: a
+  // message from a builder can echo a cell, and Phase 3 D-21 keeps dataset
+  // text off the screen and out of the outcome.
+  | { type: 'data-error'; queryId: number; detail: string };
 
 /** Main-thread view of the worker (a real Worker satisfies it structurally). */
 export interface WorkerLike {

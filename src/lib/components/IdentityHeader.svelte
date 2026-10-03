@@ -93,9 +93,10 @@
     <p class="caption">{IDENTITY_CAPTION}</p>
 
     <dl class="identity-details">
-      <!-- D-13: the raw `REGION` string, never mapped to a friendly name.
-           "(per export)" in the label says so before the user wonders why
-           it reads as a code. -->
+      <!-- D-13 (amended after UAT G-05-7): the raw `REGION` string, never
+           mapped to a friendly name. The label names it a location code
+           because a real export stores a numeric regional code beside a
+           city, not a game realm; the old "Region" wording read as one. -->
       <dt>{IDENTITY_REGION_LABEL}</dt>
       <dd data-testid="identity-region">{valueOrUnknown(identity?.region ?? null)}</dd>
       <!-- D-15: date-only, no time and no timezone (the field has neither). -->

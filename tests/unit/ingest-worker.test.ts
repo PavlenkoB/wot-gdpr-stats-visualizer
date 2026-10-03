@@ -331,7 +331,8 @@ describe('ingest.worker.ts — end-to-end drive via mocked self', () => {
     for (const entry of result.categories) {
       expect(entry.rowCount, `category ${entry.name} rowCount`).toBeGreaterThan(0);
       // The row count per category matches the SAMPLE_ROW_COUNTS
-      // contract: one synthetic data row per file.
+      // contract, which is DERIVED from the fixture modules rather than
+      // typed (05-06): the sample's row totals follow the data.
       expect(entry.rowCount).toBe(SAMPLE_ROW_COUNTS[entry.name]);
     }
 
@@ -341,6 +342,51 @@ describe('ingest.worker.ts — end-to-end drive via mocked self', () => {
     expect(statuses.has('supported')).toBe(true);
     expect(statuses.has('known-deferred')).toBe(true);
     expect(statuses.has('unknown')).toBe(true);
+  });
+
+  test('(a-real-shape) the sample imports the real-shaped Phase 5 folders with exact file and row counts and NOTHING is skipped (05-06)', async () => {
+    await import('../../src/lib/worker/ingest.worker.ts');
+    const onmessage = (globalThis as unknown as { self: WorkerScopeLike }).self.onmessage;
+    postSpy.mockClear();
+
+    const file = makeFileFromBytes(buildSampleExport(), 'sample.zip');
+    onmessage!({
+      data: { type: 'ingest', jobId: 1, file } as IngestRequest,
+    } as MessageEvent<IngestRequest>);
+
+    const terminal = await waitForTerminal(postSpy);
+    expect(terminal.type).toBe('done');
+    if (terminal.type !== 'done') return;
+
+    // The LITERALS are the point of this test, and they are what makes it a
+    // tracer rather than a tautology: the same numbers are recomputed from
+    // the fixture modules by `SAMPLE_FILE_COUNTS` / `SAMPLE_ROW_COUNTS`
+    // (asserted above and in classify.test.ts), so a fixture that grows a
+    // file or a row has to change BOTH sides or this fails.
+    //
+    //   Player_statistics — 05-02's nineteen real-named files, 47 rows
+    //   Financial_data    — 05-01's premium (18) + currency (125) rows
+    //   Payment_history   — 05-01's 16-row hand Orders file
+    const expected = {
+      Player_statistics: { fileCount: 19, rowCount: 47 },
+      Financial_data: { fileCount: 2, rowCount: 143 },
+      Payment_history: { fileCount: 1, rowCount: 16 },
+    } as const;
+
+    for (const [name, counts] of Object.entries(expected)) {
+      const entry = terminal.result.categories.find((c) => c.name === name);
+      expect(entry, `category ${name} present`).toBeDefined();
+      expect(entry!.fileCount, `${name} fileCount`).toBe(counts.fileCount);
+      expect(entry!.rowCount, `${name} rowCount`).toBe(counts.rowCount);
+    }
+
+    // The quote-all / bare-CR physical shape the real export writes is the
+    // thing the Phase 2 parser has to survive: a row the parser could not
+    // read would land here as a skip, so a clean import of all 29 sample
+    // files is the proof the real shape goes through unchanged.
+    for (const entry of terminal.result.categories) {
+      expect(entry.skippedRowCount, `category ${entry.name} skippedRowCount`).toBe(0);
+    }
   });
 
   test('(b) a second ingest of identical bytes posts "duplicate" and NEVER posts stage: "unzipping" (SC3)', async () => {
@@ -724,7 +770,8 @@ describe('03-01 — hostile User_Info shapes through the real worker', () => {
     const terminal = await ingest(buildOnlySupportedExport(), 'only-supported.zip');
     expect(terminal.type).toBe('done');
     if (terminal.type !== 'done') return;
-    expect(terminal.result.counts).toEqual({ supported: 4, 'known-deferred': 0, unknown: 0 });
+    // Five since 05-03 added Financial_data to the sample and to SUPPORTED.
+    expect(terminal.result.counts).toEqual({ supported: 5, 'known-deferred': 0, unknown: 0 });
     expect(terminal.result.identity).toEqual(EXPECTED_SAMPLE_IDENTITY);
   });
 

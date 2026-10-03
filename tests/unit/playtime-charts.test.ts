@@ -61,6 +61,7 @@ const LEGEND = 'ChartLegend.svelte';
 const TOOLTIP = 'ChartTooltip.svelte';
 const LIST = 'DurationList.svelte';
 const BLOCK = 'Playtime.svelte';
+const SUMMARY = 'PlaytimeSummary.svelte';
 const FOCUS_CLEAR = 'focus-clear.ts';
 
 /** The file's source, or `''` when it does not exist yet. */
@@ -226,8 +227,8 @@ describe('04-09 Task 2 — the shared tooltip, the roving keyboard model and the
     // One shared element for the whole page, `aria-hidden` because every cell
     // already carries the same text as its accessible name, and `hidden`
     // rather than absent so the element never has to be created mid-gesture.
-    expect(existsSync(path.join(COMPONENTS, TOOLTIP))).toBe(true);
-    expect(code(TOOLTIP)).toContain('data-testid="chart-tooltip"');
+    expect(code(TOOLTIP)).toContain("testId = 'chart-tooltip'");
+    expect(code(TOOLTIP)).toContain('data-testid={testId}');
     expect(code(TOOLTIP)).toContain('aria-hidden="true"');
     expect(code(TOOLTIP)).toMatch(/hidden=\{request === null\}/);
   });
@@ -392,7 +393,7 @@ describe('04-09 Task 2 — the shared tooltip, the roving keyboard model and the
     expect(code(GRID)).not.toMatch(/scrollBy/);
     const helper = code(FOCUS_CLEAR);
     expect(helper).toContain('focusScrollDelta(');
-    expect(helper).toContain('window.scrollBy({ top: -delta, behavior:');
+    expect(helper).toContain('window.scrollBy({ top: delta, behavior:');
   });
 
   test('the container owns exactly one tooltip state and one tooltip element', () => {
@@ -767,10 +768,12 @@ describe('04-10 Task 2 — the roving tab stop, the shared tooltip and the measu
     expect(body).toMatch(/scrollClear\([\s\S]*?offsetHeight/);
     expect(body).not.toMatch(/scrollBy/);
     const helper = code(FOCUS_CLEAR);
-    // 04-09's correction, which this plan's own text does not repeat: the
-    // delta is the NEGATIVE of the scroll to apply, and the scroll must be
-    // instant or the tooltip the focus opened is dismissed by the correction.
-    expect(helper).toContain("window.scrollBy({ top: -delta, behavior: 'instant' })");
+    // The delta IS the scroll to apply: it is negative when the cell is short
+    // of the clear line, a negative top scrolls the page up, and that moves
+    // the cell down on screen and out from under the chrome. The scroll must
+    // also be instant, or the tooltip the focus opened is dismissed by the
+    // correction that caused the focus.
+    expect(helper).toContain("window.scrollBy({ top: delta, behavior: 'instant' })");
   });
 
   test('the focus ring is an unclipped overlay drawn last, and only for keyboard focus', () => {
@@ -884,5 +887,92 @@ describe('04-14 — a failed and a dropped selection change both reconcile', () 
     expect(body).toMatch(
       /if \(accepted === null\) \{[\s\S]*?if \(\s*outcome\.kind !== 'superseded' &&\s*wanted === importedAt &&\s*requested\?\.valueIndex === ask\.valueIndex\s*\) \{[\s\S]*?requested = \{ importedAt: wanted, valueIndex: shown\?\.valueIndex \?\? null \};[\s\S]*?return;/,
     );
+  });
+});
+
+// =============================================================================
+// 04-18 — the tile value and the legend note (UAT G-04-UI-2 and the legend
+// clause of G-04-UI-3)
+// =============================================================================
+//
+// WHAT THIS DESCRIBE IS, AND IS NOT
+// It pins the CAUSE of two layout defects the browser tests in
+// `tests/e2e/playtime-ui-review.spec.ts` measure: the stylesheet properties that
+// make a value unbreakable and a legend note its own line. It does not assert
+// what a reader sees — a regex cannot tell you a "2,467" is one line, and 04-18's
+// browser tests measure exactly that.
+//
+// Why a source shape at all, when a computed style would be the obvious
+// assertion: the property that broke the tile IS the property a style assertion
+// would check. `overflow-wrap: anywhere` on the dd is what the browser honoured
+// and what made the numeral break mid-number. Reading the declaration back pins
+// the rule that produced the measurement, and it fails on the OLD source — which
+// a `getComputedStyle` test could not, because the old computed style is the one
+// that was already wrong.
+
+describe('04-18: tile and legend layout contracts', () => {
+  /**
+   * One rule's declarations, by selector, scoped to the braces of that rule.
+   *
+   * Scoped because these assertions are about ONE rule each. A `toContain` over
+   * the whole stylesheet would be satisfied by a different rule or by prose, and
+   * a selector matched without its braces would be satisfied by another
+   * selector's list. A rule that is not there yields `''`, so the assertion
+   * below names the rule it did not find instead of throwing on a null match.
+   */
+  function rule(body: string, selector: string): string {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{([^{}]*)\\}`, 'm').exec(body);
+    return match?.[1] ?? '';
+  }
+
+  test('a tile value wraps as a pair, and neither part of it ever breaks', () => {
+    // G-04-UI-2. The dd is a flex ROW of a Display numeral and a Label unit, so
+    // the only two outcomes that keep a figure readable are "both on one line"
+    // and "the whole unit below the whole numeral". The break-inside-the-part
+    // outcome needs two rules the old stylesheet did not have: a row that may
+    // wrap at all, and a value that may not be broken to fit.
+    const body = code(SUMMARY);
+    const dd = rule(body, 'dd');
+    const unit = rule(body, '.unit');
+
+    expect(dd, 'the summary dd rule').toContain('flex-wrap: wrap');
+    // NOT `anywhere`. That rule came from the UI-SPEC's blanket sentence about
+    // children holding untrusted text, and it is kept for the split table's
+    // cells and the notes — never for a formatted number and a fixed word, where
+    // it let both flex items shrink to one character.
+    expect(dd, 'the summary dd rule').toContain('overflow-wrap: normal');
+    expect(dd, 'the summary dd rule').not.toContain('overflow-wrap: anywhere');
+    // The unit is one word: even without the anywhere rule, "hours" is the
+    // shortest thing in this component that a narrow tile could still split.
+    expect(unit, 'the summary .unit rule').toContain('white-space: nowrap');
+
+    // The cause is held in place by the RULES that were changed, and the two
+    // tiles' minimum width and the 128px grid track are what keep two per row
+    // at 375px. Neither may be "fixed" by widening the tile instead.
+    expect(rule(body, 'dl'), 'the summary dl rule').toContain('minmax(128px, 1fr)');
+  });
+
+  test('the legend note is always its own full row, 8px under the swatch row', () => {
+    // G-04-UI-3, legend clause. The note was a fourth item in the same wrapping
+    // row, so a short note sat on More's line and a long one wrapped BY
+    // ACCIDENT, each 4px under the row. A full-row basis makes the placement a
+    // rule instead of a consequence of the sentence's length, and the row gap
+    // carries the UI-SPEC's 8px `sm` step down to it.
+    const body = code(LEGEND);
+    const row = rule(body, '.row');
+    const note = rule(body, '.note');
+
+    // The shorthand `gap: <row> <column>`, or the two longhands. Both are the
+    // same declaration written two ways and both are accepted here, because the
+    // claim is the 8px between the rows, not the spelling.
+    const rowGap = /gap:\s*8px\s+4px\b/.test(row) || /row-gap:\s*8px\b/.test(row) ? '8px' : 'no';
+    expect(rowGap, 'the legend row rule declares an 8px row gap').toBe('8px');
+    expect(row, 'the legend row rule').toMatch(/gap:\s*8px\s+4px\b|row-gap:\s*8px\b/);
+    // Less, the swatches and More stay 4px apart: the 8px is between ROWS, and
+    // widening the swatch spacing instead is the regression this pins.
+    expect(row, 'the legend row rule').toMatch(/gap:\s*8px\s+4px\b|column-gap:\s*4px\b/);
+    // A note that only takes a new line when it does not fit is the defect.
+    expect(note, 'the legend .note rule').toContain('flex-basis: 100%');
   });
 });

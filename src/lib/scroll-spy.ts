@@ -126,3 +126,70 @@ export function parseNavOffset(raw: string, fallback = 72): number {
   const parsed = Number.parseInt(raw.trim(), 10);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
+
+// =============================================================================
+// navScrollLeftFor — the nav's own scroll position (05-09, D-01)
+// =============================================================================
+//
+// Six nav links no longer fit the 720px column, so the nav scrolls inside itself.
+// `pickActiveSection` above says WHICH link is current; this says WHERE the nav
+// has to be scrolled for that link to be visible. They are separate questions:
+// the first is a rule about the page, the second is arithmetic over five numbers,
+// and the second is the one that has to be testable without a DOM.
+//
+// WHY NOT THE NATIVE CALL
+// The obvious implementation — ask the browser to scroll the current link into
+// view — scrolls EVERY scrollable ancestor, the page included. With a sticky nav
+// that means moving the page to wherever the nav happened to sit, while the
+// reader was trying to stay where they were, and a page whose vertical position
+// is owned by a horizontal convenience. Writing the nav's own `scrollLeft` moves
+// the nav and nothing else.
+//
+// The inset is the nav's own padding rather than zero, because a link flush
+// against the edge has its 3px underline and its focus ring clipped, and the
+// ring is exactly what a keyboard reader needs to see.
+//
+// The write is INSTANT: `scroll-behavior` is not an inherited property, the page
+// sets it on the root element only, and the nav declares none of its own, so
+// assigning `scrollLeft` here never animates.
+
+/**
+ * Where the nav should be scrolled to keep one link fully inside its box.
+ *
+ * All edges are in the nav's own coordinate space: `linkLeft` and `linkRight`
+ * are measured from the nav's left BORDER edge, which is the origin
+ * `scrollLeft` and `clientWidth` share. Returns the unchanged `scrollLeft` when
+ * the link is already inside the inset, and never a negative one.
+ *
+ * A link too wide for the nav cannot be shown whole; its LEFT edge wins, because
+ * the start of a name is the useful half of it.
+ */
+export function navScrollLeftFor(geometry: {
+  /** The nav's current horizontal scroll position. */
+  scrollLeft: number;
+  /** The nav's visible content width. */
+  clientWidth: number;
+  /** The link's left edge, from the nav's left border edge. */
+  linkLeft: number;
+  /** The link's right edge, from the nav's left border edge. */
+  linkRight: number;
+  /** How much breathing room to keep at each end — the nav's own padding. */
+  inset: number;
+}): number {
+  const from = Number.isFinite(geometry.scrollLeft) ? geometry.scrollLeft : 0;
+  const inset = Number.isFinite(geometry.inset) ? Math.max(0, geometry.inset) : 0;
+  const rightLimit = geometry.clientWidth - inset;
+
+  // Already inside both insets: the nav does not move. This is the common case
+  // and the reason the component can compare the result and skip the write.
+  if (geometry.linkLeft >= inset && geometry.linkRight <= rightLimit) {
+    return from;
+  }
+
+  // Past the left inset. Checked FIRST, so an over-wide link shows its start.
+  if (geometry.linkLeft < inset) {
+    return Math.max(0, from - (inset - geometry.linkLeft));
+  }
+
+  return Math.max(0, from + (geometry.linkRight - rightLimit));
+}

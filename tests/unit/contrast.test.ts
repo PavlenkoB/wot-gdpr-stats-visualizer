@@ -332,3 +332,500 @@ describe('playtime data ramp (04-UI-SPEC Color)', () => {
     expect(offenders).toEqual([]);
   });
 });
+
+// =============================================================================
+// The flow data colours — two marks, deliberately hard to tell apart (05-08)
+// =============================================================================
+//
+// `--flow-in` and `--flow-out` are the first data colours in this app that
+// are NOT a lightness ramp, and the first pair chosen to sit close together.
+// The ramp's rule — one direction of lightness, one colour per rank — does not
+// fit a diverging chart, where the meaning is side of the line rather than
+// size. So the two hues are 1.36:1 apart, which is close enough to look like a
+// mistake and far enough apart to read.
+//
+// The consequence drives the whole design: a pair this close must never be the
+// only cue. Section 8's tooltip, the legend words, the side of the zero line
+// and the monthly table all carry the same meaning in text, so the colours are
+// allowed to be subtle precisely because nothing depends on them alone. That
+// is why these are declared in app.css and read as `var(--flow-in)` — a
+// component restating `#4c3fa6` would create a second copy of the contract
+// with no way to tell which is authoritative, which is the same failure the
+// ramp tests above were written to prevent.
+//
+// The 3:1 floor is the non-text-content minimum from WCAG 1.4.11: these are
+// marks carrying information, and the recorded ratios are recomputed here
+// rather than trusted, because a table that records a number nobody measured is
+// the W-03 failure again.
+// =============================================================================
+
+const PHASE5_UI_SPEC = readFileSync(
+  path.join(REPO_ROOT, '.planning/phases/05-vehicle-stats-financial-dashboards/05-UI-SPEC.md'),
+  'utf8',
+);
+
+/** The two surfaces these marks are measured against: a card and the tile. */
+const FLOW_SURFACES: ReadonlyArray<readonly [string, string]> = [
+  ['#ffffff', 'white card'],
+  ['#f1f3f4', 'hover surface'],
+];
+
+/** Non-text content must clear this (WCAG 1.4.11). */
+const MIN_FLOW_CONTRAST = 3;
+
+/**
+ * One flow row of the 05-UI-SPEC Color table: the token name, its hex, and the
+ * two ratios the table records (on white, then on the hover surface).
+ */
+type FlowStep = {
+  token: string;
+  hex: string;
+  onWhite: number;
+  onHover: number;
+};
+
+function specFlow(): FlowStep[] {
+  const steps: FlowStep[] = [];
+  for (const token of ['--flow-in', '--flow-out']) {
+    const row = PHASE5_UI_SPEC.split('\n').find((line) => line.startsWith(`| \`${token}\` |`));
+    if (row === undefined) throw new Error(`no "${token}" row in the 05-UI-SPEC Color table`);
+    const hex = row.match(/#[0-9a-f]{6}/i)?.[0];
+    if (hex === undefined) throw new Error(`the "${token}" row declares no hex colour: ${row}`);
+    // The two ratio cells are the trailing `8.17:1` / `7.34:1` values.
+    const ratios = [...row.matchAll(/([0-9]+\.[0-9]+):1/g)].map((m) => Number(m[1]));
+    if (ratios.length !== 2)
+      throw new Error(`the "${token}" row records ${ratios.length} ratios: ${row}`);
+    steps.push({ token, hex: hex.toLowerCase(), onWhite: ratios[0], onHover: ratios[1] });
+  }
+  return steps;
+}
+
+function appCssFlow(): Map<string, string> {
+  const declared = new Map<string, string>();
+  for (const match of APP_CSS.matchAll(/(--flow-(?:in|out))\s*:\s*(#[0-9a-f]{3,6})\s*;/gi)) {
+    declared.set(match[1], match[2].toLowerCase());
+  }
+  return declared;
+}
+
+describe('flow data colours (05-UI-SPEC Color)', () => {
+  test('the code ships the colours the Color table declares', () => {
+    const css = appCssFlow();
+    expect([...css.keys()].sort()).toEqual(['--flow-in', '--flow-out']);
+    for (const step of specFlow()) {
+      expect(css.get(step.token)).toBe(step.hex);
+    }
+  });
+
+  test('each token is declared exactly once', () => {
+    // A second declaration is either a silent override or a copy that will
+    // drift; `:root` is the only place a phase data colour belongs.
+    for (const token of ['--flow-in', '--flow-out']) {
+      expect(APP_CSS.match(new RegExp(`${token}\\s*:`, 'g'))?.length).toBe(1);
+    }
+  });
+
+  test('every recorded ratio on both surfaces is true of the shipped hex', () => {
+    for (const step of specFlow()) {
+      expect(contrastRatio(step.hex, '#ffffff')).toBeCloseTo(step.onWhite, 2);
+      expect(contrastRatio(step.hex, '#f1f3f4')).toBeCloseTo(step.onHover, 2);
+    }
+  });
+
+  test('both clear the 3:1 non-text floor on both surfaces', () => {
+    for (const step of specFlow()) {
+      for (const [surface] of FLOW_SURFACES) {
+        expect(contrastRatio(step.hex, surface)).toBeGreaterThanOrEqual(MIN_FLOW_CONTRAST);
+      }
+    }
+  });
+
+  test('neither is a ramp step or the accent', () => {
+    // These are two new hues, not two more rungs. A collision would make a
+    // flow mark indistinguishable from a playtime cell or from a focus ring,
+    // and the ramp's monotonic scale would silently gain a rung.
+    const taken = new Set([...appCssRamp().values(), '#1a73e8']);
+    for (const step of specFlow()) {
+      expect(taken.has(step.hex)).toBe(false);
+    }
+  });
+
+  test('the two are about 1.36:1 apart, close enough to need the text cues', () => {
+    // The separation is a design fact, not an accident: it is why the legend
+    // words, the zero line and the tooltip all restate the meaning. Asserting
+    // it means a future "let's just make them clearly different" change has to
+    // be a deliberate act in the spec, not a quiet edit to app.css.
+    const [inflow, outflow] = specFlow();
+    expect(contrastRatio(inflow.hex, outflow.hex)).toBeCloseTo(1.36, 2);
+  });
+
+  test('no component stylesheet restates either as a literal hex', () => {
+    const componentDir = path.join(REPO_ROOT, 'src/lib/components');
+    const offenders: string[] = [];
+    for (const name of readdirSync(componentDir)) {
+      if (!name.endsWith('.svelte')) continue;
+      const source = readFileSync(path.join(componentDir, name), 'utf8');
+      for (const step of specFlow()) {
+        if (new RegExp(step.hex, 'i').test(source)) offenders.push(`${name}: ${step.hex}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});
+
+// =============================================================================
+// The chart frame strokes — the W-03 method, applied to the zero line
+// (05-UI-REVIEW top fix 2, UAT G-05-9)
+// =============================================================================
+//
+// The same argument as the nav hover, one object over. The Color table declares
+// the zero line `#5f6368` and the two plot-bound hairlines `#dadce0`, and the
+// component shipped `#dadce0` for the zero line and an off-palette `#e8eaed` for
+// the hairlines — so the chart painted its most important non-colour cue at
+// 1.37:1, on a chart whose whole argument is that two hues 1.41:1 apart are NOT
+// the only thing separating a deposit from a withdrawal. The zero line is the
+// load-bearing part of that argument, so a light grey zero line is a missed
+// contract rather than decoration.
+//
+// Comments are stripped before the stylesheet is read, because the rules now
+// carry a comment naming the spec row — and that comment contains the hexes.
+// Reading it without stripping would assert a comment against itself.
+// =============================================================================
+
+const MONTHLY_BAR_CHART = readFileSync(
+  path.join(REPO_ROOT, 'src/lib/components/MonthlyBarChart.svelte'),
+  'utf8',
+);
+
+/** `/* … *\/`, so a comment cannot satisfy a rule about the declaration. */
+function stripCssComments(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, '');
+}
+
+/**
+ * One row of the 05-UI-SPEC Color table: the zero line's hex, the hairlines'
+ * hex, and the ratio the table records against white.
+ */
+type FrameStep = { zeroLine: string; hairline: string; onWhite: number };
+
+function specFrame(): FrameStep {
+  // The CONTRACT, not the amendments: later appendices record history and must
+  // not be able to satisfy a test about what the chart must paint.
+  const contract = PHASE5_UI_SPEC.split('\n## Amendments')[0] ?? '';
+  const row = contract
+    .split('\n')
+    .find((line) => line.startsWith('| Chart zero line / bound lines |'));
+  if (row === undefined) {
+    throw new Error('no "Chart zero line / bound lines" row in the 05-UI-SPEC Color table');
+  }
+  const hexes = [...row.matchAll(/#[0-9a-f]{6}/gi)].map((m) => m[0].toLowerCase());
+  if (hexes.length !== 2) {
+    throw new Error(`the frame row declares ${hexes.length} hexes, expected two: ${row}`);
+  }
+  const ratio = row.match(/([0-9]+\.[0-9]+):1/)?.[1];
+  if (ratio === undefined) {
+    throw new Error(`the frame row records no contrast ratio: ${row}`);
+  }
+  return { zeroLine: hexes[0]!, hairline: hexes[1]!, onWhite: Number(ratio) };
+}
+
+/** The `stroke:` declared by the first rule whose selector matches. */
+function chartStroke(selector: string): string {
+  const rule = stripCssComments(MONTHLY_BAR_CHART).match(
+    new RegExp(`(?:^|\\n)\\s*${selector}\\s*\\{([^}]*)\\}`),
+  );
+  if (rule === null) {
+    throw new Error(`no "${selector}" rule in MonthlyBarChart.svelte`);
+  }
+  const value = rule[1].match(/stroke:\s*(#[0-9a-f]{3,6})/i);
+  if (value === null) {
+    throw new Error(`the "${selector}" rule declares no hex stroke`);
+  }
+  return value[1].toLowerCase();
+}
+
+describe('chart frame strokes (05-UI-SPEC Color)', () => {
+  test('the component paints the two strokes the Color table declares', () => {
+    const frame = specFrame();
+
+    expect(chartStroke('\\.zero-line')).toBe(frame.zeroLine);
+    expect(chartStroke('\\.hairline')).toBe(frame.hairline);
+  });
+
+  test('the zero line clears 3:1 and matches the ratio the table records', () => {
+    // The recorded figure is asserted to 0.05 rather than recomputed exactly:
+    // the table rounds to two decimals, and a guard that demanded the rounding
+    // be reproduced would fail on a correct spec.
+    const frame = specFrame();
+    const measured = contrastRatio(frame.zeroLine, '#ffffff');
+
+    expect(Math.abs(measured - frame.onWhite)).toBeLessThanOrEqual(0.05);
+    // WCAG 1.4.11: the zero line IS the non-colour cue the diverging chart
+    // leans on, so it is a graphic, and a graphic clears 3:1.
+    expect(measured).toBeGreaterThanOrEqual(MIN_FLOW_CONTRAST);
+  });
+
+  test('the hairlines are the palette grey, not an off-palette one', () => {
+    // A hairline marks the plot bound rather than separating two directions, so
+    // it is held to the declared value and no further.
+    expect(specFrame().hairline).toBe('#dadce0');
+  });
+});
+
+// =============================================================================
+// The amended copy — the user's two answers, written into the approved spec
+// =============================================================================
+//
+// A UI-SPEC is a contract, and a contract that was approved before two
+// questions were answered is a contract that is wrong in two places. These
+// assertions exist because the failure mode of a spec is not a crash: it is a
+// later plan reading the sentence that predates the answer and implementing
+// the old behaviour confidently. Each string below is one the user chose or one
+// the plan found to be factually wrong, asserted verbatim so the spec cannot be
+// amended in one place and left stale in another.
+//
+// The compact example is the sharpest of them. The spec illustrated a 1,572
+// month axis with `26.9M`, and `Intl.NumberFormat(..., { maximumFractionDigits:
+// 1 })` renders 26,986,204 as `27M` — the spec's own example was unreachable
+// through the formatter it named, so any test copied from it would have failed.
+// =============================================================================
+
+describe('05-UI-SPEC amended copy', () => {
+  /** The spec text with the Amendments appendix removed, so a string recorded
+   *  there as history cannot satisfy a test about the contract itself. */
+  const contract = PHASE5_UI_SPEC.split('\n## Amendments')[0];
+
+  test('the premium exclusion explains all three reasons a row is left out', () => {
+    // A withdrawal is not a grant, and an unreadable date has no month to fall
+    // in. Both were silently dropped before, which made the pill's count
+    // disagree with what the chart did.
+    expect(contract).toContain(
+      'Rows whose premium value is not a recognisable duration or is a withdrawal, or whose date cannot be read, are not counted in the chart.',
+    );
+  });
+
+  test('the premium disclosure is renamed to what it now lists', () => {
+    // It lists excluded values, which is no longer only unrecognised ones: a
+    // withdrawal has a perfectly readable premium string.
+    expect(contract).toContain('Premium values not charted ({k})');
+    expect(contract).not.toContain('Unrecognised premium values ({k})');
+  });
+
+  test('the disclosure keeps its test id, so no plan has to re-derive it', () => {
+    expect(contract).toContain('premium-unrecognised');
+  });
+
+  test('the premium value rule says a withdrawal is never charted', () => {
+    expect(contract).toContain('withdrawal');
+    expect(contract).toMatch(/never charted/i);
+  });
+
+  test('the currency exclusion explains all three reasons a row is left out', () => {
+    expect(contract).toContain(
+      'Operations with an unknown type, a non-numeric amount or a date that cannot be read are not counted in any chart or total below.',
+    );
+  });
+
+  test('a negative amount counts as non-numeric', () => {
+    // The rule that would otherwise have been argued about: a withdrawal is
+    // recorded as a negative deposit in some exports, and a chart that
+    // summated it as an inflow would be quietly wrong.
+    expect(contract).toMatch(/negative/i);
+  });
+
+  test('the readable-date window is stated, and bounds the axis', () => {
+    expect(contract).toContain('1970 to 2100 inclusive');
+    expect(contract).toContain('1,572 months');
+  });
+
+  test('the compact example is the one the named formatter actually produces', () => {
+    expect(contract).toContain('27M');
+    expect(contract).not.toContain('26.9M');
+    // The expectation is derived from the formatter, not transcribed.
+    expect(contract).toMatch(/computed from the formatter/i);
+  });
+
+  test('the ChartTooltip deviation from D-27 is recorded, not silent', () => {
+    // D-27 says charts reuse ChartLegend. They do not, and a later plan
+    // reading D-27 would build a ramp legend for a flow chart. The deviation
+    // belongs in the spec where the decision is read.
+    expect(PHASE5_UI_SPEC).toContain('D-27');
+    expect(PHASE5_UI_SPEC).toContain('ChartLegend');
+  });
+
+  test('one tooltip instance per chart container, and the Financial test id', () => {
+    // Two instances of the same test id would break Phase 4's unscoped
+    // locators, so the second one is given a different id on purpose.
+    expect(contract).toContain('finance-tooltip');
+    expect(contract).toContain('chart-tooltip');
+  });
+
+  test('the amendments appendix names the decision it departs from', () => {
+    // History stays readable: the delta is listed with its reason rather than
+    // edited into the prose, so a reader can see what was approved and what
+    // changed after.
+    expect(PHASE5_UI_SPEC).toContain('## Amendments (plan 05-08)');
+    const amendments = PHASE5_UI_SPEC.split('## Amendments (plan 05-08)')[1] ?? '';
+    expect(amendments).toContain('D-27');
+    expect(amendments).toContain('ChartLegend');
+  });
+});
+
+// =============================================================================
+// The 05-21 appendix — the currency plot split, pinned where it is read
+// =============================================================================
+//
+// A superseding appendix is only worth anything if the phrases it hinges on
+// stay in it. The danger is not that the appendix is deleted — a reader would
+// notice — but that it is edited down to a summary and the load-bearing
+// sentences go quietly: the ONE-scale statement, the quarter rule, and the note
+// that the pitch belongs to another plan. Those three are what stop a later
+// plan from re-deriving the split, or from assuming 05-21 took the width clause
+// too and leaving it undone.
+describe('05-21 amendments appendix', () => {
+  /** The 05-21 section only, and only after the 05-08 one. */
+  const appendix = (): string => {
+    const afterFirst = PHASE5_UI_SPEC.split('## Amendments (plan 05-08)')[1] ?? '';
+    const own = afterFirst.split('## Amendments (plan 05-21)')[1];
+    if (own === undefined) {
+      throw new Error('the 05-21 appendix is missing, or does not follow the 05-08 one');
+    }
+    return own;
+  };
+
+  test('it follows the plan 05-08 appendix rather than replacing it', () => {
+    expect(PHASE5_UI_SPEC).toContain('## Amendments (plan 05-21)');
+    expect(PHASE5_UI_SPEC.indexOf('## Amendments (plan 05-21)')).toBeGreaterThan(
+      PHASE5_UI_SPEC.indexOf('## Amendments (plan 05-08)'),
+    );
+  });
+
+  test('it states the one-scale honesty the split depends on', () => {
+    // Without this sentence the split reads as two scales, and the whole point
+    // of dividing the plot rather than scaling each side separately is that it
+    // is not.
+    expect(appendix()).toMatch(/ONE linear scale/);
+    expect(appendix()).toMatch(/same height in every chart/);
+    expect(appendix()).toContain('D-15');
+    expect(appendix()).toContain('D-17');
+  });
+
+  test('it records the quarter rule and that a label may name an axis value', () => {
+    expect(appendix()).toMatch(/quarter of the other side/);
+    expect(appendix()).toContain('names that axis value');
+  });
+
+  test('it hands the pitch and the label stride to plan 05-22', () => {
+    // The clause G-05-9 still has open, recorded so that "not here" reads as a
+    // decision with an owner rather than an omission.
+    expect(appendix()).toMatch(/NOT amended here/);
+    expect(appendix()).toContain('05-22');
+    expect(appendix()).toMatch(/pitch rule and the label stride/);
+  });
+});
+
+// =============================================================================
+// The 05-22 appendix — the whole-pixel pitch, pinned where it is read
+// =============================================================================
+//
+// This appendix supersedes a rule that is still in the contract text above, so
+// it has the same failure mode as 05-21's: not that it is deleted — a reader
+// would notice — but that it is edited down until the sentences a later plan
+// needs are gone. Four of them are load-bearing. The RULE (largest whole pixel
+// from 4 to 16) is what stops someone re-deriving the four steps and calling it
+// a regression. The STRIDE (24 below a pitch of 8px) is the clause that is easy
+// to miss, because a stride of 12 is correct at every pitch the old ladder
+// produced and quietly wrong at 5, 6 and 7. The HONESTY paragraph is what stops
+// "make the charts the same width" being re-opened as a defect. And the OPTIONS
+// are what stop a shared month axis — which amends D-17 — being re-proposed as
+// if nobody had weighed it. The fifth test below is the other half: the
+// superseded text must still be there, because a spec that rewrites its own
+// history is a spec nobody can audit later.
+// =============================================================================
+describe('05-22 amendments appendix', () => {
+  /** The 05-22 section only, and only after the 05-21 one. */
+  const appendix = (): string => {
+    const afterPrev = PHASE5_UI_SPEC.split('## Amendments (plan 05-21)')[1] ?? '';
+    const own = afterPrev.split('## Amendments (plan 05-22)')[1];
+    if (own === undefined) {
+      throw new Error('the 05-22 appendix is missing, or does not follow the 05-21 one');
+    }
+    return own;
+  };
+
+  /** The approved contract, with every Amendments appendix removed. */
+  const contract = (): string => PHASE5_UI_SPEC.split('\n## Amendments')[0];
+
+  test('it follows the plan 05-21 appendix, which handed it the width clause', () => {
+    // 05-21's item 4 recorded G-05-9's third clause as "NOT amended here" and
+    // named 05-22 as its owner. If this appendix moved above that one the two
+    // would read as rivals, and the clause would have no single owner again.
+    expect(PHASE5_UI_SPEC).toContain('## Amendments (plan 05-22)');
+    expect(PHASE5_UI_SPEC.indexOf('## Amendments (plan 05-22)')).toBeGreaterThan(
+      PHASE5_UI_SPEC.indexOf('## Amendments (plan 05-21)'),
+    );
+    expect(appendix()).toContain('2026-10-02');
+  });
+
+  test('it states the whole-pixel pitch rule and what it supersedes', () => {
+    expect(appendix()).toMatch(/largest whole pixel/);
+    expect(appendix()).toMatch(/4 to 16/);
+    expect(appendix()).toMatch(/576/);
+    // Bar width follows the pitch rather than the old four values, so it is a
+    // range now: 3px at the floor and 15px at the cap.
+    expect(appendix()).toMatch(/bar width/);
+    expect(appendix()).toMatch(/3 to 15px/);
+    // And the two Spacing rows and the section 6 decision it replaces are named,
+    // so "superseded" is a location and not a vibe.
+    expect(appendix()).toContain('Chart bar pitch');
+    expect(appendix()).toContain('Chart bar width');
+    expect(appendix()).toContain('Pitch rule. Decision');
+  });
+
+  test('it states the label stride of 24 below a pitch of 8px', () => {
+    // The clause a reader is most likely to miss: at 12 x pitch under 96px the
+    // stride doubles, and 24 x 4 is exactly 96, so the gap holds everywhere.
+    expect(appendix()).toMatch(/every 12 months/);
+    expect(appendix()).toMatch(/every 24 months/);
+    expect(appendix()).toMatch(/below a pitch of 8px/);
+    expect(appendix()).toMatch(/at least 96px apart/);
+    expect(appendix()).toMatch(/X axis \(D-26\)/);
+  });
+
+  test('it records that the widths are near-equal, and what would make them equal', () => {
+    // D-17 and D-15 are the two decisions a reader would have to reopen to get
+    // genuinely equal widths, and both are named here with the reason they were
+    // not reopened: a shared month axis amends D-17, and a stretched frame draws
+    // a flat zero line across months that are not in the data.
+    expect(appendix()).toMatch(/own months/);
+    expect(appendix()).toContain('D-17');
+    expect(appendix()).toContain('D-15');
+    expect(appendix()).toMatch(/never scaled/);
+    expect(appendix()).toMatch(/14px/);
+    expect(appendix()).toMatch(/near-equal, not equal/);
+    expect(appendix()).toMatch(/shared month axis/);
+    expect(appendix()).toMatch(/flat zero line/);
+  });
+
+  test('it closes G-05-9 in full, and lists what stayed the same', () => {
+    // The closing sentence is the whole point of the appendix: plans 05-21 and
+    // 05-22 together close all three clauses, so no later plan inherits a
+    // "still open" reading of the gap.
+    expect(appendix()).toContain('G-05-9');
+    expect(appendix()).toMatch(/closed in full/);
+    expect(appendix()).toContain('05-21');
+    // And the unchanged parts, so "superseded" is not read as "rewritten".
+    expect(appendix()).toMatch(/144/);
+    expect(appendix()).toMatch(/node budget/);
+  });
+
+  test('the contract text it supersedes is still in the contract', () => {
+    // The original wording stays above the first Amendments heading, as
+    // approved. A spec that silently rewrote its own history would leave a
+    // later reader unable to tell what was chosen from what was inherited.
+    expect(contract()).toContain('| Chart bar pitch | 16 / 12 / 8 / 4px, chosen per chart');
+    expect(contract()).toContain('| Chart bar width | pitch − 1px (15 / 11 / 7 / 3px), 1px gap |');
+    expect(contract()).toContain('Pitch is the largest of 16, 12, 8, 4px');
+    expect(contract()).toContain('then every 12 months (every 24 when the pitch is 4px)');
+  });
+});

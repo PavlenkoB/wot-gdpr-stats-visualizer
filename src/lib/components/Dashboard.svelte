@@ -5,9 +5,12 @@
   import { SECTION_NOTE_PENDING, SECTION_NOTE_USER_INFO, SECTION_TITLES } from '../ui-copy.ts';
   import DashboardSection from './DashboardSection.svelte';
   import DashboardNav from './DashboardNav.svelte';
+  import FinancialData from './FinancialData.svelte';
   import IdentityHeader from './IdentityHeader.svelte';
   import LoginHistorySection from './LoginHistorySection.svelte';
   import Playtime from './Playtime.svelte';
+  import PlayerStats from './PlayerStats.svelte';
+  import SpendSummary from './SpendSummary.svelte';
   import UnsupportedBlock from './UnsupportedBlock.svelte';
 
   /**
@@ -19,9 +22,10 @@
    * `dashboard-status.ts`, the same pure module the sticky nav reads in
    * 03-05, so a nav link and its card cannot disagree (D-08).
    *
-   * The activity-history branch below is the one that grows: it is the only
-   * section with a `ready` body, and it holds both of the card's sub-headings
-   * in D-02's order.
+   * The branches below are the sections that have a `ready` body, and there
+   * are two of them: the activity column and the financial column. Both hold
+   * their sub-blocks in D-02's document order inside the card, and both are
+   * one 24px stack rather than a wrapper the section shell has to know about.
    *
    * `result` is the LAST KNOWN dataset rather than the current view state,
    * which is why the dashboard survives a replace, a duplicate drop and a
@@ -81,6 +85,34 @@
             <Playtime {result} client={ingestClient.playtime} />
             <LoginHistorySection />
           </div>
+        {:else if section.id === 'financial-data'}
+          <!--
+            The second `ready` section (05-10, D-01). Its own client, not the
+            playtime one: `ingestClient.data` supersedes per CHANNEL, so the
+            premium block asking again releases only its own older question and
+            the currency block joining it in 05-13 cannot starve it (05-07's
+            rule — three blocks mounting in one tick under a globally
+            superseding client is the bug that rule exists to prevent).
+          -->
+          <FinancialData {result} client={ingestClient.data} />
+        {:else if section.id === 'player-statistics'}
+          <!--
+            The THIRD `ready` section (05-12, D-05). It asks the `vehicles`
+            channel of the same channel-scoped client the Financial blocks use,
+            and superseding is per CHANNEL (05-07), so the Premium block
+            asking again releases only its own older question and cannot starve
+            this one.
+          -->
+          <PlayerStats {result} client={ingestClient.data} />
+        {:else if section.id === 'payment-history'}
+          <!--
+            The FOURTH `ready` section (05-15, D-21). It asks the `spend`
+            channel of the same channel-scoped client, and superseding is per
+            CHANNEL (05-07), so this block asking again releases only its own
+            older question and cannot starve the Premium, Virtual currency or
+            Vehicle statistics blocks.
+          -->
+          <SpendSummary {result} client={ingestClient.data} />
         {/if}
       </DashboardSection>
     {/each}

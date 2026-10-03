@@ -1,4 +1,12 @@
-import { expect, type BrowserContext, type Locator, type Page } from '@playwright/test';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
+import {
+  expect,
+  type BrowserContext,
+  type Locator,
+  type Page,
+  type TestInfo,
+} from '@playwright/test';
 
 /**
  * A single file payload as it is passed from the test runner into the
@@ -159,6 +167,57 @@ export function playtimeBlock(page: Page): Locator {
   return page.getByTestId('playtime');
 }
 
+// =============================================================================
+// Phase 5 — the four block locators and the financial section (plan 05-10)
+// =============================================================================
+//
+// Declared HERE, all five at once, and not added to as later plans land. Two
+// reasons, and the second is the one that matters: plans 05-12 to 05-15 run in
+// the same wave as this one, so a helper added later would be a file two of
+// them edit at once. One owner, one commit, no merge conflict in a test helper.
+//
+// Each is a one-line wrapper returning one locator, and none of them asserts a
+// value — the expected numbers come from `tests/fixtures/finance-fixtures.ts`
+// and `vehicle-*-fixtures.ts` as literals, computed through the `ui-copy`
+// formatters. A locator that returned a reading from the page would let an
+// expectation be computed from the thing it is meant to check.
+
+/**
+ * The Premium time sub-block, the element that carries `data-state` (05-10).
+ *
+ * One of the two Financial sub-blocks D-02 gave a state of its own, and the
+ * first to reach the screen.
+ */
+export function premiumBlock(page: Page): Locator {
+  return page.getByTestId('premium-block');
+}
+
+/** The Virtual currency sub-block (plan 05-13). */
+export function currencyBlock(page: Page): Locator {
+  return page.getByTestId('currency-block');
+}
+
+/** The Real-money spend block of the Payment_history card (plan 05-15). */
+export function spendBlock(page: Page): Locator {
+  return page.getByTestId('spend-block');
+}
+
+/** The Player statistics block, the element that carries `data-state` (plan 05-12). */
+export function playerStatsBlock(page: Page): Locator {
+  return page.getByTestId('player-stats');
+}
+
+/**
+ * The `Financial_data` card, the section whose dashboard holds both sub-blocks.
+ *
+ * `data-status` on this element is the SECTION's status and not a sub-block's:
+ * the section is `ready` when EITHER of its two files has rows, so a card can
+ * be `ready` while one of the sub-blocks inside it reads `not-in-export`.
+ */
+export function financialSection(page: Page): Locator {
+  return page.getByTestId('dashboard-section-financial-data');
+}
+
 /** Set the dropzone's real file input and wait for a dataset to be on screen. */
 export async function importExport(page: Page, name: string, bytes: Uint8Array): Promise<void> {
   await page.getByTestId('file-input').setInputFiles({
@@ -167,6 +226,42 @@ export async function importExport(page: Page, name: string, bytes: Uint8Array):
     buffer: Buffer.from(bytes),
   });
   await waitForImported(page);
+}
+
+/**
+ * Pick a synthetic archive into the dropzone's real file input BY PATH.
+ *
+ * Use this, and not `setInputFiles({ buffer })`, in a spec whose assertion
+ * measures the MAIN THREAD between the pick and the dashboard (a `longtask`
+ * observer). An in-memory payload is not handed to the browser as a file: it is
+ * base64-encoded over the protocol and decoded INSIDE THE PAGE, on its main
+ * thread, by playwright-core's injected script
+ *
+ *     Uint8Array.from(atob(payload), (c) => c.charCodeAt(0))
+ *
+ * and only then is the `change` event dispatched. That is one main-thread task
+ * proportional to the payload (3.6 MB of zip is a 140 ms long task on a fast
+ * machine, 1,052-1,420 ms under 8-10x CPU throttling, and 1,216 ms on the CI
+ * runner that failed import-flow (f)), it ends BEFORE the app has seen the file,
+ * and it is the harness's, not the app's. A path goes through DOM.setFileInputFiles
+ * instead: the page receives a disk-backed `File` with no decode at all, which is
+ * also what a real pick or drop hands the app.
+ *
+ * The bytes are synthetic (every caller builds them from `tests/fixtures`) and
+ * are written under the test's own output directory, which is git-ignored and
+ * wiped at the start of the next run. `name` must keep the `.zip` extension: the
+ * app's pre-check rejects anything else.
+ */
+export async function pickExportFromDisk(
+  page: Page,
+  testInfo: TestInfo,
+  name: string,
+  bytes: Uint8Array,
+): Promise<void> {
+  const path = testInfo.outputPath(name);
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, bytes);
+  await page.getByTestId('file-input').setInputFiles(path);
 }
 
 /**

@@ -37,13 +37,13 @@
 
 ### Player Statistics
 
-- [ ] **STATS-01**: Per-vehicle battle stats (win rate, damage, battles, etc.) across WoT, WoT Blitz, World of Warships, and World of Warplanes
+- [x] **STATS-01**: Per-vehicle battle stats (win rate, damage, battles, etc.) across WoT, WoT Blitz, World of Warships, and World of Warplanes
 
 ### Financial
 
-- [ ] **FINANCE-01**: Premium-time operations timeline
-- [ ] **FINANCE-02**: Virtual-currency flow timeline
-- [ ] **FINANCE-03**: Real-money spend summary from `Payment_history`, totaled **per currency** (PAID orders only) — never blended or converted into a single number
+- [x] **FINANCE-01**: Premium-time operations timeline
+- [x] **FINANCE-02**: Virtual-currency flow timeline
+- [x] **FINANCE-03**: Real-money spend summary from `Payment_history`, totaled **per currency** (PAID orders only) — never blended or converted into a single number
 
 ### Platform & Privacy
 
@@ -101,10 +101,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ACTIVITY-05 | Phase 6 | Pending |
 | ACTIVITY-06 | Phase 6 | Pending |
 | ACTIVITY-07 | Phase 6 | Pending |
-| STATS-01 | Phase 5 | Pending |
-| FINANCE-01 | Phase 5 | Pending |
-| FINANCE-02 | Phase 5 | Pending |
-| FINANCE-03 | Phase 5 | Pending |
+| STATS-01 | Phase 5 | Complete |
+| FINANCE-01 | Phase 5 | Complete |
+| FINANCE-02 | Phase 5 | Complete |
+| FINANCE-03 | Phase 5 | Complete |
 | PLATFORM-01 | Phase 7 | Pending |
 | PLATFORM-02 | Phase 1 | Complete |
 | PLATFORM-03 | Phase 7 | Pending |

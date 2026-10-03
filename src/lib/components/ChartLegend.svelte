@@ -5,12 +5,13 @@
    * The Less-to-More legend both heatmaps share (04-UI-SPEC Color, "Legend").
    *
    * One row: the word "Less", one swatch per level, the word "More", then the
-   * boundary note. The swatches are `aria-hidden` because they carry nothing a
-   * screen reader needs — the two words either side of them are what a reader
-   * hears for the scale, the note states the darkest boundary as text, and
-   * every cell already carries its exact value in its accessible name. That is
-   * also the dataviz relief rule: the ramp's low steps sit below 3:1 on white
-   * by design, and they are covered by text three times over.
+   * boundary note on its own full-width line under that row. The swatches are
+   * `aria-hidden` because they carry nothing a screen reader needs — the two
+   * words either side of them are what a reader hears for the scale, the note
+   * states the darkest boundary as text, and every cell already carries its
+   * exact value in its accessible name. That is also the dataviz relief rule:
+   * the ramp's low steps sit below 3:1 on white by design, and they are covered
+   * by text three times over.
    *
    * ## Why all six levels are declared for the levels actually in use
    *
@@ -41,10 +42,12 @@
     {/each}
     <span class="word">{LEGEND_MORE}</span>
     <!--
-      Real text inside the wrapping row, not a tooltip and not a title. The row
-      wraps because at 375px "Less [swatches] More Shades rank the busiest
-      hours of the week. Darkest: more than 42.5 hours." does not fit on one
-      line, and a legend that scrolls horizontally to be read is not a legend.
+      Real text inside the row, not a tooltip and not a title. The note is its
+      own line BY RULE (a full-width basis), not by luck: the weekday-by-hour
+      legend's shorter sentence used to run on from "More" on one line at
+      1280px, and the calendar's longer one was on its own line only because it
+      did not fit beside More. Both now start below the swatch row, and a
+      legend that scrolls horizontally to be read is still not a legend.
     -->
     <span class="note">{note}</span>
   </p>
@@ -59,7 +62,10 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 4px;
+    /* The row value is the 8px `sm` step between the swatch row and the note
+       below it (04-UI-SPEC Spacing, the `sm` row); the column value is the 4px
+       the words and the swatches keep between themselves. */
+    gap: 8px 4px;
     margin: 0;
     min-width: 0;
     /* Caption role (14px / 400 / 1.4, #5f6368) for the words, the swatches
@@ -98,9 +104,13 @@
   }
 
   /* The boundary sentence wraps within itself rather than widening the card:
-     it embeds a formatted hours value and the note can be long. */
+     it embeds a formatted hours value and the note can be long. It also always
+     starts its own line: a full-width basis is what makes the note a separate
+     sentence in both heatmaps instead of one that runs on from "More" whenever
+     it happens to fit beside it. */
   .note {
     min-width: 0;
+    flex-basis: 100%;
     overflow-wrap: anywhere;
   }
 </style>

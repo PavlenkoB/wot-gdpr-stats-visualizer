@@ -1,4 +1,8 @@
-import { describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test } from 'vitest';
+import { readdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { monthIndex } from '../../src/lib/finance-shared.ts';
 import {
   COMPACT_DROPZONE_PROMPT,
   DROPZONE_ARIA_LABEL,
@@ -144,6 +148,10 @@ describe('Phase 3 section, nav and banner copy', () => {
     expect(SECTION_TITLES).toEqual({
       'activity-history': 'Activity_history',
       'player-statistics': 'Player_statistics',
+      // 05-03 D-01: the fifth section, third in the nav. Written as the
+      // export spells it, underscore and all — the same rule as the four
+      // above it, and the reason this is an exact-object assertion.
+      'financial-data': 'Financial_data',
       'payment-history': 'Payment_history',
       'user-info': 'User_Info',
       'not-yet-supported': 'Not yet supported',
@@ -217,9 +225,18 @@ describe('identity header copy', () => {
 
   test('the caption, the two dt labels and the missing-value word', () => {
     expect(IDENTITY_CAPTION).toBe('As of export');
-    expect(IDENTITY_REGION_LABEL).toBe('Region (per export)');
+    expect(IDENTITY_REGION_LABEL).toBe('Location code (per export)');
     expect(IDENTITY_CREATED_LABEL).toBe('Account created');
     expect(UNKNOWN_VALUE).toBe('Unknown');
+  });
+
+  test('the region label cannot be read as a game realm', () => {
+    // UAT G-05-7: a real export stores a numeric regional code ("30") in
+    // `REGION`, beside a city, not a game server. A label that leads with
+    // "Region" invites the reader to look for a realm name, and "code" is
+    // the word that says the value is opaque and not something to decode.
+    expect(IDENTITY_REGION_LABEL.startsWith('Region')).toBe(false);
+    expect(IDENTITY_REGION_LABEL).toContain('code');
   });
 
   test('the skeleton title and prompt', () => {
@@ -909,5 +926,1009 @@ describe('Phase 4 date, tooltip and accessible-name formatters', () => {
       expect(playtimeCopy.formatDurationRowText(seconds, 40000)).not.toMatch(IP_SHAPED);
     }
     expect(playtimeCopy.formatCalendarDate(dayIndex(2019, 3, 3))).not.toMatch(IP_SHAPED);
+  });
+});
+
+// =============================================================================
+// 05-08 tracer: number grouping follows the VIEWER's locale (D-25)
+// =============================================================================
+//
+// Phase 4 pinned `formatNumber` to `en-US` so the 04-UI-SPEC's literal examples
+// would render as written. The user later decided (05-UI-SPEC, the "data" row
+// in UI Considerations, and CONTEXT D-25) that grouping follows the viewer's
+// locale so the whole page speaks one grouping style — which means the
+// machine's locale stops being the tests' business and the TESTS become the
+// thing that is pinned.
+//
+// The shape of the change is deliberately small and one-directional:
+//
+//   - production default is `undefined`, which is the platform's own locale
+//     (the browser's, in the app);
+//   - a single exported seam pins it, and the setup file calls that seam with
+//     `en-US` so every expectation in this file is written in one grouping;
+//   - a source-level test holds the seam unreachable from application code,
+//     because a locale that application code can change is a locale the user
+//     cannot rely on.
+//
+// The two source-level tests are the point of the tracer. A number formatter
+// that reads the environment is the exact defect these two assertions exist to
+// make impossible: one on the production side, one on the test side.
+// =============================================================================
+
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+
+/** Every source file under `src/`, as repo-relative posix paths. */
+function sourceFilesUnder(dir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(path.join(REPO_ROOT, dir), { recursive: true })) {
+    if (typeof entry !== 'string') continue;
+    if (!/\.(ts|svelte)$/.test(entry)) continue;
+    out.push(`${dir}/${entry.split(path.sep).join('/')}`);
+  }
+  return out;
+}
+
+describe('05-08 tracer: viewer-locale number grouping', () => {
+  // The setup file pins en-US once for this file; a test that changes the
+  // default has to put it back, or the grouped-number expectations of every
+  // later test would depend on this describe's order.
+  afterEach(() => {
+    playtimeCopy.setDefaultNumberLocale('en-US');
+  });
+
+  test('exposes setDefaultNumberLocale as the single test seam', () => {
+    // THE target behaviour of this tracer. Without the seam nothing below can
+    // be expressed: the default has to be changeable from a test and from
+    // nowhere else.
+    expect(typeof playtimeCopy.setDefaultNumberLocale).toBe('function');
+  });
+
+  test('groups by the default locale the seam pinned', () => {
+    playtimeCopy.setDefaultNumberLocale('de-DE');
+    expect(playtimeCopy.formatNumber(1234567)).toBe('1.234.567');
+    playtimeCopy.setDefaultNumberLocale('en-US');
+    expect(playtimeCopy.formatNumber(1234567)).toBe('1,234,567');
+  });
+
+  test('an explicit locale argument wins over the default', () => {
+    playtimeCopy.setDefaultNumberLocale('de-DE');
+    expect(playtimeCopy.formatNumber(1234567, 'en-US')).toBe('1,234,567');
+  });
+
+  test('the two row-count formatters follow the same default', () => {
+    // These two are the reason the deferred `formatImportSummary` failure
+    // existed at all: they grouped with the ambient locale instead of going
+    // through the one formatter, so they are pinned in the same edit.
+    playtimeCopy.setDefaultNumberLocale('de-DE');
+    expect(playtimeCopy.formatRowCount(1234)).toBe('1.234 rows');
+    expect(playtimeCopy.formatSkippedRowCount(1234)).toBe('1.234 rows skipped');
+  });
+
+  test('only the copy module mentions the locale seam', () => {
+    // T-05-24. Application code that could reach this setter would be able to
+    // change how every number on the page groups, for a user who did not ask
+    // for it. The seam is a test facility and nothing else.
+    const offenders = sourceFilesUnder('src').filter((file) =>
+      readFileSync(path.join(REPO_ROOT, file), 'utf8').includes('setDefaultNumberLocale'),
+    );
+    expect(offenders).toEqual(['src/lib/ui-copy.ts']);
+  });
+
+  test('every e2e spec that formats numbers in Node also pins the locale', () => {
+    // A spec that calls a formatter in Node against text the browser rendered
+    // compares two independently-grouped numbers. Pinning the browser in
+    // playwright.config.ts is not enough: the Node side has its own default,
+    // which is whatever the machine running the suite happens to be set to.
+    const e2eDir = path.join(REPO_ROOT, 'tests/e2e');
+    const specs = readdirSync(e2eDir).filter((name) => name.endsWith('.spec.ts'));
+    const unpinned = specs.filter((name) => {
+      const source = readFileSync(path.join(e2eDir, name), 'utf8');
+      return source.includes('ui-copy') && !source.includes('./pin-locale');
+    });
+    expect(unpinned).toEqual([]);
+  });
+});
+
+// =============================================================================
+// 05-08 Task 3: the whole Phase 5 copy inventory
+// =============================================================================
+//
+// Plans 05-10 to 05-15 build components in parallel waves and must not edit
+// ui-copy.ts concurrently, so the complete inventory lands here first and every
+// later plan is a pure consumer. That only works if the wording is pinned to
+// the approved UI-SPEC, so every constant below is asserted against a literal
+// copied from a named spec table row, with the row named in the comment.
+//
+// Each describe group names the spec table its literals come from. A wording
+// change in the spec is a deliberate act that has to edit these tests too,
+// which is the point: there is one authority, and it is the spec.
+//
+// The month fixtures use `monthIndex(year, month)` from finance-shared rather
+// than a literal, because the index arithmetic is the shared module's contract
+// and hard-coding `2019 * 12 + 2` here would assert the arithmetic twice.
+// =============================================================================
+
+describe('05-08 shared formatters', () => {
+  test('formatCompactNumber renders the spec example the formatter can produce', () => {
+    // RESEARCH Pitfall 6 / UI-SPEC section 9: 26,986,204 is 27M at one fraction
+    // digit, never 26.9M. The spec was corrected in 05-08; these two values are
+    // the pair that pins it.
+    expect(playtimeCopy.formatCompactNumber(26986204, 'en-US')).toBe('27M');
+    expect(playtimeCopy.formatCompactNumber(26100000, 'en-US')).toBe('26.1M');
+    expect(playtimeCopy.formatCompactNumber(0, 'en-US')).toBe('0');
+  });
+
+  test('a negative compact label is the real minus then the magnitude', () => {
+    // U+2212 MINUS SIGN, not the ASCII hyphen: the y-axis label sits next to a
+    // digit and a hyphen is both shorter and a different character to a reader
+    // with a screen reader that announces it.
+    expect(playtimeCopy.formatCompactNumber(-26986204, 'en-US')).toBe('−27M');
+    expect(playtimeCopy.formatCompactNumber(-26986204, 'en-US')).toContain('−');
+  });
+
+  test('formatPercent is one decimal and a percent sign', () => {
+    // UI-SPEC Formatting: "Win rate, hit ratio, survival rate | One decimal and
+    // % (55.3%)". The input is already a percentage, not a 0-1 ratio.
+    expect(playtimeCopy.formatPercent(55.333, 'en-US')).toBe('55.3%');
+    expect(playtimeCopy.formatPercent(100, 'en-US')).toBe('100.0%');
+    expect(playtimeCopy.formatPercent(0, 'en-US')).toBe('0.0%');
+  });
+
+  test('formatWholeNumber rounds then groups', () => {
+    // The average-damage column: an average that displays without a decimal.
+    expect(playtimeCopy.formatWholeNumber(714.28, 'en-US')).toBe('714');
+    expect(playtimeCopy.formatWholeNumber(1234.5, 'en-US')).toBe('1,235');
+  });
+
+  test('formatMonthLabel is YYYY-MM from the index, with no Date', () => {
+    // D-26: built from the month index with integer arithmetic, never through
+    // the viewer's timezone. A Date here would shift a month for any viewer
+    // west of UTC.
+    expect(playtimeCopy.formatMonthLabel(monthIndex(2019, 3))).toBe('2019-03');
+    expect(playtimeCopy.formatMonthLabel(monthIndex(2001, 12))).toBe('2001-12');
+    expect(playtimeCopy.formatMonthLabel(monthIndex(1970, 1))).toBe('1970-01');
+  });
+
+  test('formatPremiumDays is whole or one decimal, unit keyed on the numeral', () => {
+    // UI-SPEC Formatting: "Premium days | Integer when whole, otherwise one
+    // decimal; unit day when the rendered numeral is exactly 1, else days".
+    expect(playtimeCopy.formatPremiumDays(86400, 'en-US')).toBe('1 day');
+    expect(playtimeCopy.formatPremiumDays(172800, 'en-US')).toBe('2 days');
+    expect(playtimeCopy.formatPremiumDays(216000, 'en-US')).toBe('2.5 days');
+    expect(playtimeCopy.formatPremiumDays(2721600, 'en-US')).toBe('31.5 days');
+  });
+
+  test('a premium amount that rounds to nothing never renders as 0.0 days', () => {
+    // 90 seconds is 0.001 days. The trailing `.0` a one-decimal format leaves
+    // behind is noise, and "0.0 days" reads as a measured value rather than
+    // as nothing.
+    expect(playtimeCopy.formatPremiumDays(90, 'en-US')).toBe('0 days');
+    expect(playtimeCopy.formatPremiumDays(90, 'en-US')).not.toContain('0.0');
+  });
+
+  test('formatMoney is the code as written, a space, and exactly two decimals', () => {
+    // UI-SPEC Formatting: "Money | Code as written, a space, then the amount
+    // with exactly two decimals (USD 1,234.56); never a symbol, never
+    // converted". 15,495,000 micro-units is 15.495 and rounds to 15.50.
+    expect(playtimeCopy.formatMoney('USD', 15495000n, 'en-US')).toBe('USD 15.50');
+    // The code's case is the export's, never normalised to upper case.
+    expect(playtimeCopy.formatMoney('usd', 3000000n, 'en-US')).toBe('usd 3.00');
+  });
+
+  test('a null currency code gives the bare amount with no unit', () => {
+    // UI-SPEC Unknown currency: orders with no valid code "have no unit and may
+    // mix different currencies", so a code is never invented.
+    expect(playtimeCopy.formatMoney(null, 13340000n, 'en-US')).toBe('13.34');
+  });
+
+  test('formatMoney never emits a currency symbol', () => {
+    for (const [code, units] of [
+      ['USD', 15495000n],
+      ['EUR', 1n],
+      ['JPY', 123456789n],
+    ] as const) {
+      expect(playtimeCopy.formatMoney(code, units, 'en-US')).not.toMatch(/[$€£¥]/);
+    }
+  });
+
+  test('formatFlowAmount is exact and grouped, never compacted', () => {
+    // The monthly table and the tooltip carry the exact figure; only the axis
+    // is compact (UI-SPEC section 9).
+    expect(playtimeCopy.formatFlowAmount(30435000000000n, 'en-US')).toBe('30,435,000');
+  });
+});
+
+describe('05-08 vehicle statistics copy', () => {
+  // UI-SPEC "New copy" rows: Player sub-heading, Loading / Updating, Game
+  // control, Battle type control, Search, Per-title header labels, Special
+  // values, Garage values, Column headers, Column picker, Count line,
+  // No search match, Derived-value note, Warships all-battles note,
+  // Battle-type notes, Battle-type summary, Warplanes 20 note, Table title
+  // and hints, Table accessible name, Selection announcement.
+  test('the block headings and loading strings', () => {
+    expect(playtimeCopy.PLAYER_STATS_HEADING).toBe('Vehicle statistics');
+    expect(playtimeCopy.PLAYER_STATS_LOADING).toBe('Calculating vehicle statistics...');
+    expect(playtimeCopy.PLAYER_STATS_UPDATING).toBe('Updating table...');
+    expect(playtimeCopy.PLAYER_STATS_ERROR).toBe(
+      'Vehicle statistics could not be calculated from this export. Your imported data is unchanged. Drop the export again to retry.',
+    );
+  });
+
+  test('the control labels', () => {
+    expect(playtimeCopy.TITLE_CONTROL_LABEL).toBe('Game');
+    expect(playtimeCopy.BATTLE_TYPE_CONTROL_LABEL).toBe('Battle type');
+    expect(playtimeCopy.BATTLE_TYPE_ALL_OPTION).toBe('All battles');
+    expect(playtimeCopy.VEHICLE_SEARCH_LABEL).toBe('Search vehicles');
+    expect(playtimeCopy.HEADER_LIFETIME_BATTLES_LABEL).toBe('Lifetime battles');
+    expect(playtimeCopy.HEADER_PREMIUM_EXPIRES_LABEL).toBe('Premium expires');
+  });
+
+  test('every game title has its label', () => {
+    // UI-SPEC Game control: WoT / WoT Blitz / Warships / Warplanes.
+    expect(playtimeCopy.VEHICLE_TITLE_LABELS).toEqual({
+      wot: 'WoT',
+      wotb: 'WoT Blitz',
+      wows: 'Warships',
+      wowp: 'Warplanes',
+    });
+  });
+
+  test('a title option carries the absent and empty suffixes, and neither when ready', () => {
+    expect(playtimeCopy.formatTitleOption('wowp', 'not-in-export')).toBe(
+      'Warplanes (not in this export)',
+    );
+    expect(playtimeCopy.formatTitleOption('wowp', 'no-rows')).toBe(
+      'Warplanes (no rows in this export)',
+    );
+    expect(playtimeCopy.formatTitleOption('wowp', 'ready')).toBe('Warplanes');
+  });
+
+  test('a battle type is numbered, never named', () => {
+    // UI-SPEC: "Battle types are numbered in the export but not named, so they
+    // are shown as "Battle type N"." No lookup, ever.
+    expect(playtimeCopy.formatBattleTypeLabel('3')).toBe('Battle type 3');
+  });
+
+  test('the special cell values and their hidden text', () => {
+    // UI-SPEC Special values: `not defined` (N/D) · `not available` (N/A) ·
+    // `not in export` (missing column) · — with hidden `no battles` /
+    // `no shots` · `Available per battle type`.
+    expect(playtimeCopy.VALUE_NOT_DEFINED).toBe('not defined');
+    expect(playtimeCopy.VALUE_NOT_AVAILABLE).toBe('not available');
+    expect(playtimeCopy.VALUE_NOT_IN_EXPORT).toBe('not in export');
+    expect(playtimeCopy.VALUE_DASH).toBe('—');
+    expect(playtimeCopy.VALUE_NO_BATTLES_HIDDEN).toBe('no battles');
+    expect(playtimeCopy.VALUE_NO_SHOTS_HIDDEN).toBe('no shots');
+    expect(playtimeCopy.VALUE_PER_BATTLE_TYPE).toBe('Available per battle type');
+    expect(playtimeCopy.GARAGE_YES).toBe('Yes');
+    expect(playtimeCopy.GARAGE_NO).toBe('No');
+  });
+
+  test('every column has a header label, under the worker’s own column key', () => {
+    // The UI-SPEC Column headers row, verbatim, in order — and keyed by the
+    // worker's `VehicleColumn.key` rather than by a slug of our own. 05-12
+    // found the difference the only way it could be found: the table is the
+    // first place the two vocabularies meet, and a key the inventory does not
+    // know falls through to printing the key itself, so a column headed
+    // `winRate` appeared where `Win rate` was specified.
+    expect(playtimeCopy.VEHICLE_COLUMN_LABELS).toEqual({
+      vehicle: 'Vehicle',
+      battles: 'Battles',
+      winRate: 'Win rate',
+      avgDamage: 'Avg damage',
+      frags: 'Frags',
+      xp: 'Total XP',
+      survival: 'Survival rate',
+      hitRatio: 'Hit ratio',
+      maxDamage: 'Max damage',
+      maxFrags: 'Max frags',
+      maxXp: 'Max XP',
+      damageReceived: 'Damage received',
+      spotted: 'Spotted',
+      planesDestroyed: 'Planes destroyed',
+      distance: 'Distance',
+      lastBattle: 'Last battle',
+      inGarage: 'In garage',
+    });
+  });
+
+  test('the column picker and the table hints', () => {
+    expect(playtimeCopy.COLUMN_PICKER_SUMMARY).toBe('Choose columns');
+    expect(playtimeCopy.COLUMN_PICKER_LEGEND).toBe('Extra columns');
+    expect(playtimeCopy.VEHICLE_TABLE_TITLE).toBe('Vehicles');
+    expect(playtimeCopy.VEHICLE_SCROLL_HINT).toBe(
+      'Focus the table, then use the arrow keys or Page Up and Page Down to scroll.',
+    );
+    expect(playtimeCopy.VEHICLE_FIND_HINT).toBe(
+      "Only the rows on screen are loaded into the page, so use Search vehicles rather than your browser's find.",
+    );
+  });
+
+  test('the count line has explicit singular forms and drops the zero part', () => {
+    // UI-SPEC Count line: `{n} vehicles · {z} with no battles` (`1 vehicle`,
+    // `1 with no battles`; the second part omitted at 0).
+    expect(playtimeCopy.formatVehicleCount(1, 1, 'en-US')).toBe('1 vehicle · 1 with no battles');
+    expect(playtimeCopy.formatVehicleCount(2, 1, 'en-US')).toBe('2 vehicles · 1 with no battles');
+    expect(playtimeCopy.formatVehicleCount(5000, 0, 'en-US')).toBe('5,000 vehicles');
+  });
+
+  test('the searched count line', () => {
+    expect(playtimeCopy.formatVehicleSearchCount(3, 5000, 'en-US')).toBe(
+      '3 of 5,000 vehicles shown',
+    );
+  });
+
+  test('the notes a reader needs before trusting a derived number', () => {
+    expect(playtimeCopy.VEHICLE_NO_MATCH).toBe('No vehicles match your search.');
+    expect(playtimeCopy.VEHICLE_DERIVED_NOTE).toBe(
+      "Win rate and average damage are calculated here from the export's totals (wins ÷ battles, damage dealt ÷ battles).",
+    );
+    expect(playtimeCopy.WARSHIPS_ALL_NOTE).toBe(
+      'Warships all-battles rows only record battles. Choose a battle type to see wins and damage.',
+    );
+    expect(playtimeCopy.BATTLE_TYPE_NOTE_TANKS).toBe(
+      'Battle-type data covers only part of your battles, so these rows will not add up to the All battles totals.',
+    );
+    expect(playtimeCopy.BATTLE_TYPE_NOTE_WARSHIPS).toBe(
+      'Each Warships battle is counted under two battle types, so rows from different battle types cannot be added together.',
+    );
+  });
+
+  test('the battle-type summary table copy', () => {
+    expect(playtimeCopy.BATTLE_TYPE_SUMMARY_HEADING).toBe('Battles by battle type');
+    expect(playtimeCopy.BATTLE_TYPE_SUMMARY_CAPTION).toBe(
+      'Battle types are numbered in the export but not named, so they are shown as "Battle type N".',
+    );
+    expect(playtimeCopy.BATTLE_TYPE_SUMMARY_DISCLOSURE).toBe('Battle types');
+    expect(playtimeCopy.BATTLE_TYPE_SUMMARY_HEADERS).toEqual([
+      'Battle type',
+      'Battles',
+      'Wins',
+      'Damage dealt',
+    ]);
+    expect(playtimeCopy.BATTLE_TYPE_SUMMARY_NOTE_WARSHIPS).toBe(
+      'In Warships each battle is counted under two battle types, so these rows add up to more than your battle count.',
+    );
+  });
+
+  test('the Warplanes 20 note has explicit singular and plural forms', () => {
+    // UI-SPEC Warplanes 20 note, with both its parenthetical forms: `1 plane
+    // record ... has`; `1 battle`.
+    expect(playtimeCopy.formatWarplanes20Note(4, 8, 'en-US')).toBe(
+      '4 plane records in the newer Warplanes file have no names in the export. They record 8 battles in total.',
+    );
+    expect(playtimeCopy.formatWarplanes20Note(1, 1, 'en-US')).toBe(
+      '1 plane record in the newer Warplanes file has no names in the export. It records 1 battle in total.',
+    );
+  });
+
+  test('the table accessible name and the selection announcement', () => {
+    // UI-SPEC: `Vehicle statistics, {Title}, {battle type}` where the battle
+    // type reads `all battles` or `Battle type {code}`.
+    expect(playtimeCopy.formatVehicleRegionName('wot', null)).toBe(
+      'Vehicle statistics, WoT, all battles',
+    );
+    expect(playtimeCopy.formatVehicleRegionName('wot', '3')).toBe(
+      'Vehicle statistics, WoT, Battle type 3',
+    );
+    expect(playtimeCopy.formatVehicleAnnouncement('wot', null, 1, 'en-US')).toBe(
+      'Showing WoT, all battles: 1 vehicle.',
+    );
+    expect(playtimeCopy.formatVehicleAnnouncement('wows', '12', 42, 'en-US')).toBe(
+      'Showing Warships, Battle type 12: 42 vehicles.',
+    );
+  });
+
+  test('the empty-state title helpers', () => {
+    // UI-SPEC Empty state: `Warplanes is not in this export` and `This export
+    // contains no vehicle rows for {Title}`.
+    expect(playtimeCopy.formatTitleNotInExport('Warplanes')).toBe(
+      'Warplanes is not in this export',
+    );
+    expect(playtimeCopy.formatTitleNoRows('Warplanes')).toBe(
+      'This export contains no vehicle rows for Warplanes',
+    );
+  });
+
+  test('formatVehicleCell maps every numeric kind exactly', () => {
+    // D-25: count and whole are exact grouped, percent is one decimal with a
+    // sign, text and date are as written, garage is Yes/No.
+    expect(playtimeCopy.formatVehicleCell({ t: 'n', v: 1204 }, 'count', 'en-US')).toEqual({
+      text: '1,204',
+      muted: false,
+      hidden: null,
+    });
+    expect(playtimeCopy.formatVehicleCell({ t: 'n', v: 714.28 }, 'whole', 'en-US')).toEqual({
+      text: '714',
+      muted: false,
+      hidden: null,
+    });
+    expect(playtimeCopy.formatVehicleCell({ t: 'n', v: 55.33 }, 'percent', 'en-US')).toEqual({
+      text: '55.3%',
+      muted: false,
+      hidden: null,
+    });
+  });
+
+  test('a percent cell is NOT scaled again on the way out (05-14)', () => {
+    // The worker's `derived` spec multiplies a ratio by 100 when it builds the
+    // cell, so a `percent` cell's number is already the percentage. The
+    // formatter used to multiply by 100 a second time, which is how a
+    // Warplanes plane with 2 wins in 4 games reached a reader as `5,000.0%`.
+    //
+    // The assertion is a whole number precisely because it is the case the
+    // double scale distorted most legibly, and because a formatter that scaled
+    // again would turn the plan 05-14 answer key's 50.0% into 5,000.0%.
+    expect(playtimeCopy.formatVehicleCell({ t: 'n', v: 50 }, 'percent', 'en-US')).toEqual({
+      text: '50.0%',
+      muted: false,
+      hidden: null,
+    });
+    expect(playtimeCopy.formatVehicleCell({ t: 'n', v: 0.5 }, 'percent', 'en-US')).toEqual({
+      text: '0.5%',
+      muted: false,
+      hidden: null,
+    });
+  });
+
+  test('formatVehicleCell maps text, date and garage as written', () => {
+    expect(playtimeCopy.formatVehicleCell({ t: 's', v: 'Ch24_Type64' }, 'text', 'en-US')).toEqual({
+      text: 'Ch24_Type64',
+      muted: false,
+      hidden: null,
+    });
+    expect(
+      playtimeCopy.formatVehicleCell(
+        { t: 'd', v: '2019-03-04 11:22:33', k: 1551699753 },
+        'date',
+        'en-US',
+      ),
+    ).toEqual({ text: '2019-03-04 11:22:33', muted: false, hidden: null });
+    expect(playtimeCopy.formatVehicleCell({ t: 'b', v: true }, 'garage', 'en-US')).toEqual({
+      text: 'Yes',
+      muted: false,
+      hidden: null,
+    });
+    expect(playtimeCopy.formatVehicleCell({ t: 'b', v: false }, 'garage', 'en-US')).toEqual({
+      text: 'No',
+      muted: false,
+      hidden: null,
+    });
+  });
+
+  test('every special cell is muted, and the dash carries its hidden reason', () => {
+    // A dash with no accessible text is a hole in the table: the reader is told
+    // nothing is there and not what. The two dashes therefore carry hidden
+    // text, and every special is muted so a real number never looks like one.
+    for (const [key, text] of [
+      ['nd', 'not defined'],
+      ['na', 'not available'],
+      ['missing', 'not in export'],
+      ['per-type', 'Available per battle type'],
+    ] as const) {
+      expect(playtimeCopy.formatVehicleCell({ t: 'x', v: key }, 'count', 'en-US')).toEqual({
+        text,
+        muted: true,
+        hidden: null,
+      });
+    }
+    for (const [key, hidden] of [
+      ['no-battles', 'no battles'],
+      ['no-shots', 'no shots'],
+    ] as const) {
+      expect(playtimeCopy.formatVehicleCell({ t: 'x', v: key }, 'count', 'en-US')).toEqual({
+        text: '—',
+        muted: true,
+        hidden,
+      });
+    }
+  });
+});
+
+describe('05-08 financial data copy', () => {
+  test('the sub-headings, loading and error strings', () => {
+    // UI-SPEC: Financial sub-headings / Financial loading / Error state.
+    expect(playtimeCopy.FINANCIAL_PREMIUM_HEADING).toBe('Premium time');
+    expect(playtimeCopy.FINANCIAL_CURRENCY_HEADING).toBe('Virtual currency');
+    expect(playtimeCopy.FINANCIAL_LOADING).toBe('Calculating financial data...');
+    expect(playtimeCopy.FINANCIAL_ERROR).toBe(
+      'Financial data could not be calculated from this export. Your imported data is unchanged. Drop the export again to retry.',
+    );
+    expect(playtimeCopy.FINANCIAL_NOT_IN_EXPORT).toBe('Not in this export');
+  });
+
+  test('the per-block empty state names the file that was missing', () => {
+    // UI-SPEC Empty state body — Financial sub-blocks.
+    expect(playtimeCopy.formatFinancialNoRows('premium')).toBe(
+      'This export contains no rows for Premium time',
+    );
+    expect(playtimeCopy.formatFinancialNoRows('currency')).toBe(
+      'This export contains no rows for Virtual currency',
+    );
+  });
+
+  test('the nothing-usable bodies', () => {
+    expect(playtimeCopy.PREMIUM_NO_USABLE).toBe(
+      'No premium operations with a recognisable duration were found in this export.',
+    );
+    expect(playtimeCopy.CURRENCY_NO_USABLE).toBe(
+      'No virtual-currency operations with a known type and a numeric amount were found in this export.',
+    );
+  });
+
+  test('the exclusion explanations are the amended wording, verbatim', () => {
+    // The two strings 05-08 amended the spec for: each names all three reasons
+    // a row is left out, because a row dropped without being counted made the
+    // pill disagree with the chart.
+    expect(playtimeCopy.PREMIUM_EXCLUDED_EXPLANATION).toBe(
+      'Rows whose premium value is not a recognisable duration or is a withdrawal, or whose date cannot be read, are not counted in the chart.',
+    );
+    expect(playtimeCopy.CURRENCY_EXCLUDED_EXPLANATION).toBe(
+      'Operations with an unknown type, a non-numeric amount or a date that cannot be read are not counted in any chart or total below.',
+    );
+  });
+
+  test('the premium summary sentence with explicit singular forms', () => {
+    // UI-SPEC Premium summary, with `1 month` and `1 operation` singulars.
+    expect(
+      playtimeCopy.formatPremiumSummary(
+        {
+          monthsWithGrants: 1,
+          spanMonths: 1,
+          totalSeconds: 5 * 86400,
+          grants: 1,
+          peakMonth: monthIndex(2019, 3),
+          peakSeconds: 5 * 86400,
+        },
+        'en-US',
+      ),
+    ).toBe(
+      'Premium time was granted in 1 of 1 months: 5 days in total across 1 operation. The largest month was 2019-03 with 5 days.',
+    );
+  });
+
+  test('the premium summary over several months', () => {
+    expect(
+      playtimeCopy.formatPremiumSummary(
+        {
+          monthsWithGrants: 2,
+          spanMonths: 5,
+          totalSeconds: 5 * 86400,
+          grants: 3,
+          peakMonth: monthIndex(2019, 3),
+          peakSeconds: 3 * 86400,
+        },
+        'en-US',
+      ),
+    ).toBe(
+      'Premium time was granted in 2 of 5 months: 5 days in total across 3 operations. The largest month was 2019-03 with 3 days.',
+    );
+  });
+
+  test('the premium excluded pill has explicit singular and plural, and is empty at zero', () => {
+    // The pill is never rendered at zero, so zero is the empty string and the
+    // component has one condition to write rather than two.
+    expect(playtimeCopy.formatPremiumExcludedPill(0, 'en-US')).toBe('');
+    expect(playtimeCopy.formatPremiumExcludedPill(1, 'en-US')).toBe('1 premium row excluded');
+    expect(playtimeCopy.formatPremiumExcludedPill(7, 'en-US')).toBe('7 premium rows excluded');
+  });
+
+  test('the operation and paid-order pills follow the same pattern', () => {
+    expect(playtimeCopy.formatOperationExcludedPill(0, 'en-US')).toBe('');
+    expect(playtimeCopy.formatOperationExcludedPill(1, 'en-US')).toBe('1 operation row excluded');
+    expect(playtimeCopy.formatOperationExcludedPill(4, 'en-US')).toBe('4 operation rows excluded');
+    expect(playtimeCopy.formatPaidExcludedPill(0, 'en-US')).toBe('');
+    expect(playtimeCopy.formatPaidExcludedPill(1, 'en-US')).toBe('1 paid order excluded');
+    expect(playtimeCopy.formatPaidExcludedPill(3, 'en-US')).toBe('3 paid orders excluded');
+  });
+
+  test('the disclosure is the renamed heading, with its overflow line', () => {
+    // 05-08 renamed this: it lists excluded values, and a withdrawal's premium
+    // string is perfectly readable, so the old heading was false.
+    expect(playtimeCopy.formatPremiumUnrecognisedDisclosure(3)).toBe(
+      'Premium values not charted (3)',
+    );
+    expect(playtimeCopy.formatUnrecognisedOverflow(12)).toBe('and 12 more');
+  });
+
+  test('the currency block caption, legend and other-currencies copy', () => {
+    expect(playtimeCopy.CURRENCY_BLOCK_CAPTION).toBe(
+      'Each currency has its own scale, so bar heights cannot be compared between charts. Dates are as recorded in the export.',
+    );
+    expect(playtimeCopy.FLOW_LEGEND_DEPOSITED).toBe('Deposited (above the line)');
+    expect(playtimeCopy.FLOW_LEGEND_WITHDRAWN).toBe('Withdrawn (below the line)');
+    expect(playtimeCopy.OTHER_CURRENCIES_HEADING).toBe('Other currencies');
+    expect(playtimeCopy.OTHER_CURRENCIES_CAPTION).toBe(
+      'These currencies have too few operations for a chart.',
+    );
+    expect(playtimeCopy.CURRENCY_BLANK_CODE).toBe('(not recorded)');
+  });
+
+  test('the currency summary reads "in {month}" when the span is one month', () => {
+    // UI-SPEC Currency summary: `1 operation`; a single month reads
+    // `in {YYYY-MM}`.
+    expect(
+      playtimeCopy.formatCurrencySummary(
+        {
+          inUnits: 30435000000000n,
+          outUnits: 0n,
+          ops: 1,
+          firstMonth: monthIndex(2019, 3),
+          lastMonth: monthIndex(2019, 3),
+        },
+        'en-US',
+      ),
+    ).toBe('Deposited 30,435,000 and withdrew 0 across 1 operation, in 2019-03.');
+  });
+
+  test('the currency summary over a span', () => {
+    expect(
+      playtimeCopy.formatCurrencySummary(
+        {
+          inUnits: 1000000n,
+          outUnits: 2500000n,
+          ops: 9,
+          firstMonth: monthIndex(2019, 1),
+          lastMonth: monthIndex(2019, 7),
+        },
+        'en-US',
+      ),
+    ).toBe('Deposited 1 and withdrew 2.5 across 9 operations, from 2019-01 to 2019-07.');
+  });
+
+  test('an uncharted currency row, with the single-month and 1-operation forms', () => {
+    // UI-SPEC Other currencies: a single month shows `{ym}`; `1 operation`.
+    expect(
+      playtimeCopy.formatOtherCurrencyRow(
+        {
+          code: 'UAH',
+          inUnits: 0n,
+          outUnits: 0n,
+          ops: 1,
+          firstMonth: monthIndex(2019, 5),
+          lastMonth: monthIndex(2019, 5),
+        },
+        'en-US',
+      ),
+    ).toBe('Deposited 0 · Withdrawn 0 · 2019-05 · 1 operation');
+  });
+
+  test('the chart chrome strings', () => {
+    expect(playtimeCopy.PREMIUM_CHART_TITLE).toBe('Premium days granted per month');
+    expect(playtimeCopy.MONTHLY_TABLE_DISCLOSURE).toBe('Monthly data table');
+    expect(playtimeCopy.PREMIUM_TABLE_HEADERS).toEqual(['Month', 'Days granted', 'Grants']);
+    expect(playtimeCopy.CURRENCY_TABLE_HEADERS).toEqual([
+      'Month',
+      'Deposited',
+      'Withdrawn',
+      'Operations',
+    ]);
+    expect(playtimeCopy.BAR_CHART_BASIS_CAPTION).toBe('Dates are as recorded in the export.');
+    expect(playtimeCopy.BAR_CHART_KEYBOARD_HINT).toBe(
+      'Use the left and right arrow keys to move between months.',
+    );
+    expect(playtimeCopy.TOOLTIP_BASIS_LINE).toBe('Dates as recorded in the export');
+  });
+
+  test('the premium tooltip: month, grant line, one sizes line, then the basis', () => {
+    // UI-SPEC Premium tooltip. March 2019: 5 days across 3 grants, sized one day
+    // twice and three days once.
+    expect(
+      playtimeCopy.formatPremiumTooltip(
+        {
+          month: monthIndex(2019, 3),
+          seconds: 5 * 86400,
+          grants: 3,
+          sizes: [
+            [86400, 2],
+            [3 * 86400, 1],
+          ],
+          moreSizes: 0,
+        },
+        'en-US',
+      ),
+    ).toEqual({
+      line1: '2019-03',
+      line2: '5 days granted · 3 grants',
+      extra: ['1 day × 2, 3 days × 1', 'Dates as recorded in the export'],
+    });
+  });
+
+  test('dropped sizes leave a trailing count, and an empty month is one line', () => {
+    // Four sizes, three shown: the reader is told four existed rather than
+    // shown a list that silently stops.
+    expect(
+      playtimeCopy.formatPremiumTooltip(
+        {
+          month: monthIndex(2019, 7),
+          seconds: 10 * 86400,
+          grants: 4,
+          sizes: [
+            [86400, 1],
+            [2 * 86400, 1],
+            [3 * 86400, 1],
+          ],
+          moreSizes: 1,
+        },
+        'en-US',
+      ).extra[0],
+    ).toBe('1 day × 1, 2 days × 1, 3 days × 1, +1 more sizes');
+
+    expect(
+      playtimeCopy.formatPremiumTooltip(
+        { month: monthIndex(2019, 4), seconds: 0, grants: 0, sizes: [], moreSizes: 0 },
+        'en-US',
+      ),
+    ).toEqual({
+      line1: '2019-04',
+      line2: 'No premium granted',
+      extra: ['Dates as recorded in the export'],
+    });
+  });
+
+  test('the currency tooltip carries both directions and the basis', () => {
+    expect(
+      playtimeCopy.formatCurrencyTooltip(
+        {
+          month: monthIndex(2019, 3),
+          inUnits: 30435000000000n,
+          outUnits: 1000000n,
+          inOps: 2,
+          outOps: 1,
+        },
+        'en-US',
+      ),
+    ).toEqual({
+      line1: '2019-03',
+      line2: 'Deposited 30,435,000 · 2 operations',
+      extra: ['Withdrawn 1 · 1 operation', 'Dates as recorded in the export'],
+    });
+  });
+
+  test('an empty currency month reads No operations and only the basis line', () => {
+    expect(
+      playtimeCopy.formatCurrencyTooltip(
+        { month: monthIndex(2019, 4), inUnits: 0n, outUnits: 0n, inOps: 0, outOps: 0 },
+        'en-US',
+      ),
+    ).toEqual({
+      line1: '2019-04',
+      line2: 'No operations',
+      extra: ['Dates as recorded in the export'],
+    });
+  });
+
+  test('the bar-chart cell accessible names carry the same facts as the tooltip', () => {
+    // UI-SPEC Bar-chart cell accessible names. These are what a screen reader
+    // announces for a focused month, so they restate the figures rather than
+    // pointing at the tooltip the reader cannot see.
+    expect(
+      playtimeCopy.formatPremiumCellLabel(
+        {
+          month: monthIndex(2019, 3),
+          seconds: 5 * 86400,
+          grants: 3,
+          sizes: [],
+          moreSizes: 0,
+        },
+        'en-US',
+      ),
+    ).toBe('2019-03: 5 days granted, 3 grants');
+    expect(
+      playtimeCopy.formatPremiumCellLabel(
+        { month: monthIndex(2019, 4), seconds: 0, grants: 0, sizes: [], moreSizes: 0 },
+        'en-US',
+      ),
+    ).toBe('2019-04: no premium granted');
+    expect(
+      playtimeCopy.formatCurrencyCellLabel(
+        {
+          month: monthIndex(2019, 3),
+          inUnits: 30435000000000n,
+          outUnits: 0n,
+          inOps: 2,
+          outOps: 0,
+        },
+        'en-US',
+      ),
+    ).toBe('2019-03: deposited 30,435,000, withdrawn 0, 2 operations');
+    expect(
+      playtimeCopy.formatCurrencyCellLabel(
+        { month: monthIndex(2019, 4), inUnits: 0n, outUnits: 0n, inOps: 0, outOps: 0 },
+        'en-US',
+      ),
+    ).toBe('2019-04: no operations');
+  });
+});
+
+describe('05-08 spend copy', () => {
+  test('the sub-heading, intro, loading and error strings', () => {
+    expect(playtimeCopy.SPEND_HEADING).toBe('Real-money spend');
+    expect(playtimeCopy.SPEND_INTRO).toBe(
+      'Only paid orders are totalled. Failed and new orders are counted separately. Each currency has its own total: nothing is converted or added across currencies.',
+    );
+    expect(playtimeCopy.SPEND_LOADING).toBe('Calculating spend...');
+    expect(playtimeCopy.SPEND_NO_USABLE).toBe(
+      'No orders with a recognisable status were found in this export.',
+    );
+    expect(playtimeCopy.SPEND_ERROR).toBe(
+      'The spend summary could not be calculated from this export. Your imported data is unchanged. Drop the export again to retry.',
+    );
+  });
+
+  test('the card figure labels', () => {
+    expect(playtimeCopy.SPEND_LABEL_FAILED).toBe('Failed');
+    expect(playtimeCopy.SPEND_LABEL_NEW).toBe('New');
+    expect(playtimeCopy.SPEND_LABEL_OTHER).toBe('Other status');
+  });
+
+  test('paid orders and the gift line have explicit singular forms', () => {
+    // UI-SPEND Spend card `1 paid order`; Spend gift line `1 gift order`. The
+    // gift line's worth is already formatted by the caller, so this formatter
+    // cannot invent a currency.
+    expect(playtimeCopy.formatPaidOrders(1, 'en-US')).toBe('1 paid order');
+    expect(playtimeCopy.formatPaidOrders(4, 'en-US')).toBe('4 paid orders');
+    expect(playtimeCopy.formatGiftLine(1, 'USD 5.01')).toBe(
+      'Includes 1 gift order worth USD 5.01.',
+    );
+    expect(playtimeCopy.formatGiftLine(2, 'USD 5.01')).toBe(
+      'Includes 2 gift orders worth USD 5.01.',
+    );
+  });
+
+  test('the breakdown table copy', () => {
+    expect(playtimeCopy.SPEND_BREAKDOWN_DISCLOSURE).toBe('Breakdown by year and game code');
+    expect(playtimeCopy.SPEND_BY_YEAR).toBe('By year');
+    expect(playtimeCopy.SPEND_BY_GAME).toBe('By game code');
+    expect(playtimeCopy.SPEND_BREAKDOWN_HEADERS).toEqual([
+      'Year',
+      'Game code',
+      'Paid orders',
+      'Total',
+    ]);
+    expect(playtimeCopy.SPEND_UNKNOWN_YEAR).toBe('Unknown year');
+    expect(playtimeCopy.SPEND_BLANK_GAME).toBe('(not recorded)');
+  });
+
+  test('the excluded-row explanation and the unknown-currency copy', () => {
+    // UI-SPEND Spend excluded pill and explanation / Unknown currency. A
+    // missing code is stated as a reason the total is unreliable, never
+    // guessed at.
+    expect(playtimeCopy.SPEND_EXCLUDED_EXPLANATION).toBe(
+      'Paid orders with a non-numeric amount are not included in any total.',
+    );
+    expect(playtimeCopy.UNKNOWN_CURRENCY_HEADING).toBe('Unknown currency');
+    expect(playtimeCopy.UNKNOWN_CURRENCY_CAPTION).toBe(
+      'These orders have no valid three-letter currency code, so the amount has no unit and may mix different currencies.',
+    );
+  });
+});
+
+describe('05-08 export inventory', () => {
+  // The contract the consumer plans rely on: every name the Artifacts table
+  // promises exists, so a later plan importing one fails to compile here rather
+  // than at the end of its own wave.
+  const REQUIRED_EXPORTS = [
+    // shared formatters
+    'formatNumber',
+    'setDefaultNumberLocale',
+    'formatCompactNumber',
+    'formatPercent',
+    'formatWholeNumber',
+    'formatMonthLabel',
+    'formatPremiumDays',
+    'formatMoney',
+    'formatFlowAmount',
+    // vehicle statistics
+    'PLAYER_STATS_HEADING',
+    'PLAYER_STATS_LOADING',
+    'PLAYER_STATS_UPDATING',
+    'PLAYER_STATS_ERROR',
+    'TITLE_CONTROL_LABEL',
+    'VEHICLE_TITLE_LABELS',
+    'formatTitleOption',
+    'BATTLE_TYPE_CONTROL_LABEL',
+    'BATTLE_TYPE_ALL_OPTION',
+    'formatBattleTypeLabel',
+    'VEHICLE_SEARCH_LABEL',
+    'HEADER_LIFETIME_BATTLES_LABEL',
+    'HEADER_PREMIUM_EXPIRES_LABEL',
+    'VALUE_NOT_DEFINED',
+    'VALUE_NOT_AVAILABLE',
+    'VALUE_NOT_IN_EXPORT',
+    'VALUE_DASH',
+    'VALUE_NO_BATTLES_HIDDEN',
+    'VALUE_NO_SHOTS_HIDDEN',
+    'VALUE_PER_BATTLE_TYPE',
+    'GARAGE_YES',
+    'GARAGE_NO',
+    'VEHICLE_BLANK_NAME',
+    'VEHICLE_COLUMN_LABELS',
+    'COLUMN_PICKER_SUMMARY',
+    'COLUMN_PICKER_LEGEND',
+    'formatVehicleCount',
+    'formatVehicleSearchCount',
+    'VEHICLE_NO_MATCH',
+    'VEHICLE_DERIVED_NOTE',
+    'WARSHIPS_ALL_NOTE',
+    'BATTLE_TYPE_NOTE_TANKS',
+    'BATTLE_TYPE_NOTE_WARSHIPS',
+    'BATTLE_TYPE_SUMMARY_HEADING',
+    'BATTLE_TYPE_SUMMARY_CAPTION',
+    'BATTLE_TYPE_SUMMARY_DISCLOSURE',
+    'BATTLE_TYPE_SUMMARY_HEADERS',
+    'BATTLE_TYPE_SUMMARY_NOTE_WARSHIPS',
+    'formatWarplanes20Note',
+    'VEHICLE_TABLE_TITLE',
+    'VEHICLE_SCROLL_HINT',
+    'VEHICLE_FIND_HINT',
+    'formatVehicleRegionName',
+    'formatVehicleAnnouncement',
+    'formatTitleNotInExport',
+    'formatTitleNoRows',
+    'formatVehicleCell',
+    // financial data
+    'FINANCIAL_PREMIUM_HEADING',
+    'FINANCIAL_CURRENCY_HEADING',
+    'FINANCIAL_LOADING',
+    'FINANCIAL_NOT_IN_EXPORT',
+    'formatFinancialNoRows',
+    'PREMIUM_NO_USABLE',
+    'CURRENCY_NO_USABLE',
+    'FINANCIAL_ERROR',
+    'PREMIUM_CHART_TITLE',
+    'formatPremiumSummary',
+    'PREMIUM_EXCLUDED_EXPLANATION',
+    'formatPremiumExcludedPill',
+    'formatPremiumUnrecognisedDisclosure',
+    'formatUnrecognisedOverflow',
+    'CURRENCY_BLOCK_CAPTION',
+    'formatCurrencySummary',
+    'CURRENCY_EXCLUDED_EXPLANATION',
+    'formatOperationExcludedPill',
+    'FLOW_LEGEND_DEPOSITED',
+    'FLOW_LEGEND_WITHDRAWN',
+    'OTHER_CURRENCIES_HEADING',
+    'OTHER_CURRENCIES_CAPTION',
+    'formatOtherCurrencyRow',
+    'CURRENCY_BLANK_CODE',
+    'MONTHLY_TABLE_DISCLOSURE',
+    'PREMIUM_TABLE_HEADERS',
+    'CURRENCY_TABLE_HEADERS',
+    'BAR_CHART_BASIS_CAPTION',
+    'BAR_CHART_KEYBOARD_HINT',
+    'TOOLTIP_BASIS_LINE',
+    'formatPremiumTooltip',
+    'formatCurrencyTooltip',
+    'formatPremiumCellLabel',
+    'formatCurrencyCellLabel',
+    // spend
+    'SPEND_HEADING',
+    'SPEND_INTRO',
+    'SPEND_LOADING',
+    'SPEND_NO_USABLE',
+    'SPEND_ERROR',
+    'formatPaidOrders',
+    'SPEND_LABEL_FAILED',
+    'SPEND_LABEL_NEW',
+    'SPEND_LABEL_OTHER',
+    'formatGiftLine',
+    'SPEND_BREAKDOWN_DISCLOSURE',
+    'SPEND_BY_YEAR',
+    'SPEND_BY_GAME',
+    'SPEND_BREAKDOWN_HEADERS',
+    'SPEND_UNKNOWN_YEAR',
+    'SPEND_BLANK_GAME',
+    'formatPaidExcludedPill',
+    'SPEND_EXCLUDED_EXPLANATION',
+    'UNKNOWN_CURRENCY_HEADING',
+    'UNKNOWN_CURRENCY_CAPTION',
+  ] as const;
+
+  test('every name the Artifacts table promises is exported', () => {
+    const missing = REQUIRED_EXPORTS.filter(
+      (name) => (playtimeCopy as unknown as Record<string, unknown>)[name] === undefined,
+    );
+    expect(missing).toEqual([]);
   });
 });

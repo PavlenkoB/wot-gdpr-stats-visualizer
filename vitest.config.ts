@@ -40,6 +40,32 @@ import { defineConfig } from 'vitest/config';
 // tsconfig is pointed at tsconfig.test.json (standalone, no extends)
 // so the OXC resolver stays happy.
 // =============================================================================
+// .testTimeout (flakiness fix, 2026-10-02)
+// =============================================================================
+//
+// Vitest's default per-test timeout is 5 s, which this suite was never
+// budgeted against: it runs ~46 files across ~10 parallel workers, and one of
+// those files (ci-budget.test.ts) shells out to `playwright test --list` while
+// every other worker competes for the same ten cores. Two tests then fail on
+// STARVATION rather than on anything they assert — measured in isolation they
+// take 770 ms and 512 ms respectively, and roughly one full-suite run in four
+// pushed either past 5 s:
+//
+//   Error: Test timed out in 5000ms.
+//     FAIL tests/unit/ci-budget.test.ts > playwright test --list ...
+//     FAIL tests/unit/playtime-model.test.ts > agrees with the oracle across a
+//          seeded random export spanning two years
+//
+// 20 s leaves the slowest legitimate test (~0.8 s) an order of magnitude of
+// headroom while still failing a genuine hang. It is a ceiling, not an
+// expectation: nothing in this suite is meant to take anywhere near it.
+//
+// This does NOT paper over a slow test becoming slow — it only stops a busy
+// machine from failing a test that is correct. The one flake that was a REAL
+// defect (a fixture whose zip bytes changed every two seconds, so the dedup
+// gate's hash-identical re-drop stopped matching) is fixed at its source in
+// tests/fixtures/export-fixtures.ts, with a guard in sample-export-shape.
+// =============================================================================
 
 export default defineConfig({
   tsconfig: './tsconfig.test.json',
@@ -47,5 +73,6 @@ export default defineConfig({
     include: ['tests/unit/**/*.test.ts'],
     environment: 'node',
     setupFiles: ['tests/unit/setup.ts'],
+    testTimeout: 20_000,
   },
 });
