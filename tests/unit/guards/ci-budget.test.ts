@@ -26,25 +26,37 @@ import config from '../../../playwright.config';
 // 109) while these three numbers stayed at their Phase-1 values, so this
 // guard now pins the projection the plan derived AND the ordering.
 //
-// The projection (see 04-13-SUMMARY.md for the measured inputs, and
-// 05-16-SUMMARY.md for the finance block and the raise it forced):
+// The projection (see 04-13-SUMMARY.md for the measured inputs, 05-16-SUMMARY.md
+// for the finance block and the raise it forced, and 06-14-SUMMARY.md for the
+// login block and the raise it forced):
 //
 //   E = PRE_PHASE_SECONDS
 //     + SECONDS_PER_NEW_TEST * (L - PRE_PHASE_TEST_COUNT
 //                              - SCALE_SPEC_TEST_COUNT
-//                              - FINANCE_SCALE_TEST_COUNT)
+//                              - FINANCE_SCALE_TEST_COUNT
+//                              - LOGIN_SCALE_SPEC_TEST_COUNT)
 //     + SCALE_SPEC_SECONDS
 //     + FINANCE_SCALE_SECONDS
+//     + LOGIN_SCALE_SPEC_SECONDS
 //
 //   L = the number of tests `playwright test --list` actually reports.
 //
-// TWO scale specs, priced as BLOCKS. Both files open a browser context, build
-// a multi-megabyte export in Node and import it, and then their remaining
-// tests read one already-rendered DOM — so a per-test increment would charge
-// each of their cheap assertions for the import that only the first one pays.
-// Each is therefore subtracted from the per-test count and added back as one
-// allowance, which is why a fifth test in either file costs 0 s and the sixth
-// browser test anywhere costs 5 s.
+// THREE scale specs, priced as BLOCKS. Each file opens a browser context, builds
+// a multi-megabyte export in Node and imports it, and then its remaining tests
+// read one already-rendered DOM — so a per-test increment would charge each of
+// their cheap assertions for the import that only the first one pays. Each is
+// therefore subtracted from the per-test count and added back as one allowance,
+// which is why a sixth test in any of the three files costs 0 s and the next
+// browser test anywhere else costs 5 s.
+//
+// The worked arithmetic at the 06-14 count (L = 234 tests in 22 files):
+//
+//   E = 330 + 5 * (234 - 86 - 5 - 5 - 5) + 120 + 90 + 13
+//     = 330 + 665 + 223
+//     = 1218 s
+//   1.3 * E = 1583.4 s, so globalTimeout must be at least 27 min (1620 s);
+//   the wrapper is 29 min and the job 37 min (G + 2 and W + 8), and 27 min holds
+//   up to 239 listed tests.
 //
 // Every constant below is either MEASURED in this repository or an ESTIMATE
 // carried forward from an earlier phase, and is labelled as such. The
@@ -107,6 +119,26 @@ const FINANCE_SCALE_TEST_COUNT = 5;
  */
 const FINANCE_SCALE_SECONDS = 90;
 
+/** Tests in login-scale.spec.ts — MEASURED with `playwright test --list` at the
+ * end of 06-14 Task 2: 234 tests in 22 files, five of them in this file. */
+const LOGIN_SCALE_SPEC_TEST_COUNT = 5;
+
+/**
+ * Allowance for the 12,000-row login scale spec — ESTIMATE from 06-14.
+ *
+ * Measured on this machine, one worker, against the built app: the whole file
+ * (the 12,000-row import to `ready`, the 662-address table, every sort, the map and
+ * the list, the mask) takes 4.2 s. The runner factor this file already uses is
+ * the ~3x that the 330 s baseline carries over the development machine's cost,
+ * so 4.2 s * 3 = 12.6 s, rounded up to 13. It is deliberately NOT floored at the
+ * 90 s the finance block carries: that floor stands for a 5.5 MB CSV built and
+ * rendered in Node and a second browser context, neither of which this file
+ * pays, and a floor that overstates the block would raise all three limits
+ * further than the evidence supports. If the first CI run measures more, this
+ * is the number to replace; the 1.3x margin on E is what absorbs it until then.
+ */
+const LOGIN_SCALE_SPEC_SECONDS = 13;
+
 /** Per-test increment for a browser-backed test — ESTIMATE from the phase. */
 const SECONDS_PER_NEW_TEST = 5;
 
@@ -128,10 +160,18 @@ const LIST_TIMEOUT_MS = 60_000;
 function projectedE2eSeconds(listedTests: number): number {
   const newTests = Math.max(
     0,
-    listedTests - PRE_PHASE_TEST_COUNT - SCALE_SPEC_TEST_COUNT - FINANCE_SCALE_TEST_COUNT,
+    listedTests -
+      PRE_PHASE_TEST_COUNT -
+      SCALE_SPEC_TEST_COUNT -
+      FINANCE_SCALE_TEST_COUNT -
+      LOGIN_SCALE_SPEC_TEST_COUNT,
   );
   return (
-    PRE_PHASE_SECONDS + SECONDS_PER_NEW_TEST * newTests + SCALE_SPEC_SECONDS + FINANCE_SCALE_SECONDS
+    PRE_PHASE_SECONDS +
+    SECONDS_PER_NEW_TEST * newTests +
+    SCALE_SPEC_SECONDS +
+    FINANCE_SCALE_SECONDS +
+    LOGIN_SCALE_SPEC_SECONDS
   );
 }
 
@@ -202,18 +242,25 @@ describe('CI e2e budget', () => {
   });
 
   test('the projection is the arithmetic the plan derived', () => {
-    // The 184-test, 5-test-per-scale-spec shape MEASURED at the end of 05-16
-    // Task 1: 330 + 5 * (184 - 86 - 5 - 5) + 120 + 90 = 980.
-    expect(projectedE2eSeconds(184)).toBe(980);
-    // One test beyond the baseline and BOTH scale specs is worth exactly one
-    // increment; the projection never falls below the baseline + both
+    // The 234-test, 5-test-per-scale-spec shape MEASURED at the end of 06-14
+    // Task 2: 330 + 5 * (234 - 86 - 5 - 5 - 5) + 120 + 90 + 13 = 1218.
+    expect(projectedE2eSeconds(234)).toBe(1218);
+    // The 184-test shape of 05-16 under THIS function, which now also holds the
+    // login block back: 330 + 5 * (184 - 86 - 5 - 5 - 5) + 120 + 90 + 13 = 968.
+    expect(projectedE2eSeconds(184)).toBe(968);
+    // One test beyond the baseline and ALL THREE scale specs is worth exactly
+    // one increment; the projection never falls below the baseline + the three
     // allowances, even when a caller passes a count below the baseline.
     expect(
       projectedE2eSeconds(
-        PRE_PHASE_TEST_COUNT + SCALE_SPEC_TEST_COUNT + FINANCE_SCALE_TEST_COUNT + 1,
+        PRE_PHASE_TEST_COUNT +
+          SCALE_SPEC_TEST_COUNT +
+          FINANCE_SCALE_TEST_COUNT +
+          LOGIN_SCALE_SPEC_TEST_COUNT +
+          1,
       ),
-    ).toBe(545);
-    expect(projectedE2eSeconds(PRE_PHASE_TEST_COUNT)).toBe(540);
+    ).toBe(558);
+    expect(projectedE2eSeconds(PRE_PHASE_TEST_COUNT)).toBe(553);
   });
 
   test('globalTimeout is at least 1.3x the projected e2e duration', () => {

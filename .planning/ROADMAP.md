@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Dashboard Shell & Account Identity** - Runes app state, single-page layout, identity header, "detected but not yet supported" banners, empty/greyed sections (completed 2026-09-29)
 - [x] **Phase 4: Activity Time Dashboards** - Totals, year-by-year calendar heatmap, day × hour heatmap, session-duration distribution at scale (completed 2026-10-01)
 - [x] **Phase 5: Vehicle Stats & Financial Dashboards** - Per-vehicle stats across 4 titles, premium-time and currency timelines, per-currency real-money spend (completed 2026-10-02)
-- [ ] **Phase 6: Login-IP History & Offline Geolocation** - Geo build step, masked IP table, country-level world map, opt-in city-level lazy-load
+- [x] **Phase 6: Login-IP History & Offline Geolocation** - Geo build step, masked IP table, country-level world map, opt-in city-level lazy-load (completed 2026-10-05)
 - [ ] **Phase 7: Mobile Layout & Public Deploy** - Phone-width responsive layout, touch-friendly primitives, GitHub Pages deploy verified zero-network
 
 ## Phase Details
@@ -279,7 +279,55 @@ Plans:
   3. No city-level data is downloaded until the user explicitly chooses "load city-level detail". After opting in, a separate same-origin city dataset loads and logins show city-level locations. A Playwright check confirms the opt-in fetches only that same-origin asset.
   4. With a synthetic fixture of 10k+ login rows, the IP table stays smooth to scroll and sort, and the map stays responsive because it aggregates per country rather than drawing one marker per login.
 
-**Plans**: TBD
+**Plans:** 17/17 plans complete
+Plans:
+**Wave 1**
+
+- [x] 06-01-PLAN.md — Worker tracer: the `logins` channel from session rows to a stored, versioned aggregate (Dexie schema decision recorded), lazy backfill
+- [x] 06-02-PLAN.md — Full Phase 6 copy inventory and formatters in `ui-copy.ts`; Cancel label and cancel-presentation decisions recorded
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 06-03-PLAN.md — Full IP module (IPv6, canonical key, mask) and aggregation semantics with the listed-address cap decision, 10k fixture and independent oracle
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 06-04-PLAN.md — Country range-table container, build script, fixture table and the committed production table (geo source decision recorded)
+- [x] 06-05-PLAN.md — Logins.csv merge, Account record and the one-snapshot backfill reader
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [x] 06-06-PLAN.md — Country resolution in the worker: inlined table, fixture seam (decision recorded), guarded country names, worker-only import lint
+- [x] 06-07-PLAN.md — World-map generator and committed per-country SVG path module (build-time packages only)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [x] 06-08-PLAN.md — Login history block: states, one reveal control, six summary tiles, live region, flipped e2e expectations
+- [x] 06-09-PLAN.md — City dataset build script and worker-side decode; fetch-location decision recorded
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [x] 06-10-PLAN.md — Masked windowed IP table: hoisted windowing, sorting, pinned Account record row, excluded pill and notes
+- [x] 06-11-PLAN.md — The one sanctioned city fetch: main-thread module, scoped lint exemption, CSP connect-src self, build-time manifest
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
+- [x] 06-12-PLAN.md — Country map: log-scale shading, tooltip, one-stop keyboard model, legend, DB-IP attribution, ranked country list
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
+- [x] 06-13-PLAN.md — City-level opt-in: size-warned button, progress and cancel, City column, ranked city list, nothing persisted
+
+**Wave 9** *(blocked on Wave 8 completion)*
+
+- [x] 06-14-PLAN.md — 10,000-row scale proof, zero-network across all flows, CI budget reconciliation, phase guards, real-build smoke, Phase 7 hand-offs
+
+**Gap closure** *(verifier gaps G-1 (SC2) and G-2 (SC3) plus review finding WR-05, filed after the Phase 6 verification)*
+
+- [x] 06-15-PLAN.md — G-1 (CR-01): IPv6 dotted-tail words counted after expansion, a quad before the compression refused, a worker-level tracer, a seeded word-count property, and a LOGINS_VERSION bump so stored aggregates are rebuilt (Wave 1)
+- [x] 06-16-PLAN.md — WR-05: LoginsView import and the two Phase 5 svelte-check errors fixed, svelte-check added to `check` and to CI's typecheck step behind a self-tested guard (Wave 1)
+- [x] 06-17-PLAN.md — G-2 (CR-02): an IPv4-mapped address needs the IPv4 city plane (families rule relocated and unit-tested), review ledger closed for CR-01, CR-02 and WR-05 (Wave 2, after 06-15 and 06-16)
+
 **UI hint**: yes
 
 ### Phase 7: Mobile Layout & Public Deploy
@@ -292,7 +340,7 @@ Plans:
   1. At phone width (~375px), every section is readable and usable without horizontal page scrolling: identity header, heatmaps, tables, map, banners, and the clear-data control. Wide charts scroll inside their own container.
   2. Tabs, tooltips, and popovers work by touch as well as by mouse.
   3. Pushing to `main` runs the full CI suite. Only if it passes does the workflow deploy to GitHub Pages via `actions/upload-pages-artifact@v4` + `actions/deploy-pages@v4`, and the public URL serves the app.
-  4. On the live GitHub Pages URL, which uses a project subpath, the worker script, the country geo table, and the opt-in city dataset all load without 404s. The CSP is present, and the zero-network check passes against the deployed build.
+  4. On the live GitHub Pages URL, which uses a project subpath, the worker script and the opt-in city dataset both load without 404s. The country geo table is **inlined into the worker chunk, so it makes no request and there is nothing to 404 for** (amended by plan 06-06: RESEARCH Decision 5's inline delivery supersedes the original "the country geo table … load without 404s" wording; its correctness under a subpath is proved by the worker chunk itself being served and the zero-network check passing against the deployed build). The CSP is present, and the zero-network check passes against the deployed build.
 
 **Plans**: TBD
 **UI hint**: yes
@@ -303,6 +351,7 @@ Plans:
 - **Standing checks:** the zero-network Playwright assertion and CSP from Phase 1 must stay green in every later phase. A phase that breaks them is not done.
 - **Research flags:** Phase 4 needs work on SVG scale, a non-linear color scale, and the timezone basis. Phase 5 needs a synthetic multi-currency fixture and an explicit "no FX conversion" decision. Phase 6 needs work on geo lookup performance, per-country map aggregation, and how to host the ~60-70MB city dataset. Phases 1-3 and 7 follow standard patterns.
 - **Independence:** Phases 4, 5, and 6 depend only on Phase 3 and can be built in any order.
+- **Phase 6 hand-offs to Phase 7 (06-14):** (a) the country table is inlined in the worker chunk, so there is no country asset to request or to 404 on the Pages subpath; Phase 7 success criterion 4 already says so (amended in 06-06), and its worker-chunk and zero-network checks are the proof. (b) Real city generation (`pnpm run geo:city -- --download`) runs in Phase 7's deploy job, not in git: cache the output keyed on the DB-IP month, assert the manifest's `source` is `dbip` (the fixture manifest says otherwise), and verify that `geo-city-data/<file>` is served on the project subpath with the recorded byte count and sha256. (c) `connect-src 'self'` may be narrowed to a path-restricted host source once the deployed origin is known; it stays defence in depth only, because a meta CSP does not govern a worker and the enforcement is the ESLint network ban plus the Playwright request counting. (d) Peak worker memory while decoding the city file (50,130,477 B raw as measured in 06-09, 11,877,710 B gzipped; about 120 MB at peak by the 06-RESEARCH Pitfall 21 estimate, which was made against a 42.8 MB container) should be re-checked on a phone-class device (06-RESEARCH A11 and A13), which no Phase 6 test can measure.
 
 ## Progress
 
@@ -316,5 +365,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 3. Dashboard Shell & Account Identity | 7/7 | Complete    | 2026-09-29 |
 | 4. Activity Time Dashboards | 18/18 | In Progress|  |
 | 5. Vehicle Stats & Financial Dashboards | 19/19 | Complete    | 2026-10-02 |
-| 6. Login-IP History & Offline Geolocation | 0/TBD | Not started | - |
+| 6. Login-IP History & Offline Geolocation | 17/17 | Complete    | 2026-10-05 |
 | 7. Mobile Layout & Public Deploy | 0/TBD | Not started | - |

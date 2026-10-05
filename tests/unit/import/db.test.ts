@@ -16,6 +16,7 @@ import type {
   PlaytimeAggregates,
 } from '../../../src/lib/core/types/worker-messages.ts';
 import type { DatasetRow } from '../../../src/lib/worker/db.ts';
+import type { LoginAggregates } from '../../../src/lib/features/logins/login-shared.ts';
 
 // =============================================================================
 // db — Dexie schema + transactional writeDataset + checkCache (RESEARCH.md Pattern 3)
@@ -780,5 +781,128 @@ describe('04-06 — writePlaytimeIfCurrent', () => {
     expect(after.identity).toEqual(IDENTITY);
     expect(after.importedAt).toBe(before.importedAt);
     expect(after.playtime).toEqual(STUB_PLAYTIME);
+  });
+});
+
+// =============================================================================
+// 06-01 Task 2 — the Dexie schema decision (checkpoint: option-a), PINNED
+// =============================================================================
+//
+// WHY THIS BLOCK EXISTS, given that no code changed for the decision
+//   D-12 reads "Dexie schema bump per Phase 3 D-19 pattern", and the Phase 3
+//   D-19 `version(2)` upgrader CLEARS both stores. Applying that pattern to the
+//   `logins` field would cost every returning user their cached dataset — rows,
+//   identity, imported-at — to recompute a DERIVED value their rows already
+//   answer, because the rows still carry the `IP` column and the backfill can
+//   rebuild it. The checkpoint answered option-a: no bump.
+//
+//   A decision that is only a comment is a decision the next phase can undo
+//   without noticing, so it is pinned HERE, in the file that owns the schema:
+//   the installed version number, and the fact that a dataset carrying a
+//   `logins` field re-opens with that field AND its rows intact. Both fail the
+//   moment someone adds a `version(3)` for the next derived field, and the
+//   third test fails the moment the `version(2)` upgrader is edited.
+//
+//   The two asserts overlap the 03-01 blocks on purpose. Those prove the wipe
+//   works; this one proves the wipe is still the ONLY upgrader a Phase 4 or 5
+//   shaped field may leave behind, which is the part a later phase breaks.
+// =============================================================================
+
+/** A minimal login aggregate; the pin asserts its survival, not its numbers. */
+const STUB_LOGINS = {
+  v: 1,
+  geo: 'none',
+  filesSeen: { sessions: true, logins: false },
+  filesWithRows: 1,
+  addresses: [],
+  totalLogins: 0,
+  unreadableRows: 0,
+  unknown: { addresses: 0, logins: 0 },
+  countries: [],
+  other: { addresses: 0, logins: 0 },
+  first: null,
+  last: null,
+  account: null,
+} as unknown as LoginAggregates;
+
+describe('06-01 — the logins field added NO Dexie version (checkpoint option-a)', () => {
+  beforeEach(async () => {
+    await db.delete();
+    await db.open();
+  });
+
+  afterAll(async () => {
+    await db.close();
+  });
+
+  test('the installed schema version is still 2 — no version(3) was added', () => {
+    expect(db.verno).toBe(2);
+  });
+
+  test('a dataset holding a logins field re-opens with that field AND its rows intact', async () => {
+    await writeDataset(
+      'logins-pinned-hash'.padEnd(64, 'p'),
+      'root-logins-pinned',
+      CATEGORIES,
+      makeRows(3),
+      IDENTITY,
+      null,
+      null,
+      STUB_LOGINS,
+    );
+    expect((await checkCache())?.logins).toEqual(STUB_LOGINS);
+    await db.close();
+
+    const reopened = new AppDb();
+    await reopened.open();
+    try {
+      expect(reopened.verno).toBe(2);
+      expect(await reopened.rows.count()).toBe(3);
+      const meta = await reopened.meta.get('active');
+      expect(meta?.hash).toBe('logins-pinned-hash'.padEnd(64, 'p'));
+      expect(meta?.identity).toEqual(IDENTITY);
+      // The field is read back as an ordinary property, which is the whole
+      // claim: an unindexed field of the unchanged `meta` store.
+      expect(meta?.logins).toEqual(STUB_LOGINS);
+    } finally {
+      await reopened.close();
+    }
+  });
+});
+
+describe('06-01 — the v1 wipe is still the ONLY upgrader (checkpoint option-a)', () => {
+  beforeEach(async () => {
+    // DELIBERATELY not opening the module singleton, for the reason the 03-01
+    // block above gives: opening it would create the database directly at v2,
+    // and the seeded v1 store below would then have nothing to upgrade — no
+    // versionchange transaction, no upgrade callback, and the seeded row would
+    // survive for a reason that has nothing to do with the upgrader.
+    await db.delete();
+  });
+
+  afterAll(async () => {
+    await db.close();
+  });
+
+  test('a v1 database carrying a logins field is wiped on open', async () => {
+    // Seeded at v1 with a meta record that ALREADY carries a logins field: the
+    // one case where "no bump" could be argued to cost something. It costs
+    // nothing, because the v1 wipe is unconditional — and it still has to RUN,
+    // so the assertion is that a database at v1 loses everything on open.
+    const legacy = new Dexie('wg-export-viewer');
+    legacy.version(1).stores({ rows: '++id, category, sourceFile', meta: 'id' });
+    await legacy.open();
+    await legacy.table('rows').add(LEGACY_ROW);
+    await legacy.table('meta').add({ ...LEGACY_META, logins: STUB_LOGINS });
+    await legacy.close();
+
+    const upgraded = new AppDb();
+    await upgraded.open();
+    try {
+      expect(await upgraded.rows.count()).toBe(0);
+      expect(await upgraded.meta.count()).toBe(0);
+    } finally {
+      await upgraded.close();
+    }
   });
 });

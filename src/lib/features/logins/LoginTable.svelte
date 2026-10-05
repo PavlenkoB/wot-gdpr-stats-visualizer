@@ -1,0 +1,454 @@
+<script lang="ts">
+  import { onMount } from 'svelte';
+  import { SCROLLER_MAX_PX, windowRange } from '../../core/windowing.ts';
+  import {
+    loginCells,
+    type LoginCell,
+    type LoginCells,
+    type LoginColumn,
+    type LoginRow,
+    type LoginSort,
+  } from './login-model.ts';
+
+  /**
+   * The windowed login table (06-10, D-05), on the vehicle table's structure.
+   *
+   * ## No decision lives in this file
+   *
+   * Which rows are drawn is `windowRange`'s, what they are ordered by is the
+   * block's (upstream), and what a cell says is `loginCells`'s, which is also
+   * where the mask is applied. What is left here is the geometry and the DOM:
+   * two spacer rows, a scroll offset and the sticky axes. The geometry is the
+   * vehicle table's, value for value, for the reasons that file records at
+   * length: a fixed 40px row so nothing is measured, a CSSOM write for every
+   * dynamic size because the CSP forbids inline styles, and a native table with
+   * `aria-rowcount` / `aria-rowindex` rather than `role="grid"`.
+   *
+   * ## What never reaches an attribute
+   *
+   * No row, cell or header attribute holds an address. The keyed each uses the
+   * row's INDEX, and the row hooks carry a count (`data-logins`) only, so
+   * masking by `displayIp` is not undone by an attribute somebody inspects
+   * (D-07, T-06-37).
+   */
+  interface Props {
+    /** The columns to draw, in order. */
+    columns: readonly LoginColumn[];
+    /** The rows to draw, already sorted by the block. */
+    rows: readonly LoginRow[];
+    /** The one mask flag: the same rune that governs every other address. */
+    revealed: boolean;
+    /** The sorted column and direction, for `aria-sort` and the arrow. */
+    sort: LoginSort;
+    /** Ask the block for the next sort of a column. */
+    onSort: (key: string) => void;
+    /**
+     * The pinned Account record row's cells, or null when the export has none.
+     * Built by the block with the same mask flag; never part of the sort, the
+     * window or any count (D-02).
+     */
+    account: LoginCells | null;
+    /** The region's accessible name, repeated in the hidden caption. */
+    regionName: string;
+    /**
+     * Bump this to send the scroller back to the top.
+     *
+     * Keyed on the sort and the dataset and NEVER on the mask, so toggling the
+     * mask keeps the scroll position.
+     */
+    resetKey: unknown;
+  }
+
+  let { columns, rows, revealed, sort, onSort, account, regionName, resetKey }: Props = $props();
+
+  /** The scroll offset, the one piece of DOM state this table reads. */
+  let scrollTop = $state(0);
+  let viewportPx = $state(SCROLLER_MAX_PX);
+  let frame = 0;
+
+  let scrollerEl: HTMLDivElement | null = $state(null);
+  let topSpacerEl: HTMLTableRowElement | null = $state(null);
+  let bottomSpacerEl: HTMLTableRowElement | null = $state(null);
+  let tableEl: HTMLTableElement | null = $state(null);
+
+  /**
+   * The drawn window and its two pads.
+   *
+   * Named `drawnRange` and never `window`: a `const window` in a component scope
+   * shadows the global, and `window.addEventListener` in `onMount` then resolves
+   * to the derived value and throws (the bug the vehicle table recorded).
+   */
+  const drawnRange = $derived(windowRange(scrollTop, viewportPx, rows.length));
+
+  /** The drawn rows with their absolute index. */
+  const drawn = $derived(
+    rows.slice(drawnRange.first, drawnRange.last).map((row, offset) => ({
+      row,
+      index: drawnRange.first + offset,
+    })),
+  );
+
+  /** Rows before the windowed ones: the header, and the Account record row if any. */
+  const leadingRows = $derived(account === null ? 1 : 2);
+
+  /** The `aria-sort` value, and the only `th` that carries a non-`none` one. */
+  function ariaSort(column: LoginColumn): 'ascending' | 'descending' | 'none' {
+    if (sort.key !== column.key) return 'none';
+    return sort.dir === 'asc' ? 'ascending' : 'descending';
+  }
+
+  /** The arrow, `aria-hidden` because the direction is already announced. */
+  function sortArrow(column: LoginColumn): string {
+    if (sort.key !== column.key) return '';
+    return sort.dir === 'asc' ? '↑' : '↓';
+  }
+
+  /** The sum of the drawn columns' widths, in pixels. */
+  const minWidthPx = $derived(columns.reduce((total, column) => total + column.widthPx, 0));
+
+  onMount(() => {
+    const measure = (): void => {
+      viewportPx = scrollerEl?.clientHeight ?? SCROLLER_MAX_PX;
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => {
+      window.removeEventListener('resize', measure);
+      if (frame !== 0) cancelAnimationFrame(frame);
+    };
+  });
+
+  /** One passive scroll handler, coalesced through a frame. */
+  function onScroll(): void {
+    if (frame !== 0) return;
+    frame = requestAnimationFrame(() => {
+      frame = 0;
+      scrollTop = scrollerEl?.scrollTop ?? 0;
+    });
+  }
+
+  /**
+   * The two spacer heights and the table's minimum width, through the CSSOM.
+   *
+   * The derived values are READ FIRST, into locals, and only then written
+   * through the element refs: a read inside `if (el !== null)` is a conditional
+   * dependency, so on the run where the refs are not bound yet the effect would
+   * register no dependency on the window at all and the geometry would never be
+   * written when the rows arrive (the lesson the vehicle table recorded).
+   */
+  $effect(() => {
+    const padTop = drawnRange.padTopPx;
+    const padBottom = drawnRange.padBottomPx;
+    const minWidth = minWidthPx;
+    if (topSpacerEl !== null) topSpacerEl.style.height = `${padTop}px`;
+    if (bottomSpacerEl !== null) bottomSpacerEl.style.height = `${padBottom}px`;
+    if (tableEl !== null) tableEl.style.minWidth = `${minWidth}px`;
+  });
+
+  /** A new sort or dataset returns the scroller to the top, element and offset. */
+  $effect(() => {
+    void resetKey;
+    scrollTop = 0;
+    if (scrollerEl !== null) scrollerEl.scrollTop = 0;
+  });
+</script>
+
+{#snippet cellView(cell: LoginCell, column: LoginColumn, columnIndex: number)}
+  {#if columnIndex === 0}
+    <!-- The address wraps inside an inner block and is never ellipsised; the
+         cell carries no `title`, so an address is never in an attribute. -->
+    <td class="{column.widthClass} sticky-first">
+      <span class="ip" class:muted-cell={cell.muted}>
+        {cell.text}
+        {#if cell.hidden !== null}<span class="visually-hidden">{cell.hidden}</span>{/if}
+      </span>
+    </td>
+  {:else}
+    <td
+      class={column.widthClass}
+      class:right={column.align === 'right'}
+      class:muted-cell={cell.muted}
+      title={cell.title}
+    >
+      {#if cell.tag === true}
+        <span class="tag" data-testid="login-account-tag">{cell.text}</span>
+      {:else}
+        {cell.text}
+      {/if}
+      {#if cell.hidden !== null}
+        <span class="visually-hidden">{cell.hidden}</span>
+      {/if}
+    </td>
+  {/if}
+{/snippet}
+
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+<div
+  class="scroller"
+  bind:this={scrollerEl}
+  data-testid="login-scroller"
+  role="region"
+  tabindex="0"
+  aria-label={regionName}
+  onscroll={onScroll}
+>
+  <table data-testid="login-table" bind:this={tableEl} aria-rowcount={rows.length + leadingRows}>
+    <caption class="visually-hidden">{regionName}</caption>
+    <thead>
+      <tr aria-rowindex="1">
+        {#each columns as column, columnIndex (column.key)}
+          <th
+            scope="col"
+            class={column.widthClass}
+            class:sorted={sort.key === column.key}
+            class:sticky-first={columnIndex === 0}
+            aria-sort={ariaSort(column)}
+          >
+            <button
+              type="button"
+              data-testid="login-sort-{column.key}"
+              onclick={() => onSort(column.key)}
+            >
+              <span>{column.label}</span>
+              <span class="arrow" aria-hidden="true">{sortArrow(column)}</span>
+            </button>
+          </th>
+        {/each}
+      </tr>
+    </thead>
+    {#if account !== null}
+      <!--
+        The pinned Account record row (D-02): its own tbody BEFORE the windowed
+        one, so it is never sorted and never windowed. Not counted anywhere.
+      -->
+      <tbody data-testid="login-account-row-group">
+        <tr class="account" data-testid="login-account-row" aria-rowindex="2">
+          {#each columns as column, columnIndex (column.key)}
+            {@render cellView(account[column.key], column, columnIndex)}
+          {/each}
+        </tr>
+      </tbody>
+    {/if}
+    <tbody>
+      <tr class="spacer" aria-hidden="true" bind:this={topSpacerEl}>
+        <td colspan={columns.length}></td>
+      </tr>
+      {#each drawn as { row, index } (index)}
+        {@const cells = loginCells(row, revealed)}
+        <tr
+          data-testid="login-row"
+          data-logins={row.logins}
+          aria-rowindex={index + 1 + leadingRows}
+        >
+          {#each columns as column, columnIndex (column.key)}
+            {@render cellView(cells[column.key], column, columnIndex)}
+          {/each}
+        </tr>
+      {/each}
+      <tr class="spacer" aria-hidden="true" bind:this={bottomSpacerEl}>
+        <td colspan={columns.length}></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<style>
+  /* `position: relative` is the containing block the sticky header and first
+     column resolve against, and what makes `overflow: auto` clip this
+     component's own visually-hidden text (see VehicleTable). */
+  .scroller {
+    position: relative;
+    overflow: auto;
+    max-height: 480px;
+    min-width: 0;
+    border: 1px solid #dadce0;
+    border-radius: 6px;
+    background: #ffffff;
+  }
+
+  .scroller:focus-visible {
+    outline: 3px solid #1a73e8;
+    outline-offset: 2px;
+  }
+
+  table {
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    height: 40px;
+    padding: 0;
+    background: #f7f7fa;
+    color: #5f6368;
+    font-size: 14px;
+    font-weight: 600;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  th.sticky-first {
+    left: 0;
+    z-index: 3;
+    border-right: 1px solid #dadce0;
+  }
+
+  /* The sorted header's own surface, so the arrow's column is visible even
+     when the reader has scrolled past the corner. */
+  th.sorted {
+    background: #f1f3f4;
+  }
+
+  /* The sort button fills its cell: Label weight, muted text, transparent
+     background, and the 40px height the header declares. */
+  button {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    height: 40px;
+    padding: 0 8px;
+    border: 0;
+    background: transparent;
+    color: #5f6368;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.4;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  button:hover {
+    background: #dadce0;
+    color: #3c4043;
+  }
+
+  button:focus-visible {
+    outline: 3px solid #1a73e8;
+    outline-offset: -3px;
+  }
+
+  .arrow {
+    font-weight: 400;
+  }
+
+  /* Rows are a FIXED 40px, the constant `windowRange` divides by. */
+  tbody tr {
+    height: 40px;
+  }
+
+  td {
+    height: 40px;
+    padding: 0 8px;
+    background: #ffffff;
+    color: #3c4043;
+    font-size: 14px;
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+    font-variant-numeric: tabular-nums;
+  }
+
+  td.sticky-first {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    border-right: 1px solid #dadce0;
+  }
+
+  td.right {
+    text-align: right;
+  }
+
+  td.muted-cell,
+  .ip.muted-cell {
+    color: #5f6368;
+  }
+
+  /* The pinned Account record row: the sticky-header surface, with an opaque
+     sticky cell so a row scrolled sideways cannot show through it. */
+  tr.account td {
+    background: #f7f7fa;
+  }
+
+  /* The Account record tag: a muted chip that carries its own border and its
+     own words, so the information never depends on the colour. */
+  .tag {
+    display: inline-block;
+    max-width: 100%;
+    padding: 0 8px;
+    border: 1px solid #dadce0;
+    border-radius: 6px;
+    background: #f1f3f4;
+    color: #5f6368;
+    font-size: 14px;
+    line-height: 18px;
+    vertical-align: middle;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .spacer td {
+    height: auto;
+    padding: 0;
+    border: 0;
+  }
+
+  /* The address wraps to at most two lines inside the fixed 40px row and is
+     never ellipsised, so a revealed IPv6 address is always fully readable.
+     `max-height` has no effect on a table cell, so the wrapping box is an
+     inner block element. */
+  .ip {
+    display: block;
+    max-height: 40px;
+    overflow: hidden;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.4;
+  }
+
+  /* Column widths from the UI-SPEC as classes, never inline styles (CSP). */
+  .w-ip {
+    width: 160px;
+  }
+  .w-country {
+    width: 136px;
+  }
+  .w-logins {
+    width: 80px;
+  }
+  .w-first {
+    width: 104px;
+  }
+  .w-last {
+    width: 104px;
+  }
+  .w-games {
+    width: 136px;
+  }
+  .w-city {
+    width: 160px;
+  }
+</style>

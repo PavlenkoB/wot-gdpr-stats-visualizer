@@ -79,8 +79,18 @@ export const REAL_SHAPE_HEADER = 'STARTED_AT;FINISHED_AT;IP';
  */
 export const REAL_SHAPE_IP = '192.0.2.77';
 
-/** One `[started, finished]` pair, both as the export writes them. */
-export type RealShapeRow = readonly [string, string];
+/**
+ * One `[started, finished]` pair, both as the export writes them, plus an
+ * OPTIONAL address to write in the `IP` column.
+ *
+ * The third element is absent in every row this module declares, so every
+ * existing fixture renders byte-identical text to before (06-01). It exists so
+ * the phase 6 login fixture can reuse THIS renderer — the real header, the real
+ * CRLF, the real `DD.MM.YYYY HH:MM` stamp — instead of re-spelling a second one
+ * beside it. Playtime never reads the `IP` column (T-04-01), so a differing
+ * address here cannot change any playtime number.
+ */
+export type RealShapeRow = readonly [string, string, string?];
 
 /**
  * The WOT rows, in the order the file writes them.
@@ -145,11 +155,18 @@ const NO_ROWS: readonly RealShapeRow[] = [];
  * actually meets. An empty row list gives a header-only file, which is the
  * state `WOTB_Game_Sessions.csv` ships in for an account that never played
  * that game.
+ *
+ * A row's own `ip` (06-01) overrides {@link REAL_SHAPE_IP} for that row, which
+ * is how the phase 6 login fixture gets three addresses, a blank cell and a
+ * malformed cell out of the SAME renderer rather than re-spelling a second one
+ * beside it. A row may pass `''` for a genuinely blank `IP` cell: the default
+ * is used only when the element is ABSENT, never when it is an empty string, so
+ * the two remain different inputs.
  */
 export function buildRealShapeCsv(rows: readonly RealShapeRow[]): string {
   let out = REAL_SHAPE_HEADER + '\r\n';
-  for (const [started, finished] of rows) {
-    out += `${started};${finished};${REAL_SHAPE_IP}\r\n`;
+  for (const [started, finished, ip] of rows) {
+    out += `${started};${finished};${ip ?? REAL_SHAPE_IP}\r\n`;
   }
   return out;
 }

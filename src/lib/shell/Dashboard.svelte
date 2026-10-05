@@ -7,7 +7,7 @@
   import DashboardNav from './DashboardNav.svelte';
   import FinancialData from '../features/finance/FinancialData.svelte';
   import IdentityHeader from './IdentityHeader.svelte';
-  import LoginHistorySection from './LoginHistorySection.svelte';
+  import LoginHistory from '../features/logins/LoginHistory.svelte';
   import Playtime from '../features/playtime/Playtime.svelte';
   import PlayerStats from '../features/vehicles/PlayerStats.svelte';
   import SpendSummary from '../features/finance/SpendSummary.svelte';
@@ -74,16 +74,30 @@
           DashboardSection's to show or drop, not this snippet's business.
 
           The activity column is one 24px stack: the Playtime block and then
-          the Login history sub-heading, which is D-02's document order inside
-          the card (04-UI-SPEC Page Anatomy 1). The 24px is the page's lg
+          the Login history block, which is D-02's document order inside the
+          card (04-UI-SPEC Page Anatomy 1). The 24px is the page's lg
           rhythm, the same gap the cards use — the sub-blocks are siblings, not
           nested cards. Plans 04-09 and 04-10 add their charts INSIDE
           PlaytimeSummary, not here, so this column does not grow.
+
+          BOTH sub-blocks are real as of 06-08, which is why the note above no
+          longer rides this card: `DashboardSection` is handed `SECTION_NOTE_PENDING`
+          for every section and shows it only while the section is not `ready`,
+          and Activity_history stopped being `pending` when the Playtime block
+          landed in 04-02 and stopped carrying the note itself when the login
+          block replaced its placeholder in 06-08.
         -->
         {#if section.id === 'activity-history'}
           <div class="activity">
             <Playtime {result} client={ingestClient.playtime} />
-            <LoginHistorySection />
+            <!--
+              The Login history block (06-08, ACTIVITY-05). It asks the
+              `logins` channel of the same channel-scoped client the Financial
+              and Player statistics blocks use, and superseding is per CHANNEL
+              (05-07), so this block asking again releases only its own older
+              question and cannot starve any of them.
+            -->
+            <LoginHistory {result} client={ingestClient.data} cityClient={ingestClient.city} />
           </div>
         {:else if section.id === 'financial-data'}
           <!--

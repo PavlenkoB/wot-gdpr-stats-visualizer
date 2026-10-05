@@ -1,5 +1,14 @@
 import { expect, test } from '@playwright/test';
 import { SAMPLE_NICKNAME, buildSampleExport } from '../../fixtures/export-fixtures.ts';
+import { buildLoginsScaleExport, buildLoginsScaleSpec } from '../../fixtures/logins-fixtures.ts';
+import {
+  SYNTHETIC_ZIP_NAME,
+  countryList,
+  importExport,
+  loginHistoryBlock,
+  loginMap,
+  startOver,
+} from '../_support/helpers.ts';
 import { SCALE_5K_SPEC, buildSessionsExport } from '../../fixtures/sessions-fixtures.ts';
 
 /**
@@ -8,11 +17,22 @@ import { SCALE_5K_SPEC, buildSessionsExport } from '../../fixtures/sessions-fixt
  *
  * The "initial load" baseline includes the eager worker script fetch
  * (Pitfall 3 in RESEARCH: spawn at app init, not on first drop).
- * Playwright's `page.on('request')` reliably captures the worker's
- * own script load (a page-initiated resource fetch); it does NOT
- * reliably capture fetches made from inside the worker's execution
- * context (RESEARCH Pitfall 4). That distinction is irrelevant here
- * because this app's worker never calls fetch().
+ *
+ * Worker requests ARE visible here. Measured in plan 06-09: the context-level
+ * `request` event recorded a module worker's own fetch (it returned 200 while a
+ * `connect-src 'none'` meta CSP was in force), so counting requests through
+ * `context.on('request')` covers the worker as well as the page. The earlier
+ * belief that Playwright could not see a worker's requests was wrong, and this
+ * file no longer relies on it.
+ *
+ * The converse is the reason the CSP is only defence in depth: a meta CSP does
+ * NOT govern a worker, so `connect-src` could never have stopped one. The
+ * enforcement is the ESLint network ban (src/lib/geo and src/lib/worker, one
+ * exempt module) and the request counting below. Since plan 06-11 the policy is
+ * `connect-src 'self'` for the one opt-in same-origin city download; every flow
+ * in this file still asserts ZERO requests after the baseline, because none of
+ * them opts in. The opt-in's own specs (which assert WHICH asset the one request
+ * fetched) are plan 06-13's.
  */
 
 test.describe('zero-network and CSP', () => {
@@ -70,7 +90,7 @@ test.describe('zero-network and CSP', () => {
     ).toBe(baselineCount);
   });
 
-  test('served HTML carries the CSP meta tag with default-src and connect-src none', async ({
+  test("served HTML carries the CSP meta tag with connect-src exactly 'self' and every other directive unchanged", async ({
     page,
   }) => {
     await page.goto('/');
@@ -79,8 +99,34 @@ test.describe('zero-network and CSP', () => {
       .first()
       .getAttribute('content');
     expect(csp).not.toBeNull();
+
+    const directives = new Map(
+      csp!
+        .split(';')
+        .map((part) => part.trim())
+        .filter((part) => part !== '')
+        .map((part) => {
+          const [name, ...value] = part.split(/\s+/);
+          return [name!, value.join(' ')] as const;
+        }),
+    );
+
+    // The one directive that changed on purpose (plan 06-11, D-16): the single
+    // sanctioned opt-in city download is a same-origin GET.
+    expect(directives.get('connect-src')).toBe("'self'");
+
+    // Everything else is exactly what it was.
     expect(csp).toContain("default-src 'self'");
-    expect(csp).toContain("connect-src 'none'");
+    expect(csp).toContain("object-src 'none'");
+    expect(csp).toContain("base-uri 'none'");
+    expect(csp).toContain("form-action 'none'");
+    expect(directives.get('default-src')).toBe("'self'");
+    expect(directives.get('object-src')).toBe("'none'");
+    expect(directives.get('base-uri')).toBe("'none'");
+    expect(directives.get('form-action')).toBe("'none'");
+    expect([...directives.keys()].sort()).toEqual(
+      ['base-uri', 'connect-src', 'default-src', 'form-action', 'object-src'].sort(),
+    );
   });
 
   test('no network requests, no second worker and no CSP violation through a 5,000-session import, every selector value and chart interaction', async ({
@@ -393,6 +439,121 @@ test.describe('zero-network and CSP', () => {
     expect(
       violations,
       `violated CSP directives across the Phase 5 flows: ${violations.join(', ')}`,
+    ).toEqual([]);
+  });
+
+  test('no network request, no second worker and no CSP violation through every Phase 6 flow at 10,000 rows, with the city opt-in never pressed', async ({
+    page,
+    context,
+  }) => {
+    // Explicit rather than inherited: this test imports a 12,000-row archive,
+    // reveals and hides the addresses, sorts every column, interacts with the
+    // map by pointer and by keyboard, opens the country list, and then clears
+    // and imports again. A timeout here would look like a network failure.
+    test.setTimeout(240_000);
+
+    // The same observer as the other long flows, installed before navigation so
+    // a violation raised by the first application script is caught too.
+    await page.addInitScript(() => {
+      const w = window as unknown as { __cspViolations: string[] };
+      w.__cspViolations = [];
+      document.addEventListener(
+        'securitypolicyviolation',
+        (event) => {
+          w.__cspViolations.push((event as SecurityPolicyViolationEvent).violatedDirective);
+        },
+        true,
+      );
+    });
+
+    const requests: string[] = [];
+    const workerUrls: string[] = [];
+    context.on('request', (req) => requests.push(req.url()));
+    page.on('worker', (worker) => workerUrls.push(worker.url()));
+
+    await page.goto('/');
+    await expect(page.locator('main')).toHaveAttribute('data-worker-ready', 'true', {
+      timeout: 10_000,
+    });
+    await page.waitForLoadState('networkidle');
+
+    const baselineCount = requests.length;
+    expect(baselineCount).toBeGreaterThan(0);
+    expect(workerUrls).toHaveLength(1);
+
+    const bytes = buildLoginsScaleExport(buildLoginsScaleSpec());
+    await importExport(page, SYNTHETIC_ZIP_NAME, bytes);
+    const block = loginHistoryBlock(page);
+    await expect(block).toHaveAttribute('data-state', 'ready', { timeout: 60_000 });
+
+    // The opt-in is on the page, offering a download it must NOT start: the
+    // request it makes is the subject of plan 06-13's specs, not of this guard.
+    await expect(page.getByTestId('city-optin')).toHaveAttribute('data-state', 'idle');
+
+    // --- 1. reveal and hide ---------------------------------------------------
+    const toggle = page.getByTestId('login-mask-toggle');
+    await toggle.click();
+    await toggle.click();
+
+    // --- 2. every sort button, twice so both directions are asked for ---------
+    for (const key of ['ip', 'country', 'logins', 'first', 'last', 'games']) {
+      const sort = page.getByTestId(`login-sort-${key}`);
+      await sort.click();
+      await sort.click();
+    }
+
+    // --- 3. the map, by pointer and by keyboard -------------------------------
+    const map = loginMap(page);
+    const countries = map.getByTestId('login-country');
+    const countryCount = await countries.count();
+    expect(countryCount, 'the fixture shades several countries').toBeGreaterThan(5);
+    for (const index of [0, 1, 2, countryCount - 1]) {
+      await countries.nth(index).hover({ force: true });
+    }
+    await countries.first().focus();
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('ArrowLeft');
+    await page.mouse.move(5, 5);
+
+    // --- 4. the country list, opened and closed --------------------------------
+    const list = countryList(page);
+    await list.locator('summary').click();
+    await expect(list).toHaveAttribute('open', '');
+    await list.locator('summary').click();
+    await expect(list).not.toHaveAttribute('open', '');
+
+    // --- 5. clear, then import again -------------------------------------------
+    await startOver(page);
+    await importExport(page, SYNTHETIC_ZIP_NAME, bytes);
+    await expect(block).toHaveAttribute('data-state', 'ready', { timeout: 60_000 });
+
+    // The opt-in is still offered and was never pressed: it rests in `idle`
+    // (the fixture build carries a city asset), not `downloading` or `ready`.
+    await expect(page.getByTestId('city-optin')).toHaveAttribute('data-state', 'idle');
+    await expect(page.getByTestId('city-progress')).toHaveCount(0);
+
+    // The same short settle the other long flows use.
+    await page.waitForTimeout(500);
+
+    const postBaseline = requests.slice(baselineCount);
+    expect(postBaseline, `requests after the Phase 6 flows: ${postBaseline.join(', ')}`).toEqual(
+      [],
+    );
+
+    // Still the single long-lived worker across every flow, on the page's origin.
+    expect(workerUrls, 'no second worker for the Phase 6 flows').toHaveLength(1);
+    const pageOrigin = new URL(page.url()).origin;
+    for (const url of [...requests, ...workerUrls]) {
+      expect(new URL(url).origin).toBe(pageOrigin);
+    }
+
+    const violations = await page.evaluate(
+      () => (window as unknown as { __cspViolations: string[] }).__cspViolations,
+    );
+    expect(
+      violations,
+      `violated CSP directives across the Phase 6 flows: ${violations.join(', ')}`,
     ).toEqual([]);
   });
 });

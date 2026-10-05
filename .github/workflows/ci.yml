@@ -26,9 +26,9 @@ jobs:
     name: Lint, typecheck, unit + e2e (incl. zero-network)
     runs-on: self-hosted
     # The outermost of the three e2e limits, and the only one that cancels
-    # The whole job. It must outlast the shell wrapper (27 min) by enough to
+    # The whole job. It must outlast the shell wrapper (29 min) by enough to
     # cover the steps before it (install, lint, typecheck, unit, browser
-    # setup — about 5 min of budget): 27 + 5 = 32 min, so 35 leaves 3 min of
+    # setup — about 5 min of budget): 29 + 5 = 34 min, so 37 leaves 3 min of
     # headroom on the unmeasured part. tests/unit/guards/ci-budget.test.ts enforces
     # the wrapper + 300 s floor and the wrapper/timeout-minutes ordering.
     #
@@ -56,7 +56,21 @@ jobs:
     # The two orderings the guard enforces both hold with room: 27 min is 1620 s
     # against globalTimeout + 90 s = 1590 s, and 35 min is 2100 s against
     # wrapper + 300 s = 1920 s.
-    timeout-minutes: 35
+    #
+    # Raised from 35 in plan 06-12, with the wrapper and `globalTimeout`, for the
+    # country-map browser specs: 218 listed tests projected 1150 s and a floor of
+    # 1495 s against a 1500 s `globalTimeout`, so the first added test failed the
+    # guard. 225 tests project 1185 s and a floor of 1540.5 s; G = 26 min,
+    # W = 28 min, J = 36 min, and 26 min covers up to 228 tests.
+    #
+    # Raised from 36 in plan 06-14, with the wrapper and `globalTimeout`, for the
+    # login scale spec (five tests, priced as a block like the two older scale
+    # specs) and the Phase 6 zero-network test. 234 listed tests project 1218 s
+    # and a floor of 1583.4 s against a 1560 s `globalTimeout`, so the guard
+    # failed; G = 27 min, W = 29 min, J = 37 min, and 27 min covers up to 239
+    # tests. The block's allowance is an ESTIMATE (4.2 s measured, times the
+    # runner factor the guard already uses); the first CI run replaces it.
+    timeout-minutes: 37
 
     steps:
       - name: Checkout
@@ -105,7 +119,11 @@ jobs:
       - name: Lint
         run: pnpm run lint
 
-      - name: Typecheck
+      # svelte-check is inside the check script because `tsc -b` does not read
+      # `.svelte` files: before this the component scripts and templates were
+      # never type-checked in CI (06-REVIEW WR-05: a type import that did not
+      # exist, and two Phase 5 errors, sat behind a green check).
+      - name: Typecheck (tsc -b and svelte-check)
         run: pnpm run check
 
       - name: Unit tests
@@ -130,16 +148,16 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
 
       # The middle of the three e2e limits: the shell wrapper around
-      # Playwright's own `globalTimeout` (25 min). It must outlast that
+      # Playwright's own `globalTimeout` (27 min). It must outlast that
       # globalTimeout by at least 90 s, or the wrapper fires first and the
       # run dies with "operation canceled" and no test context — the failure
       # mode traced in .planning/debug/resolved/ci-e2e-cancel.md.
-      # 27 min = 1500 + 120 s, against the rule's 1500 + 90 s floor. The
-      # 184 tests project to 980 s; see tests/unit/guards/ci-budget.test.ts for the
+      # 29 min = 1620 + 120 s, against the rule's 1620 + 90 s floor. The
+      # 234 tests project to 1218 s; see tests/unit/guards/ci-budget.test.ts for the
       # arithmetic and 04-13-SUMMARY.md for what is measured and what is
       # still estimated.
       - name: E2E and zero-network guard
-        run: pnpm exec timeout 27m playwright test
+        run: pnpm exec timeout 29m playwright test
 
       - name: Upload Playwright report
         if: failure()

@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitest/config';
+import { geoAliasEntries } from './scripts/geo/lib/geo-alias.ts';
 
 // =============================================================================
 // Vitest config for `pnpm run test:unit`.
@@ -69,6 +70,24 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   tsconfig: './tsconfig.test.json',
+  // `.bin` is not an asset type here either, and this config has no plugins,
+  // so the same pair the app build needs has to be given to it explicitly
+  // (RESEARCH Pitfall 4).
+  assetsInclude: ['**/*.bin'],
+  resolve: {
+    // ALWAYS the fixture table, so a unit test's country assertion is a fact
+    // about the committed fixture rather than about whichever month of DB-IP
+    // data happens to be on disk. Unit tests need no seam beyond this because
+    // `lookupCountry`'s table-argument form is what they call directly; the
+    // alias is here for the modules that reach the table through the worker.
+    //
+    // The SHIPPED table is not skipped: it is read off disk and asserted
+    // field-by-field by `tests/unit/geo/country-table-shipped.test.ts`, and
+    // `pnpm run build` exercises it through the real alias. There is no second
+    // config, and the Svelte plugin is deliberately absent — see the header
+    // above for why adding it crashes the resolver.
+    alias: geoAliasEntries({ GEO_FIXTURE: '1' }),
+  },
   test: {
     include: ['tests/unit/**/*.test.ts'],
     environment: 'node',

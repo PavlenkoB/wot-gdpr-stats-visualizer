@@ -1,0 +1,114 @@
+# 06-09 fixture city CSV. Documentation ranges only (RFC 5737, RFC 3849) —
+# no real address of any kind appears in this file (D-17).
+#
+# The layout is the real DB-IP city layout, quoted fields and all:
+#   start,end,continent,CC,state,city,latitude,longitude
+# The planet and the two coordinate columns are never read into the container —
+# the map is country-level and stays that way (D-16) — so they are here to make
+# the parser meet the real shape, not because anything uses them.
+#
+# The IPv4 blocks are the SAME /27s as `country-fixture.csv`, mapped to cities
+# in the SAME countries, so a city answer and a country answer about one
+# address are two statements about one fact. Four of them are deliberate:
+#   * 198.51.100.0/27 has a country and NO city name, which is the `noCityAddresses`
+#     case — the real DB-IP file has five such rows and dropping them would tell
+#     the user "no record" about a prefix the database does describe;
+#   * 198.51.100.128/27 names a city containing an ESCAPED QUOTE, and
+#     203.0.113.64/27 one containing a COMMA, because DB-IP quotes both and a
+#     plain `split(',')` would turn one city into four columns;
+#   * 203.0.113.224/27 is deliberately ABSENT — it is the block the country
+#     fixture reserves as explicit unknown, so it is the address that proves an
+#     uncovered prefix resolves to "no city record" rather than to whatever
+#     happened to be laid out next to it.
+#
+# 198.51.100.32/28 and 198.51.100.48/28 are two adjacent blocks of ONE country
+# carrying DIFFERENT cities, so the merge pass has adjacent same-country rows
+# to keep apart.
+#
+# The 2001:db8::/32 section is sixty /48s, one city each, so the ranked list
+# has more places than `MAX_CITY_LIST` (50) and the cap has something to bite.
+start,end,continent,CC,state,city,latitude,longitude
+192.0.2.0,192.0.2.31,EU,DE,Bayern,"München",48.14,11.58
+192.0.2.32,192.0.2.63,EU,FR,Île-de-France,Paris,48.86,2.35
+192.0.2.64,192.0.2.95,AS,JP,Tokyo,Tokyo,35.69,139.69
+192.0.2.96,192.0.2.127,AS,SG,Singapore,Singapore,1.35,103.82
+192.0.2.128,192.0.2.159,SA,BR,São Paulo,"São Paulo",-23.55,-46.63
+192.0.2.160,192.0.2.191,NA,US,California,Los Angeles,34.05,-118.24
+192.0.2.192,192.0.2.223,EU,PL,Mazowieckie,Warsaw,52.23,21.01
+192.0.2.224,192.0.2.255,EU,GB,England,London,51.51,-0.13
+198.51.100.0,198.51.100.31,OC,AU,Victoria,,-37.81,144.96
+198.51.100.32,198.51.100.47,NA,CA,Ontario,Toronto,43.65,-79.38
+198.51.100.48,198.51.100.63,NA,CA,Quebec,Montreal,45.5,-73.57
+198.51.100.64,198.51.100.95,AS,IN,Maharashtra,Mumbai,19.08,72.88
+198.51.100.96,198.51.100.127,EU,GI,,Gibraltar,36.14,-5.35
+198.51.100.128,198.51.100.159,EU,NL,,"Utrecht""s Helling",52.09,5.12
+198.51.100.160,198.51.100.191,EU,ES,Catalonia,Barcelona,41.39,2.17
+198.51.100.192,198.51.100.223,EU,IT,Lazio,Rome,41.9,12.5
+198.51.100.224,198.51.100.255,EU,SE,Stockholm,Stockholm,59.33,18.07
+203.0.113.0,203.0.113.31,AS,CN,Beijing,Beijing,39.9,116.41
+203.0.113.32,203.0.113.63,AS,KR,Seoul,Seoul,37.57,126.98
+203.0.113.64,203.0.113.95,NA,MX,Jalisco,"Zapopan, Jalisco",20.72,-103.46
+203.0.113.96,203.0.113.127,AF,ZA,Gauteng,Johannesburg,-26.2,28.05
+203.0.113.128,203.0.113.159,AF,NG,Lagos,Lagos,6.45,3.4
+203.0.113.160,203.0.113.191,SA,AR,Buenos Aires,Buenos Aires,-34.6,-58.38
+203.0.113.192,203.0.113.223,EU,FI,Uusimaa,Helsinki,60.17,24.94
+2001:db8:0000::,2001:db8:0000:ffff:ffff:ffff:ffff:ffff,EU,DE,Bayern,Nürnberg,49.45,11.08
+2001:db8:0001::,2001:db8:0001:ffff:ffff:ffff:ffff:ffff,EU,FR,Bretagne,Brest,48.39,-4.49
+2001:db8:0002::,2001:db8:0002:ffff:ffff:ffff:ffff:ffff,AS,JP,Osaka,Osaka,34.69,135.5
+2001:db8:0003::,2001:db8:0003:ffff:ffff:ffff:ffff:ffff,SG,Singapore,Singapore,Tampines,1.35,103.94
+2001:db8:0004::,2001:db8:0004:ffff:ffff:ffff:ffff:ffff,SA,BR,Bahia,Salvador,-12.97,-38.51
+2001:db8:0005::,2001:db8:0005:ffff:ffff:ffff:ffff:ffff,NA,US,New York,New York,40.71,-74.01
+2001:db8:0006::,2001:db8:0006:ffff:ffff:ffff:ffff:ffff,EU,PL,Pomorskie,Gdańsk,54.35,18.65
+2001:db8:0007::,2001:db8:0007:ffff:ffff:ffff:ffff:ffff,EU,GB,Scotland,Edinburgh,55.95,-3.19
+2001:db8:0008::,2001:db8:0008:ffff:ffff:ffff:ffff:ffff,OC,AU,Queensland,Brisbane,-27.47,153.03
+2001:db8:0009::,2001:db8:0009:ffff:ffff:ffff:ffff:ffff,NA,CA,Nova Scotia,Halifax,44.65,-63.58
+2001:db8:000a::,2001:db8:000a:ffff:ffff:ffff:ffff:ffff,EU,DE,Sachsen,Dresden,51.05,13.74
+2001:db8:000b::,2001:db8:000b:ffff:ffff:ffff:ffff:ffff,EU,FR,Occitanie,Toulouse,43.6,1.44
+2001:db8:000c::,2001:db8:000c:ffff:ffff:ffff:ffff:ffff,AS,JP,Kyoto,Kyoto,35.01,135.77
+2001:db8:000d::,2001:db8:000d:ffff:ffff:ffff:ffff:ffff,SG,Singapore,Singapore,Jurong,1.33,103.71
+2001:db8:000e::,2001:db8:000e:ffff:ffff:ffff:ffff:ffff,SA,BR,Paraná,Curitiba,-25.43,-49.27
+2001:db8:000f::,2001:db8:000f:ffff:ffff:ffff:ffff:ffff,NA,US,Texas,Austin,30.27,-97.74
+2001:db8:0010::,2001:db8:0010:ffff:ffff:ffff:ffff:ffff,EU,PL,Małopolskie,Kraków,50.06,19.94
+2001:db8:0011::,2001:db8:0011:ffff:ffff:ffff:ffff:ffff,EU,GB,Wales,Cardiff,51.48,-3.18
+2001:db8:0012::,2001:db8:0012:ffff:ffff:ffff:ffff:ffff,OC,AU,New South Wales,Sydney,-33.87,151.21
+2001:db8:0013::,2001:db8:0013:ffff:ffff:ffff:ffff:ffff,NA,CA,Alberta,Calgary,51.05,-114.07
+2001:db8:0014::,2001:db8:0014:ffff:ffff:ffff:ffff:ffff,EU,DE,Hamburg,Hamburg,53.55,9.99
+2001:db8:0015::,2001:db8:0015:ffff:ffff:ffff:ffff:ffff,EU,FR,Provence,Marseille,43.3,5.37
+2001:db8:0016::,2001:db8:0016:ffff:ffff:ffff:ffff:ffff,AS,JP,Chiba,Chiba,35.6,140.12
+2001:db8:0017::,2001:db8:0017:ffff:ffff:ffff:ffff:ffff,SG,Singapore,Singapore,Woodlands,1.44,103.79
+2001:db8:0018::,2001:db8:0018:ffff:ffff:ffff:ffff:ffff,SA,BR,Rio de Janeiro,Rio de Janeiro,-22.91,-43.17
+2001:db8:0019::,2001:db8:0019:ffff:ffff:ffff:ffff:ffff,NA,US,Illinois,Chicago,41.88,-87.63
+2001:db8:001a::,2001:db8:001a:ffff:ffff:ffff:ffff:ffff,EU,PL,Dolnośląskie,Wrocław,51.11,17.04
+2001:db8:001b::,2001:db8:001b:ffff:ffff:ffff:ffff:ffff,EU,GB,Northern Ireland,Belfast,54.6,-5.93
+2001:db8:001c::,2001:db8:001c:ffff:ffff:ffff:ffff:ffff,OC,AU,Victoria,Geelong,-38.15,144.36
+2001:db8:001d::,2001:db8:001d:ffff:ffff:ffff:ffff:ffff,EU,FR,Occitanie,Nîmes,43.84,4.36
+2001:db8:001e::,2001:db8:001e:ffff:ffff:ffff:ffff:ffff,AS,JP,Hokkaido,Sapporo,43.06,141.35
+2001:db8:001f::,2001:db8:001f:ffff:ffff:ffff:ffff:ffff,EU,FR,Normandy,Rouen,49.44,1.1
+2001:db8:0020::,2001:db8:0020:ffff:ffff:ffff:ffff:ffff,AS,JP,Fukuoka,Fukuoka,33.59,130.4
+2001:db8:0021::,2001:db8:0021:ffff:ffff:ffff:ffff:ffff,SG,Singapore,Singapore,Punggol,1.4,103.91
+2001:db8:0022::,2001:db8:0022:ffff:ffff:ffff:ffff:ffff,SA,BR,Pernambuco,Recife,-8.05,-34.88
+2001:db8:0023::,2001:db8:0023:ffff:ffff:ffff:ffff:ffff,NA,US,Washington,Seattle,47.61,-122.33
+2001:db8:0024::,2001:db8:0024:ffff:ffff:ffff:ffff:ffff,EU,PL,Wielkopolskie,Poznań,52.41,16.93
+2001:db8:0025::,2001:db8:0025:ffff:ffff:ffff:ffff:ffff,EU,GB,Yorkshire,Leeds,53.8,-1.55
+2001:db8:0026::,2001:db8:0026:ffff:ffff:ffff:ffff:ffff,OC,AU,South Australia,Adelaide,-34.93,138.6
+2001:db8:0027::,2001:db8:0027:ffff:ffff:ffff:ffff:ffff,NA,CA,Brit Columbia,Vancouver,49.28,-123.12
+2001:db8:0028::,2001:db8:0028:ffff:ffff:ffff:ffff:ffff,EU,DE,Nordrhein-Westfalen,Köln,50.94,6.96
+2001:db8:0029::,2001:db8:0029:ffff:ffff:ffff:ffff:ffff,EU,FR,Auvergne,Lyon,45.76,4.84
+2001:db8:002a::,2001:db8:002a:ffff:ffff:ffff:ffff:ffff,AS,JP,Kanagawa,Yokohama,35.44,139.64
+2001:db8:002b::,2001:db8:002b:ffff:ffff:ffff:ffff:ffff,SG,Singapore,Singapore,Ang Mo Kio,1.37,103.85
+2001:db8:002c::,2001:db8:002c:ffff:ffff:ffff:ffff:ffff,SA,BR,Amazonas,Manaus,-3.12,-60.02
+2001:db8:002d::,2001:db8:002d:ffff:ffff:ffff:ffff:ffff,NA,US,Massachusetts,Boston,42.36,-71.06
+2001:db8:002e::,2001:db8:002e:ffff:ffff:ffff:ffff:ffff,EU,PL,Śląskie,Katowice,50.26,19.02
+2001:db8:002f::,2001:db8:002f:ffff:ffff:ffff:ffff:ffff,EU,GB,Scotland,Aberdeen,57.15,-2.09
+2001:db8:0030::,2001:db8:0030:ffff:ffff:ffff:ffff:ffff,OC,AU,Tasmania,Hobart,-42.88,147.33
+2001:db8:0031::,2001:db8:0031:ffff:ffff:ffff:ffff:ffff,NA,CA,Québec,Saguenay,48.42,-71.06
+2001:db8:0032::,2001:db8:0032:ffff:ffff:ffff:ffff:ffff,EU,DE,Rheinland-Pfalz,Mainz,49.99,8.27
+2001:db8:0033::,2001:db8:0033:ffff:ffff:ffff:ffff:ffff,EU,FR,Bretagne,Quimper,47.99,-4.1
+2001:db8:0034::,2001:db8:0034:ffff:ffff:ffff:ffff:ffff,AS,JP,Okayama,Okayama,34.66,133.93
+2001:db8:0035::,2001:db8:0035:ffff:ffff:ffff:ffff:ffff,SG,Singapore,Singapore,Bukit Batok,1.35,103.75
+2001:db8:0036::,2001:db8:0036:ffff:ffff:ffff:ffff:ffff,SA,BR,Ceará,Fortaleza,-3.73,-38.53
+2001:db8:0037::,2001:db8:0037:ffff:ffff:ffff:ffff:ffff,NA,US,Colorado,Denver,39.74,-104.99
+2001:db8:0038::,2001:db8:0038:ffff:ffff:ffff:ffff:ffff,EU,PL,Lubelskie,Lublin,51.25,22.57
+2001:db8:0039::,2001:db8:0039:ffff:ffff:ffff:ffff:ffff,EU,GB,Merseyside,Liverpool,53.41,-2.98
+2001:db8:003a::,2001:db8:003a:ffff:ffff:ffff:ffff:ffff,OC,AU,Northern Territory,Darwin,-12.46,130.84
+2001:db8:003b::,2001:db8:003b:ffff:ffff:ffff:ffff:ffff,NA,CA,Ontario,Ottawa,45.42,-75.7

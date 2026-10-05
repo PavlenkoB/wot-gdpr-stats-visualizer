@@ -8,19 +8,19 @@ A browser-only, zero-backend tool that turns a Wargaming GDPR personal-data expo
 
 ## Core Value
 
-Your data never leaves your machine. Every other decision — architecture, library choices, feature scope — is subordinate to keeping this verifiably true (zero network requests post-load, enforced by CI and a CSP).
+Your data never leaves your machine. Every other decision — architecture, library choices, feature scope — is subordinate to keeping this verifiably true (zero network requests post-load, with one sanctioned exception: the opt-in city-level file; enforced by CI and an ESLint network ban, with a CSP as defence in depth).
 
 ## Requirements
 
 ### Validated
 
 - ✓ Activity_history: total hours/sessions/active days, calendar heatmap (year-by-year), day-of-week × hour-of-day heatmap, session-duration distribution — Phase 4 (real per-game session files WOT/WOTB/WOWS_Game_Sessions.csv supported; legacy Sessions.csv still accepted)
+- ✓ Activity_history: login-IP history table, masked by default with one global click-to-reveal toggle, with offline country-level geolocation (bundled DB-IP Lite range table, no live geo API) on a bundled world map, and city-level detail as an explicit opt-in download that is never fetched by default — Phase 6 (ACTIVITY-05, ACTIVITY-06, ACTIVITY-07)
 
 ### Active
 
 - [ ] User can drag-and-drop a Wargaming GDPR export `.zip` and have it parsed entirely client-side
 - [ ] App auto-detects the zip's root/category-folder structure rather than assuming a fixed layout
-- [ ] Activity_history: login-IP history table with country-level geolocation (offline, bundled dataset — no live geo API) and a world-map visualization; city-level geolocation available as an explicit opt-in lazy-load (much larger dataset, never downloaded by default)
 - [ ] Player_statistics: per-vehicle battle stats (win rate, damage, battles, etc.) across WoT, WoT Blitz, World of Warships, and World of Warplanes
 - [ ] Financial_data: premium-time operations and virtual-currency flow timelines
 - [ ] Parsed data is cached in IndexedDB so re-uploading isn't needed on repeat visits; re-uploading the same zip is detected (hash) and skipped; uploading a *different* zip replaces the current dataset (single active dataset, not multi-account storage)
@@ -32,7 +32,6 @@ Your data never leaves your machine. Every other decision — architecture, libr
 - [ ] Deployed as a static site to GitHub Pages via GitHub Actions
 - [ ] Account identity header at the top of the dashboard (nickname, region, account-created date from `User_Info`) — email address (the `LOGIN` field) is deliberately omitted from display even though it never leaves the device
 - [ ] Financial_data includes a real-money spend summary from `Payment_history`, totaled **per currency** (the real data spans USD/RUB/UAH in one account) — never blended into one converted number, since any conversion needs a live or hardcoded FX rate, both rejected
-- [ ] Login-IP history table is masked by default (e.g. last octet hidden) with a click-to-reveal toggle, not shown plaintext by default
 - [ ] A discoverable "clear my cached data" control ships in the same phase as IndexedDB caching, not bolted on later — nothing currently wipes the unencrypted-on-disk cache otherwise
 
 ### Out of Scope
@@ -64,7 +63,7 @@ Your data never leaves your machine. Every other decision — architecture, libr
 
 ## Constraints
 
-- **Privacy**: No backend, no API calls, no analytics, zero network requests after page load — this is the product's entire reason to exist, not a nice-to-have.
+- **Privacy**: No backend, no API calls, no analytics, zero network requests after page load (the single exception is the opt-in, same-origin city-level geo file) — this is the product's entire reason to exist, not a nice-to-have.
 - **Tech stack**: Svelte 5 (runes-based reactivity, not legacy Svelte 4 patterns) + Vite + pnpm (not npm).
 - **No client-side router**: single dashboard page; avoids GitHub Pages' refresh-404 problem entirely.
 - **Deployment**: static site on GitHub Pages via the official `actions/deploy-pages` + `actions/upload-pages-artifact` GitHub Actions flow (not the older `gh-pages` npm package).
@@ -78,7 +77,7 @@ Your data never leaves your machine. Every other decision — architecture, libr
 - **Matched peer-dependency pairs to bump together, never independently**: `@sveltejs/vite-plugin-svelte@^7` requires Vite `^8` as a hard peer dependency; `actions/upload-pages-artifact@v4` pairs with `actions/deploy-pages@v4`.
 - **Web Worker lifecycle**: one long-lived Worker instance reused across uploads, not spawned per upload — required for the "single active dataset, replace on new upload" model to be race-free; paired with a main-thread busy-guard while a parse is in flight.
 - **Inside the pipeline worker**: use `Papa.parse({ worker: false })` and fflate's `unzipSync` — both PapaParse's own `worker: true` mode and fflate's async unzip spawn a *nested* worker, which is redundant (already off the main thread) and has documented friction (script-path resolution under bundlers, IPC stalls).
-- **Geo-map assets are build-time only**: `world-atlas` + `d3-geo`/`topojson-client` run in a Node build script to pre-generate static SVG/lookup assets; none of the three ship as runtime dependencies. Concrete geo-IP package: `@ip-location-db/dbip-country`.
+- **Geo-map assets are build-time only**: `world-atlas` + `d3-geo`/`topojson-client` run in a Node build script to pre-generate static SVG/lookup assets; none of the three ship as runtime dependencies. Concrete geo-IP source: the official monthly DB-IP downloads (`https://download.db-ip.com/free/dbip-{country,city}-lite-YYYY-MM.csv.gz`, CC BY 4.0), converted to a binary range table at build time; the deprecated `@ip-location-db/dbip-country` npm mirror is not installed (Phase 6, Decision 1).
 - **Chart aggregation at scale**: heatmaps/histograms must aggregate per-bucket (e.g. per-day, per-hour-cell), never render one SVG node per raw session/row — hundreds of thousands of individual nodes is a documented browser-freeze risk. Verify against a synthetic large-export fixture, since the only real sample inspected is small (~4,200 rows).
 
 ## Key Decisions
@@ -91,11 +90,15 @@ Your data never leaves your machine. Every other decision — architecture, libr
 | Web Worker pipeline (unzip → parse → Dexie writes) from day one | Cheap to design now (Vite has built-in worker support); expensive to retrofit later (would mean rewriting data-flow/message-passing boundaries) | — Pending |
 | Dexie 4 + bulkPut + zip-hash dedup + navigator.storage.persist() | Dexie 4 has Safari IndexedDB fixes; bulkPut avoids main-thread blocking on large inserts; hash-dedup skips re-parsing an already-loaded archive; storage.persist() reduces eviction risk | — Pending |
 | Hand-rolled SVG for all charts (no charting library) | All v1 chart types (heatmaps, histograms, per-vehicle bars, a currency timeline) are simple enough that libraries evaluated (uPlot, LayerChart, Chart.js) added bundle weight without saving meaningful boilerplate | — Pending |
-| Country-level offline geo-IP bundled by default (DB-IP Lite via `ip-location-db` mirror, pre-converted to a binary range table at build time, rendered on a bundled world-atlas SVG map); city-level offered as an explicit opt-in lazy-load (`dbip-city-lite`, same CC BY 4.0 license) rather than bundled or omitted | City-level databases run tens of MB — too large to force on every visitor by default, but the user explicitly wants the capability available; DB-IP Lite is CC BY 4.0 (one-line attribution, no account/key) at both tiers, cleaner than MaxMind GeoLite2's EULA (account-gated, 30-day destroy-old-versions obligation, redistribution flow-down clauses) | — Pending |
+| Country-level offline geo-IP bundled by default (DB-IP Lite from the official monthly downloads, pre-converted to a binary range table at build time, rendered on a bundled world-atlas SVG map); city-level offered as an explicit opt-in lazy-load (DB-IP `dbip-city-lite`, same CC BY 4.0 license) rather than bundled or omitted | City-level databases run tens of MB — too large to force on every visitor by default, but the user explicitly wants the capability available; DB-IP Lite is CC BY 4.0 (one-line attribution, no account/key) at both tiers, cleaner than MaxMind GeoLite2's EULA (account-gated, 30-day destroy-old-versions obligation, redistribution flow-down clauses). Revised in Phase 6: the `ip-location-db` npm mirror was dropped (deprecated, flagged by the package-legitimacy gate, stale data, no city counterpart) in favour of the official downloads, which serve both tiers from one source | ✓ Good — shipped Phase 6 (country table 3.4 MB raw / ~725 KB gzipped inlined in the worker chunk; city table 50.1 MB raw / 11.9 MB gzipped, opt-in) |
 | Bits UI for accessibility-heavy primitives (tabs, tooltip, popover); hand-roll buttons/layout/tables/dropzone | Bits UI is Svelte-5-native and headless (no Tailwind lock-in); the Svelte dropzone ecosystem is stale/not Svelte-5-ready, so hand-rolling beats adopting an unmaintained dependency | — Pending |
 | Vitest (unit/component) + Playwright (thin E2E smoke layer) | Vitest carries the real correctness burden (CSV-parsing quirks, component rendering); Playwright covers a handful of critical-path flows including a dedicated zero-network-requests CI assertion | — Pending |
 | Unscoped export categories shown as "detected but not supported yet" | Keeps them visible/honest without committing to building 10+ more dashboard sections in v1 | — Pending |
 | Single active dataset, replace on new upload | Simpler data model; multi-account storage deferred as a possible future direction | — Pending |
+| The city file is fetched on the main thread under `connect-src 'self'`, never in the worker (Phase 6, 06-09) | A meta CSP was measured to be blind to worker traffic: with `connect-src 'none'` a main-thread fetch was blocked but a module-worker fetch returned 200. So the CSP cannot restrict the one sanctioned request to the city asset and is defence in depth only; the real enforcement is the ESLint network ban (exactly one exempt file, `src/lib/geo/city-fetch.ts`, none under `src/lib/worker/**`) plus Playwright request assertions that prove which asset was fetched. The `connect-src 'none'` shipped before Phase 6 never governed worker traffic either | ✓ Good |
+| Browser tests see countries through a fixture table behind a build seam (`GEO_FIXTURE=1`, set only in `playwright.config.ts`) rather than committed real addresses (Phase 6, 06-06, D-17) | Documentation addresses resolve to unknown in the real table, so a real-table run could never shade a country; the seam keeps "no real address is committed" literally true and is the only way the 10,000-row per-country aggregation claim is meaningfully exercised | ✓ Good |
+| Capped logins still count toward the country figures (Phase 6, 06-03) | Drawn + not-drawn + unknown-country logins must sum to the tile total; only the listed rows are capped at 20,000 | ✓ Good |
+| No Dexie schema bump for the `logins` meta field; a stale aggregate is rebuilt lazily from stored rows keyed on `(v, geo)` (Phase 6, 06-01) | A version bump with the Phase 3 clearing upgrader would wipe every returning user's cached dataset; the stored rows still carry the IP column so the backfill is lossless | ✓ Good |
 
 ## Evolution
 
@@ -115,4 +118,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-10-01 after Phase 4*
+*Last updated: 2026-10-05 after Phase 6*

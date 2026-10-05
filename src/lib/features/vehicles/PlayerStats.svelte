@@ -148,8 +148,14 @@
       // The roll-back is gated twice — a SUPERSEDED answer must not pull the
       // request back over a newer one, and an ask that is no longer the
       // requested one must not rewrite it either.
+      //
+      // `wantedImportedAt !== null` narrows the stamp to a string for the
+      // else-branch below. `load` is only issued after the effect saw a dataset,
+      // which is also when the stamp is set, so a null here means no dataset was
+      // ever requested and there is nothing to roll back.
       if (
         outcome.kind !== 'superseded' &&
+        wantedImportedAt !== null &&
         wantedImportedAt === importedAt &&
         requestedMatches(ask)
       ) {
@@ -186,6 +192,18 @@
     } else {
       requested = { importedAt: ask.importedAt, title: ask.title, battleType: ask.battleType };
     }
+  }
+
+  /**
+   * The picker label for a column key, from the copy inventory.
+   *
+   * The same widening `VehicleTable.svelte`'s `headerLabel` uses: the inventory
+   * is a frozen object with known keys and a column key is a plain string. A key
+   * the copy does not name yet is shown as itself rather than as an empty label;
+   * `vehicle-blocks.test.ts` fails if a real view's column falls through here.
+   */
+  function columnLabel(key: string): string {
+    return (VEHICLE_COLUMN_LABELS as Record<string, string>)[key] ?? key;
   }
 
   /** The dataset the in-flight ask was made against, read at issue time. */
@@ -754,7 +772,7 @@
                   onchange={(event) =>
                     onExtraToggle(column.key, (event.currentTarget as HTMLInputElement).checked)}
                 />
-                <span>{VEHICLE_COLUMN_LABELS[column.key]}</span>
+                <span>{columnLabel(column.key)}</span>
               </label>
             {/each}
           </fieldset>

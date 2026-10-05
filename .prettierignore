@@ -4,3 +4,12 @@ pnpm-lock.yaml
 graphify-out/
 dist/
 **/*.md
+# Binary geo tables (06-04). `prettier --check .` walks the whole tree and
+# fails on a file it has no parser for, so the container and its fixtures are
+# excluded here rather than renamed to dodge the check.
+**/*.bin
+# The generated world map (06-07). One object per line, each carrying a
+# multi-hundred-character SVG path, so Prettier would either reflow 238 lines
+# into an unreadable diff or wrap every path across three. tsc and ESLint still
+# cover the file; only the formatter stands down.
+src/lib/geo/world-map.generated.ts

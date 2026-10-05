@@ -91,7 +91,23 @@ export default defineConfig({
   // 300 s. 05-14 raised all three for its eleven new specs, 05-15 for its ten,
   // and 05-16 for its six. The 330 s baseline is an ESTIMATE, and it is the
   // input most likely to be wrong.
-  globalTimeout: 25 * 60 * 1000,
+  //
+  // 26 min is 06-12's raise, for the country-map browser specs. 218 tests
+  // projected 1150 s and a floor of 1495 s against 1500 s; one more test failed
+  // the guard. The map specs add seven, so 225 tests project
+  // 330 + 5 * (225 - 96) + 210 = 1185 s, a floor of 1540.5 s, and
+  // ceil(1540.5 / 60) = 26 min. The wrapper is 28 min and the job 36 min, the
+  // same G + 2 and W + 8 relationship as before; 26 min holds up to 228 tests.
+  //
+  // 27 min is 06-14's raise, for the login scale spec and the Phase 6
+  // zero-network test. The scale spec is priced as a block, like the other two:
+  // five tests that share one 12,000-row import, measured at 4.2 s for the whole
+  // file and allowed 13 s (the runner factor the guard already uses, rounded
+  // up; an ESTIMATE until a CI run measures it). 234 tests project
+  // 330 + 5 * (234 - 86 - 5 - 5 - 5) + 120 + 90 + 13 = 1218 s, a floor of
+  // 1583.4 s, and ceil(1583.4 / 60) = 27 min. The wrapper is 29 min and the job
+  // 37 min, the same G + 2 and W + 8; 27 min holds up to 239 tests.
+  globalTimeout: 27 * 60 * 1000,
   timeout: 120000,
   webServer: {
     // Direct binary invocation (NOT `pnpm run build && pnpm run preview`).
@@ -109,5 +125,19 @@ export default defineConfig({
     url: 'http://localhost:4173',
     reuseExistingServer: false,
     timeout: 120000,
+    // The ONE place in this repository that selects the geo fixture table.
+    // Every RFC 5737 / RFC 3849 documentation address is `ZZ` in the real
+    // DB-IP data, so the browser fixtures would otherwise shade no country at
+    // all (D-17, RESEARCH Pitfall 2). The recorded checkpoint decision
+    // (option-a) keeps D-17's "no real IPs committed" literally true and points
+    // the build at the committed 377-byte fixture instead — see
+    // `scripts/geo/lib/geo-alias.ts`.
+    //
+    // `env` MERGES with `process.env` rather than replacing it, so the build
+    // and the preview inherit this AND the developer's own environment; that is
+    // why `playwright.config.ts` gaining a stray `GEO_FIXTURE` outside this
+    // object would be a defect, and `tests/unit/guards/geo-seam.test.ts` reads
+    // the file to prove it does not.
+    env: { GEO_FIXTURE: '1' },
   },
 });

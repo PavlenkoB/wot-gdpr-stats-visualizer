@@ -207,6 +207,103 @@ export function playerStatsBlock(page: Page): Locator {
   return page.getByTestId('player-stats');
 }
 
+// =============================================================================
+// Phase 6 — the login block's locators and the failing-query helper (plan 06-08)
+// =============================================================================
+//
+// Declared HERE, all of them at once, and NOT added to as the later Phase 6
+// plans land. The reason is the one 05-10 recorded for its own five: plans
+// 06-10, 06-12 and 06-13 build the table, the map and the city opt-in, and a
+// locator added by one of them would be a file the other two also edit. One
+// owner, one commit, no merge conflict in a test helper.
+//
+// Each is a one-line wrapper returning one locator, and NONE of them asserts a
+// value — the expected numbers come from `tests/fixtures/logins-fixtures.ts` as
+// literals, computed through the `ui-copy` formatters. A locator that returned a
+// reading from the page would let an expectation be computed from the thing it
+// is meant to check.
+//
+// Five of these six are for surfaces plans 06-10 to 06-13 build, so they are
+// declared here and return a locator that currently matches nothing. That is
+// deliberate and harmless: a locator that resolves to zero elements fails the
+// assertion that uses it, exactly as it should, rather than being written later
+// in a file two plans share.
+
+/**
+ * The Login history block, the element that carries `data-state` (06-08).
+ *
+ * The one locator a test names to read the block's state in a single step, so
+ * it cannot accidentally match a `login-*` hook belonging to a sub-block.
+ */
+export function loginHistoryBlock(page: Page): Locator {
+  return page.getByTestId('login-history');
+}
+
+/** The IP table itself (plan 06-10). */
+export function loginTable(page: Page): Locator {
+  return page.getByTestId('login-table');
+}
+
+/** The table's scroller, the one focus stop for both axes (plan 06-10). */
+export function loginScroller(page: Page): Locator {
+  return page.getByTestId('login-scroller');
+}
+
+/** The world map's `<svg>` (plan 06-12). */
+export function loginMap(page: Page): Locator {
+  return page.getByTestId('login-map');
+}
+
+/** The collapsible ranked country list (plan 06-12). */
+export function countryList(page: Page): Locator {
+  return page.getByTestId('country-list');
+}
+
+/** The city-level opt-in block, the element that carries `data-state` (plan 06-13). */
+export function cityOptIn(page: Page): Locator {
+  return page.getByTestId('city-optin');
+}
+
+/**
+ * Make the post of every `data-query` for the `logins` channel throw.
+ *
+ * The same seam as `failPlaytimeQueryFor`, and the same reasoning: a query that
+ * cannot be asked is a state the block renders, so this is the real path and
+ * not a stub of the worker — `QueryClient.query` already wraps its post in a
+ * `try`/`catch` and turns a throw into `{ kind: 'error' }` (05-07, D-21). A
+ * structured-clone failure is a real thing a `postMessage` can do, and it is
+ * the cheapest way to reach the block's `error` state from a browser.
+ *
+ * It matches on the CHANNEL rather than on a call counter, so the test does not
+ * depend on how many queries the page happened to make first: the Financial,
+ * Player statistics and Spend blocks all post `data-query` messages too, and
+ * only the login one is made to fail.
+ *
+ * MUST be called before the first navigation, because the worker is spawned
+ * during module init and the client posts through the prototype this wraps.
+ */
+export async function failLoginsQuery(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const original = Worker.prototype.postMessage;
+    Worker.prototype.postMessage = function patched(
+      this: Worker,
+      message: unknown,
+      ...rest: unknown[]
+    ) {
+      const query =
+        typeof message === 'object' && message !== null
+          ? (message as { type?: unknown; query?: { channel?: unknown } })
+          : null;
+      if (query?.type === 'data-query' && query.query?.channel === 'logins') {
+        // The app never reads the thrown value (D-21), so nothing here can
+        // reach the DOM; the console is the only place it exists.
+        throw new Error('synthetic post failure');
+      }
+      original.apply(this, [message, ...rest] as never);
+    };
+  });
+}
+
 /**
  * The `Financial_data` card, the section whose dashboard holds both sub-blocks.
  *

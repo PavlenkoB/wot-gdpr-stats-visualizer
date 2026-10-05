@@ -825,3 +825,134 @@ describe('05-22 amendments appendix', () => {
     expect(contract()).toContain('then every 12 months (every 24 when the pitch is 4px)');
   });
 });
+
+// =============================================================================
+// The country map's shading — the same six steps, now on a logarithmic scale
+// (06-12, D-09, 06-UI-SPEC Color "Map shading")
+// =============================================================================
+//
+// Phase 6 reuses the Activity ramp for the login map, so there is no new colour
+// to pin. What IS new is a table of six ratios in the Phase 6 spec that a reader
+// takes on trust, and a component that has to read the tokens rather than
+// restate them. Four directions, for the reason the Phase 4 block gives:
+//
+//   1. SPEC -> CODE: the six values the Phase 6 table lists are the six
+//      `--ramp-N` declarations in `src/app.css`.
+//   2. RATIONALE -> CODE: each ratio the table records is recomputed from the
+//      shipped hex, to the two decimals it is recorded in.
+//   3. CODE -> FLOOR: lightness is strictly monotonic, the only channel that
+//      carries "more logins" once the scale is logarithmic.
+//   4. COMPONENT -> TOKEN: the map reads `var(--ramp-N)` for every level and
+//      restates none of the six hex values. The map lives under
+//      `features/logins`, which the shared component helper does not list, so it
+//      is read by its own path rather than by editing that helper.
+// =============================================================================
+
+const PHASE6_UI_SPEC = readFileSync(
+  path.join(REPO_ROOT, '.planning/phases/06-login-ip-history-offline-geolocation/06-UI-SPEC.md'),
+  'utf8',
+);
+
+/** One row of the Phase 6 "Map shading" table: level, hex, and the recorded ratio. */
+type MapShade = { level: number; token: string; hex: string; onWhite: number };
+
+/**
+ * The six rows of the Phase 6 Map shading table.
+ *
+ * Matched on the `--ramp-N` token in the second cell, so a number from another
+ * table in the same file cannot be picked up, and the level sequence is asserted
+ * to be 0 to 5 so a re-ordered or duplicated row is a failure and not a shorter
+ * ramp.
+ */
+function phase6Shades(): MapShade[] {
+  const rows = PHASE6_UI_SPEC.split('\n').filter((line) =>
+    /^\|\s*[0-5]\s*\|\s*`--ramp-[0-5]`/.test(line),
+  );
+  const shades = rows.map((row): MapShade => {
+    const cells = row.split('|').slice(1, -1);
+    const hex = cells[2]?.match(/#[0-9a-f]{6}/i)?.[0];
+    if (hex === undefined) throw new Error(`map shading row declares no hex colour: ${row}`);
+    return {
+      level: Number(cells[0]?.trim()),
+      token: cells[1]?.replace(/`/g, '').trim() ?? '',
+      hex: hex.toLowerCase(),
+      onWhite: Number.parseFloat(cells[3]?.trim() ?? ''),
+    };
+  });
+  if (shades.length !== 6) {
+    throw new Error(`expected 6 map shading rows in 06-UI-SPEC, found ${shades.length}`);
+  }
+  shades.forEach((shade, index) => {
+    if (shade.level !== index)
+      throw new Error(`map shading row ${index} declares level ${shade.level}`);
+  });
+  return shades;
+}
+
+describe('the login map ramp pairs (06-UI-SPEC Color, Map shading)', () => {
+  test('the six pairs the spec records are the six shipped declarations, token for token', () => {
+    const css = appCssRamp();
+    for (const shade of phase6Shades()) {
+      expect(shade.token).toBe(`--ramp-${shade.level}`);
+      expect(css.get(shade.level)).toBe(shade.hex);
+    }
+  });
+
+  test('every recorded ratio on white is true of the shipped hex', () => {
+    const recorded = phase6Shades().map((shade) => shade.onWhite);
+    // The values the contract states, written out so a spec edit that keeps the
+    // table self-consistent but changes the claim still fails here.
+    expect(recorded).toEqual([1.14, 1.49, 1.95, 2.87, 5.13, 9.38]);
+    for (const [level, ratio] of recorded.entries()) {
+      const hex = appCssRamp().get(level) as string;
+      expect(contrastRatio(hex, '#ffffff')).toBeCloseTo(ratio, 2);
+    }
+  });
+
+  test('lightness is strictly monotonic, so a darker country always means more logins', () => {
+    const luminances = [0, 1, 2, 3, 4, 5].map((level) =>
+      relativeLuminance(appCssRamp().get(level) as string),
+    );
+    for (let i = 1; i < luminances.length; i += 1) {
+      expect(luminances[i]).toBeLessThan(luminances[i - 1]!);
+    }
+  });
+
+  test('steps 1 to 3 sit below the 3:1 non-text floor, which is why no shade is the only carrier', () => {
+    // The relief rule is invoked because of exactly this: if a future ramp
+    // cleared the floor, the text-equivalents would still be required, but the
+    // spec's stated reason for them would be false.
+    for (const level of [1, 2, 3]) {
+      expect(contrastRatio(appCssRamp().get(level) as string, '#ffffff')).toBeLessThan(3);
+    }
+    for (const level of [4, 5]) {
+      expect(contrastRatio(appCssRamp().get(level) as string, '#ffffff')).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  test('the map component reads var(--ramp-N) for every level and restates no ramp hex', () => {
+    const source = readFileSync(
+      path.join(REPO_ROOT, 'src/lib/features/logins/WorldMap.svelte'),
+      'utf8',
+    );
+    for (let level = 0; level <= 5; level += 1) {
+      expect(source).toContain(`var(--ramp-${level})`);
+    }
+    for (const shade of phase6Shades()) {
+      expect(source.toLowerCase(), `WorldMap restates ${shade.hex}`).not.toContain(shade.hex);
+    }
+  });
+
+  test('the legend reuses the shared component, whose swatches read the same tokens', () => {
+    const legend = readFileSync(path.join(REPO_ROOT, 'src/lib/charts/ChartLegend.svelte'), 'utf8');
+    for (let level = 0; level <= 5; level += 1) {
+      expect(legend).toContain(`var(--ramp-${level})`);
+    }
+    const section = readFileSync(
+      path.join(REPO_ROOT, 'src/lib/features/logins/LoginMapSection.svelte'),
+      'utf8',
+    );
+    expect(section).toContain('<ChartLegend');
+    expect(section).toContain('testId="map-legend"');
+  });
+});

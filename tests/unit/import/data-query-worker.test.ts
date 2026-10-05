@@ -40,6 +40,7 @@ import type {
   VehicleRowData,
   VehicleView,
 } from '../../../src/lib/features/vehicles/vehicle-shared.ts';
+import type { LoginsView } from '../../../src/lib/features/logins/login-shared.ts';
 import type {
   DataQuery,
   IngestRequest,
@@ -299,15 +300,23 @@ function dataResult(
 /**
  * The view a successful reply carried, after checking it is the RIGHT one.
  *
- * The return type is the union of the four view shapes rather than a
+ * The return type is the union of the view shapes rather than a
  * channel-generic one: a call site that reads a shape's fields says which
  * shape it expects, and the channel check above is what has already proved the
  * reply belongs to the question that was asked.
+ *
+ * `LoginsView` joined that union in 06-01, when the `logins` channel was added
+ * to `DataResult`. This file never asks for it — `logins-worker.test.ts` owns
+ * that channel — but the parameter is typed by `DataQuery['channel']`, so a
+ * signature that still named four shapes would not type-check the moment
+ * anything did. The `logins` channel's own tests live elsewhere, deliberately:
+ * this file's subject is the four channels that read FILES, and `logins` reads
+ * the meta record instead (D-12).
  */
 function viewOf(
   reply: Extract<IngestResponse, { type: 'data-result' | 'data-error' }>,
   channel: DataQuery['channel'],
-): PremiumView | CurrencyView | SpendView | VehicleView {
+): PremiumView | CurrencyView | SpendView | VehicleView | LoginsView {
   const result = dataResult(reply).result;
   if (result === null) throw new Error(`expected a ${channel} result, got null`);
   if (result.channel !== channel) {

@@ -60,7 +60,9 @@ The driver:
    (`SESSION_START;SESSION_END;CLIENT_BUILD;CLIENT_PLATFORM;SERVER_NAME;IP`),
    30 usable sessions over 21 days in three servers (EU1, EU2, NA1), plus one
    row with an empty end that the aggregator counts as excluded. A two-column
-   file is classified `no-usable-sessions`, so the shape is load-bearing.
+   file is classified `no-usable-sessions`, so the shape is load-bearing. Its
+   `Logins.csv` carries the four real columns and six rows over three RFC 5737
+   documentation addresses, so the Login history block reaches `ready`.
 4. Captures the processing paragraph (the spinner + per-stage text, in
    the import bar's notice slot), then the dashboard: the identity
    header (nickname + `Account ID: …`), one card per supported section
@@ -69,10 +71,21 @@ The driver:
    three tile texts, the selector's option count and the calendar-cell,
    hour-cell and duration-bin counts, then screenshots it. TILE TEXT AND
    COUNTS ONLY — no CSV row and no address ever reaches the log.
-6. Clicks Start over, screenshots its confirmation panel, confirms, and
+6. Waits for the Login history block, logs its `data-state`, the six tile texts
+   (the most-used address is masked, and the driver never presses the reveal
+   control), the `login-row` and `login-country` counts and the city opt-in's
+   `data-state`, then screenshots it. Against the PRODUCTION country table the
+   documentation addresses are reserved space, so the demo reads `ready` with 3
+   addresses, 0 countries and 3 unknown. On a build with no city file the
+   opt-in reads `unavailable` and makes no request.
+7. Clicks Start over, screenshots its confirmation panel, confirms, and
    screenshots the re-armed full-variant bar.
-7. Drops a `readme.txt` to demonstrate the failure banner.
-8. Closes the browser.
+8. Drops a `readme.txt` to demonstrate the failure banner.
+9. Logs `requests after load: N`, the number of requests made after the
+   initial-load baseline (the worker script and module graph are inside the
+   baseline). It must be 0: the opt-in is never pressed here, so even its one
+   sanctioned request is not made. A count only, never a URL.
+10. Closes the browser.
 
 Screenshots land in `/tmp/wot-viewer-shots/`:
 
@@ -81,6 +94,7 @@ Screenshots land in `/tmp/wot-viewer-shots/`:
 02-processing.png       (may be skipped if processing is faster than the screenshot grab)
 03-dashboard.png
 03b-playtime.png
+03c-logins.png
 04-start-over-confirm.png
 05-start-over-cleared.png
 06-failure-banner.png
@@ -168,10 +182,22 @@ Node 26.10) imports `.ts` files directly. Verified working with a plain
 - **`dist/` is gitignored** — every fresh checkout needs
   `pnpm run build` before `pnpm run preview`. Dev server (`pnpm run
   dev`) doesn't need it.
-- **CSP blocks `connect-src`** — the served HTML has
-  `default-src 'self'; connect-src 'none'`. No fetch/XHR/WS to anywhere.
-  Verified by `tests/e2e/guards/zero-network.spec.ts`. Don't try to call an
-  external API from the app.
+- **CSP is `connect-src 'self'`, and it is defence in depth only** — the
+  served HTML has `default-src 'self'; connect-src 'self'; object-src 'none';
+  base-uri 'none'; form-action 'none'`. The ONLY network request the app may
+  ever make after load is the single opt-in same-origin GET for the city
+  dataset (`geo-city-data/<file>.citydb.bin`), after an explicit click, from
+  the main thread (`src/lib/geo/city-fetch.ts`). Nothing else is permitted:
+  no other request, no third-party host, no analytics, no live geo lookup.
+  The CSP does NOT enforce that on its own: a meta CSP is blind to worker
+  traffic (measured: a module-worker fetch returned 200 under
+  `connect-src 'none'`), and a `'self'` host source cannot be restricted to a
+  path. The real enforcement is the ESLint network ban (`src/lib/geo/` and
+  `src/lib/worker/`, with `city-fetch.ts` the one exempt file; a source scan
+  in `tests/unit/guards/fetch-scan.test.ts` counts exactly one call site) and
+  the Playwright request counting in `tests/e2e/guards/zero-network.spec.ts`,
+  where Playwright DOES see a worker's requests. Don't call an external API
+  from the app.
 - **Real exports are PII** — `tests/fixtures/README.md` records the
   `fixture=synthetic` policy. Never commit a real Wargaming zip; drop
   it from anywhere outside the repo into the running app to verify the

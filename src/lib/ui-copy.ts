@@ -992,12 +992,15 @@ export function formatHourGridLegendNote(darkestSeconds: number | null): string 
  * because "0%" next to a non-zero count says the sessions did not happen.
  * An empty bin is the one case that is genuinely zero, and it reads `0` alone
  * rather than "0 · 0%".
+ *
+ * The share itself comes from `formatSharePercent`, shared with the Phase 6
+ * login copy since 06-02: the under-half-percent rule is one rule across the
+ * app, and two implementations of it is how a page ends up with `0%` beside a
+ * non-zero count in one card and `<1%` in another.
  */
 export function formatDurationRowText(count: number, sessions: number): string {
   if (count === 0) return '0';
-  const share = sessions > 0 ? (count / sessions) * 100 : 0;
-  const percent = share < 0.5 ? '<1' : String(Math.round(share));
-  return `${formatNumber(count)} · ${percent}%`;
+  return `${formatNumber(count)} · ${formatSharePercent(count, sessions)}%`;
 }
 
 /**
@@ -2139,4 +2142,815 @@ export function formatPaidOrders(n: number, locale?: string): string {
  */
 export function formatGiftLine(count: number, worth: string): string {
   return `Includes ${formatNumber(count)} gift order${count === 1 ? '' : 's'} worth ${worth}.`;
+}
+
+// =============================================================================
+// Phase 6 — Login history copy and formatters (06-02-PLAN Task 3)
+// =============================================================================
+//
+// One row of 06-UI-SPEC's Copywriting Contract per constant, and the doc
+// comment names that row. Nothing here returns markup (D-04/D-21): untrusted
+// export data is interpolated by the renderer, so a formatter that built a tag
+// would be the only place in the app that did.
+//
+// The inventory lives in this one plan so that the four capability plans
+// (06-08, 06-10, 06-12, 06-13) read these strings and never edit this file.
+// =============================================================================
+
+/**
+ * The city download's Cancel button. 06-UI-SPEC Copywriting Contract, "City
+ * button and Cancel" row.
+ *
+ * **Decision (06-02 execution checkpoint, option-b), recorded as 06-UI-SPEC
+ * Delta 11.** The contract originally read `Cancel`. The review chose
+ * `Cancel download`, and the reason is the button's context, not its style:
+ * the control is rendered only while a download is in progress, so a
+ * screen-reader user who tabs straight to it hears "Cancel" as a bare verb with
+ * no object and no state attached. The visible progress line beside it names
+ * the object, but a label is read before the surrounding text is scanned, and
+ * the button is reachable on its own.
+ *
+ * This is a deliberate departure from a checked-in design document, so it is
+ * written down in two places rather than contradicted in one: Delta 11 in
+ * 06-UI-SPEC records the deviation and the reason, and the contract's copy
+ * table, state matrix and section 5 are amended to agree. A departure from the
+ * contract that is not recorded is indistinguishable from a drift, and the next
+ * reader of the contract would be reading a string this app never ships.
+ *
+ * Consequence for the plans that read it: the e2e selector text is
+ * `Cancel download`, not `Cancel`.
+ */
+export const CITY_CANCEL_LABEL = 'Cancel download';
+
+/**
+ * How a cancelled city download is presented. 06-UI-SPEC Copywriting Contract,
+ * "City cancelled, unavailable" row, read together with D-14.
+ *
+ * **Decision (06-02 execution checkpoint, option-a), recorded as 06-UI-SPEC
+ * Delta 10.** `'neutral'`, not `'error'`.
+ *
+ * D-14 says cancel or failure leaves the country view intact "with a visible
+ * error". The UI-SPEC review took the departure deliberately, and this comment
+ * records exactly what the departure is and is not. It is not: that a cancel is
+ * quieter, hidden, or unreported. Everything D-14 protects still holds —
+ *   - nothing is kept (the bytes are discarded, never stored, D-15);
+ *   - the country view is untouched, byte for byte, by both paths;
+ *   - the outcome is visible text either way. The sentence
+ *     `City-level download cancelled. Nothing was kept.` is not a hover title
+ *     and not a console message; it is in the block, on screen, permanently.
+ * What differs is only the CHROME and the ANNOUNCEMENT: cancel gets neutral
+ * border `#80868b` / background `#f1f3f4` / text `#3c4043` and a polite
+ * live-region announcement; a genuine failure keeps the destructive border
+ * `#c5221f` / background `#fce8e6` / text `#8a1c17` and `role="alert"`.
+ *
+ * The reason a deliberate action should not wear a failure's colours is the
+ * whole of it. Styling the user's own choice as a fault, and announcing it as
+ * an alert, spends the destructive treatment on the one outcome that is not a
+ * fault — which makes the treatment mean less on the outcomes that are.
+ *
+ * `'error'` remains in the type because it is the value the contract's literal
+ * D-14 reading would use, and because a reader comparing this file to the
+ * contract should be able to see that the other reading exists. It is not
+ * dead code by accident; it is the recorded alternative.
+ */
+export const CITY_CANCELLED_TONE: 'neutral' | 'error' = 'neutral';
+
+// -----------------------------------------------------------------------------
+// Block states
+// -----------------------------------------------------------------------------
+
+/** Copywriting Contract, "Loading" row: `Calculating login history...`. */
+export const LOGIN_HISTORY_LOADING = 'Calculating login history...';
+
+/**
+ * Copywriting Contract, "Empty state body — no file" row.
+ *
+ * `no-source` is the state where `Activity_history` has rows but none of the
+ * files that carry IP addresses is present, so there is nothing to say about
+ * logins either way. The sentence names that absence rather than an absence of
+ * logins, because those are different facts and only the first one is true.
+ */
+export const LOGIN_HISTORY_NO_SOURCE =
+  'This export has no session or login file, so there is no login history to show.';
+
+/** Copywriting Contract, "Empty state body — nothing usable" row. */
+export const LOGIN_HISTORY_NO_USABLE = 'No readable IP addresses were found in this export.';
+
+/**
+ * Copywriting Contract, "Error state — login history" row. Destructive chrome,
+ * `role="alert"`, and no `aria-live` attribute so it is announced once.
+ *
+ * The remedy is stated because the alternative is not obvious: a reader who
+ * has just seen a failure on a card is being told the data they are looking at
+ * is still the data they imported, which is the fact that matters most here.
+ */
+export const LOGIN_HISTORY_ERROR =
+  'Login history could not be calculated from this export. Your imported data is unchanged. Drop the export again to retry.';
+
+// -----------------------------------------------------------------------------
+// Reveal control (D-07)
+// -----------------------------------------------------------------------------
+
+/**
+ * Copywriting Contract, "Reveal button" row, masked.
+ *
+ * A label swap and NOT `aria-pressed` (UI-SPEC section 3, a11y Decision): with
+ * a pressed state the control announces two changes where one is meant, and
+ * the pressed state would also have to be kept in step with the caption.
+ * `data-masked` is the test hook instead.
+ */
+export const MASK_TOGGLE_SHOW = 'Show full IP addresses';
+
+/** Copywriting Contract, "Reveal button" row, revealed. */
+export const MASK_TOGGLE_HIDE = 'Hide full IP addresses';
+
+/** Copywriting Contract, "Mask caption" row, masked. */
+export const MASK_CAPTION_MASKED = 'IP addresses are masked: the last part of each one is hidden.';
+
+/**
+ * Copywriting Contract, "Mask caption" row, revealed.
+ *
+ * The second sentence is an instruction rather than a warning, because the
+ * reveal is a one-way door for anyone else in the room and the reader is the
+ * only one who can close it.
+ */
+export const MASK_CAPTION_REVEALED =
+  'Full IP addresses are shown. Hide them again before sharing your screen.';
+
+/** Copywriting Contract, "Mask announcements" row, revealed. State words only, never an address. */
+export const MASK_ANNOUNCE_SHOWN = 'Full IP addresses are now shown.';
+
+/** Copywriting Contract, "Mask announcements" row, masked. */
+export const MASK_ANNOUNCE_MASKED = 'IP addresses are now masked.';
+
+// -----------------------------------------------------------------------------
+// Summary tiles (D-04, D-08)
+// -----------------------------------------------------------------------------
+
+/** Copywriting Contract, "Count tile labels" row, tile 1. */
+export const LOGIN_TILE_IPS = 'IP addresses';
+
+/** Copywriting Contract, "Count tile labels" row, tile 2. */
+export const LOGIN_TILE_COUNTRIES = 'Countries';
+
+/**
+ * Copywriting Contract, "Count tile labels" row, tile 3.
+ *
+ * `IPs`, not `IP addresses`, because the tile is short and this label is the
+ * one that has to fit beside the other two at 375px. The value is a count of
+ * addresses either way; the table's column header keeps the full form.
+ */
+export const LOGIN_TILE_UNKNOWN = 'IPs with unknown country';
+
+/** Copywriting Contract, "Fact tile labels" row, tile 4. */
+export const LOGIN_TILE_TOP_IP = 'Most-used IP address';
+
+/** Copywriting Contract, "Fact tile labels" row, tile 5. */
+export const LOGIN_TILE_TOP_COUNTRY = 'Top country';
+
+/** Copywriting Contract, "Fact tile labels" row, tile 6. */
+export const LOGIN_TILE_RANGE = 'First to last login';
+
+/**
+ * Copywriting Contract, "Multi-file note" row (RESEARCH Pitfall 11, D-01).
+ *
+ * A SEPARATE constant rather than a variant of another sentence, because it is
+ * conditional in a way nothing else in this block is: it appears only when more
+ * than one file contributed login rows. When an export carries both a
+ * `Logins.csv` and the session files, both sets of rows are counted and the
+ * totals can exceed the account's real login count. That is a deliberate
+ * consequence of D-01, and a reader comparing the tile against what the game
+ * shows them deserves to be told where the extra rows came from.
+ */
+export const LOGIN_MULTI_FILE_NOTE =
+  'This export lists logins in more than one file, and each file’s rows are counted.';
+
+// -----------------------------------------------------------------------------
+// Special values
+// -----------------------------------------------------------------------------
+
+/** Copywriting Contract, "Special values" row: an address with no country match (D-08). */
+export const LOGIN_UNKNOWN_COUNTRY = 'Unknown country';
+
+/** Copywriting Contract, "Special values" row: the Games cell for a file that names no game. */
+export const LOGIN_GAMES_NOT_RECORDED = 'not recorded';
+
+/** Copywriting Contract, "Special values" row: a country the database has, a city it does not. */
+export const LOGIN_CITY_UNKNOWN = 'City unknown';
+
+/** Copywriting Contract, "Special values" row: a field the export does not carry. */
+export const LOGIN_NOT_IN_EXPORT = 'not in export';
+
+/** Copywriting Contract, "Special values" row: a value that is present but unparseable. */
+export const LOGIN_NOT_READABLE = 'not readable';
+
+/**
+ * Copywriting Contract, "Special values" row: the em dash shown where a value is
+ * genuinely absent and has nothing better to say.
+ *
+ * An em dash and not a hyphen or a blank: a blank cell in a table is read as a
+ * rendering failure, and the dash is a mark the reader already knows from the
+ * rest of the app. Every dash is paired with one of the four hidden strings
+ * below, so it is never the only thing a screen reader hears.
+ */
+export const LOGIN_NO_VALUE = '—';
+
+/** Hidden replacement for the dash in the Top country tile. */
+export const LOGIN_HIDDEN_NO_KNOWN_COUNTRY = 'no known country';
+
+/** Hidden replacement for the dash in the First-to-last tile when NO row has a date. */
+export const LOGIN_HIDDEN_NO_READABLE_DATES = 'no readable dates';
+
+/** Hidden replacement for the dash in a single row's date cell. */
+export const LOGIN_HIDDEN_NO_READABLE_DATE = 'no readable date';
+
+/** Hidden replacement for the dash in the Account record row's three figure cells. */
+export const LOGIN_HIDDEN_NOT_COUNTED = 'not counted as a login';
+
+// -----------------------------------------------------------------------------
+// The IP table (D-05)
+// -----------------------------------------------------------------------------
+
+/** Copywriting Contract, "Table title, count line" row: the `h4` above the table. */
+export const LOGIN_TABLE_HEADING = 'IP addresses';
+
+/**
+ * Copywriting Contract, "Table accessible name" row.
+ *
+ * One name for the scroller's `aria-label` and the visually hidden `<caption>`,
+ * because a table whose caption and its region disagree is read twice with two
+ * different answers.
+ */
+export const LOGIN_TABLE_ARIA_NAME = 'Login history by IP address';
+
+/** Copywriting Contract, "Column headers" row, 1 of 7. */
+export const LOGIN_COL_IP = 'IP address';
+/** Copywriting Contract, "Column headers" row, 2 of 7. */
+export const LOGIN_COL_COUNTRY = 'Country';
+/** Copywriting Contract, "Column headers" row, 3 of 7. */
+export const LOGIN_COL_LOGINS = 'Logins';
+/** Copywriting Contract, "Column headers" row, 4 of 7. */
+export const LOGIN_COL_FIRST = 'First seen';
+/** Copywriting Contract, "Column headers" row, 5 of 7. */
+export const LOGIN_COL_LAST = 'Last seen';
+/** Copywriting Contract, "Column headers" row, 6 of 7. */
+export const LOGIN_COL_GAMES = 'Games';
+/** Copywriting Contract, "Column headers" row, 7 of 7; added only after the city opt-in. */
+export const LOGIN_COL_CITY = 'City';
+
+/** Copywriting Contract, "Account record tag and note" row, the tag. */
+export const LOGIN_ACCOUNT_TAG = 'Account record';
+
+/**
+ * Copywriting Contract, "Account record tag and note" row, the note.
+ *
+ * The note exists because the row is shown as RECORDED and never re-resolved
+ * through the offline table (RESEARCH Open Question 2), so when the recorded
+ * country and the table's resolution of the same address disagree, both are
+ * right about different things and only this sentence says which is which. It
+ * also states the two exclusions, so a reader is not left wondering why the
+ * row's figures are dashes or why its country is absent from the map.
+ */
+export const LOGIN_ACCOUNT_NOTE =
+  'The Account record row is the address stored in your account details, shown as recorded. It is not counted as a login and is not on the map.';
+
+/**
+ * Copywriting Contract, "Table hints" row, the find-in-page hint.
+ *
+ * The Phase 5 hint is reused verbatim in the other slot — the component reads
+ * `VEHICLE_SCROLL_HINT` rather than restating it — because the keyboard
+ * behaviour of the two tables is identical and one edit should reach both.
+ */
+export const LOGIN_TABLE_FIND_HINT =
+  "Only the rows on screen are loaded into the page, so your browser's find cannot see the rest. Sort a column to bring other rows to the top.";
+
+/** Copywriting Contract, "Excluded pill and explanation" row, the explanation. */
+export const LOGIN_EXCLUDED_EXPLANATION =
+  'Rows whose IP address is blank or cannot be read are not counted in any figure here and are never shown.';
+
+// -----------------------------------------------------------------------------
+// The country map (D-08..D-11)
+// -----------------------------------------------------------------------------
+
+/** Copywriting Contract, "Map title" row: the `h4` above the map. */
+export const MAP_HEADING = 'Logins by country';
+
+/**
+ * Copywriting Contract, "Empty state body — no country resolved" row.
+ *
+ * The `h4` stays and this replaces the summary sentence; the map, legend,
+ * attribution and list are not rendered. It says "could not be matched"
+ * rather than "unknown", because the addresses are perfectly readable and the
+ * gap is between them and this build's table, not in the export.
+ */
+export const MAP_NO_COUNTRIES =
+  'No login IP addresses could be matched to a country, so there is nothing to show on the map.';
+
+/** Copywriting Contract, "Map keyboard hint" row. */
+export const MAP_KEYBOARD_HINT = 'Use the arrow keys to move between countries, most logins first.';
+
+/** Copywriting Contract, "Map accessible names" row, the `role="group"` label. */
+export const MAP_GROUP_LABEL = 'World map of logins by country';
+
+/**
+ * Copywriting Contract, "Attribution" row, the link text.
+ *
+ * A link and not a bare mention: DB-IP's licence is CC BY 4.0, which asks for
+ * a visible link back. It is underlined rather than colour-coded for the same
+ * reason — the accent is reserved, and a link needs a non-colour affordance.
+ */
+export const MAP_ATTRIBUTION_LINK_TEXT = 'IP Geolocation by DB-IP';
+
+/**
+ * Copywriting Contract, "Attribution" row, what follows the link.
+ *
+ * A separate constant INCLUDING its leading comma, so the rendered line is the
+ * link followed by this with no template of its own: `…, licensed under CC BY
+ * 4.0.` The comma belongs to the punctuation of the sentence, not to the
+ * component, and a component that owns it would own the spacing too.
+ */
+export const MAP_ATTRIBUTION_SUFFIX = ', licensed under CC BY 4.0.';
+
+// -----------------------------------------------------------------------------
+// The country list (D-10)
+// -----------------------------------------------------------------------------
+
+/** Copywriting Contract, "Country list" row, the `<summary>`. */
+export const COUNTRY_LIST_SUMMARY = 'Countries by logins';
+
+/** Copywriting Contract, "Country list" row, header 1 of 3. */
+export const COUNTRY_COL_COUNTRY = 'Country';
+/** Copywriting Contract, "Country list" row, header 2 of 3. */
+export const COUNTRY_COL_LOGINS = 'Logins';
+/** Copywriting Contract, "Country list" row, header 3 of 3. */
+export const COUNTRY_COL_IPS = 'IP addresses';
+
+/**
+ * Copywriting Contract, "Country list" row, the not-drawn suffix.
+ *
+ * With its LEADING SPACE, so a component concatenates it onto a name rather
+ * than composing `name + ' ' + '(not drawn)'` in two places. The list is the
+ * guaranteed route to every value for a country too small to shade or to draw,
+ * and the suffix is how the reader knows why its shade is missing.
+ */
+export const COUNTRY_LIST_NOT_DRAWN_SUFFIX = ' (not drawn)';
+
+// -----------------------------------------------------------------------------
+// The city block (D-13..D-16)
+// -----------------------------------------------------------------------------
+
+/** Copywriting Contract, "City heading and intro" row, the `h4`. */
+export const CITY_HEADING = 'City-level detail';
+
+/** Copywriting Contract, "Empty state body — no city asset" row. */
+export const CITY_UNAVAILABLE = 'This copy of the page does not include city-level data.';
+
+/**
+ * Copywriting Contract, "Error state — city detail" row. Destructive chrome,
+ * `role="alert"`, no `aria-live`.
+ *
+ * ONE FIXED SENTENCE for a failed download, a corrupt file and an unsupported
+ * browser alike (RESEARCH Pattern 7). It never echoes a system message, a path
+ * or a status code: none of those means anything to a viewer, and a `fetch`
+ * failure message is attacker-influenced text on its way to the screen. The
+ * remedies are the same in all three cases anyway — the Load button returns and
+ * the country view is untouched.
+ */
+export const CITY_ERROR =
+  'City-level detail could not be loaded. Your country view is unchanged. You can try again.';
+
+/**
+ * Copywriting Contract, "City cancelled, unavailable" row, the cancelled line.
+ *
+ * The SENTENCE is identical whichever tone `CITY_CANCELLED_TONE` selects; only
+ * the chrome and the live-region behaviour differ. See that constant for the
+ * recorded deviation from D-14's literal "visible error" wording (UI-SPEC
+ * Delta 10). The sentence is neutral-info, and it ends by saying what actually
+ * happened — nothing was kept — rather than by asking the reader to do
+ * anything about it.
+ */
+export const CITY_CANCELLED = 'City-level download cancelled. Nothing was kept.';
+
+/** Copywriting Contract, "City progress" row: the decoding state. */
+export const CITY_DECODING = 'Preparing city detail...';
+
+/** Copywriting Contract, "City progress" row, the determinate bar's accessible name. */
+export const CITY_PROGRESS_NAME = 'City detail download progress';
+
+/** Copywriting Contract, "City progress" row, the indeterminate bar's accessible name. */
+export const CITY_DECODING_NAME = 'Preparing city detail';
+
+/**
+ * Copywriting Contract, "City ready" row, the accuracy caption.
+ *
+ * ALWAYS shown alongside city data, never only on request: a reader who is not
+ * told this will take "Warsaw" for a fact about the player. The sentence names
+ * the specific wrong answer (an ISP's location rather than the player's) rather
+ * than hedging in the abstract, because the hedge is the one this database
+ * invites and the concrete case is the one a reader recognises.
+ */
+export const CITY_ACCURACY_NOTE =
+  "City locations are estimates from a public database. They often point to an internet provider's location rather than your own.";
+
+/** Copywriting Contract, "City list" row, the `<summary>`. */
+export const CITY_LIST_SUMMARY = 'Cities by logins';
+
+/** Copywriting Contract, "City list" row, header 1 of 4. */
+export const CITY_COL_CITY = 'City';
+/** Copywriting Contract, "City list" row, header 2 of 4. */
+export const CITY_COL_COUNTRY = 'Country';
+/** Copywriting Contract, "City list" row, header 3 of 4. */
+export const CITY_COL_LOGINS = 'Logins';
+/** Copywriting Contract, "City list" row, header 4 of 4. */
+export const CITY_COL_IPS = 'IP addresses';
+
+/** Copywriting Contract, "City announcements" row, downloading. */
+export const CITY_ANNOUNCE_DOWNLOADING = 'Downloading city-level detail.';
+
+/** Copywriting Contract, "City announcements" row, ready. */
+export const CITY_ANNOUNCE_READY = 'City-level detail loaded.';
+
+/**
+ * Copywriting Contract, "City announcements" row, cancelled.
+ *
+ * Distinct from `CITY_CANCELLED`, and the difference is the live region: this
+ * is the polite announcement, that is the persistent visible line. They are two
+ * facts for two surfaces, and they stay two constants so a screen-reader user
+ * hears the state change once at the moment it happens and can re-read the
+ * line afterwards.
+ */
+export const CITY_ANNOUNCE_CANCELLED = 'City-level download cancelled.';
+
+/**
+ * The ready line for a manifest whose `month` is not a `YYYY-MM` string.
+ *
+ * Not a Copywriting Contract row: this is the guard the contract's own
+ * formatter needs, because the month is a build-artefact value and a
+ * hand-edited or truncated `manifest.json` must not become a DOM string. The
+ * parenthetical is dropped rather than the whole sentence, so the reader still
+ * learns that city detail loaded and that the City column appeared.
+ */
+export const CITY_READY_NO_MONTH =
+  'City detail loaded from DB-IP. The City column is now in the table above.';
+
+// -----------------------------------------------------------------------------
+// Formatters — shared pieces
+// -----------------------------------------------------------------------------
+
+/**
+ * A share as a whole percent, with the Phase 4 under-half-percent rule.
+ *
+ * ONE helper for every share in this module, including
+ * {@link formatDurationRowText}, because the rule is one rule: a NON-ZERO
+ * share under 0.5% reads `<1`, a zero share reads `0`, and everything else
+ * rounds to a whole percent. Two implementations of that is how a page ends up
+ * with `0%` beside a non-zero count in one card and `<1%` in another.
+ *
+ * A total of zero reads `0` rather than dividing. Aggregation cannot produce a
+ * non-zero numerator over a zero denominator, so this is defensive — and it
+ * matters because the alternative is `NaN%` in front of a user.
+ */
+function formatSharePercent(part: number, total: number): string {
+  if (!(part > 0) || !(total > 0)) return '0';
+  const percent = (part / total) * 100;
+  return percent < 0.5 ? '<1' : String(Math.round(percent));
+}
+
+/** `{n} logins` with its singular. */
+function loginsLabel(n: number, locale?: string): string {
+  return `${formatNumber(n, locale)} login${n === 1 ? '' : 's'}`;
+}
+
+/** `{n} IP addresses` with its singular. */
+function ipAddressesLabel(n: number, locale?: string): string {
+  return `${formatNumber(n, locale)} IP address${n === 1 ? '' : 'es'}`;
+}
+
+/** `{n} countries` with its singular. */
+function countriesLabel(n: number, locale?: string): string {
+  return `${formatNumber(n, locale)} ${n === 1 ? 'country' : 'countries'}`;
+}
+
+// -----------------------------------------------------------------------------
+// Formatters — shares, counts and dates
+// -----------------------------------------------------------------------------
+
+/**
+ * The fact-tile sub-line: `{n} logins ({p}%)`, e.g. `1 login (25%)`.
+ *
+ * The share is of ALL counted logins, the same denominator the map summary
+ * sentence and the Top country tile use, so the two percentages on screen can
+ * never disagree — including when some addresses have no country and are
+ * therefore in the denominator but not on the map.
+ *
+ * See {@link formatSharePercent} for the `<1%` rule.
+ */
+export function formatLoginShareLine(count: number, total: number, locale?: string): string {
+  return `${loginsLabel(count, locale)} (${formatSharePercent(count, total)}%)`;
+}
+
+/**
+ * The count line above the IP table: `{n} IP addresses · {l} logins`.
+ *
+ * A middle dot, the same separator the duration rows and the map tooltip use,
+ * so a count line reads the same wherever it appears.
+ */
+export function formatLoginCountLine(addresses: number, logins: number, locale?: string): string {
+  return `${ipAddressesLabel(addresses, locale)} · ${loginsLabel(logins, locale)}`;
+}
+
+/**
+ * The amber excluded-rows pill: `1 login row without a readable IP address`.
+ *
+ * The empty string at zero rather than "0 rows", for the same reason
+ * {@link formatExcludedPill} returns one: the pill is only rendered above
+ * zero, and making that unconditional means a caller cannot get it wrong by
+ * forgetting a conditional.
+ */
+export function formatLoginExcludedPill(n: number): string {
+  if (n <= 0) return '';
+  return n === 1
+    ? '1 login row without a readable IP address'
+    : `${formatNumber(n)} login rows without a readable IP address`;
+}
+
+/**
+ * The honest-count line for addresses the table's cap folded away:
+ * `{m} more IP addresses ({k} logins) are counted in the totals but not
+ * listed in the table.`
+ *
+ * The cap exists to bound memory against a hostile archive (D-05). Whatever it
+ * folds away has to stay visible as one count, because a table that silently
+ * lists fewer rows than its own total implies is a table the reader cannot
+ * trust — and a capped export is exactly the case where the reader is most
+ * likely to be looking for a number that is not there.
+ */
+export function formatLoginCapLine(addresses: number, logins: number, locale?: string): string {
+  return (
+    `${formatNumber(addresses, locale)} more IP address${addresses === 1 ? '' : 'es'} ` +
+    `(${loginsLabel(logins, locale)}) ${addresses === 1 ? 'is' : 'are'} ` +
+    'counted in the totals but not listed in the table.'
+  );
+}
+
+/**
+ * One login timestamp as a calendar date, `YYYY-MM-DD` (RESEARCH Decision 8,
+ * D-03).
+ *
+ * The day number is `floor(seconds / 86400)` and the date comes from
+ * {@link civilFromDays} — no `Date` object anywhere on this path. A `Date`
+ * would parse or render in the HOST's zone, so the same export would show a
+ * different day for a viewer in Kyiv than for one in Lisbon; a day is a label
+ * on a calendar here, never an instant. The floor is what keeps the last second
+ * of a leap day ON that day rather than tipping into the next one.
+ */
+export function formatLoginDate(seconds: number): string {
+  const { y, m, d } = civilFromDays(Math.floor(seconds / 86400));
+  return `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+/**
+ * The First-to-last tile's value: one date, or `{first} to {last}`.
+ *
+ * `null` when either end is `null`, and `null` rather than a dash: a dash is
+ * what the COMPONENT shows in that case (paired with a hidden
+ * `no readable dates`), and a formatter that returned the dash itself would
+ * make two places responsible for deciding the same thing.
+ */
+export function formatLoginDateRange(first: number | null, last: number | null): string | null {
+  if (first === null || last === null) return null;
+  const a = formatLoginDate(first);
+  const b = formatLoginDate(last);
+  return a === b ? a : `${a} to ${b}`;
+}
+
+// -----------------------------------------------------------------------------
+// Formatters — games
+// -----------------------------------------------------------------------------
+
+/** The four known game tokens, in the order the Games cell and the list use. */
+const GAME_NAMES: Record<string, string> = {
+  WOT: 'WoT',
+  WOTB: 'WoT Blitz',
+  WOWS: 'Warships',
+  WOWP: 'Warplanes',
+};
+
+/** The fixed display order, longest-known first, matching the contract's Games row. */
+const GAME_ORDER: readonly string[] = ['WOT', 'WOTB', 'WOWS', 'WOWP'];
+
+/**
+ * One game token as its display name, or the token unchanged if unknown.
+ *
+ * The token arrives from an archive FILE NAME inside an untrusted zip, so an
+ * export with a game this build has never heard of is a real input, not a
+ * hypothetical one (T-06-05). Returning it unchanged is the whole of the
+ * mitigation: there is no error path, so no error message can be reached, and
+ * the token is already bounded to letters, digits and underscores by the
+ * session file-name rule before it gets here.
+ */
+export function formatGameName(token: string): string {
+  return GAME_NAMES[token] ?? token;
+}
+
+/**
+ * The Games cell: the known names in the FIXED order, then any unknown tokens
+ * ascending, joined by `, `.
+ *
+ * Fixed order rather than the order the files happened to be read in, because
+ * the same address appearing in WOT and WOWS rows must produce the same string
+ * every time, or a re-sorted table shuffles text that did not change. Unknown
+ * tokens sort ascending in code-unit order (the Phase 4/5 rule: never
+ * `localeCompare`).
+ */
+export function formatGames(tokens: readonly string[]): string {
+  const known = GAME_ORDER.filter((t) => tokens.includes(t));
+  const unknown = [...new Set(tokens.filter((t) => !GAME_ORDER.includes(t)))].sort();
+  return [...known, ...unknown].map(formatGameName).join(', ');
+}
+
+// -----------------------------------------------------------------------------
+// Formatters — map sentences
+// -----------------------------------------------------------------------------
+
+/**
+ * The map's summary sentence, in the four forms the UIC zero-one-many row
+ * requires.
+ *
+ * `countryCount === 1` is the singular. On top of that there is a separate
+ * case: when ONE country holds EVERY counted login, the sentence changes shape
+ * entirely to `All {t} logins with a known country came from {Country}.` — it
+ * names its own base, because "came from 1 country" against a total that
+ * includes logins nobody could place would read as a claim about all of them.
+ *
+ * The unknown-country sentence is appended whenever addresses have no match,
+ * so the reader is never left to infer from the percentages that some logins
+ * are missing from the map. `topCountry` is an already-resolved English name
+ * from the worker: no formatter here takes an address, an ISO code or a raw
+ * dataset string.
+ */
+export function formatMapSummary(
+  countryCount: number,
+  topCountry: string,
+  topLogins: number,
+  totalLogins: number,
+  unknownAddresses = 0,
+  unknownLogins = 0,
+  locale?: string,
+): string {
+  const leader =
+    countryCount === 1 && topLogins === totalLogins
+      ? `All ${loginsLabel(totalLogins, locale)} with a known country came from ${topCountry}.`
+      : `Logins came from ${countriesLabel(countryCount, locale)}. ${topCountry} had the most, ` +
+        `with ${formatNumber(topLogins, locale)} of ${loginsLabel(totalLogins, locale)} ` +
+        `(${formatSharePercent(topLogins, totalLogins)}%).`;
+
+  if (!(unknownAddresses > 0)) return leader;
+  return (
+    `${leader} ${ipAddressesLabel(unknownAddresses, locale)} ` +
+    `(${loginsLabel(unknownLogins, locale)}) ` +
+    `${unknownAddresses === 1 ? 'has' : 'have'} no known country and ` +
+    `${unknownAddresses === 1 ? 'is' : 'are'} not on the map.`
+  );
+}
+
+/** A country's accessible name: `{Country}: {n} logins from {m} IP addresses`. */
+export function formatMapCountryLabel(
+  name: string,
+  logins: number,
+  ips: number,
+  locale?: string,
+): string {
+  return `${name}: ${loginsLabel(logins, locale)} from ${ipAddressesLabel(ips, locale)}`;
+}
+
+/**
+ * The map tooltip's two lines, in order: the country name, then the figures.
+ *
+ * An array because the tooltip takes two separately styled lines, and a single
+ * joined string would force the component to split a sentence apart to style
+ * its halves. There is no third line and never an address: the map is
+ * country-level, so a country has no address to show.
+ */
+export function formatMapTooltipLines(
+  name: string,
+  logins: number,
+  ips: number,
+  locale?: string,
+): readonly [string, string] {
+  return [name, `${loginsLabel(logins, locale)} · ${ipAddressesLabel(ips, locale)}`];
+}
+
+/**
+ * The legend's note: the logarithmic rule in words, then the step starts.
+ *
+ * The FIRST sentence is the accessibility relief for a ramp whose lightest
+ * steps sit below the 3:1 non-text floor on white. Shading is never the only
+ * carrier of a value, and this line is what tells the reader the scale is
+ * logarithmic rather than proportional — the same job the Phase 4 legend note
+ * does for a rank-based ramp.
+ *
+ * Duplicate step starts are collapsed: two levels can round to the same
+ * boundary, and naming it twice reads as two steps that start in the same
+ * place. A maximum of 1 gets its own sentence, because there is no range to
+ * describe and "Steps start at 1 logins" is a sentence about nothing.
+ */
+export function formatMapLegendNote(stepStarts: readonly number[], locale?: string): string {
+  const base = 'Shading is logarithmic, so each darker step covers a wider range of logins.';
+  if (stepStarts.length === 0) return base;
+  if (Math.max(...stepStarts) === 1) return 'Every shaded country has 1 login.';
+
+  const unique = [...new Set(stepStarts)].sort((a, b) => a - b).map((n) => formatNumber(n, locale));
+  const last = unique[unique.length - 1]!;
+  const list = unique.length === 1 ? last : `${unique.slice(0, -1).join(', ')} and ${last}`;
+  return `${base} Steps start at ${list} logins.`;
+}
+
+/** The not-drawn line: `{k} countries in the list below are not drawn on the map.` */
+export function formatMapNotDrawn(k: number, locale?: string): string {
+  return `${countriesLabel(k, locale)} in the list below ${k === 1 ? 'is' : 'are'} not drawn on the map.`;
+}
+
+// -----------------------------------------------------------------------------
+// Formatters — city block
+// -----------------------------------------------------------------------------
+
+/** A megabyte is 1,000,000 bytes, because the sizes in 06-RESEARCH are decimal. */
+const BYTES_PER_MB = 1_000_000;
+
+/** Whole megabytes, minimum 1. A rounded-down 0 would be "about 0 MB". */
+function wholeMegabytes(bytes: number): number {
+  if (!Number.isFinite(bytes) || bytes <= 0) return 1;
+  return Math.max(1, Math.round(bytes / BYTES_PER_MB));
+}
+
+/** One decimal of megabytes, with a trailing `.0` dropped, like the hour rule. */
+function decimalMegabytes(bytes: number, locale?: string): string {
+  const oneDecimal = (bytes / BYTES_PER_MB).toFixed(1);
+  const value = oneDecimal.endsWith('.0') ? oneDecimal.slice(0, -2) : oneDecimal;
+  return formatNumber(Number(value), locale);
+}
+
+/**
+ * The idle intro, with the size: "about {N} MB", no tilde.
+ *
+ * The tilde is reserved for the button label, which is the control the reader
+ * is about to press; the intro is prose, and prose that hedges a sentence
+ * reads as uncertainty about a fact.
+ */
+export function formatCityIntro(bytes: number, locale?: string): string {
+  return (
+    'Add the city for each IP address. This downloads a database of about ' +
+    `${formatNumber(wholeMegabytes(bytes), locale)} MB from this site when you press the button. ` +
+    'Nothing is downloaded until then, and nothing from your export is sent with the request.'
+  );
+}
+
+/** The Load button: `Load city-level detail (~{N} MB)`. */
+export function formatCityLoadLabel(bytes: number, locale?: string): string {
+  return `Load city-level detail (~${formatNumber(wholeMegabytes(bytes), locale)} MB)`;
+}
+
+/**
+ * The downloading line: `Downloading city detail: {x} of {y} MB`.
+ *
+ * A `null` total is the unknown-length case (`Content-Length` is unreliable on
+ * GitHub Pages, RESEARCH Pattern 7) and drops the sizes rather than showing a
+ * zero, because "0 of 0 MB" beside a running download is a contradiction.
+ */
+export function formatCityProgress(
+  received: number,
+  total: number | null,
+  locale?: string,
+): string {
+  if (total === null) return 'Downloading city detail...';
+  return `Downloading city detail: ${decimalMegabytes(received, locale)} of ${decimalMegabytes(total, locale)} MB`;
+}
+
+/**
+ * The ready line, naming the data month: `City detail loaded from DB-IP
+ * ({YYYY-MM}). …`
+ *
+ * The month comes from the build-time manifest, and is checked rather than
+ * trusted: a corrupt or hand-edited `manifest.json` must not become a DOM
+ * string, so anything that is not `YYYY-MM` falls back to
+ * {@link CITY_READY_NO_MONTH} rather than being printed. The month itself is
+ * NOT derived from the export — a stale asset is a data-quality question the
+ * build answers, not something the viewer needs to see guessed at.
+ */
+export function formatCityReady(month: string): string {
+  const stamped = /^\d{4}-\d{2}$/.test(month)
+    ? `City detail loaded from DB-IP (${month}). The City column is now in the table above.`
+    : CITY_READY_NO_MONTH;
+  return stamped;
+}
+
+/** The city list's truncation caption: `and {k} more cities not listed`. */
+export function formatCityMoreCities(k: number, locale?: string): string {
+  return `and ${formatNumber(k, locale)} more ${k === 1 ? 'city' : 'cities'} not listed`;
+}
+
+/** The city list's no-city caption: `{n} IP addresses have no city in the database.` */
+export function formatCityNoCity(n: number, locale?: string): string {
+  return `${ipAddressesLabel(n, locale)} ${n === 1 ? 'has' : 'have'} no city in the database.`;
 }

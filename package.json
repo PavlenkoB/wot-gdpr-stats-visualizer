@@ -8,11 +8,17 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "check": "tsc -b",
+    "check": "tsc -b && svelte-check --tsconfig ./tsconfig.app.json --threshold warning",
     "lint": "prettier --check . && eslint .",
     "format": "prettier --write .",
     "test:unit": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "geo:country": "node scripts/geo/build-country-table.ts",
+    "geo:country:fixture": "node scripts/geo/build-country-table.ts --csv tests/fixtures/geo/country-fixture.csv --out tests/fixtures/geo/country-fixture.bin --month 0000-00 --fixture",
+    "geo:map": "node scripts/geo/build-world-map.ts",
+    "geo:city": "node scripts/geo/build-city-dataset.ts",
+    "geo:city:fixture": "node scripts/geo/build-city-dataset.ts --fixture",
+    "geo:map:check": "node scripts/geo/build-world-map.ts --check"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -21,6 +27,7 @@
     "@tsconfig/svelte": "^5.0.8",
     "@types/node": "^24.13.3",
     "@types/papaparse": "^5.5.2",
+    "d3-geo": "3.1.1",
     "eslint": "^10.11.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-svelte": "^3.23.0",
@@ -30,10 +37,12 @@
     "prettier-plugin-svelte": "^4.1.1",
     "svelte": "^5.57.0",
     "svelte-check": "^4.7.6",
+    "topojson-client": "3.1.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.70.1",
     "vite": "^8.3.0",
-    "vitest": "^5.0.2"
+    "vitest": "^5.0.2",
+    "world-atlas": "2.0.2"
   },
   "dependencies": {
     "dexie": "^4.4.6",

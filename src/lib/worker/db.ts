@@ -4,6 +4,7 @@ import type {
   CategoryEntry,
   PlaytimeAggregates,
 } from '../core/types/worker-messages.ts';
+import type { LoginAggregates } from '../features/logins/login-shared.ts';
 import {
   isLegacySessionsFileName,
   isSessionsRow,
@@ -12,6 +13,8 @@ import {
   type SessionRow,
   type SessionSource,
 } from '../features/playtime/playtime-aggregate.ts';
+import { isLoginsFileName, isLoginsRow } from '../features/logins/login-aggregate.ts';
+import type { LoginSource } from '../features/logins/login-aggregate.ts';
 
 /**
  * Dexie schema + transactional write (RESEARCH.md Pattern 3, DATA-01).
@@ -114,6 +117,36 @@ export interface DatasetMeta {
    * upgrader is untouched.
    */
   files?: DatasetFile[] | null;
+  /**
+   * The login-history aggregate computed by the worker at import (06-01, D-12),
+   * following the `playtime` precedent exactly: a NON-INDEXED field of this
+   * same record, written in the same `meta.put` as the rows, so a dataset is
+   * either all rows with their login aggregate or neither.
+   *
+   * `null` when aggregation produced nothing to store or when it threw and the
+   * import continued without it (T-04-03 discipline, restated for this
+   * channel). The two are not distinguished here on purpose — both mean "no
+   * stored aggregate" — and `ingest.worker.ts` rebuilds either one from the
+   * stored rows on the next query.
+   *
+   * No Dexie version bump for this field, DELIBERATELY, and the reason is
+   * recorded in the SUMMARY of 06-01 because it is a decision the phase's own
+   * context (D-12, "schema bump per Phase 3 D-19 pattern") reads the other way:
+   * the `version(2)` upgrader above CLEARS both stores, so the D-19 pattern
+   * applied to a purely derived field would cost every returning user their
+   * cached dataset — their rows, their identity, their imported-at — to
+   * recompute something the rows already answer. The rows still carry the `IP`
+   * column, so a rebuild is lossless, and `ingest.worker.ts` performs it.
+   *
+   * The precedent is BOTH earlier phases' third field, and neither of them
+   * bumped: Phase 4's `playtime` (D-02) and Phase 5's `files` (05-07) each added
+   * a non-indexed property of this same record, each left `version(2)` and its
+   * upgrader exactly as they were, and each rebuilds a missing or stale value
+   * lazily from the stored rows. `tests/unit/import/db.test.ts` pins the version
+   * number and the wiping upgrader so a later phase cannot quietly add a
+   * `version(3)` for a field of the same kind.
+   */
+  logins?: LoginAggregates | null;
 }
 
 /**
@@ -204,6 +237,10 @@ export const db = new AppDb();
  * It rides in that same `meta.put`, so presence facts are as atomic as the rows
  * they describe: a crash mid-write can never leave a file listed with no rows,
  * which is precisely the state a `no-rows` claim is made of.
+ *
+ * `logins` is the eighth and is OPTIONAL for the same reason (06-01, D-12). It
+ * is the login-history aggregate and, like the playtime aggregate, a non-indexed
+ * field of the same record in the same `meta.put`.
  */
 export async function writeDataset(
   hash: string,
@@ -213,6 +250,7 @@ export async function writeDataset(
   identity: AccountIdentity | null = null,
   playtime: PlaytimeAggregates | null = null,
   files: DatasetFile[] | null = null,
+  logins: LoginAggregates | null = null,
 ): Promise<{ importedAt: string }> {
   const importedAt = new Date().toISOString();
   await db.transaction('rw', db.rows, db.meta, async () => {
@@ -229,6 +267,7 @@ export async function writeDataset(
       identity,
       playtime,
       files,
+      logins,
     });
   });
   return { importedAt };
@@ -354,6 +393,143 @@ function isSessionFileName(sourceFile: string): boolean {
 }
 
 /**
+ * The `User_Info` folder's lower-cased name, for the account-pool walk below.
+ *
+ * The same spelling `isUserInfoCategory` matches, for the same reason: the
+ * classifier preserves the export's own folder casing, so a `user_info` folder
+ * classifies as the same supported category and a literal compare would find no
+ * rows to build an Account record from.
+ */
+const USER_INFO_CATEGORY = 'user_info';
+
+/** The account file's lower-cased name — the pool that wins when both hold rows. */
+const ACCOUNT_INFO_SUFFIX = 'account_info.csv';
+
+/**
+ * ONE read of everything the login history is built from, for the lazy backfill
+ * (06-05, D-01, D-02, T-06-21).
+ *
+ * ## Why this is a SIBLING of `readSessionRowData` and not a widening of it
+ *
+ * `readSessionRowData` is a playtime-module reader. Its contract is "the
+ * session files", its callers are the playtime backfill, and `playtime.ts`
+ * states that the `IP` column is never read and its tests assert it (T-04-01).
+ * Widening it to return `Logins.csv` rows would hand the playtime aggregator
+ * files it has no rule for, and widening `isSessionFileName` would put a login
+ * file into every playtime rebuild. So the two stay separate, and the shared
+ * machinery — the index walk, the single-key reads, the per-category-and-file
+ * grouping — is re-used by construction rather than extracted: three screens
+ * and two return shapes are not yet a shared abstraction, and a helper both
+ * readers call would exist only to have two callers whose rules have to differ.
+ *
+ * ## Why the same ONE-transaction rule (T-06-21)
+ *
+ * `writeDataset` replaces the whole record inside a transaction, so a dataset is
+ * either all rows plus its meta or neither. Reading `importedAt` first and the
+ * rows afterwards could hand a backfill a NEW dataset's date and an OLD
+ * dataset's rows, and the aggregate it then wrote would be the previous
+ * dataset's. The answer carries the SNAPSHOT's `importedAt` and
+ * `writeLoginsIfCurrent` refuses a write for any other one.
+ *
+ * ## Why the account rows come back at all
+ *
+ * The Account record (D-02) is a fact about the export, not a login, so a
+ * rebuild that dropped it would answer a smaller aggregate than the import did
+ * — the same quiet disagreement this reader exists to prevent. The pool is
+ * returned RAW and the record is built by the worker with the same
+ * `extractAccountRecord` the import used, so the row choice and the
+ * `readable`/`unreadable`/`blank` states are computed by one function rather
+ * than two.
+ *
+ * The pool is the ALREADY-SANITISED rows the worker wrote: the email and birth
+ * data were dropped at write time by `sanitizeUserInfoRow` (D-18), so there is
+ * nothing sensitive to filter here and this reader must never add a filter of
+ * its own that could disagree with the strip.
+ *
+ * ## Why the index walk is the index walk
+ *
+ * The list form of a `sourceFile` query took 2,243 ms on 3,000 rows in
+ * fake-indexeddb (RESEARCH Pattern 2, measured) against 9 ms for
+ * `orderBy().uniqueKeys()` plus one single-key read per survivor. That form
+ * appears nowhere in this file and must not: the login reader's cost is a
+ * function of the number of LOGIN FILES, which is a handful, and not of the
+ * 71,000 session rows behind them.
+ */
+export async function readLoginRowData(): Promise<{
+  importedAt: string;
+  sources: LoginSource[];
+  accountPool: Record<string, string | undefined>[];
+  accountRoot: string;
+} | null> {
+  return db.transaction('r', db.rows, db.meta, async () => {
+    const meta = await db.meta.get('active');
+    if (meta === undefined) return null;
+
+    // Grouped per CATEGORY-AND-FILE pair, in the order first seen, exactly as
+    // the import loop grouped them and exactly as `readSessionRowData` does —
+    // see that function for why this is a Map of Maps and not a joined key.
+    const grouped = new Map<string, Map<string, LoginSource>>();
+    const keys = await db.rows.orderBy('sourceFile').uniqueKeys();
+    for (const key of keys) {
+      if (typeof key !== 'string') continue;
+      // The name-only screen, the union of the two source kinds' own rules: a
+      // key neither predicate accepts is never read at all.
+      if (!isSessionFileName(key) && !isLoginsFileName(key)) continue;
+      const matches = await db.rows.where('sourceFile').equals(key).toArray();
+      for (const row of matches) {
+        // The FULL predicate, on the row's own category — the same two-step
+        // split `readSessionRowData` uses, for the same reason: the name screen
+        // cannot know which folder the rows came from.
+        const isLogins = isLoginsRow(row.category, row.sourceFile);
+        if (!isLogins && !isSessionsRow(row.category, row.sourceFile)) continue;
+        const byFile = grouped.get(row.category) ?? new Map<string, LoginSource>();
+        grouped.set(row.category, byFile);
+        const source = byFile.get(row.sourceFile);
+        if (source === undefined) {
+          byFile.set(row.sourceFile, {
+            kind: isLogins ? 'logins' : 'sessions',
+            // A login file names no title, so it carries no token rather than a
+            // fabricated one (T-04-27: the token comes from a file name).
+            game: isLogins ? null : sessionFileGame(row.category, row.sourceFile),
+            rows: [row.data],
+          });
+        } else {
+          // The accumulator behind the readonly `rows`; see the same pattern
+          // in the worker's import loop.
+          (source.rows as SessionRow[]).push(row.data);
+        }
+      }
+    }
+
+    // The account pool: a SECOND walk, over the CATEGORY index, because the
+    // login files and the User_Info rows are in different folders and a reader
+    // that asked one index for both would read either everything or nothing.
+    // The partition is the import loop's own: Account_Info.csv's rows first,
+    // the rest as the fallback, so the record describes the same row the
+    // identity does.
+    const accountPool: Record<string, string | undefined>[] = [];
+    const fallbackPool: Record<string, string | undefined>[] = [];
+    const categories = await db.rows.orderBy('category').uniqueKeys();
+    for (const category of categories) {
+      if (typeof category !== 'string' || category.toLowerCase() !== USER_INFO_CATEGORY) continue;
+      const rows = await db.rows.where('category').equals(category).toArray();
+      for (const row of rows) {
+        if (row.sourceFile.toLowerCase().endsWith(ACCOUNT_INFO_SUFFIX)) accountPool.push(row.data);
+        else fallbackPool.push(row.data);
+      }
+    }
+    if (accountPool.length === 0) accountPool.push(...fallbackPool);
+
+    return {
+      importedAt: meta.importedAt,
+      sources: [...grouped.values()].flatMap((byFile) => [...byFile.values()]),
+      accountPool,
+      accountRoot: meta.accountRoot,
+    };
+  });
+}
+
+/**
  * One dataset read for the Phase 5 query path (05-07).
  *
  * `files` is the stored presence list, or null for a legacy cache written
@@ -469,6 +645,37 @@ export async function writePlaytimeIfCurrent(
     const current = await db.meta.get('active');
     if (current === undefined || current.importedAt !== importedAt) return false;
     await db.meta.update('active', { playtime });
+    return true;
+  });
+}
+
+/**
+ * Store a freshly computed login-history aggregate, but ONLY while the active
+ * dataset is still the one the aggregate was computed from (06-01, T-06-03).
+ *
+ * The same guard, and the same reasons, as `writePlaytimeIfCurrent` — a copy
+ * rather than a generalization, because the two aggregates are written by
+ * different branches and a shared helper would exist only to have one caller.
+ * A false return is not a failure: it means a replace landed between the
+ * snapshot and this call, and the aggregate that caller holds belongs to a
+ * dataset the user is no longer looking at. The backfill answers the caller
+ * with the SNAPSHOT's numbers either way — this is a cache, and a missed cache
+ * write costs one recomputation, not correctness.
+ *
+ * Only the `logins` field is updated, so a hash, an identity, a category list,
+ * the presence facts and an `importedAt` can never be rewritten by a rebuild.
+ * No Dexie version is added: this is a property of the existing `meta` record,
+ * and the `version(2)` upgrader above must stay exactly as it is (the 06-01
+ * checkpoint answered option-a, and `tests/unit/import/db.test.ts` pins it).
+ */
+export async function writeLoginsIfCurrent(
+  importedAt: string,
+  logins: LoginAggregates,
+): Promise<boolean> {
+  return db.transaction('rw', db.meta, async () => {
+    const current = await db.meta.get('active');
+    if (current === undefined || current.importedAt !== importedAt) return false;
+    await db.meta.update('active', { logins });
     return true;
   });
 }

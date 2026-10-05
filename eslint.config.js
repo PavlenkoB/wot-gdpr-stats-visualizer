@@ -33,6 +33,62 @@ import globals from 'globals';
 const PLATFORM02_MESSAGE =
   'PLATFORM-02: the app must make zero network requests after page load. Use Worker-only message passing or read files via the File API.';
 
+const NETWORK_GLOBALS = [
+  { name: 'fetch', message: PLATFORM02_MESSAGE },
+  { name: 'fetchLater', message: PLATFORM02_MESSAGE },
+  { name: 'XMLHttpRequest', message: PLATFORM02_MESSAGE },
+  { name: 'WebSocket', message: PLATFORM02_MESSAGE },
+  { name: 'WebTransport', message: PLATFORM02_MESSAGE },
+  { name: 'EventSource', message: PLATFORM02_MESSAGE },
+  { name: 'RTCPeerConnection', message: PLATFORM02_MESSAGE },
+  { name: 'importScripts', message: PLATFORM02_MESSAGE },
+];
+
+const NETWORK_PROPERTIES = [
+  // navigator.sendBeacon — distinct namespace from the window.* globals
+  // because it's a Navigator-API method, not a global constructor.
+  {
+    object: 'navigator',
+    property: 'sendBeacon',
+    message: PLATFORM02_MESSAGE,
+  },
+  // The four "real" network APIs accessed through the explicit-global
+  // prefixes. ESLint's no-restricted-properties only fires on access
+  // (i.e. the bare identifier reference is not detected).
+  { object: 'window', property: 'fetch', message: PLATFORM02_MESSAGE },
+  {
+    object: 'window',
+    property: 'XMLHttpRequest',
+    message: PLATFORM02_MESSAGE,
+  },
+  { object: 'window', property: 'WebSocket', message: PLATFORM02_MESSAGE },
+  { object: 'window', property: 'EventSource', message: PLATFORM02_MESSAGE },
+  { object: 'self', property: 'fetch', message: PLATFORM02_MESSAGE },
+  { object: 'self', property: 'XMLHttpRequest', message: PLATFORM02_MESSAGE },
+  { object: 'self', property: 'WebSocket', message: PLATFORM02_MESSAGE },
+  { object: 'self', property: 'EventSource', message: PLATFORM02_MESSAGE },
+  {
+    object: 'globalThis',
+    property: 'fetch',
+    message: PLATFORM02_MESSAGE,
+  },
+  {
+    object: 'globalThis',
+    property: 'XMLHttpRequest',
+    message: PLATFORM02_MESSAGE,
+  },
+  {
+    object: 'globalThis',
+    property: 'WebSocket',
+    message: PLATFORM02_MESSAGE,
+  },
+  {
+    object: 'globalThis',
+    property: 'EventSource',
+    message: PLATFORM02_MESSAGE,
+  },
+];
+
 export default [
   // 1. Global ignores. ESLint 10 does not read .gitignore on its own, so
   //    build / report / planning / agent / IDE directories that are already
@@ -96,6 +152,11 @@ export default [
       'vitest.config.ts',
       'playwright.config.ts',
       'tests/**/*.ts',
+      // The geo build scripts (06-04). They run in Node, never in a browser,
+      // and they are the only place in the repository allowed to open a file
+      // or reach the network — which is exactly why they live under scripts/
+      // and outside the src/ network ban rather than beside the worker.
+      'scripts/**/*.ts',
     ],
     languageOptions: {
       globals: {
@@ -127,60 +188,21 @@ export default [
   {
     files: ['src/**/*.ts', 'src/**/*.svelte'],
     rules: {
-      'no-restricted-globals': [
+      'no-restricted-globals': ['error', ...NETWORK_GLOBALS],
+      'no-restricted-properties': ['error', ...NETWORK_PROPERTIES],
+      // Code-from-string and dynamic `import(url)` can reach the network (or
+      // rebuild any banned API from a string) without naming a banned global, so
+      // a denylist of names alone is not enough. No file under src/ needs any of
+      // them.
+      'no-eval': 'error',
+      'no-new-func': 'error',
+      'no-implied-eval': 'error',
+      'no-restricted-syntax': [
         'error',
-        { name: 'fetch', message: PLATFORM02_MESSAGE },
-        { name: 'fetchLater', message: PLATFORM02_MESSAGE },
-        { name: 'XMLHttpRequest', message: PLATFORM02_MESSAGE },
-        { name: 'WebSocket', message: PLATFORM02_MESSAGE },
-        { name: 'WebTransport', message: PLATFORM02_MESSAGE },
-        { name: 'EventSource', message: PLATFORM02_MESSAGE },
-        { name: 'RTCPeerConnection', message: PLATFORM02_MESSAGE },
-        { name: 'importScripts', message: PLATFORM02_MESSAGE },
-      ],
-      'no-restricted-properties': [
-        'error',
-        // navigator.sendBeacon — distinct namespace from the window.* globals
-        // because it's a Navigator-API method, not a global constructor.
         {
-          object: 'navigator',
-          property: 'sendBeacon',
-          message: PLATFORM02_MESSAGE,
-        },
-        // The four "real" network APIs accessed through the explicit-global
-        // prefixes. ESLint's no-restricted-properties only fires on access
-        // (i.e. the bare identifier reference is not detected).
-        { object: 'window', property: 'fetch', message: PLATFORM02_MESSAGE },
-        {
-          object: 'window',
-          property: 'XMLHttpRequest',
-          message: PLATFORM02_MESSAGE,
-        },
-        { object: 'window', property: 'WebSocket', message: PLATFORM02_MESSAGE },
-        { object: 'window', property: 'EventSource', message: PLATFORM02_MESSAGE },
-        { object: 'self', property: 'fetch', message: PLATFORM02_MESSAGE },
-        { object: 'self', property: 'XMLHttpRequest', message: PLATFORM02_MESSAGE },
-        { object: 'self', property: 'WebSocket', message: PLATFORM02_MESSAGE },
-        { object: 'self', property: 'EventSource', message: PLATFORM02_MESSAGE },
-        {
-          object: 'globalThis',
-          property: 'fetch',
-          message: PLATFORM02_MESSAGE,
-        },
-        {
-          object: 'globalThis',
-          property: 'XMLHttpRequest',
-          message: PLATFORM02_MESSAGE,
-        },
-        {
-          object: 'globalThis',
-          property: 'WebSocket',
-          message: PLATFORM02_MESSAGE,
-        },
-        {
-          object: 'globalThis',
-          property: 'EventSource',
-          message: PLATFORM02_MESSAGE,
+          selector: 'ImportExpression',
+          message:
+            'PLATFORM-02: a dynamic import() is a network request the page makes after load.',
         },
       ],
       // Svelte rules — error severity under src/. folder and file names
@@ -193,14 +215,74 @@ export default [
     },
   },
 
-  // 8. fflate worker-boundary rule. Scoped to src/**/*.ts and src/**/*.svelte
-  //    but EXCLUDING src/lib/worker/** — that's the only place fflate is
-  //    imported (ingest.worker.ts does path-only unzip + classify inside
-  //    the worker). Anywhere else, the page would block on large exports
-  //    since unzipping runs on the main thread.
+  // 7b. The worker holds the raw rows and the meta CSP is blind to worker
+  //     traffic (06-09 measurement), so lint is the only guard there. On top of
+  //     block 7's list, a worker may not construct another worker (a Blob-URL
+  //     worker can rebuild any API from a string) or open the Cache API
+  //     (`Cache.add(url)` performs a fetch). The one legitimate `new Worker`
+  //     is the main-thread client in src/lib/import/, which is outside this
+  //     glob. An override REPLACES a rule's options, so block 7's lists are
+  //     re-spread, not restated.
+  {
+    files: ['src/lib/worker/**/*.ts'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        ...NETWORK_GLOBALS,
+        { name: 'Worker', message: PLATFORM02_MESSAGE },
+        { name: 'SharedWorker', message: PLATFORM02_MESSAGE },
+        { name: 'caches', message: PLATFORM02_MESSAGE },
+      ],
+      'no-restricted-properties': [
+        'error',
+        ...NETWORK_PROPERTIES,
+        ...['self', 'globalThis'].flatMap((object) =>
+          ['Worker', 'SharedWorker', 'caches'].map((property) => ({
+            object,
+            property,
+            message: PLATFORM02_MESSAGE,
+          })),
+        ),
+      ],
+    },
+  },
+
+  // 8. Worker-boundary import rule. Scoped to src/**/*.ts and src/**/*.svelte
+  //    but EXCLUDING the worker-side modules listed below.
+  //
+  //    Two bans share this ONE block on purpose. `no-restricted-imports` takes a
+  //    single options object, and when two config blocks both match a file the
+  //    later one's options REPLACE the earlier one's — a second block for the
+  //    geo modules would have silently dropped the fflate restriction. That
+  //    failure is invisible unless both bans are probed in the same test file,
+  //    which is why the fflate probes and the geo probes sit side by side in
+  //    tests/unit/guards/lint-guards.test.ts.
+  //
+  //    fflate: the only place it is imported is inside src/lib/worker/
+  //    (ingest.worker.ts does path-only unzip + classify there). Anywhere else
+  //    the page would block on large exports, since unzipping would run on the
+  //    main thread.
+  //
+  //    The geo worker-only modules (D-12, T-06-23): the range table is inlined
+  //    into the worker chunk and is 3.4 MB of base64 on the wire. A main-thread
+  //    import would pull it into the main bundle — on a phone, for a lookup the
+  //    main thread has no rows to feed, since the raw rows never leave the
+  //    worker either. `city-table.ts` is named before it exists (plan 06-09),
+  //    so the rule is already in force for the module that will be added.
   {
     files: ['src/**/*.ts', 'src/**/*.svelte'],
-    ignores: ['src/lib/worker/**'],
+    ignores: [
+      'src/lib/worker/**',
+      // The worker-only modules may import each other, and so may the one
+      // aggregator that lives outside src/lib/worker/ and reaches them:
+      // `login-aggregate.ts` is imported only by worker files, and takes
+      // `geoTableId()` — a provenance string — not the table. A probe in
+      // lint-guards.test.ts names it, so the exemption cannot quietly widen.
+      'src/lib/geo/country-table.ts',
+      'src/lib/geo/country-lookup.ts',
+      'src/lib/geo/city-table.ts',
+      'src/lib/features/logins/login-aggregate.ts',
+    ],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -212,7 +294,59 @@ export default [
                 'fflate is worker-only; unzip work runs inside src/lib/worker/ so the main thread stays responsive on large exports.',
             },
           ],
+          patterns: [
+            {
+              // The bare-name entries catch the sibling spelling (`./country-table.ts`
+              // from a file inside src/lib/geo/), which has no `geo/` segment.
+              group: [
+                '**/geo/country-table*',
+                '**/geo/country-lookup*',
+                '**/geo/city-table*',
+                '**/country-table*',
+                '**/country-lookup*',
+                '**/city-table*',
+              ],
+              message:
+                'D-12: the range table is worker-only. It is inlined into the worker chunk and the raw rows never leave the worker, so a main-thread import would pull a multi-megabyte table into the page bundle for a lookup it cannot feed. Resolve countries in the worker and send the codes across.',
+            },
+          ],
         },
+      ],
+    },
+  },
+
+  // 9. THE single sanctioned network call (phase 06, plan 06-11, D-16, T-06-43).
+  //
+  //    The opt-in city file is fetched from the MAIN thread by exactly one
+  //    module, per the decision recorded at the end of plan 06-09 (option-a).
+  //    This override is scoped to that one exact path and re-declares the whole
+  //    `no-restricted-globals` list from block 7 MINUS the platform fetch entry:
+  //    an override REPLACES a rule's options, it does not merge them, so listing
+  //    only the delta would silently un-ban everything else in this file. The
+  //    legacy request object, the socket, the transport, the event source, the
+  //    peer connection, importScripts and the deferred-fetch API all stay banned
+  //    here. Block 7's `no-restricted-properties` list is untouched, so the
+  //    explicit-global spellings (`window.fetch`, `self.fetch`,
+  //    `globalThis.fetch`) stay banned even in this file: it must use the bare
+  //    call, which keeps the exemption one spelling wide.
+  //
+  //    `src/lib/worker/**` is NOT touched and never gets an exemption: it holds
+  //    the raw rows. `tests/unit/guards/fetch-scan.test.ts` asserts that the
+  //    platform fetch call appears in exactly one file under `src/`, this one,
+  //    and `tests/unit/guards/lint-guards.test.ts` probes every edge of this
+  //    glob. Keep this block AFTER block 7: later entries win.
+  {
+    files: ['src/lib/geo/city-fetch.ts'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        { name: 'fetchLater', message: PLATFORM02_MESSAGE },
+        { name: 'XMLHttpRequest', message: PLATFORM02_MESSAGE },
+        { name: 'WebSocket', message: PLATFORM02_MESSAGE },
+        { name: 'WebTransport', message: PLATFORM02_MESSAGE },
+        { name: 'EventSource', message: PLATFORM02_MESSAGE },
+        { name: 'RTCPeerConnection', message: PLATFORM02_MESSAGE },
+        { name: 'importScripts', message: PLATFORM02_MESSAGE },
       ],
     },
   },

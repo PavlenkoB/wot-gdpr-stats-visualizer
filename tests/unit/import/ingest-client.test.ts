@@ -40,8 +40,12 @@ class FakeWorker implements WorkerLike {
   onerror: ((event: ErrorEvent) => void) | null = null;
   onmessageerror: ((event: MessageEvent) => void) | null = null;
 
-  postMessage(message: IngestRequest): void {
+  /** The transfer list of each post, aligned with `posts` (06-13: the city buffer). */
+  transfers: (Transferable[] | undefined)[] = [];
+
+  postMessage(message: IngestRequest, transfer?: Transferable[]): void {
     this.posts.push(message);
+    this.transfers.push(transfer);
   }
 
   emit(response: IngestResponse): void {
@@ -1919,5 +1923,116 @@ describe('04-07 the ingest state machine ignores playtime traffic', () => {
     // A cleared dataset is not a broken worker: the query still goes out,
     // and the worker's null-dataset answer is a real answer, not a failure.
     expect(await outcome).toEqual({ kind: 'result', queryId: 1, importedAt: null, view: null });
+  });
+});
+
+// =============================================================================
+// 06-13 — the city bridge is a delegation seam too
+//
+// `city-result` and `city-error` share the worker channel with the import flow,
+// so they are routed to `CityClient` from the FIRST branch of `#handle`, before
+// any state-machine branch can read them as something else. A city load that
+// moved `#jobId`, `state` or the settle timer would strand the dropzone.
+// =============================================================================
+
+describe('06-13 the city bridge', () => {
+  const CITY_VIEW = {
+    month: '2026-09',
+    places: [],
+    placeOf: [],
+    ranked: [],
+    moreCities: 0,
+    noCityAddresses: 0,
+  };
+
+  test('a load posts city-load with the buffer transferred, through the same worker', () => {
+    const { client: c, fake: f } = makeClient();
+    f.emit({ type: 'ready' });
+    f.posts.length = 0;
+    f.transfers.length = 0;
+
+    const bytes = new Uint8Array([1, 2, 3]).buffer;
+    void c.city.load(bytes, 3, 'abc');
+
+    expect(f.posts).toEqual([
+      { type: 'city-load', loadId: 1, buffer: bytes, expectedBytes: 3, sha256: 'abc' },
+    ]);
+    expect(f.transfers[0]).toEqual([bytes]);
+  });
+
+  test('a city-result and a city-error reach the city client and never move the import state machine', async () => {
+    const { client: c, fake: f } = makeClient();
+    f.emit({ type: 'ready' });
+    f.emit({ type: 'cache-status', jobId: 1, cached: null });
+    c.submitFiles([makeFile('export.zip', 100)]);
+    f.emit({ type: 'stage', jobId: 2, stage: 'parsing' });
+    const before = {
+      state: c.state,
+      stage: c.stage,
+      result: c.result,
+      errorMessage: c.errorMessage,
+      timers: vi.getTimerCount(),
+    };
+
+    const first = c.city.load(new ArrayBuffer(4), 4, null);
+    f.emit({ type: 'city-error', loadId: 1, detail: 'city data invalid' });
+    const second = c.city.load(new ArrayBuffer(4), 4, null);
+    f.emit({ type: 'city-result', loadId: 2, importedAt: 'T', view: CITY_VIEW });
+
+    expect(await first).toEqual({ kind: 'error', loadId: 1, detail: 'city data invalid' });
+    expect(await second).toMatchObject({ kind: 'result', loadId: 2 });
+    expect(c.state).toBe(before.state);
+    expect(c.stage).toBe(before.stage);
+    expect(c.result).toBe(before.result);
+    expect(c.errorMessage).toBe(before.errorMessage);
+    expect(vi.getTimerCount()).toBe(before.timers);
+
+    // The import still completes: nothing was disturbed.
+    f.emit({ type: 'done', jobId: 2, result: DISPLAYED_RESULT });
+    expect(c.state).toBe('done');
+  });
+
+  test('a load leaves the ingest jobId counter untouched', () => {
+    const { client: c, fake: f } = makeClient();
+    f.emit({ type: 'ready' });
+    void c.city.load(new ArrayBuffer(4), 4, null);
+    void c.city.load(new ArrayBuffer(4), 4, null);
+    f.posts.length = 0;
+    c.submitFiles([makeFile('export.zip', 100)]);
+    expect(f.posts.filter((m) => m.type === 'ingest').map((m) => m.jobId)).toEqual([2]);
+  });
+
+  test('a worker error releases a pending city load with a FIXED detail, never the event text', async () => {
+    const { client: c, fake: f } = makeClient();
+    f.emit({ type: 'ready' });
+    f.emit({ type: 'cache-status', jobId: 1, cached: null });
+    const outcome = c.city.load(new ArrayBuffer(4), 4, null);
+
+    f.emitError('/Users/someone/secret/ingest.worker.js:1 boom');
+
+    expect(await outcome).toEqual({ kind: 'error', loadId: 1, detail: 'worker error' });
+    expect(c.city.pendingCount).toBe(0);
+  });
+
+  test('a message that cannot be deserialized releases a pending city load too', async () => {
+    const { client: c, fake: f } = makeClient();
+    f.emit({ type: 'ready' });
+    const outcome = c.city.load(new ArrayBuffer(4), 4, null);
+
+    f.emitMessageError();
+
+    expect(await outcome).toEqual({
+      kind: 'error',
+      loadId: 1,
+      detail: 'worker message could not be deserialized',
+    });
+  });
+
+  test('the city field is the same instance for the whole client lifetime', () => {
+    const { client: c, fake: f } = makeClient();
+    const first = c.city;
+    f.emit({ type: 'ready' });
+    c.city.failPending('worker error');
+    expect(c.city).toBe(first);
   });
 });

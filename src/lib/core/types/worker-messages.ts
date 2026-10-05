@@ -7,6 +7,8 @@ import type {
   PremiumView,
   SpendView,
 } from '../../features/finance/finance-shared.ts';
+import type { LoginsView } from '../../features/logins/login-shared.ts';
+import type { CityView } from '../../features/logins/city-shared.ts';
 
 export type CategoryStatus = 'supported' | 'known-deferred' | 'unknown';
 
@@ -223,7 +225,14 @@ export type DataQuery =
   | { channel: 'vehicles'; title: VehicleTitleId | null; battleType: string | null }
   | { channel: 'premium' }
   | { channel: 'currency' }
-  | { channel: 'spend' };
+  | { channel: 'spend' }
+  // 06-01. The login history asks through the SAME channel union rather than a
+  // dedicated `login-query` triple, so the existing per-channel supersede in
+  // `QueryClient` applies to it for free and a second request namespace would be
+  // a second thing to get wrong. It takes NO further fields — like the three
+  // finance channels — so `isDataQuery` rejects a `title` or `battleType`
+  // smuggled into it rather than ignoring fields this code does not understand.
+  | { channel: 'logins' };
 
 /**
  * The answer to one `DataQuery`, discriminated by the same channel as the
@@ -233,7 +242,8 @@ export type DataResult =
   | { channel: 'vehicles'; view: VehicleView }
   | { channel: 'premium'; view: PremiumView }
   | { channel: 'currency'; view: CurrencyView }
-  | { channel: 'spend'; view: SpendView };
+  | { channel: 'spend'; view: SpendView }
+  | { channel: 'logins'; view: LoginsView };
 
 export interface ParsingProgress {
   category: string;
@@ -254,7 +264,26 @@ export type IngestRequest =
   // same shared namespace idea the playtime pair established, and deliberately
   // NOT the ingest `jobId` — a block asking for numbers must not move the
   // import state machine.
-  | { type: 'data-query'; queryId: number; query: DataQuery };
+  | { type: 'data-query'; queryId: number; query: DataQuery }
+  // 06-09, ACTIVITY-07, D-13/D-15. The opt-in city asset, handed over as
+  // BYTES: this message is the only sanctioned way the city container reaches
+  // the worker, and it carries the buffer rather than a URL because the worker
+  // has no network access at all (the lint ban is the enforcement, and this
+  // contract is what makes it possible to keep).
+  //
+  // `loadId` rather than `queryId`, and deliberately not a channel in
+  // `DataQuery`: a city load is a DECODE, not a question about a dataset, and
+  // the two must be able to be in flight at once without either superseding the
+  // other. `expectedBytes` and `sha256` come from the build's manifest; both
+  // are checked before a byte of the container is believed.
+  | {
+      type: 'city-load';
+      loadId: number;
+      buffer: ArrayBuffer;
+      expectedBytes: number;
+      /** Null skips the check — a manifest that was not fetched has no hash. */
+      sha256: string | null;
+    };
 
 export type IngestResponse =
   | { type: 'ready' }
@@ -289,11 +318,33 @@ export type IngestResponse =
   // 05-07 (T-05-20). `detail` is the error NAME only, never its message: a
   // message from a builder can echo a cell, and Phase 3 D-21 keeps dataset
   // text off the screen and out of the outcome.
-  | { type: 'data-error'; queryId: number; detail: string };
+  | { type: 'data-error'; queryId: number; detail: string }
+  // 06-09, ACTIVITY-07. `importedAt` echoes the ONE Dexie snapshot the view was
+  // computed from, exactly as the playtime and data pairs do (D-28): a replace
+  // landing while a decode is in flight produces an answer the main thread
+  // drops, rather than a city list described against the wrong dataset. Both it
+  // and `view` are null when nothing is imported.
+  | {
+      type: 'city-result';
+      loadId: number;
+      importedAt: string | null;
+      view: CityView | null;
+    }
+  // 06-09 (T-06-33, T-06-35). `detail` is the one fixed CITY_DATA_ERROR string
+  // and never the error's own message: these bytes came off a network, so a
+  // message assembled from them is text a hostile file chose.
+  | { type: 'city-error'; loadId: number; detail: string };
 
 /** Main-thread view of the worker (a real Worker satisfies it structurally). */
 export interface WorkerLike {
-  postMessage(message: IngestRequest): void;
+  /**
+   * `transfer` exists for the city container and nothing else: an 11.8 MB
+   * `ArrayBuffer` COPIED across `postMessage` would be 11.8 MB of allocation
+   * and a stall on the main thread for a transfer that is free. Every other
+   * message has no transfer list, and the parameter is optional so no caller
+   * has to pass one.
+   */
+  postMessage(message: IngestRequest, transfer?: Transferable[]): void;
   onmessage: ((event: MessageEvent<IngestResponse>) => void) | null;
   onerror: ((event: ErrorEvent) => void) | null;
   onmessageerror: ((event: MessageEvent) => void) | null;

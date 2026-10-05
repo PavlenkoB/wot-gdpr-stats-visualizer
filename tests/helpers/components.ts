@@ -16,6 +16,7 @@ export const COMPONENT_DIRS: readonly string[] = [
   'features/playtime',
   'features/vehicles',
   'features/finance',
+  'features/logins',
 ].map((dir) => path.join(LIB, dir));
 
 /**

@@ -65,8 +65,16 @@ export interface ChannelFiles {
  *
  * The three finance channels each need exactly one file, so their table entry is
  * a single name; the vehicles channel needs the builder's own sixteen-name set.
+ *
+ * The key type EXCLUDES `logins` (06-01): that channel reads no file at all —
+ * it is answered from the aggregate stored on the meta record, with a rebuild
+ * from the stored session rows when that aggregate is absent or stale. Naming
+ * it here would hand the worker's `DATA_FILES[query.channel]` lookup a
+ * fabricated, empty file table and read rows for a question that never needed
+ * them. The `logins` branch in `ingest.worker.ts` runs BEFORE that lookup, which
+ * is the whole reason the exclusion is safe.
  */
-export const DATA_FILES: Readonly<Record<DataQuery['channel'], ChannelFiles>> = {
+export const DATA_FILES: Readonly<Record<Exclude<DataQuery['channel'], 'logins'>, ChannelFiles>> = {
   premium: {
     names: new Set([PREMIUM_FILE]),
     categories: [CATEGORY_FINANCIAL],
@@ -137,8 +145,15 @@ function vehicleFilesOf(snapshot: RowsSnapshot): VehicleFiles {
   return files;
 }
 
-/** The four channels, as the set the validator tests membership against. */
-const DATA_CHANNELS: ReadonlySet<string> = new Set(Object.keys(DATA_FILES));
+/**
+ * Every channel the validator accepts, as the set it tests membership against.
+ *
+ * Built as the file table's keys PLUS the one channel that reads no file.
+ * Deriving it from `Object.keys(DATA_FILES)` alone would reject a perfectly
+ * well-formed `logins` query, because that channel is deliberately absent from
+ * that table (see {@link DATA_FILES}).
+ */
+const DATA_CHANNELS: ReadonlySet<string> = new Set([...Object.keys(DATA_FILES), 'logins']);
 
 /** The four title ids, as the set the validator tests membership against. */
 const VEHICLE_TITLE_IDS: ReadonlySet<string> = new Set(VEHICLE_TITLES);
@@ -162,6 +177,10 @@ const VEHICLE_TITLE_IDS: ReadonlySet<string> = new Set(VEHICLE_TITLES);
  * The three finance channels take no further fields, and a `title` smuggled
  * into one is REJECTED rather than ignored: silently dropping a field this code
  * does not understand is how a future field starts being trusted by accident.
+ *
+ * The `logins` channel (06-01) is the fourth field-less channel and rides the
+ * same rule unchanged: a bare `{ channel: 'logins' }` is a well-formed query,
+ * and the same query plus a `title` is rejected.
  */
 export function isDataQuery(x: unknown): x is DataQuery {
   if (typeof x !== 'object' || x === null || Array.isArray(x)) return false;
@@ -186,11 +205,17 @@ export function isDataQuery(x: unknown): x is DataQuery {
 /**
  * Answer one query from one snapshot.
  *
- * EXHAUSTIVE over the four channels, deliberately: a channel that somehow
- * reached here would fall to the default and throw, and the caller's catch
- * turns that into a `data-error` for that block. That is the right shape for a
- * bug — a block shows an error, the import is untouched, and nothing is served
- * that no builder vouched for.
+ * EXHAUSTIVE over the four channels that read files, deliberately: a channel
+ * that somehow reached here would fall to the default and throw, and the
+ * caller's catch turns that into a `data-error` for that block. That is the
+ * right shape for a bug — a block shows an error, the import is untouched, and
+ * nothing is served that no builder vouched for.
+ *
+ * `logins` reaches that default and is CORRECT to do so (06-01): it is answered
+ * from the meta record by the worker's own branch, before the snapshot is ever
+ * read, because it needs no rows when the stored aggregate is current. Throwing
+ * here means "this function has no answer for that channel", which is exactly
+ * the truth for a channel whose answer is not a function of the snapshot.
  */
 export function answerDataQuery(query: DataQuery, snapshot: RowsSnapshot): DataResult {
   switch (query.channel) {

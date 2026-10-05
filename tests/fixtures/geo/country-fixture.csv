@@ -1,0 +1,85 @@
+# 06-04 fixture country CSV. Documentation ranges only (RFC 5737, RFC 3849) —
+# no real address of any kind appears in this file (D-17).
+#
+# Every row is a real documentation range whose COUNTRY the fixture chooses.
+# That is the whole point of the file: against the production table all of these
+# addresses are reserved space and resolve to `ZZ`, so a test that wants to
+# assert "this address is in Singapore" has to build against this source.
+#
+# The three /24s are cut into /27 blocks, one country per block, with two
+# deliberate exceptions:
+#   * 198.51.100.32/27 is written as TWO ADJACENT /28s of the same country, so
+#     the merge pass has something real to merge;
+#   * 203.0.113.224/27 is explicitly `ZZ`, and it contains 203.0.113.230 — the
+#     hand fixture's third address from plan 06-01 — so plan 06-06 can assert
+#     that a DOCUMENTATION address resolves to the explicit unknown rather than
+#     to an accident of the range layout.
+#
+# The 2001:db8::/32 blocks are forty /48s, one country each, so the IPv6 section
+# of the fixture has enough entries to exercise a predecessor search.
+start,end,CC
+192.0.2.0,192.0.2.31,DE
+192.0.2.32,192.0.2.63,FR
+192.0.2.64,192.0.2.95,JP
+192.0.2.96,192.0.2.127,SG
+192.0.2.128,192.0.2.159,BR
+192.0.2.160,192.0.2.191,US
+192.0.2.192,192.0.2.223,PL
+192.0.2.224,192.0.2.255,GB
+198.51.100.0,198.51.100.31,AU
+198.51.100.32,198.51.100.47,CA
+198.51.100.48,198.51.100.63,CA
+198.51.100.64,198.51.100.95,IN
+198.51.100.96,198.51.100.127,GI
+198.51.100.128,198.51.100.159,NL
+198.51.100.160,198.51.100.191,ES
+198.51.100.192,198.51.100.223,IT
+198.51.100.224,198.51.100.255,SE
+203.0.113.0,203.0.113.31,CN
+203.0.113.32,203.0.113.63,KR
+203.0.113.64,203.0.113.95,MX
+203.0.113.96,203.0.113.127,ZA
+203.0.113.128,203.0.113.159,NG
+203.0.113.160,203.0.113.191,AR
+203.0.113.192,203.0.113.223,FI
+203.0.113.224,203.0.113.255,ZZ
+2001:db8:0000::,2001:db8:0000:ffff:ffff:ffff:ffff:ffff,DE
+2001:db8:0001::,2001:db8:0001:ffff:ffff:ffff:ffff:ffff,FR
+2001:db8:0002::,2001:db8:0002:ffff:ffff:ffff:ffff:ffff,JP
+2001:db8:0003::,2001:db8:0003:ffff:ffff:ffff:ffff:ffff,SG
+2001:db8:0004::,2001:db8:0004:ffff:ffff:ffff:ffff:ffff,BR
+2001:db8:0005::,2001:db8:0005:ffff:ffff:ffff:ffff:ffff,US
+2001:db8:0006::,2001:db8:0006:ffff:ffff:ffff:ffff:ffff,PL
+2001:db8:0007::,2001:db8:0007:ffff:ffff:ffff:ffff:ffff,GB
+2001:db8:0008::,2001:db8:0008:ffff:ffff:ffff:ffff:ffff,AU
+2001:db8:0009::,2001:db8:0009:ffff:ffff:ffff:ffff:ffff,CA
+2001:db8:000a::,2001:db8:000a:ffff:ffff:ffff:ffff:ffff,DE
+2001:db8:000b::,2001:db8:000b:ffff:ffff:ffff:ffff:ffff,FR
+2001:db8:000c::,2001:db8:000c:ffff:ffff:ffff:ffff:ffff,JP
+2001:db8:000d::,2001:db8:000d:ffff:ffff:ffff:ffff:ffff,SG
+2001:db8:000e::,2001:db8:000e:ffff:ffff:ffff:ffff:ffff,BR
+2001:db8:000f::,2001:db8:000f:ffff:ffff:ffff:ffff:ffff,US
+2001:db8:0010::,2001:db8:0010:ffff:ffff:ffff:ffff:ffff,PL
+2001:db8:0011::,2001:db8:0011:ffff:ffff:ffff:ffff:ffff,GB
+2001:db8:0012::,2001:db8:0012:ffff:ffff:ffff:ffff:ffff,AU
+2001:db8:0013::,2001:db8:0013:ffff:ffff:ffff:ffff:ffff,CA
+2001:db8:0014::,2001:db8:0014:ffff:ffff:ffff:ffff:ffff,DE
+2001:db8:0015::,2001:db8:0015:ffff:ffff:ffff:ffff:ffff,FR
+2001:db8:0016::,2001:db8:0016:ffff:ffff:ffff:ffff:ffff,JP
+2001:db8:0017::,2001:db8:0017:ffff:ffff:ffff:ffff:ffff,SG
+2001:db8:0018::,2001:db8:0018:ffff:ffff:ffff:ffff:ffff,BR
+2001:db8:0019::,2001:db8:0019:ffff:ffff:ffff:ffff:ffff,US
+2001:db8:001a::,2001:db8:001a:ffff:ffff:ffff:ffff:ffff,PL
+2001:db8:001b::,2001:db8:001b:ffff:ffff:ffff:ffff:ffff,GB
+2001:db8:001c::,2001:db8:001c:ffff:ffff:ffff:ffff:ffff,AU
+2001:db8:001d::,2001:db8:001d:ffff:ffff:ffff:ffff:ffff,CA
+2001:db8:001e::,2001:db8:001e:ffff:ffff:ffff:ffff:ffff,DE
+2001:db8:001f::,2001:db8:001f:ffff:ffff:ffff:ffff:ffff,FR
+2001:db8:0020::,2001:db8:0020:ffff:ffff:ffff:ffff:ffff,JP
+2001:db8:0021::,2001:db8:0021:ffff:ffff:ffff:ffff:ffff,SG
+2001:db8:0022::,2001:db8:0022:ffff:ffff:ffff:ffff:ffff,BR
+2001:db8:0023::,2001:db8:0023:ffff:ffff:ffff:ffff:ffff,US
+2001:db8:0024::,2001:db8:0024:ffff:ffff:ffff:ffff:ffff,PL
+2001:db8:0025::,2001:db8:0025:ffff:ffff:ffff:ffff:ffff,GB
+2001:db8:0026::,2001:db8:0026:ffff:ffff:ffff:ffff:ffff,AU
+2001:db8:0027::,2001:db8:0027:ffff:ffff:ffff:ffff:ffff,CA

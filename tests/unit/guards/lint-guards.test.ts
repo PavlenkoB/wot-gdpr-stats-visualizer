@@ -119,6 +119,67 @@ describe('network ban — no-restricted-globals', () => {
 });
 
 // -----------------------------------------------------------------------------
+// Network ban holes a name denylist cannot see (WR-04): code from a string,
+// dynamic import(), and worker-only escape hatches (nested Worker, Cache API)
+// -----------------------------------------------------------------------------
+describe('network ban — string-to-code and dynamic import', () => {
+  const PROBES: Array<[string, string, string]> = [
+    ['dynamic import(url)', `const u = 'x'; import(u);`, 'no-restricted-syntax'],
+    ['eval', `eval('1');`, 'no-eval'],
+    ['new Function', `new Function('return 1');`, 'no-new-func'],
+    ['setTimeout with a string', `setTimeout('1', 0);`, 'no-implied-eval'],
+  ];
+  test.each(PROBES)(
+    '%s fires in src/lib and in src/lib/worker',
+    async (_label, src, ruleId) => {
+      expect(await ruleIdsAtError(src, PROBE_PATH)).toContain(ruleId);
+      expect(await ruleIdsAtError(src, WORKER_PROBE_PATH)).toContain(ruleId);
+    },
+    lintTimeoutMs,
+  );
+});
+
+describe('network ban — worker-only escape hatches', () => {
+  const PROBES: Array<[string, string]> = [
+    ['new Worker', `new Worker('x');`],
+    ['new SharedWorker', `new SharedWorker('x');`],
+    ['caches', `caches.open('x');`],
+    ['self.caches', `self.caches.open('x');`],
+    ['globalThis.Worker', `new globalThis.Worker('x');`],
+  ];
+  test.each(PROBES)(
+    '%s fires inside src/lib/worker',
+    async (_label, src) => {
+      const ids = await ruleIdsAtError(src, WORKER_PROBE_PATH);
+      expect(ids.some((id) => id.startsWith('no-restricted-'))).toBe(true);
+    },
+    lintTimeoutMs,
+  );
+
+  test(
+    'the main-thread worker client may still construct a Worker',
+    async () => {
+      const ids = await ruleIdsAtError(`new Worker('x');`, 'src/lib/import/ingest-client.ts');
+      expect(ids).not.toContain('no-restricted-globals');
+    },
+    lintTimeoutMs,
+  );
+
+  test(
+    'the worker block keeps the full network list (an override replaces, it does not merge)',
+    async () => {
+      expect(await ruleIdsAtError(`fetch('/x');`, WORKER_PROBE_PATH)).toContain(
+        'no-restricted-globals',
+      );
+      expect(await ruleIdsAtError(`self.fetch('/x');`, WORKER_PROBE_PATH)).toContain(
+        'no-restricted-properties',
+      );
+    },
+    lintTimeoutMs,
+  );
+});
+
+// -----------------------------------------------------------------------------
 // Network ban: no-restricted-properties (window./self./globalThis. prefixes +
 // navigator.sendBeacon)
 // -----------------------------------------------------------------------------
@@ -201,6 +262,184 @@ describe('worker-boundary import ban — no-restricted-imports (fflate)', () => 
       const src = `import { unzipSync } from 'fflate';`;
       const ids = await ruleIdsAtError(src, WORKER_PROBE_PATH);
       expect(ids).not.toContain('no-restricted-imports');
+    },
+    lintTimeoutMs,
+  );
+});
+
+// -----------------------------------------------------------------------------
+// Worker-boundary import ban: no-restricted-imports (the geo worker-only modules)
+// -----------------------------------------------------------------------------
+// 06-06. D-12 puts the range table inside the worker: the main thread must
+// never load it, never hold it and never scan raw rows to work out a country.
+// A module a main-thread import could reach is a module whose table a
+// main-thread bundle would one day pull in — a 3.4 MB table on a phone, for a
+// lookup the main thread has no rows to feed.
+//
+// These probes are the proof the rule fires. The fflate probes above stay in
+// this file unmodified: the two bans live in the SAME `no-restricted-imports`
+// block, and when two blocks match a file the later one's options replace the
+// earlier one's, so a careless second block would silently drop the fflate
+// restriction. That failure is invisible unless the fflate probe is asserted
+// again next to the new one, which is why it is here rather than left alone.
+const WORKER_ONLY_GEO_IMPORTS = [
+  { name: 'country-table', specifier: '../geo/country-table.ts' },
+  { name: 'country-lookup', specifier: '../geo/country-lookup.ts' },
+  { name: 'city-table', specifier: '../geo/city-table.ts' },
+] as const;
+
+describe('worker-boundary import ban — no-restricted-imports (geo worker-only modules)', () => {
+  test.each(WORKER_ONLY_GEO_IMPORTS)(
+    'importing geo/$name from src/lib (non-worker) fires no-restricted-imports',
+    async ({ specifier }) => {
+      const src = `import { lookupCountry } from '${specifier}';\nlookupCountry;`;
+      const ids = await ruleIdsAtError(src, PROBE_PATH);
+      expect(ids).toContain('no-restricted-imports');
+    },
+    lintTimeoutMs,
+  );
+
+  test.each(WORKER_ONLY_GEO_IMPORTS)(
+    'importing geo/$name from src/lib/worker does NOT fire no-restricted-imports',
+    async ({ specifier }) => {
+      const src = `import { lookupCountry } from '${specifier}';\nlookupCountry;`;
+      const ids = await ruleIdsAtError(src, WORKER_PROBE_PATH);
+      expect(ids).not.toContain('no-restricted-imports');
+    },
+    lintTimeoutMs,
+  );
+
+  // WR-03: a file inside src/lib/geo/ names its sibling as `./country-table.ts`,
+  // which has no `geo/` segment. A main-thread sibling (country-names.ts, ip.ts,
+  // city-fetch.ts) importing it would pull the table into the main bundle.
+  test.each([
+    { name: 'country-table', specifier: './country-table.ts' },
+    { name: 'country-lookup', specifier: './country-lookup.ts' },
+    { name: 'city-table', specifier: './city-table.ts' },
+  ])(
+    'a sibling-relative import of $name from src/lib/geo fires no-restricted-imports',
+    async ({ specifier }) => {
+      const src = `import { lookupCountry } from '${specifier}';\nlookupCountry;`;
+      const ids = await ruleIdsAtError(src, 'src/lib/geo/__lint_probe__.ts');
+      expect(ids).toContain('no-restricted-imports');
+    },
+    lintTimeoutMs,
+  );
+
+  test(
+    'the login aggregator, which runs only in the worker, may import the lookup',
+    async () => {
+      // `login-aggregate.ts` is the one module outside `src/lib/worker/` that
+      // reaches a worker-only module, and it does so for `geoTableId()` alone
+      // — the staleness stamp, which is a string and carries no table. It is
+      // named in the block's `ignores` beside `src/lib/worker/**`, and this
+      // probe is what stops that exemption widening into a hole: the rule has
+      // to be told about exactly this file, and a NEIGHBOUR in the same
+      // directory must still be restricted.
+      const src = `import { geoTableId } from '../geo/country-lookup.ts';\ngeoTableId;`;
+      expect(await ruleIdsAtError(src, 'src/lib/features/logins/login-aggregate.ts')).not.toContain(
+        'no-restricted-imports',
+      );
+      expect(await ruleIdsAtError(src, 'src/lib/features/logins/__lint_probe__.ts')).toContain(
+        'no-restricted-imports',
+      );
+    },
+    lintTimeoutMs,
+  );
+
+  test(
+    'an unrelated module is still allowed to import fflate-free geo helpers',
+    async () => {
+      // `country-names.ts` holds no table — it is pure `Intl` — and is the one
+      // geo module the main thread may use. Nothing here asserts a name; the
+      // case exists so a future "restrict the whole `geo/` directory" rewrite
+      // of the pattern below is caught as a failure rather than as a decision
+      // nobody noticed.
+      const src = `import { countryName } from '../geo/country-names.ts';\ncountryName;`;
+      const ids = await ruleIdsAtError(src, PROBE_PATH);
+      expect(ids).not.toContain('no-restricted-imports');
+    },
+    lintTimeoutMs,
+  );
+});
+
+// -----------------------------------------------------------------------------
+// The single sanctioned fetch (06-11, D-16, T-06-43, RESEARCH Pitfall 6)
+// -----------------------------------------------------------------------------
+//
+// The override in eslint.config.js exempts the platform fetch for ONE exact
+// path. An override REPLACES a rule's options, so the failure to guard against
+// is the opposite of the obvious one: not "fetch is still banned there" but
+// "the exemption quietly un-banned something else, or a loose glob un-banned
+// fetch somewhere it must never be". Every edge of the glob is probed.
+const CITY_FETCH_PATH = 'src/lib/geo/city-fetch.ts';
+
+describe('the single sanctioned fetch', () => {
+  test.each([
+    ['a main-thread feature path', 'src/lib/features/logins/__lint_probe__.ts'],
+    ['the worker directory', WORKER_PROBE_PATH],
+    ['a nested worker path', 'src/lib/worker/geo/__lint_probe__.ts'],
+    ['a different file under src/lib/geo', 'src/lib/geo/__lint_probe__.ts'],
+    ['a near-miss name beside the exempt file', 'src/lib/geo/city-fetch-2.ts'],
+    ['the exempt file name in another directory', 'src/lib/worker/city-fetch.ts'],
+    ['a Svelte component', SVELTE_PROBE_PATH],
+  ])(
+    'the platform fetch is reported in %s',
+    async (_label, filePath) => {
+      const src = filePath.endsWith('.svelte')
+        ? `<script lang="ts">\n  fetch('/x');\n</script>\n`
+        : `fetch('/x');\n`;
+      expect(await ruleIdsAtError(src, filePath)).toContain('no-restricted-globals');
+    },
+    lintTimeoutMs,
+  );
+
+  test(
+    'the platform fetch is NOT reported in the exempt file',
+    async () => {
+      const ids = await ruleIdsAtError(`fetch('/x');\n`, CITY_FETCH_PATH);
+      expect(ids).not.toContain('no-restricted-globals');
+    },
+    lintTimeoutMs,
+  );
+
+  test.each(['XMLHttpRequest', 'WebSocket', 'WebTransport', 'EventSource', 'RTCPeerConnection'])(
+    'the exemption leaves %s banned in the exempt file',
+    async (name) => {
+      expect(await ruleIdsAtError(`${name};\n`, CITY_FETCH_PATH)).toContain(
+        'no-restricted-globals',
+      );
+    },
+    lintTimeoutMs,
+  );
+
+  test(
+    'the exemption leaves the deferred-fetch API and importScripts banned too',
+    async () => {
+      for (const name of ['fetchLater', 'importScripts']) {
+        expect(await ruleIdsAtError(`${name};\n`, CITY_FETCH_PATH), name).toContain(
+          'no-restricted-globals',
+        );
+      }
+    },
+    lintTimeoutMs,
+  );
+
+  test.each(['window.fetch', 'self.fetch', 'globalThis.fetch', 'navigator.sendBeacon'])(
+    'the explicit-global form %s is still reported in the exempt file',
+    async (expression) => {
+      expect(await ruleIdsAtError(`${expression};\n`, CITY_FETCH_PATH)).toContain(
+        'no-restricted-properties',
+      );
+    },
+    lintTimeoutMs,
+  );
+
+  test(
+    'the real module is clean under its own override',
+    async () => {
+      const [result] = await eslint().lintFiles([CITY_FETCH_PATH]);
+      expect(result?.messages.filter((m) => m.severity === 2)).toEqual([]);
     },
     lintTimeoutMs,
   );

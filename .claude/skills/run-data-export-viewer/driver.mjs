@@ -8,8 +8,9 @@
 //      synthetic zip upload, worker classification, the dashboard
 //      (identity header, section cards, unsupported banners), the
 //      Playtime block (totals, split selector, calendar, hour grid and
-//      duration list), Start over with its confirmation, and the
-//      failure path.
+//      duration list), the Login history block (state, tiles, row and
+//      country counts, the city opt-in's state), Start over with its
+//      confirmation, and the failure path.
 //   3. Writes a screenshot at each milestone to /tmp/wot-viewer-shots/.
 //
 // Usage:
@@ -50,7 +51,14 @@ async function buildSampleZip() {
   const root = '123456789';
   const entries = {
     [`${root}/Activity_history/Sessions.csv`]: strToU8(buildDemoSessionsCsv()),
-    [`${root}/Activity_history/Logins.csv`]: strToU8('LOGIN_AT\n2024-01-01\n'),
+    // A real-enough `Logins.csv` for the Login history block: the four columns
+    // the aggregator knows, three RFC 5737 documentation addresses (never a real
+    // host) with 3, 2 and 1 rows. Against the PRODUCTION country table every one
+    // of them is reserved space and resolves to `ZZ`, so the block reaches
+    // `ready` with no known country. It is a Logins.csv and not a per-game
+    // session file on purpose: the Playtime block reads session files too, and
+    // this keeps its documented tiles (31.2 hours, 30 sessions) unchanged.
+    [`${root}/Activity_history/Logins.csv`]: strToU8(buildDemoLoginsCsv()),
     [`${root}/Player_statistics/WOT_stats.csv`]: strToU8('x\n1\n2\n3\n'),
     [`${root}/Player_statistics/WOTB_stats.csv`]: strToU8('x\n1\n'),
     [`${root}/Player_statistics/WOWS_stats.csv`]: strToU8('x\n1\n'),
@@ -63,6 +71,23 @@ async function buildSampleZip() {
     [`${root}/Device_info/Devices.csv`]: strToU8('d\n1\n'),
   };
   return Buffer.from(zipSync(entries));
+}
+
+// The demo Logins.csv: three documentation addresses and six rows.
+function buildDemoLoginsCsv() {
+  const rows = [
+    ['2024-01-03T10:00:00Z', '192.0.2.99'],
+    ['2024-01-05T11:30:00Z', '192.0.2.99'],
+    ['2024-01-09T09:15:00Z', '192.0.2.99'],
+    ['2024-01-12T20:00:00Z', '198.51.100.7'],
+    ['2024-01-15T08:45:00Z', '198.51.100.7'],
+    ['2024-01-18T22:10:00Z', '203.0.113.5'],
+  ];
+  return (
+    'LOGIN_DT;IP;COUNTRY_CODE;USER_AGENT\r\n' +
+    rows.map(([at, ip]) => `${at};${ip};XX;Synthetic Demo`).join('\r\n') +
+    '\r\n'
+  );
 }
 
 function logShot(name) {
@@ -82,6 +107,12 @@ page.on('console', (msg) => {
   if (msg.type() === 'error') console.error(`[console.error] ${msg.text()}`);
 });
 
+// Every request the browser makes, counted by the CONTEXT so a worker's traffic
+// is included (Playwright sees it; a meta CSP does not govern a worker). The
+// count after the page has loaded is logged at the end, as a number only.
+const requestUrls = [];
+context.on('request', (request) => requestUrls.push(request.url()));
+
 console.log(`Navigating to ${url} ...`);
 await page.goto(url, { waitUntil: 'domcontentloaded' });
 
@@ -91,6 +122,8 @@ await page
   .locator('main[data-worker-ready="true"]')
   .waitFor({ timeout: 10_000 });
 console.log('  worker ready');
+await page.waitForLoadState('networkidle');
+const baselineRequests = requestUrls.length;
 await page.screenshot({ path: logShot('01-empty-dropzone'), fullPage: true });
 
 // Drop the synthetic export through the visible file input (same path
@@ -154,6 +187,47 @@ console.log(
 );
 await page.screenshot({ path: logShot('03b-playtime'), fullPage: true });
 
+// Login history block. The demo Logins.csv is six rows over three documentation
+// addresses, so the block reaches `ready` with three distinct addresses and, as
+// the production country table answers `ZZ` for reserved space, no known
+// country: the map section shows its no-country sentence and shades nothing.
+//
+// TEXT, STATE AND COUNTS ONLY. Never an address and never a table cell: the
+// Most-used tile is masked by default and this driver never presses the reveal
+// control, so even its text carries no full address.
+const loginBlock = page.getByTestId('login-history');
+try {
+  await page
+    .locator('[data-testid="login-history"][data-state="ready"]')
+    .waitFor({ state: 'visible', timeout: 30_000 });
+} catch {
+  // Not ready is a finding, not a crash: the state is logged below either way.
+}
+console.log(`  login history state: "${await loginBlock.getAttribute('data-state')}"`);
+for (const [label, testId] of [
+  ['addresses', 'login-tile-ips'],
+  ['countries', 'login-tile-countries'],
+  ['unknown country', 'login-tile-unknown'],
+  ['most-used (masked)', 'login-tile-top-ip'],
+  ['top country', 'login-tile-top-country'],
+  ['range', 'login-tile-range'],
+]) {
+  const tile = page.getByTestId(testId);
+  console.log(
+    `  login tile ${label}: "${(await tile.count()) === 0 ? '(absent)' : await tileText(testId)}"`,
+  );
+}
+console.log(
+  `  login cells: ${await page.getByTestId('login-row').count()} table rows, ` +
+    `${await page.getByTestId('login-country').count()} shaded countries`,
+);
+const cityState = page.getByTestId('city-optin');
+console.log(
+  `  city opt-in state: "${(await cityState.count()) === 0 ? '(absent)' : await cityState.getAttribute('data-state')}"`,
+);
+await loginBlock.scrollIntoViewIfNeeded().catch(() => {});
+await page.screenshot({ path: logShot('03c-logins'), fullPage: true });
+
 // Click Start over — it CONFIRMS first (D-15/D-16), so wait for the
 // confirm panel and commit before expecting the bar to go full again.
 await page.getByTestId('start-over').click();
@@ -178,6 +252,13 @@ await page.getByTestId('failure-banner').waitFor({ state: 'visible', timeout: 5_
 await page.screenshot({ path: logShot('06-failure-banner'), fullPage: true });
 const banner = await page.getByTestId('failure-banner').innerText();
 console.log(`  banner: "${banner.slice(0, 80)}..."`);
+
+// The privacy check, as a number: requests made after the baseline (worker
+// script and module graph included in it). It must be 0; the city opt-in is never
+// pressed here, so even the one sanctioned request is not made.
+console.log(
+  `  requests after load: ${requestUrls.length - baselineRequests} (baseline ${baselineRequests})`,
+);
 
 await browser.close();
 console.log('Done. Screenshots in /tmp/wot-viewer-shots/');

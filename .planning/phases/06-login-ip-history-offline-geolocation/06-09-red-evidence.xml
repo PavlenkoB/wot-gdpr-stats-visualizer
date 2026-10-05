@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="7" failures="4" errors="0" time="0.364527041">
+    <testsuite name="tests/unit/geo/city-build.test.ts" timestamp="2026-10-03T21:31:19.380Z" hostname="MacBook-Air4.local" tests="2" failures="2" errors="0" skipped="0" time="0.179673083">
+        <testcase classname="tests/unit/geo/city-build.test.ts" name="06-09: the real-mode city build &gt; accepts --download, the one command Phase 7 owns" time="0.090583208">
+            <failure message="expected false to be true // Object.is equality" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/unit/geo/city-build.test.ts:73:42
+            </failure>
+        </testcase>
+        <testcase classname="tests/unit/geo/city-build.test.ts" name="06-09: the real-mode city build &gt; writes the DB-IP licence note beside a real asset" time="0.0877155">
+            <failure message="/var/folders/b4/yynjrybn6g76bqnj2s5jy80c0000gn/T/geo-city-build-mX29fk/attribution/ATTRIBUTION.txt was not written: expected false to be true // Object.is equality" type="AssertionError">
+AssertionError: /var/folders/b4/yynjrybn6g76bqnj2s5jy80c0000gn/T/geo-city-build-mX29fk/attribution/ATTRIBUTION.txt was not written: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/unit/geo/city-build.test.ts:81:57
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/geo/city-table.test.ts" timestamp="2026-10-03T21:31:19.382Z" hostname="MacBook-Air4.local" tests="5" failures="2" errors="0" skipped="0" time="0.184853958">
+        <testcase classname="tests/unit/geo/city-table.test.ts" name="06-09: the city load checks the manifest it was handed &gt; refuses bytes whose sha256 is not the one the manifest declares" time="0.09768025">
+            <system-err>
+Another connection wants to delete database &apos;wg-export-viewer&apos;. Closing db now to resume the delete request.
+
+            </system-err>
+            <failure message="{&quot;type&quot;:&quot;city-result&quot;,&quot;loadId&quot;:1,&quot;importedAt&quot;:&quot;2026-10-03T21:31:19.269Z&quot;,&quot;view&quot;:{&quot;month&quot;:&quot;0000-00&quot;,&quot;places&quot;:[{&quot;cc&quot;:&quot;DE&quot;,&quot;state&quot;:&quot;Bayern&quot;,&quot;city&quot;:&quot;München&quot;}],&quot;placeOf&quot;:[0,-1,-1],&quot;ranked&quot;:[{&quot;place&quot;:0,&quot;logins&quot;:3,&quot;ips&quot;:1}],&quot;moreCities&quot;:0,&quot;noCityAddresses&quot;:1}}: expected &apos;city-result&apos; to be &apos;city-error&apos; // Object.is equality" type="AssertionError">
+AssertionError: {&quot;type&quot;:&quot;city-result&quot;,&quot;loadId&quot;:1,&quot;importedAt&quot;:&quot;2026-10-03T21:31:19.269Z&quot;,&quot;view&quot;:{&quot;month&quot;:&quot;0000-00&quot;,&quot;places&quot;:[{&quot;cc&quot;:&quot;DE&quot;,&quot;state&quot;:&quot;Bayern&quot;,&quot;city&quot;:&quot;München&quot;}],&quot;placeOf&quot;:[0,-1,-1],&quot;ranked&quot;:[{&quot;place&quot;:0,&quot;logins&quot;:3,&quot;ips&quot;:1}],&quot;moreCities&quot;:0,&quot;noCityAddresses&quot;:1}}: expected &apos;city-result&apos; to be &apos;city-error&apos; // Object.is equality
+
+Expected: &quot;city-error&quot;
+Received: &quot;city-result&quot;
+
+ ❯ expectRefused tests/unit/geo/city-table.test.ts:87:45
+ ❯ tests/unit/geo/city-table.test.ts:95:5
+            </failure>
+        </testcase>
+        <testcase classname="tests/unit/geo/city-table.test.ts" name="06-09: the city load checks the manifest it was handed &gt; refuses bytes whose length is not the one the manifest declares" time="0.027980667">
+            <system-err>
+Another connection wants to delete database &apos;wg-export-viewer&apos;. Closing db now to resume the delete request.
+
+            </system-err>
+            <failure message="{&quot;type&quot;:&quot;city-result&quot;,&quot;loadId&quot;:2,&quot;importedAt&quot;:&quot;2026-10-03T21:31:19.296Z&quot;,&quot;view&quot;:{&quot;month&quot;:&quot;0000-00&quot;,&quot;places&quot;:[{&quot;cc&quot;:&quot;DE&quot;,&quot;state&quot;:&quot;Bayern&quot;,&quot;city&quot;:&quot;München&quot;}],&quot;placeOf&quot;:[0,-1,-1],&quot;ranked&quot;:[{&quot;place&quot;:0,&quot;logins&quot;:3,&quot;ips&quot;:1}],&quot;moreCities&quot;:0,&quot;noCityAddresses&quot;:1}}: expected &apos;city-result&apos; to be &apos;city-error&apos; // Object.is equality" type="AssertionError">
+AssertionError: {&quot;type&quot;:&quot;city-result&quot;,&quot;loadId&quot;:2,&quot;importedAt&quot;:&quot;2026-10-03T21:31:19.296Z&quot;,&quot;view&quot;:{&quot;month&quot;:&quot;0000-00&quot;,&quot;places&quot;:[{&quot;cc&quot;:&quot;DE&quot;,&quot;state&quot;:&quot;Bayern&quot;,&quot;city&quot;:&quot;München&quot;}],&quot;placeOf&quot;:[0,-1,-1],&quot;ranked&quot;:[{&quot;place&quot;:0,&quot;logins&quot;:3,&quot;ips&quot;:1}],&quot;moreCities&quot;:0,&quot;noCityAddresses&quot;:1}}: expected &apos;city-result&apos; to be &apos;city-error&apos; // Object.is equality
+
+Expected: &quot;city-error&quot;
+Received: &quot;city-result&quot;
+
+ ❯ expectRefused tests/unit/geo/city-table.test.ts:87:45
+ ❯ tests/unit/geo/city-table.test.ts:101:5
+            </failure>
+        </testcase>
+        <testcase classname="tests/unit/geo/city-table.test.ts" name="06-09: the city load checks the manifest it was handed &gt; accepts bytes whose sha256 matches the manifest exactly" time="0.020665375">
+            <system-err>
+Another connection wants to delete database &apos;wg-export-viewer&apos;. Closing db now to resume the delete request.
+
+            </system-err>
+        </testcase>
+        <testcase classname="tests/unit/geo/city-table.test.ts" name="06-09: the city load checks the manifest it was handed &gt; skips the hash check entirely when the manifest carried no hash" time="0.018189208">
+            <system-err>
+Another connection wants to delete database &apos;wg-export-viewer&apos;. Closing db now to resume the delete request.
+
+            </system-err>
+        </testcase>
+        <testcase classname="tests/unit/geo/city-table.test.ts" name="06-09: the city load checks the manifest it was handed &gt; refuses before inflating, so a bomb never reaches the allocator" time="0.019783542">
+            <system-err>
+[ingest.worker] city-load failed Error: city data invalid
+    at fail (/Users/you/src/github/wot-gdpr-stats-visualizer/src/lib/geo/city-table.ts:78:9)
+    at decodeCityTable (/Users/you/src/github/wot-gdpr-stats-visualizer/src/lib/geo/city-table.ts:174:12)
+    at handleCityLoad (/Users/you/src/github/wot-gdpr-stats-visualizer/src/lib/worker/ingest.worker.ts:533:19)
+    at scope.onmessage (/Users/you/src/github/wot-gdpr-stats-visualizer/src/lib/worker/ingest.worker.ts:130:5)
+
+Another connection wants to delete database &apos;wg-export-viewer&apos;. Closing db now to resume the delete request.
+
+            </system-err>
+        </testcase>
+    </testsuite>
+</testsuites>

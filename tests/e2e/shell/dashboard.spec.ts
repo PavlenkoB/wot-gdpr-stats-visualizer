@@ -210,21 +210,39 @@ test.describe('dashboard shell (03-04 Task 2)', () => {
       // D-06: the SECTION is always expanded, and nothing inside any card is a
       // control that collapses the section.
       //
-      // The `button` half holds for every card but Player_statistics, and
-      // 05-12 is why. The Vehicle statistics table's sort buttons are controls
-      // over the DATA — which column the drawn rows are ordered by — and the
-      // column picker of 05-14 is a control over which columns are drawn. A
-      // `ready` section may hold those; what it may not hold is a control
-      // over ITS OWN visibility, and `DashboardSection` is what would have to
-      // render one. So the section's expansion is asserted where it is
-      // decided, by the `details` half below and by the `(no-collapse)` shape
-      // Phase 3 added, and this line keeps its claim only where it is true.
-      if (id !== 'player-statistics') {
+      // The `button` half holds for every card but Player_statistics and
+      // Activity_history, and the two exceptions are the same kind of thing.
+      // 05-12 is why the first: the Vehicle statistics table's sort buttons are
+      // controls over the DATA — which column the drawn rows are ordered by —
+      // and the column picker of 05-14 is a control over which columns are
+      // drawn. 06-08 is why the second: the Login history block's reveal
+      // control is a control over the DATA — whether the addresses are masked
+      // — and it governs nothing about the section. A `ready` section may hold
+      // those; what it may not hold is a control over ITS OWN visibility, and
+      // `DashboardSection` is what would have to render one. So the section's
+      // expansion is asserted where it is decided, by the `details` half below
+      // and by the `(no-collapse)` shape Phase 3 added, and this line keeps its
+      // claim only where it is true.
+      if (id !== 'player-statistics' && id !== 'activity-history') {
         await expect(card.locator('button')).toHaveCount(0);
-      } else {
+      } else if (id === 'player-statistics') {
         // Named rather than merely allowed: the buttons that exist are the
         // table's six sort buttons, and nothing else in the card is one.
         await expect(card.getByTestId('vehicle-table').locator('button')).toHaveCount(6);
+      } else {
+        // The same discipline for 06-08, 06-10 and 06-13: the Activity_history
+        // card holds the mask toggle, the IP table's six sort buttons and the
+        // city opt-in's one Load button, and nothing else. Stated by name, so a
+        // future block that adds a control to this card has to come back and
+        // own this line rather than inheriting a silent exemption. The sort
+        // buttons are controls over the DATA (which column orders the drawn
+        // rows), the same kind of thing the vehicle table's are; the Load
+        // button asks for more data to show and governs nothing about the
+        // section's own visibility.
+        await expect(card.getByTestId('login-mask-toggle')).toHaveCount(1);
+        await expect(card.getByTestId('login-table').locator('button')).toHaveCount(6);
+        await expect(card.getByTestId('city-load')).toHaveCount(1);
+        await expect(card.locator('button')).toHaveCount(8);
       }
       // The `details` half is narrower, and deliberately so. A `pending` card is
       // a promise with no dashboard, so a disclosure inside it would be a
@@ -271,12 +289,13 @@ test.describe('dashboard shell (03-04 Task 2)', () => {
     // The four READY sections must NOT carry the promise any more, and this is
     // the assertion the 05-10, 05-12 and 05-15 flips have to keep: a `ready`
     // card that still says a dashboard is coming is a card that contradicts
-    // itself. Activity_history is a ready section that still says so, and says
-    // it from the Login history block inside it (04-08) — the promise is
-    // deferred, not dropped. Financial_data, Player_statistics and
-    // Payment_history say nothing of the kind, because their blocks ARE the
-    // dashboards they would have promised.
-    await expect(section(page, 'activity-history')).toContainText(SECTION_NOTE_PENDING);
+    // itself. Activity_history was the LAST holdout — its Login history
+    // sub-block was a placeholder that repeated the promise, and 06-08
+    // replaced it with the real block, so all four ready cards now agree and
+    // this one flipped to `not.toContainText` in the same commit that mounted
+    // the block. The `login-history-placeholder` element it carried is gone
+    // with it.
+    await expect(section(page, 'activity-history')).not.toContainText(SECTION_NOTE_PENDING);
     await expect(section(page, 'financial-data')).not.toContainText(SECTION_NOTE_PENDING);
     await expect(section(page, 'player-statistics')).not.toContainText(SECTION_NOTE_PENDING);
     await expect(section(page, 'payment-history')).not.toContainText(SECTION_NOTE_PENDING);
@@ -860,17 +879,19 @@ test.describe('import region (03-06 Task 1)', () => {
     // the import bar's notice slot is the only live region it owns.
     await expect(page.getByTestId('processing-status')).toHaveCount(0);
     await expect(bar.locator('[aria-live]')).toHaveCount(1);
-    // The page carries exactly two live regions besides that slot: the
-    // playtime status line 04-02 added and the player-stats status line
-    // 05-12 added, both of which their UI-SPEC state matrices require to
-    // exist in every state (an empty live region announces nothing). The
-    // count is asserted rather than the selector avoided, so a second block
-    // that forgot to be polite-and-quiet fails here. The error paragraphs use
-    // `role="alert"` and NO `aria-live` attribute, so they are implicit live
-    // regions and are deliberately not in this count.
-    await expect(page.locator('[aria-live]')).toHaveCount(3);
+    // The page carries exactly three live regions besides that slot: the
+    // playtime status line 04-02 added, the player-stats status line 05-12
+    // added, and the login block's status line 06-08 added — all of which
+    // their UI-SPEC state matrices require to exist in every state (an empty
+    // live region announces nothing). The count is asserted rather than the
+    // selector avoided, so a second block that forgot to be polite-and-quiet
+    // fails here, and so does a fourth block forgetting this one. The error
+    // paragraphs use `role="alert"` and NO `aria-live` attribute, so they are
+    // implicit live regions and are deliberately not in this count.
+    await expect(page.locator('[aria-live]')).toHaveCount(4);
     await expect(page.getByTestId('playtime-status')).toHaveCount(1);
     await expect(page.getByTestId('player-stats-status')).toHaveCount(1);
+    await expect(page.getByTestId('login-history-status')).toHaveCount(1);
   });
 
   test('(accessible-name) the full dropzone is named by its label, the compact one by its own prompt', async ({

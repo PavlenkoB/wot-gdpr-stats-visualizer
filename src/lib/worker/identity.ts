@@ -1,4 +1,6 @@
 import type { AccountIdentity } from '../core/types/worker-messages.ts';
+import { parseIp } from '../geo/ip.ts';
+import { MAX_ACCOUNT_TEXT_LENGTH, type AccountRecord } from '../features/logins/login-shared.ts';
 
 /**
  * Sanitise-then-extract for the User_Info category (03-01, D-17/D-18/D-20).
@@ -143,5 +145,84 @@ export function extractIdentity(
     nickname: pick(row, 'NAME'),
     region: pick(row, 'REGION'),
     createdAt: pick(row, 'CREATED_AT'),
+  };
+}
+
+/**
+ * Cut one untrusted text cell to the bound {@link MAX_ACCOUNT_TEXT_LENGTH}.
+ *
+ * A cell of an archive can be any length at all, and a 100 KB city name would
+ * be stored, structured-cloned to the main thread and rendered — so the cut is
+ * a `slice`, never a validation: the account file's own text is shown as
+ * written (D-02), and a value that is too long is a value the export made
+ * longer than the app will carry rather than one the app decides to reject.
+ */
+function cutText(value: string | null): string | null {
+  return value === null ? null : value.slice(0, MAX_ACCOUNT_TEXT_LENGTH);
+}
+
+/**
+ * D-02: build the one labelled "Account record" entry from ALREADY-SANITISED
+ * User_Info rows — the `Account_Info.csv` row's own IP, country and city, as
+ * recorded.
+ *
+ * ## Why it sits beside `extractIdentity` and not inside it
+ *
+ * Two guarantees, two functions, and the boundary is the point:
+ *
+ *   - the IDENTITY HEADER stays three fields (Phase 3 D-18 to D-20), and this
+ *     function's output never reaches it;
+ *   - the three sensitive columns are already gone, because the pool handed in
+ *     has been through `sanitizeUserInfoRow` at the parse loop. There is no
+ *     second strip here, and no column allow-list that could drift from it.
+ *
+ * `extractIdentity` is left byte-identical: a shared private row-chooser would
+ * have been tidier, and it is exactly the edit that would let a change to the
+ * identity pick reach the account record and a change to the account record
+ * reach the identity. Three lines of the same rule are cheaper than one
+ * function two privacy guarantees share.
+ *
+ * ## The row choice is the SAME one, deliberately re-stated
+ *
+ * The row whose `ID` equals the account root, else the first, and null for an
+ * empty pool — so the account record describes the same account the identity
+ * does. An export with no User_Info row at all yields `null`, which the login
+ * history shows as "no account record" rather than as a row with three blanks.
+ *
+ * ## Why the address goes through `parseIp`
+ *
+ * The cell is the user's data and the app is a privacy tool: a value that does
+ * not parse is never STORED as text, because a stored cell would be a cell a
+ * later renderer could put on a screen, and Phase 3 D-21 keeps dataset text off
+ * the screen. The three states are three different facts about the user's own
+ * export and are carried as three:
+ *
+ *   - `readable` — it parsed; `ip` holds the CANONICAL spelling;
+ *   - `unreadable` — a non-blank cell that does not parse; `ip` is null and the
+ *     cell itself is nowhere;
+ *   - `blank` — the cell is absent or holds only whitespace.
+ *
+ * Collapsing `unreadable` into `blank` would tell a user their export has no
+ * address where it has one this build cannot read, and the two render as two
+ * different sentences.
+ */
+export function extractAccountRecord(
+  rows: readonly UserInfoRow[],
+  accountRoot: string,
+): AccountRecord | null {
+  if (rows.length === 0) return null;
+  const match =
+    accountRoot === '' ? undefined : rows.find((row) => pick(row, 'ID') === accountRoot);
+  const row = match ?? rows[0]!;
+
+  // `pick` already trims and answers null for absent/blank, so a null here is
+  // the BLANK fact and never the unreadable one.
+  const rawIp = pick(row, 'IP');
+  const parsed = rawIp === null ? null : parseIp(rawIp);
+  return {
+    ip: parsed === null ? null : parsed.canonical,
+    ipState: rawIp === null ? 'blank' : parsed === null ? 'unreadable' : 'readable',
+    countryCode: cutText(pick(row, 'COUNTRY_CODE')),
+    city: cutText(pick(row, 'CITY')),
   };
 }

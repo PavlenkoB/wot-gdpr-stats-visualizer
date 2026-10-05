@@ -436,7 +436,7 @@
 
   /* Label role with the group-heading affordance: the sub-heading reads as a
      level of its own inside the card rather than as another 14px line
-     (04-UI-SPEC Typography, the sub-heading h3 row). `LoginHistorySection`
+     (04-UI-SPEC Typography, the sub-heading h3 row). `LoginHistory.svelte`
      repeats this rule in full, because scoped styles cannot be shared. */
   h3 {
     margin: 0;

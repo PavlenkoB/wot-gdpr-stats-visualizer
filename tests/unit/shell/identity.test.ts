@@ -1,9 +1,11 @@
 import { describe, expect, test } from 'vitest';
 import {
+  extractAccountRecord,
   extractIdentity,
   isUserInfoCategory,
   sanitizeUserInfoRow,
 } from '../../../src/lib/worker/identity.ts';
+import { MAX_ACCOUNT_TEXT_LENGTH } from '../../../src/lib/features/logins/login-shared.ts';
 
 // =============================================================================
 // identity.ts — the D-18 strip and the D-17/D-20 identity pick
@@ -241,5 +243,193 @@ describe('extractIdentity — hostile header shapes', () => {
       '123456789',
     );
     expect(identity).toEqual({ nickname: null, region: 'CA', createdAt: null });
+  });
+});
+
+// =============================================================================
+// extractAccountRecord — the D-02 "Account record" row (06-05)
+// =============================================================================
+//
+// Why this file's other half is still here: the account record reads IP,
+// COUNTRY_CODE and CITY out of the SAME sanitised pool the identity pick uses,
+// so the two guarantees meet in one place. The pool is what makes the email and
+// the birth date structurally out of reach — a test that passed a row still
+// carrying them would be testing a pool the worker never builds, so the last
+// case below runs the row through `sanitizeUserInfoRow` first and asserts that
+// none of the three leaked into the record.
+//
+// The three address states are the content: `readable`, `unreadable` and
+// `blank` are three different facts about the user's own export, and a single
+// `ip: string | null` would let a cell this build cannot read stand in for a
+// cell the export never wrote.
+// =============================================================================
+
+describe('extractAccountRecord — the D-02 row choice', () => {
+  test('returns null for zero rows (no account record at all)', () => {
+    expect(extractAccountRecord([], '123456789')).toBeNull();
+  });
+
+  test('reads IP, COUNTRY_CODE and CITY from the account row, as written', () => {
+    expect(extractAccountRecord([SAMPLE_ROW], '123456789')).toEqual({
+      ip: '192.0.2.10',
+      ipState: 'readable',
+      countryCode: 'US',
+      city: 'Testville',
+    });
+  });
+
+  test('picks the row whose ID equals the account root, over a decoy first row', () => {
+    const decoy: Row = { ID: '999999999', IP: '198.51.100.20', CITY: 'Decoytown' };
+    const match: Row = { ID: '123456789', IP: '192.0.2.10', CITY: 'Testville' };
+    expect(extractAccountRecord([decoy, match], '123456789')?.city).toBe('Testville');
+  });
+
+  test('falls back to the first row when no ID matches, and when the root is empty', () => {
+    const first: Row = { ID: '999999999', CITY: 'Decoytown' };
+    const second: Row = { ID: '888888888', CITY: 'Othertown' };
+    expect(extractAccountRecord([first, second], '123456789')?.city).toBe('Decoytown');
+    expect(extractAccountRecord([first, second], '')?.city).toBe('Decoytown');
+  });
+
+  test('the account row is chosen exactly the way the identity row is', () => {
+    // The two picks are spelled out separately in the source on purpose (the
+    // identity header must not be able to reach the account record), so this
+    // is the test that says they still AGREE: a pool whose identity comes from
+    // one row has its account record from that same row.
+    const rows: Row[] = [
+      {
+        ID: '999999999',
+        NAME: 'Decoy Player',
+        REGION: 'NA',
+        IP: '198.51.100.20',
+        CITY: 'Decoytown',
+      },
+      {
+        ID: '123456789',
+        NAME: 'Matched Player',
+        REGION: 'EU',
+        IP: '192.0.2.10',
+        CITY: 'Testville',
+      },
+    ];
+    const identity = extractIdentity(rows, '123456789');
+    const account = extractAccountRecord(rows, '123456789');
+    expect(identity?.nickname).toBe('Matched Player');
+    expect(account?.city).toBe('Testville');
+    expect(extractIdentity([rows[0]!], '123456789')?.nickname).toBe('Decoy Player');
+    expect(extractAccountRecord([rows[0]!], '123456789')?.city).toBe('Decoytown');
+  });
+});
+
+describe('extractAccountRecord — the three address states', () => {
+  test('a parseable address is stored CANONICAL, not as the cell was written', () => {
+    // The canonical form is the grouping key everywhere else in the feature, and
+    // it is what makes `2001:DB8::1` and `2001:db8:0:0:0:0:0:1` ONE account
+    // record rather than two.
+    expect(extractAccountRecord([{ IP: '2001:DB8::1' }], '')?.ip).toBe('2001:db8:0:0:0:0:0:1');
+    expect(extractAccountRecord([{ IP: ' 192.0.2.10 ' }], '')).toMatchObject({
+      ip: '192.0.2.10',
+      ipState: 'readable',
+    });
+  });
+
+  test('a non-blank cell that does not parse is UNREADABLE and is never stored as text', () => {
+    // The cells below are the shapes D-06 and T-06-13 name. A stored one would
+    // be a value a later renderer could put on a screen, and D-21 keeps dataset
+    // text off the screen — so the record says it could not be read and stops.
+    for (const cell of ['192.0.2.010', 'player@example.invalid', 'fe80::1%eth0', '<b>x</b>']) {
+      const record = extractAccountRecord([{ IP: cell }], '');
+      expect(record, cell).toEqual({
+        ip: null,
+        ipState: 'unreadable',
+        countryCode: null,
+        city: null,
+      });
+    }
+  });
+
+  test('a blank or absent cell is BLANK, which is a different fact from unreadable', () => {
+    for (const row of [{}, { IP: '' }, { IP: '   ' }]) {
+      expect(extractAccountRecord([row], '')?.ipState).toBe('blank');
+      expect(extractAccountRecord([row], '')?.ip).toBeNull();
+    }
+  });
+
+  test('an unreadable address leaves the country and city readable', () => {
+    // Only the ADDRESS is unreadable. Collapsing the whole record would report
+    // a missing country for an export that states one.
+    expect(extractAccountRecord([{ IP: 'nope', COUNTRY_CODE: 'PL', CITY: 'Krakow' }], '')).toEqual({
+      ip: null,
+      ipState: 'unreadable',
+      countryCode: 'PL',
+      city: 'Krakow',
+    });
+  });
+});
+
+describe('extractAccountRecord — text bounds and the sanitised pool', () => {
+  test('the country code and city are trimmed, and cut at 64 characters', () => {
+    const long = 'C'.repeat(MAX_ACCOUNT_TEXT_LENGTH + 40);
+    const record = extractAccountRecord(
+      [{ IP: '192.0.2.10', COUNTRY_CODE: '  PL  ', CITY: `  ${long}  ` }],
+      '',
+    );
+    expect(record?.countryCode).toBe('PL');
+    expect(record?.city).toBe(long.trim().slice(0, MAX_ACCOUNT_TEXT_LENGTH));
+    expect(record?.city).toHaveLength(MAX_ACCOUNT_TEXT_LENGTH);
+  });
+
+  test('a blank country or city is null, and a whitespace-only one counts as blank', () => {
+    const record = extractAccountRecord([{ IP: '192.0.2.10', COUNTRY_CODE: '  ', CITY: '' }], '');
+    expect(record?.countryCode).toBeNull();
+    expect(record?.city).toBeNull();
+  });
+
+  test('padded and lower-case account column names still resolve', () => {
+    const hostile: Row = {
+      ID: '123456789',
+      ' ip ': '192.0.2.10',
+      country_code: 'DE',
+      City: 'Berlin',
+    };
+    expect(extractAccountRecord([hostile], '123456789')).toEqual({
+      ip: '192.0.2.10',
+      ipState: 'readable',
+      countryCode: 'DE',
+      city: 'Berlin',
+    });
+  });
+
+  test('LOGIN, BIRTH_DATE and the overflow bucket cannot reach the record', () => {
+    // The pool the worker hands in has been through `sanitizeUserInfoRow`, so
+    // this runs the real strip and then the real pick over what it left. A leak
+    // would have to be a column this function reads by name, and it reads
+    // exactly three.
+    const dirty = {
+      ID: '123456789',
+      NAME: 'Synthetic Player',
+      IP: '192.0.2.10',
+      COUNTRY_CODE: 'US',
+      CITY: 'Testville',
+      LOGIN: 'synthetic.player@example.invalid',
+      LOGIN_1: 'duplicate@example.invalid',
+      BIRTH_DATE: '1990-01-01',
+      __parsed_extra: ['CANARY-OVERFLOW-CELL'],
+    } as unknown as Row;
+
+    const record = extractAccountRecord([sanitizeUserInfoRow(dirty)], '123456789');
+    expect(record).toEqual({
+      ip: '192.0.2.10',
+      ipState: 'readable',
+      countryCode: 'US',
+      city: 'Testville',
+    });
+    expect(JSON.stringify(record)).not.toContain('example.invalid');
+    expect(JSON.stringify(record)).not.toContain('1990-01-01');
+    expect(JSON.stringify(record)).not.toContain('CANARY-OVERFLOW-CELL');
+  });
+
+  test('a row with no ID column at all still yields the first row, not a throw', () => {
+    expect(extractAccountRecord([{ CITY: 'Nowhere' }], '123456789')?.city).toBe('Nowhere');
   });
 });

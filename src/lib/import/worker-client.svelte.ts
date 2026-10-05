@@ -9,6 +9,7 @@ import type {
 import { precheckFiles } from './precheck.ts';
 import { GENERIC_FAILURE_MESSAGE } from '../ui-copy.ts';
 import { PlaytimeClient } from '../features/playtime/playtime-client.ts';
+import { CityClient } from '../features/logins/city-client.ts';
 import { QueryClient } from '../core/query-client.ts';
 
 export type IngestViewState =
@@ -173,6 +174,18 @@ export class IngestClient {
    */
   readonly data: QueryClient;
 
+  /**
+   * The opt-in city decode bridge (06-13, D-14).
+   *
+   * Its own `loadId` namespace and resolver map: a city load is a decode of
+   * bytes the user asked for, not a question about a dataset, so it neither
+   * moves this class's import state machine nor shares a supersede rule with a
+   * query channel. The `post` closes over the SAME private worker and forwards
+   * the transfer list, so the downloaded buffer MOVES to the worker without a
+   * copy and the page still has exactly one Worker.
+   */
+  readonly city: CityClient;
+
   #worker: WorkerLike;
   #jobId = 0;
   #workerBroken = false;
@@ -200,6 +213,12 @@ export class IngestClient {
     // of a gate here than it is for playtime.
     this.data = new QueryClient(
       (message) => this.#worker.postMessage(message),
+      () => !this.#workerBroken,
+    );
+    // 06-13: the city bridge, same availability signal and same reasoning as
+    // the two bridges above. The transfer list is forwarded as given.
+    this.city = new CityClient(
+      (message, transfer) => this.#worker.postMessage(message, transfer),
       () => !this.#workerBroken,
     );
     this.#worker.onmessage = (event) => this.#handle(event.data);
@@ -234,6 +253,9 @@ export class IngestClient {
       // same reason, with the same FIXED detail. A chart's `query()` promise
       // would otherwise wait forever on a reply that cannot come.
       this.data.failPending('worker error');
+      // 06-13: and a city load, with the same FIXED detail. A progress bar for
+      // a decode the worker will never answer is the failure this prevents.
+      this.city.failPending('worker error');
       if (this.state === 'processing') {
         this.#scheduleSettle(() => this.#fail(`worker error: ${event.message || 'unknown'}`));
       } else if (!this.workerReady) {
@@ -252,6 +274,7 @@ export class IngestClient {
       this.playtime.failPending('worker message could not be deserialized');
       // 05-07: same release for the four data channels, same fixed detail.
       this.data.failPending('worker message could not be deserialized');
+      this.city.failPending('worker message could not be deserialized');
       if (this.state === 'processing') {
         this.#scheduleSettle(() => this.#fail('worker message could not be deserialized'));
       }
@@ -555,8 +578,15 @@ export class IngestClient {
     // returned before any state-machine branch runs. Nothing below this line
     // may ever see a playtime message, which is what keeps #jobId, `state` and
     // the settle timer untouched by a chart query (04-01 Task 2).
+    // 06-13 adds the city pair to this same first branch: both belong to a
+    // bridge, and neither may ever reach a state-machine branch below.
     if (msg.type === 'playtime-result' || msg.type === 'playtime-error') {
       this.playtime.handle(msg);
+      return;
+    }
+
+    if (msg.type === 'city-result' || msg.type === 'city-error') {
+      this.city.handle(msg);
       return;
     }
 
