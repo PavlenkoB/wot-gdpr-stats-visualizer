@@ -1,8 +1,10 @@
 <script lang="ts">
+  import { setContext } from 'svelte';
   import type { ClassifyResult } from '../core/types/worker-messages.ts';
   import { SECTIONS, sectionCounts, sectionStatus } from './dashboard-status.ts';
   import { ingestClient } from '../import/ingest-client.ts';
   import { SECTION_NOTE_PENDING, SECTION_NOTE_USER_INFO, SECTION_TITLES } from '../ui-copy.ts';
+  import { CHART_ANNOUNCE_KEY } from '../charts/tooltip-pin.ts';
   import DashboardSection from './DashboardSection.svelte';
   import DashboardNav from './DashboardNav.svelte';
   import FinancialData from '../features/finance/FinancialData.svelte';
@@ -38,6 +40,27 @@
   }
 
   let { result }: Props = $props();
+
+  /**
+   * The text the charts' touch announcements currently hold, and the one
+   * function that puts it there (07-03, D-05).
+   *
+   * Context rather than a prop, because the three charts that own a
+   * `ChartTooltip` sit in three different blocks — the activity column, the
+   * financial column and the login block — and threading one announcement
+   * channel through all three as a prop chain would be three chances for a
+   * block to forget it. Every one of them is already a descendant of this
+   * component, which is the whole of what context asks for.
+   *
+   * The text is ONE rune holding one string, never an accumulating log: a live
+   * region announces a CHANGE, so holding a queue would announce whatever was
+   * appended last and lose the rest.
+   */
+  let chartAnnouncement = $state('');
+
+  setContext(CHART_ANNOUNCE_KEY, (text: string) => {
+    chartAnnouncement = text;
+  });
 </script>
 
 <div class="dashboard">
@@ -139,6 +162,38 @@
     -->
     <UnsupportedBlock {result} />
   </div>
+
+  <!--
+    The ONE polite region the charts' touch announcements travel through.
+
+    It is PAGE-LEVEL and outside every block, and that placement is the point.
+    The three charts that own a tooltip live in three different blocks, so a
+    region inside any one of them would be a region that only exists when that
+    block's data is on screen — and the Playtime block's own UI-SPEC contract
+    is exactly one `aria-live` of its own, which a nested region would break.
+    One region at the page's root is the only shape that serves all three
+    owners without a prop to any of them.
+
+    `aria-atomic` because both strings are one whole sentence, and there is
+    never more than one thing to say at a time.
+
+    It is rendered ONLY while a dataset is on screen. On a first visit there
+    is no chart, no tooltip and nothing to say, and the page's live-region
+    count is asserted at one; a region created together with its first message
+    is also not announced by most screen readers, so it has to exist before it
+    speaks rather than appear with its first word.
+  -->
+  {#if result !== null}
+    <p
+      class="chart-status"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      data-testid="chart-status"
+    >
+      {chartAnnouncement}
+    </p>
+  {/if}
 </div>
 
 <style>
@@ -164,5 +219,34 @@
     flex-direction: column;
     gap: 24px;
     min-width: 0;
+  }
+
+  /*
+    The chart announcement region, visually hidden with the clip pattern —
+    `position: absolute` out of the flow, a 1px box, and `clip` on top of
+    `overflow: hidden`.
+
+    NOT `display: none`, and not a zero font size: both remove the element
+    from the accessibility tree or from the rendered text, and a live region
+    that a screen reader cannot reach announces nothing. This is the same
+    pattern `Dropzone.svelte` uses for its file input and `Playtime.svelte`
+    for its status line, and the reason those two are not `display: none` is
+    written out in both of their stylesheets.
+
+    No `font-size` is declared here at all: this component's own text is
+    14px everywhere else, the region has no visible text, and
+    tests/unit/guards/phase5-layout-guards.test.ts scans every stylesheet for
+    a declaration below that floor.
+  */
+  .chart-status {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
   }
 </style>

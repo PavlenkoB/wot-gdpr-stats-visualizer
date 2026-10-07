@@ -879,19 +879,30 @@ test.describe('import region (03-06 Task 1)', () => {
     // the import bar's notice slot is the only live region it owns.
     await expect(page.getByTestId('processing-status')).toHaveCount(0);
     await expect(bar.locator('[aria-live]')).toHaveCount(1);
-    // The page carries exactly three live regions besides that slot: the
+    // The page carries exactly four live regions besides that slot: the
     // playtime status line 04-02 added, the player-stats status line 05-12
-    // added, and the login block's status line 06-08 added — all of which
+    // added, the login block's status line 06-08 added — all of which
     // their UI-SPEC state matrices require to exist in every state (an empty
-    // live region announces nothing). The count is asserted rather than the
-    // selector avoided, so a second block that forgot to be polite-and-quiet
-    // fails here, and so does a fourth block forgetting this one. The error
-    // paragraphs use `role="alert"` and NO `aria-live` attribute, so they are
-    // implicit live regions and are deliberately not in this count.
-    await expect(page.locator('[aria-live]')).toHaveCount(4);
+    // live region announces nothing) — and the chart announcement region
+    // 07-03 added, which carries the touch tooltip's two fixed strings. The
+    // count is asserted rather than the selector avoided, so a second block
+    // that forgot to be polite-and-quiet fails here, and so does a fifth block
+    // forgetting this one. The error paragraphs use `role="alert"` and NO
+    // `aria-live` attribute, so they are implicit live regions and are
+    // deliberately not in this count.
+    //
+    // The chart region is PAGE-LEVEL and outside every block, which is the
+    // only placement that serves all three chart owners at once: the hour grid,
+    // the financial charts and the map sit in three different sections, and a
+    // region inside any one of them would be a region that only exists when
+    // that block's data is on screen — and would break the Playtime block's own
+    // contract of exactly one `aria-live` inside itself. It is absent on a
+    // first visit, so the empty page's count is still one.
+    await expect(page.locator('[aria-live]')).toHaveCount(5);
     await expect(page.getByTestId('playtime-status')).toHaveCount(1);
     await expect(page.getByTestId('player-stats-status')).toHaveCount(1);
     await expect(page.getByTestId('login-history-status')).toHaveCount(1);
+    await expect(page.getByTestId('chart-status')).toHaveCount(1);
   });
 
   test('(accessible-name) the full dropzone is named by its label, the compact one by its own prompt', async ({

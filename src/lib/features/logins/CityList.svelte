@@ -105,7 +105,12 @@
     outline-offset: 2px;
   }
 
+  /* Prophylactic (G-07-5): this list's header is `position: sticky` with no
+     z-index and paints below the nav's z-index 1 today, so nothing here overlaps
+     the nav. The isolation keeps the four table scrollers one pattern and
+     contains any z-index a header is given later. */
   .scroller {
+    isolation: isolate;
     min-width: 0;
     max-height: 320px;
     margin-top: 8px;

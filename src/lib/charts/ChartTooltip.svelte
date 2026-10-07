@@ -1,6 +1,13 @@
 <script lang="ts">
+  import { getContext } from 'svelte';
   import type { TooltipRequest } from '../features/playtime/playtime-model.ts';
   import { clampTooltip } from '../features/playtime/playtime-model.ts';
+  import {
+    CHART_ANNOUNCE_KEY,
+    pinOutcome,
+    touchTapAction,
+    type ChartAnnounce,
+  } from './tooltip-pin.ts';
 
   /**
    * The ONE shared tooltip for every chart on the page (04-UI-SPEC section 8).
@@ -53,6 +60,130 @@
   let element = $state<HTMLDivElement | null>(null);
 
   /**
+   * The page's announcement sink, or a no-op when there is none.
+   *
+   * It is absent anywhere the tooltip is mounted without a `Dashboard` above
+   * it, which is why the default is a function rather than a null check at
+   * every call: the component must keep working where it cannot speak, rather
+   * than throwing on a context that nobody set.
+   */
+  const announce: ChartAnnounce =
+    getContext<ChartAnnounce | undefined>(CHART_ANNOUNCE_KEY) ?? (() => {});
+
+  /**
+   * Whether the tooltip is PINNED — opened by a touch tap and staying until
+   * something dismisses it — rather than held open by a hover or a focus.
+   *
+   * Plain and NOT `$state`, deliberately. It is bookkeeping read by the
+   * document handlers and written by one effect, never by a template, so
+   * making it reactive would only give that effect a second dependency and
+   * the chance to re-run on a value it had just written. The visible result is
+   * `request`, which the owner already holds.
+   */
+  let pinned = false;
+
+  /**
+   * Whether the pointer input currently driving this tooltip is a touch tap.
+   *
+   * This is the flag that keeps mouse and keyboard exactly as they were
+   * (D-05): a hover and an arrow-key move clear it, so neither can ever be
+   * mistaken for a pin, and only a touch press sets it.
+   *
+   * It is cleared by INPUT, never by a state change — and that is the whole
+   * subtlety. One tap is not one request: the press opens the tooltip and the
+   * engine's own focus handling then opens it AGAIN against the same cell a
+   * moment later, because every cell is focusable. A flag consumed by the
+   * first of those two transitions would leave the second looking like a
+   * mouse open, and the tooltip would un-pin itself inside the same gesture
+   * that pinned it. So the flag describes the pointer, not the request, and
+   * the second open is correctly read as a MOVE — which announces nothing and
+   * leaves the pin standing.
+   */
+  let touchOrigin = false;
+
+  /**
+   * A one-shot marker that the dismissal about to happen is SILENT — a scroll
+   * or a resize moved the anchor, which is the reader moving the page rather
+   * than asking for the tooltip to go (see `isStale`).
+   *
+   * Silent is the third outcome and not a weaker dismissal: the UI-SPEC says a
+   * scroll closes the tooltip quietly, and the region still has to be cleared,
+   * because a live region that still holds "Tooltip pinned." will not announce
+   * that text a second time.
+   */
+  let silentDismiss = false;
+
+  /**
+   * The nearest ancestor of the anchor that names a chart surface.
+   *
+   * `data-tooltip-surface` is what makes a touch tap attributable to a chart:
+   * a tap inside it is this chart's business, and a tap anywhere else on the
+   * page is a dismissal. Reading it from the ANCHOR rather than from the tap
+   * target is the point — the target is whatever the finger landed on, and the
+   * anchor is the chart the tooltip actually belongs to.
+   */
+  function ownSurface(): Element | null {
+    if (anchor === null || anchor === undefined) return null;
+    return anchor.closest('[data-tooltip-surface]');
+  }
+
+  /**
+   * A touch press, seen before the chart that owns the anchor ever sees it.
+   *
+   * Registered in the CAPTURE phase (see the `svelte:document` element below)
+   * for exactly one reason: `toggle-off` has to stop the press from reaching
+   * the chart, or the chart's own handler would reopen the tooltip this tap
+   * just closed, in the same gesture. In the bubble phase that is already too
+   * late — the chart has run.
+   */
+  function onDocumentPointerDown(event: PointerEvent): void {
+    const isTouch = event.pointerType === 'touch';
+    if (isTouch) touchOrigin = true;
+    if (!isTouch) return;
+
+    const target = event.target instanceof Element ? event.target : null;
+    const mark = anchor ?? null;
+    const surface = ownSurface();
+    const action = touchTapAction({
+      open: request !== null,
+      pinned,
+      insideOwnSurface: target !== null && surface !== null && surface.contains(target),
+      onAnchor: target !== null && mark !== null && mark.contains(target),
+    });
+
+    if (action === 'dismiss') {
+      onDismiss();
+      return;
+    }
+    if (action === 'toggle-off') {
+      onDismiss();
+      event.stopPropagation();
+    }
+  }
+
+  /**
+   * A mouse entering the page is a mouse, not a tap.
+   *
+   * Without this, a finger tap followed by a mouse hover would leave
+   * `touchOrigin` set and the next hover would be announced as a pin. It is
+   * cleared on a NON-touch pointerover and on any key press, which is the
+   * whole of this handler's effect on the mouse and keyboard paths: they
+   * behave exactly as they did before this component grew a touch branch.
+   */
+  function onDocumentPointerOver(event: PointerEvent): void {
+    if (event.pointerType !== 'touch') touchOrigin = false;
+  }
+
+  function onDocumentKeyDown(event: KeyboardEvent): void {
+    touchOrigin = false;
+    // Escape dismisses a PINNED tooltip even when focus is not inside the
+    // chart — with a finger there is no focus to hold it, so nothing else
+    // would ever close it. An unpinned tooltip is left to the chart's own
+    // Escape, which is where that behaviour already lives.
+    if (event.key === 'Escape' && pinned) onDismiss();
+  }
+
+  /**
    * Whether the request still describes where its cell actually is.
    *
    * The UI-SPEC says the tooltip closes on scroll, and the reason is that a
@@ -88,7 +219,14 @@
 
   /** Dismiss only what a scroll or resize has actually made wrong. */
   function dismissIfStale(): void {
-    if (isStale()) onDismiss();
+    if (!isStale()) return;
+    // Marked BEFORE the dismissal, because the effect that reads the mark
+    // runs as a consequence of it. A scroll is the reader moving the page, not
+    // the reader asking for the tooltip to go, so the UI-SPEC says it closes
+    // quietly — but "quietly" still means the region has to be cleared, or the
+    // next pin would find the text it wants to announce already sitting there.
+    silentDismiss = true;
+    onDismiss();
   }
 
   /**
@@ -120,6 +258,35 @@
     element.style.left = `${placed.left}px`;
     element.style.top = `${placed.top}px`;
   });
+
+  /**
+   * The pin and the announcement, decided once per request.
+   *
+   * `request` is the only thing this effect READS. Everything else it touches
+   * — `pinned`, `touchOrigin`, `silentDismiss` — is plain and not reactive, so
+   * writing them here cannot re-enter this effect and cannot be the reason it
+   * ran. That is what makes one pass over one transition enough, and it is why
+   * the bookkeeping is not `$state`.
+   *
+   * One tap runs this more than once, and that is correct rather than a
+   * double-handling: the press opens the tooltip and the engine's own focus
+   * handling opens it again against the same cell. The first pass pins and
+   * speaks; the second reads as the move it is, and says nothing. `silentDismiss`
+   * IS reset here, because it describes one dismissal and that dismissal has
+   * now been decided; `touchOrigin` is not, because it describes the pointer
+   * rather than the request — see its own comment.
+   */
+  $effect(() => {
+    const outcome = pinOutcome({
+      wasPinned: pinned,
+      open: request !== null,
+      touchOrigin,
+      silent: silentDismiss,
+    });
+    pinned = outcome.pinned;
+    silentDismiss = false;
+    if (outcome.announce !== null) announce(outcome.announce);
+  });
 </script>
 
 <!--
@@ -131,6 +298,28 @@
   closing outright — see `isStale` for the case that makes that matter.
 -->
 <svelte:window onresize={dismissIfStale} onscrollcapture={dismissIfStale} />
+
+<!--
+  The touch branch's three inputs, all at the DOCUMENT and all in the CAPTURE
+  phase.
+
+  Capture is not a preference here. A tap on the anchor of an already-pinned
+  tooltip has to be able to stop that tap before the chart's own delegated
+  press handler runs, or the chart reopens the tooltip the tap just closed
+  inside the same gesture. By the bubble phase that decision has already been
+  made and there is nothing left to stop.
+
+  These listeners are declared on `svelte:document` rather than added by hand,
+  so they are attached with the component and detached with it — there is no
+  effect to forget a removal in, and nothing is left observing the page after
+  the dashboard goes. They are three functions, and every one of them does
+  nothing at all for a mouse or a key press except clear one flag.
+-->
+<svelte:document
+  onpointerdowncapture={onDocumentPointerDown}
+  onpointerovercapture={onDocumentPointerOver}
+  onkeydowncapture={onDocumentKeyDown}
+/>
 
 <div
   bind:this={element}

@@ -26,9 +26,9 @@ jobs:
     name: Lint, typecheck, unit + e2e (incl. zero-network)
     runs-on: self-hosted
     # The outermost of the three e2e limits, and the only one that cancels
-    # The whole job. It must outlast the shell wrapper (29 min) by enough to
+    # The whole job. It must outlast the shell wrapper (30 min) by enough to
     # cover the steps before it (install, lint, typecheck, unit, browser
-    # setup — about 5 min of budget): 29 + 5 = 34 min, so 37 leaves 3 min of
+    # setup — about 5 min of budget): 30 + 5 = 35 min, so 38 leaves 3 min of
     # headroom on the unmeasured part. tests/unit/guards/ci-budget.test.ts enforces
     # the wrapper + 300 s floor and the wrapper/timeout-minutes ordering.
     #
@@ -70,7 +70,28 @@ jobs:
     # failed; G = 27 min, W = 29 min, J = 37 min, and 27 min covers up to 239
     # tests. The block's allowance is an ESTIMATE (4.2 s measured, times the
     # runner factor the guard already uses); the first CI run replaces it.
-    timeout-minutes: 37
+    #
+    # UNCHANGED in plan 07-03, for the `chromium-mobile` project and its five
+    # touch specs. `playwright test --list` counts BOTH projects, so those five
+    # are five new listed tests; the `touch-` routing took nothing away from
+    # the desktop project. 239 tests in 23 files project 1243 s and a floor of
+    # 1615.9 s, so G = 27 min, W = 29 min and J = 37 min all stayed where they
+    # were, and 240 tests would have projected 1248 s and a floor of 1622.4 s,
+    # which fails the guard — see tests/unit/guards/ci-budget.test.ts.
+    #
+    # Raised from 27 to 37 -> 38 in plan 07-04, together with the wrapper and
+    # `globalTimeout`, because the touch tooltip's last three specs crossed the
+    # ceiling 07-03 recorded. `playwright test --list` counts BOTH projects, so
+    # those three are three new listed tests on top of 07-03's five: 242 in 23
+    # files project 1258 s and a floor of 1635.4 s, so G = 28 min, W = 30 min
+    # and J = 38 min. All three move together, which is the rule this file has
+    # carried since 05-14.
+    #
+    # Raised from 38 to 39 in plan 07-05, together with the wrapper and
+    # `globalTimeout`, because the phone-width sweep and the touch-target specs
+    # took the count to 251 in 25 files: 1303 s projected, a floor of 1693.9 s,
+    # so G = 29 min, W = 31 min and J = 39 min.
+    timeout-minutes: 39
 
     steps:
       - name: Checkout
@@ -156,8 +177,23 @@ jobs:
       # 234 tests project to 1218 s; see tests/unit/guards/ci-budget.test.ts for the
       # arithmetic and 04-13-SUMMARY.md for what is measured and what is
       # still estimated.
+      #
+      # Unchanged in plan 07-03: the second Playwright project added five
+      # listed tests, 239 in 23 files then, which projected 1243 s against the
+      # same 27 min `globalTimeout`. The margin shrank from 36.6 s to 4.1 s.
+      #
+      # Raised from 29 to 30 in plan 07-04, with the `globalTimeout` above and
+      # the job timeout, because three more touch specs took the count to 242
+      # in 23 files: 1258 s projected, a 1.3x floor of 1635.4 s, and 28 min is
+      # the smallest whole number that clears it. The wrapper stays G + 2 so
+      # the diagnostic deadline inside Playwright always fires first.
+      #
+      # Raised from 30 to 31 in plan 07-05, with the `globalTimeout` above and
+      # the job timeout, because the sweep and touch-target specs took the
+      # count to 251 in 25 files: 1303 s projected and a 1.3x floor of
+      # 1693.9 s, which 29 min is the smallest whole number to clear.
       - name: E2E and zero-network guard
-        run: pnpm exec timeout 29m playwright test
+        run: pnpm exec timeout 31m playwright test
 
       - name: Upload Playwright report
         if: failure()

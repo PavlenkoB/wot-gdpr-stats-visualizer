@@ -282,6 +282,22 @@
     padding: 24px;
   }
 
+  /* Phone width: the spacing scale's md (16px) page padding (D-03, UI-SPEC
+     Spacing — the one documented exception to the 24px above).
+
+     This lives here rather than only in `src/app.css`'s phone-width block
+     because a Svelte scoped rule carries an attribute selector and therefore
+     outranks a bare type selector in the global stylesheet: the `padding:
+     24px` above beats a global `main { padding: 16px }` at every width, so a
+     block that only existed globally would be silently dead. Same breakpoint,
+     added by the same plan (07-05), for the same reason the UI-SPEC rules out
+     a second one — `DurationList.svelte` is the precedent. */
+  @media (max-width: 480px) {
+    main {
+      padding: 16px;
+    }
+  }
+
   /* D-07/D-08 cache-check loading block. Layout matches the import bar's
      processing notice (flex, centered, spinner-then-text) so the
      loading feedback reads as one family — only the literal text

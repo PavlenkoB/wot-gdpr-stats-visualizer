@@ -1,0 +1,277 @@
+# Deploy (phase 07, plan 07-02 — D-09, D-10, T-07-05 to T-07-08).
+#
+# This is a NEW workflow and deliberately not part of ci.yml. ci.yml verifies
+# every commit on the project's own runner; publishing is a separate,
+# human-initiated act that cannot ship a commit CI has not already verified.
+# The preflight job below is where that is decided, and it is the reason the
+# two files are not one.
+#
+# Rollback: re-run an earlier green Deploy from this workflow's history on the
+# Actions tab. Nothing here deletes a deployment, rewrites a branch, or
+# force-pushes, so the way back is always the way forward.
+#
+# Dispatch is main-only. The first job refuses any other ref before it does
+# anything else, so a tag or a branch run cannot reach a deploy job.
+name: Deploy
+
+on:
+  workflow_dispatch:
+
+# Every job grants itself exactly what it needs. The Pages pair lives on one
+# job; nothing else in this file can write to Pages or mint an OIDC token.
+permissions: {}
+
+# A second dispatch queues behind the first rather than cancelling a run that is
+# halfway through publishing a site.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Refuse anything but a green commit on main
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Read runs, nothing else. The gate needs no repository contents and no
+    # Pages access.
+    permissions:
+      actions: read
+    steps:
+      # Every value this script needs arrives through the environment, never
+      # interpolated into the script text. There are no dispatch inputs either,
+      # so there is nothing for a dispatcher to inject.
+      - name: Require main, and a green CI run for this exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+
+          if [ "$REF" != "refs/heads/main" ]; then
+            echo "refusing to deploy from $REF — this workflow deploys from main only" >&2
+            exit 1
+          fi
+
+          # The filter is scoped to the commit AND to a push run on main. A
+          # pull-request run of ci.yml carries the pull request's head commit,
+          # not the commit that landed on main, so accepting any successful run
+          # would let an unmerged branch look verified.
+          runs=$(gh api "repos/$REPO/actions/workflows/ci.yml/runs?head_sha=$SHA&event=push&branch=main&status=success" --jq '.total_count')
+
+          if [ "${runs:-0}" -lt 1 ]; then
+            echo "refusing to deploy $SHA — no successful ci.yml push run on main for that commit" >&2
+            exit 1
+          fi
+
+          echo "preflight passed: $SHA has $runs successful ci.yml push run(s) on main"
+
+  build:
+    name: Build the site and prove the artifact
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    # This build's hashed entry script, for the post-deploy smoke to wait for.
+    outputs:
+      entry_script: ${{ steps.entry.outputs.script }}
+    # The Pages project is served from a repository-name subpath, so the base
+    # is absolute. `cityAssetUrl` concatenates it onto the page origin, which is
+    # why a relative base was rejected.
+    env:
+      VITE_BASE: /wot-gdpr-stats-visualizer/
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # No `with: version:` — package.json's `packageManager` field is the pin.
+      - name: Install pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The month has to be known before the cache is keyed, so this step
+      # precedes the restore. It prints exactly one YYYY-MM line, taken from
+      # the same resolver the download itself uses, so the key and the file
+      # cannot name different months. Nothing is interpolated into the script.
+      - name: Resolve the DB-IP month
+        id: month
+        run: |
+          set -euo pipefail
+          month=$(node scripts/geo/resolve-dbip-month.ts)
+          echo "month=$month" >> "$GITHUB_OUTPUT"
+
+      # There is deliberately no prefix-fallback list, and that omission is the
+      # rule. A fallback would let last month's dataset satisfy this month's
+      # key, which is exactly the stale-data case the key exists to prevent.
+      # Only this workflow writes this cache, and it only runs from main, so no
+      # pull request can poison an entry.
+      - name: Cache the generated city dataset
+        id: city-cache
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        with:
+          path: public/geo-city-data
+          key: dbip-city-lite-${{ steps.month.outputs.month }}
+
+      # A cache miss downloads the real dataset. A failure here fails the run:
+      # there is no fallback to publishing a site whose opt-in would 404.
+      - name: Generate the city dataset
+        if: steps.city-cache.outputs.cache-hit != 'true'
+        run: pnpm run geo:city -- --download
+
+      # The build runs AFTER the generation, never before: the manifest is read
+      # while Vite evaluates its config and baked into the bundle as the file
+      # name, so a build that ran first would ship a bundle promising a file
+      # that did not exist yet. The gate below fails loudly if that order is
+      # ever broken, which is why the order is a test and not a comment.
+      - name: Build
+        run: pnpm run build
+
+      # This build's own hashed entry script, read out of the built HTML. The
+      # post-deploy smoke waits for exactly this name to appear on the live
+      # site, so a stale copy of an older deploy cannot produce a false green.
+      - name: Read the hashed entry script from the built HTML
+        id: entry
+        run: |
+          set -euo pipefail
+          script=$(grep -oE 'assets/index-[A-Za-z0-9_-]+\.js' dist/index.html | head -n 1)
+          if [ -z "$script" ]; then
+            echo "dist/index.html names no hashed entry script — the build did not emit one" >&2
+            exit 1
+          fi
+          echo "script=$script" >> "$GITHUB_OUTPUT"
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      # The pre-deploy gate: the zero-network and artifact proofs run against
+      # the dist that is about to be uploaded, on this runner, before anything
+      # is published. The month the gate is told to expect is the same month
+      # the cache was keyed on, so a cache hit is re-verified too.
+      - name: Pre-deploy gate on the built artifact
+        env:
+          EXPECT_CITY_MONTH: ${{ steps.month.outputs.month }}
+        run: pnpm exec playwright test -c tests/deploy/playwright.gate.config.ts
+
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-report-gate
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      # After the gate, never before: an artifact that has not been proven must
+      # not reach Pages.
+      - name: Upload the Pages artifact
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4.0.0
+        with:
+          path: dist
+
+  deploy:
+    name: Publish to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The only job in this file that can write to Pages, and the only one that
+    # can request an OIDC token to prove who it is to the Pages API.
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+
+  smoke:
+    name: Prove the live site
+    # Both: it reads this build's entry script from one and the published URL
+    # from the other.
+    needs: [build, deploy]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Read the repository, and nothing else. This job must not inherit the
+    # Pages privileges, or a compromise here could redeploy.
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      # A freshly published Pages site can take a few seconds to serve the new
+      # files. Without this wait, the smoke below could run against a STALE copy
+      # of an older deploy and pass — the false green this step exists to
+      # prevent. Bounded, so an actually-broken site fails rather than hangs.
+      - name: Wait until the live site serves this build
+        env:
+          LIVE_URL: ${{ needs.deploy.outputs.page_url }}
+          EXPECT_ENTRY: ${{ needs.build.outputs.entry_script }}
+        run: |
+          set -euo pipefail
+          attempt=1
+          while [ "$attempt" -le 30 ]; do
+            if curl --fail --silent --show-error --location "$LIVE_URL" | grep -qF "$EXPECT_ENTRY"; then
+              echo "the live site serves $EXPECT_ENTRY after $attempt attempt(s)"
+              exit 0
+            fi
+            echo "attempt $attempt: $EXPECT_ENTRY not served yet"
+            attempt=$((attempt + 1))
+            sleep 10
+          done
+          echo "$EXPECT_ENTRY never appeared in the live page at $LIVE_URL" >&2
+          exit 1
+
+      # The same spec the pre-deploy gate ran, against the deployed URL. A
+      # failure here turns this run red, and that red IS the report: rollback is
+      # re-running the previous green Deploy, never a manual edit to the site.
+      - name: Post-deploy smoke against the live URL
+        env:
+          LIVE_URL: ${{ needs.deploy.outputs.page_url }}
+        run: pnpm exec playwright test -c tests/deploy/playwright.live.config.ts
+
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-report-smoke
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore

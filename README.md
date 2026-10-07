@@ -50,6 +50,11 @@ pnpm run test:unit      # Vitest: 337 unit tests
 pnpm run test:e2e       # Playwright: 86 e2e tests against the built app
 ```
 
+The Playwright suite runs two projects: `chromium` (desktop) and `chromium-mobile`
+(375x812 with touch, running only the `touch-*.spec.ts` specs). The pre-deploy gate
+is separate: `pnpm exec playwright test -c tests/deploy/playwright.gate.config.ts`
+(see "Publishing to GitHub Pages").
+
 The Playwright suite includes `tests/e2e/guards/zero-network.spec.ts` — it asserts
 exactly one worker URL is loaded eagerly, every URL is same-origin, and
 zero requests happen after the initial-load baseline. CI runs the same four
@@ -109,6 +114,126 @@ never for a real build.
 
 IP geolocation data is by [DB-IP](https://db-ip.com) (IP to Country Lite and IP
 to City Lite, CC BY 4.0). The attribution is shown beside the map in the app.
+
+## Publishing to GitHub Pages
+
+The site is published by `.github/workflows/deploy.yml`, and only by a manual
+dispatch (`workflow_dispatch`). A push to `main` runs CI (`ci.yml`) and nothing
+else, so a commit nobody has verified cannot ship by accident. Four jobs run in
+order:
+
+1. **preflight** refuses unless the run is on `main` and that exact commit has a
+   successful `ci.yml` push run on `main`. It has no inputs to inject into.
+2. **build** runs on a GitHub-hosted runner. It resolves the DB-IP month, restores
+   or generates the real city dataset (`pnpm run geo:city -- --download`, cached
+   by month, with no fallback to an older month), builds with
+   `VITE_BASE=/wot-gdpr-stats-visualizer/`, and runs the pre-deploy gate on the
+   built `dist`: the CSP, the worker and favicon resolving under the base, zero
+   requests after load, exactly one opt-in request for exactly the manifest's file
+   with its bytes and sha256, and the artifact's contents against an allowlist.
+   Only then is `dist` uploaded as the Pages artifact.
+3. **deploy** is the only job with Pages permissions.
+4. **smoke** waits until the live site serves this build's entry script, then runs
+   the same spec against the live URL. A wrong live site turns the run red.
+
+### Preconditions (owner-only)
+
+None of these can be set from the repository or checked from CI.
+
+- [ ] The repository's visibility permits GitHub Pages. On the free plan that means
+      a public repository. The repository was private when this was written, and
+      whether to make it public is the owner's decision. It is not made, prepared
+      or audited by this project (no pre-publication review of the committed
+      files has been scheduled).
+- [ ] Settings > Pages > Build and deployment > Source is **GitHub Actions**.
+- [ ] Optional: Settings > Environments > `github-pages` is restricted to the
+      `main` branch.
+- [ ] The work is merged to `main` and CI is green there. The workflow cannot run
+      before that, because a dispatch uses the workflow file on the default branch.
+
+The owner's recorded answer (plan 07-01) is `deferred: repo stays private for
+now`: neither of the first two settings is satisfied, and publishing is
+consciously deferred until they are.
+
+### Dispatching, the live URL and rollback
+
+Dispatch from the Actions tab (Deploy > Run workflow, branch `main`), or:
+
+```bash
+gh workflow run deploy.yml --ref main
+```
+
+There are no inputs. The live URL is
+`https://pavlenkob.github.io/wot-gdpr-stats-visualizer/` (GitHub lowercases the
+owner in the Pages host); the page URL printed by the run's deploy job is
+authoritative if it ever differs.
+
+To roll back, open an earlier green Deploy run on the Actions tab and choose
+**Re-run all jobs**. It redeploys that run's commit, and the preflight asks the
+CI question again for it. Nothing in the workflow deletes a deployment or
+rewrites a branch.
+
+### Rehearsing the gate locally
+
+The sequence below is what the deploy build does, with the committed fixture
+CSV standing in for the real DB-IP download. It builds under the Pages subpath,
+runs the gate, and removes the generated directory (which is gitignored):
+
+```bash
+node scripts/geo/build-city-dataset.ts --csv tests/fixtures/geo/city-fixture.csv --month 2026-10
+VITE_BASE=/wot-gdpr-stats-visualizer/ pnpm run build
+VITE_BASE=/wot-gdpr-stats-visualizer/ EXPECT_CITY_MONTH=2026-10 \
+  pnpm exec playwright test -c tests/deploy/playwright.gate.config.ts
+rm -rf public/geo-city-data
+```
+
+The gate config serves the `dist` already on disk with `vite preview` and never
+rebuilds it. To run the live-site spec against a locally served build, start
+`VITE_BASE=/wot-gdpr-stats-visualizer/ pnpm exec vite preview` and, in another
+shell:
+
+```bash
+LIVE_URL=http://localhost:4173/wot-gdpr-stats-visualizer/ \
+  pnpm exec playwright test -c tests/deploy/playwright.live.config.ts
+```
+
+`LIVE_URL` must be https unless it is `localhost` or `127.0.0.1`. The live config
+runs `deployed-build.spec.ts` only; `dist-artifact.spec.ts` reads a build's
+filesystem and has nothing to read on a live site.
+
+### What only a person can check
+
+None of this can run before the branch is merged to `main`:
+
+1. The owner-only preconditions above.
+2. The first real dispatch from `main`: preflight, build (gate green), deploy and
+   smoke are all green, the printed URL serves the dashboard shell and dropzone,
+   and importing a real export works with an empty Network tab after load.
+3. On the live URL, import an export, scroll to the Login history block and press
+   the city-level opt-in once. The Network tab shows exactly one request after
+   load, for `geo-city-data/city-YYYY-MM.citydb.bin`, and the block reaches its
+   ready state (a failed download shows the existing error line).
+4. On a real phone: tap the heatmap, hour grid, bar chart and map marks (taps pin
+   and move tooltips, a tap outside dismisses them, nothing scrolls the page
+   sideways), check that the map's country targets are reachable with a thumb at
+   375px, and try the city opt-in. It should finish (peak decode memory is about
+   120 MB by estimate) or show its error line without crashing the tab.
+5. At 375px by 812px, the first screen shows the count tiles, the start of the
+   login table or heatmap, and the map within the first 812px. The UI spec's
+   focal-point sentence could not be asserted by a test as written (the map sits
+   below the Playtime block in document order), so a person judges it.
+6. With a real screen reader, both tooltip announcements ("Tooltip pinned." and
+   "Tooltip dismissed.") are spoken from the one page-level live region.
+
+### Caveats
+
+- Every Pages project of one owner shares the origin `<owner>.github.io`. A
+  different project published under the same account can read this app's
+  IndexedDB cache from the browser. Nothing sensitive leaves the machine through
+  this app, but the cached parsed export sits in origin storage, so publish only
+  projects you trust under the same account.
+- The CSP is defence in depth. Enforcement is the lint ban plus request counting,
+  as described under "What the page requests, and what enforces it".
 
 ## Test fixtures
 

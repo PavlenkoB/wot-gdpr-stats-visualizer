@@ -58,6 +58,48 @@ import config from '../../../playwright.config';
 //   the wrapper is 29 min and the job 37 min (G + 2 and W + 8), and 27 min holds
 //   up to 239 listed tests.
 //
+// 07-03 added the second Playwright project, `chromium-mobile`, and the five
+// touch specs that run only on it. `playwright test --list` counts BOTH
+// projects, so the five new tests are five new listed tests and nothing about
+// the desktop project shrank — the `touch-` routing removed no spec, it gave
+// the five a project of their own. L = 239 tests in 23 files, MEASURED:
+//
+//   E = 330 + 5 * (239 - 86 - 5 - 5 - 5) + 120 + 90 + 13
+//     = 330 + 690 + 223
+//     = 1243 s
+//   1.3 * E = 1615.9 s, and ceil(1615.9 / 60) = 27 min
+//
+// so G = 27, W = 29 and J = 37: all THREE were unchanged and no limit moved.
+// That was the LAST count 27 min covers — 240 tests would project 1248 s and a
+// floor of 1622.4 s against a 1620 s `globalTimeout` — and 07-04 is the plan
+// that crossed it, with the three touch specs that put the shared tooltip on
+// the remaining chart surfaces. `playwright test --list` still counts BOTH
+// projects, so those three are three new listed tests: L = 242 in 23 files,
+// MEASURED:
+//
+//   E = 330 + 5 * (242 - 86 - 5 - 5 - 5) + 120 + 90 + 13
+//     = 330 + 705 + 223
+//     = 1258 s
+//   1.3 * E = 1635.4 s, and ceil(1635.4 / 60) = 28 min
+//
+// so G = 28, W = 30 and J = 38: all THREE moved together, the same G + 2 and
+// W + 8 relationship every raise before them used, and 28 min holds up to 248
+// listed tests. The rule this header has carried since 05-14 is the one that
+// produced it: raise all three together, never one.
+//
+// 07-05 is the next plan to cross a ceiling. It added the phone-width sweep
+// (six tests, one of them the tracer) and three bounding-box touch-target
+// specs on the touch project: 242 + 9 = 251 listed in 25 files, MEASURED. The
+// first four of those nine (L = 246) still fit 28 min; the last five did not:
+//
+//   E = 330 + 5 * (251 - 86 - 5 - 5 - 5) + 120 + 90 + 13
+//     = 330 + 750 + 223
+//     = 1303 s
+//   1.3 * E = 1693.9 s, and ceil(1693.9 / 60) = 29 min
+//
+// so G = 29, W = 31 and J = 39, all three moved together, and 29 min holds up
+// to 258 listed tests.
+//
 // Every constant below is either MEASURED in this repository or an ESTIMATE
 // carried forward from an earlier phase, and is labelled as such. The
 // estimation lives here, not in a comment, because `globalTimeout` is
@@ -245,6 +287,22 @@ describe('CI e2e budget', () => {
     // The 234-test, 5-test-per-scale-spec shape MEASURED at the end of 06-14
     // Task 2: 330 + 5 * (234 - 86 - 5 - 5 - 5) + 120 + 90 + 13 = 1218.
     expect(projectedE2eSeconds(234)).toBe(1218);
+    // The 239-test shape MEASURED at the end of 07-03 Task 2, with the
+    // chromium-mobile project added and its five touch specs counted once each:
+    // 330 + 5 * (239 - 86 - 5 - 5 - 5) + 120 + 90 + 13 = 1243. This is the
+    // last count 27 min covers — the next browser test anywhere in the
+    // repository projects 1248 s and a floor of 1622.4 s against 1620.
+    expect(projectedE2eSeconds(239)).toBe(1243);
+    // The 242-test shape MEASURED at the end of 07-04 Task 3, with 07-03's five
+    // touch specs plus this plan's three: 330 + 5 * (242 - 86 - 5 - 5 - 5)
+    // + 120 + 90 + 13 = 1258. The floor moves to 1635.4 s, which is past the
+    // 1620 s that 27 min gave, so this is the raise 07-03 predicted.
+    expect(projectedE2eSeconds(242)).toBe(1258);
+    // The 251-test shape MEASURED at the end of 07-05 Task 3, with the sweep's
+    // six tests and the touch-target spec's three: 330 + 5 * (251 - 86 - 5 - 5
+    // - 5) + 120 + 90 + 13 = 1303. The floor is 1693.9 s, past the 1680 s that
+    // 28 min gave, so this is the raise 07-04 predicted.
+    expect(projectedE2eSeconds(251)).toBe(1303);
     // The 184-test shape of 05-16 under THIS function, which now also holds the
     // login block back: 330 + 5 * (184 - 86 - 5 - 5 - 5) + 120 + 90 + 13 = 968.
     expect(projectedE2eSeconds(184)).toBe(968);

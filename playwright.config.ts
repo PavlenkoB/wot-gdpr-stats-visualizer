@@ -39,10 +39,34 @@ export default defineConfig({
     // are pinned separately, because they are separate default locales.
     locale: 'en-US',
   },
+  // TWO projects, and the routing between them is the point (07-03, D-04).
+  //
+  // A spec whose file name starts with `touch-` runs ONLY on `chromium-mobile`,
+  // and every other spec runs ONLY on `chromium` — so every spec in the
+  // repository still runs exactly once, and the touch specs really do run with
+  // a touch pointer instead of quietly asserting mouse behaviour on a
+  // mouse-capable browser. A `touch-` spec left off this split would run on
+  // the desktop project and pass while testing nothing about touch.
   projects: [
     {
       name: 'chromium',
+      testIgnore: '**/touch-*.spec.ts',
       use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      // Desktop Chrome at 375x812 with touch enabled, NOT one of Playwright's
+      // phone descriptors: those carry a WebKit default browser, WebKit is not
+      // installed in CI, and this project is Chrome-first (D-04). `isMobile`
+      // and `hasTouch` are what make `tap()` and a real touch `pointerover`
+      // possible; the viewport is what makes the layout the phone one.
+      name: 'chromium-mobile',
+      testMatch: '**/touch-*.spec.ts',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 375, height: 812 },
+        isMobile: true,
+        hasTouch: true,
+      },
     },
   ],
   // Global timeout inside Playwright: fail loudly with diagnostics
@@ -107,7 +131,53 @@ export default defineConfig({
   // 330 + 5 * (234 - 86 - 5 - 5 - 5) + 120 + 90 + 13 = 1218 s, a floor of
   // 1583.4 s, and ceil(1583.4 / 60) = 27 min. The wrapper is 29 min and the job
   // 37 min, the same G + 2 and W + 8; 27 min holds up to 239 tests.
-  globalTimeout: 27 * 60 * 1000,
+  //
+  // 27 min is UNCHANGED for 07-03, and this line is the record of that. The
+  // plan added the `chromium-mobile` project and five touch specs, and
+  // `playwright test --list` counts BOTH projects — the `touch-` routing took
+  // nothing away from the desktop project, it gave the five a project of their
+  // own, so the count is 239 in 23 files. MEASURED:
+  //
+  //   E = 330 + 5 * (239 - 86 - 5 - 5 - 5) + 120 + 90 + 13
+  //     = 1243 s
+  //   1.3 * E = 1615.9 s, and ceil(1615.9 / 60) = 27 min
+  //
+  // G = 27, W = 29, J = 37: no limit moved, and 07-03 raised nothing. It was
+  // also the LAST count 27 min covers — 240 tests project 1248 s and a floor of
+  // 1622.4 s against this 1620 s — so the next browser test added anywhere in
+  // the repository fails tests/unit/guards/ci-budget.test.ts and forces the
+  // same raise, all three together.
+  //
+  // 28 min is 07-04's raise, and this comment is where its arithmetic lives.
+  // The three touch specs that put the tooltip on the remaining chart surfaces
+  // are three more LISTED tests, because `playwright test --list` counts BOTH
+  // projects and the `touch-` routing took nothing away from the desktop one.
+  // 242 tests in 23 files, MEASURED:
+  //
+  //   E = 330 + 5 * (242 - 86 - 5 - 5 - 5) + 120 + 90 + 13
+  //     = 1258 s
+  //   1.3 * E = 1635.4 s, and ceil(1635.4 / 60) = 28 min
+  //
+  // G = 28, W = 30 and J = 38: all three moved together, which is the same
+  // relationship as every raise before it (the wrapper is G + 2 and the job is
+  // W + 8). 28 min holds up to 248 tests.
+  //
+  // 29 min is 07-05's raise, and this comment is where its arithmetic lives.
+  // The plan added one sweep test for the padding block, three bounding-box
+  // touch-target specs and five more sweep tests (the full dashboard, activity
+  // and logins, banners and long text, the city opt-in's five states, and the
+  // tables-and-map test) — nine listed tests. The first four (243 after the
+  // tracer, 246 after the touch specs) still fit 28 min and the last five are
+  // what crossed it: 251 tests in 25 files, MEASURED:
+  //
+  //   E = 330 + 5 * (251 - 86 - 5 - 5 - 5) + 120 + 90 + 13
+  //     = 1303 s
+  //   1.3 * E = 1693.9 s, and ceil(1693.9 / 60) = 29 min
+  //
+  // G = 29, W = 31 and J = 39: all three moved together, the same G + 2 and
+  // W + 8 relationship as every raise before it. 29 min holds up to 258
+  // listed tests (258 project 1338 s and a floor of 1739.4 s against 1740 s).
+  globalTimeout: 29 * 60 * 1000,
   timeout: 120000,
   webServer: {
     // Direct binary invocation (NOT `pnpm run build && pnpm run preview`).

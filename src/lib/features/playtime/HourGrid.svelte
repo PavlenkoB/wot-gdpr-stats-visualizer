@@ -158,6 +158,11 @@
   }
 
   function onPointerOver(event: PointerEvent): void {
+    // A touch tap fires over, down, up and out in that order, so handling the
+    // over for touch would open a tooltip that the very same tap then closes
+    // at its `out`. Touch opens the tooltip on press instead — see
+    // `onPointerDown`.
+    if (event.pointerType === 'touch') return;
     const found = cellFrom(event.target);
     if (found === null) return;
     hoverIndex = found.index;
@@ -177,9 +182,42 @@
    * entered, and closing on the first would blank the tooltip mid-move.
    */
   function onPointerOut(event: PointerEvent): void {
+    // The touch counterpart of the guard in `onPointerOver`: the `out` half of
+    // a tap is what would close the tooltip its own `over` opened. Touch
+    // dismissal is decided in one place instead — `ChartTooltip`, which knows
+    // whether the tooltip is pinned.
+    if (event.pointerType === 'touch') return;
     if (cellFrom(event.relatedTarget) !== null) return;
     hoverIndex = null;
     onTip(null, null);
+  }
+
+  /**
+   * A press clears the keyboard ring, and a TOUCH press opens the tooltip.
+   *
+   * The ring is cleared first and unconditionally: a finger landing on a cell
+   * leaves no keyboard ring behind, exactly as a mouse click does. The press
+   * does not move the pointer, so this never touches the pointer's own cell.
+   *
+   * The touch branch is what makes a tap show something. Whether the engine
+   * also moves focus on a tap is its own decision and varies, so relying on
+   * `focusin` alone would leave the tap's tooltip at the mercy of the
+   * browser; resolving the cell here means the tap opens the tooltip whatever
+   * the engine does afterwards. A tap on the chart's padding — an axis label,
+   * the gutter, the space between cells — has no cell and closes the tooltip,
+   * which is the same rule `cellFrom` already gives the mouse path.
+   */
+  function onPointerDown(event: PointerEvent): void {
+    keyboardFocus = false;
+    if (event.pointerType === 'touch') {
+      const found = cellFrom(event.target);
+      if (found === null) {
+        onTip(null, null);
+        return;
+      }
+      const node = (event.target as Element).closest('[data-index]');
+      if (node !== null) showTip(node, found.cell);
+    }
   }
 
   /**
@@ -306,7 +344,15 @@
   gaining a vertical partner; 4px of vertical padding leaves room for the
   focus ring, which is drawn 1.5px outside its cell.
 -->
-<div class="scroller" data-testid="hour-scroller">
+<!--
+  The surface attribute names the region a touch tap belongs to. The shared
+  tooltip reads it to tell "a tap inside the chart this tooltip belongs to"
+  from "a tap somewhere else on the page", which is the difference between
+  moving a pinned tooltip and dismissing it (07-03, `touchTapAction`). It is
+  on the scroller rather than the svg because the scroller is the chart's
+  whole addressable box.
+-->
+<div class="scroller" data-testid="hour-scroller" data-tooltip-surface>
   <svg
     bind:this={element}
     data-testid="hour-chart"
@@ -321,9 +367,7 @@
     onfocusin={onFocusIn}
     onfocusout={onFocusOut}
     onkeydown={onKeyDown}
-    onpointerdown={() => {
-      keyboardFocus = false;
-    }}
+    onpointerdown={onPointerDown}
   >
     <!--
       The hour labels first, so a cell rect painted later can never cover one:

@@ -84,6 +84,10 @@
   }
 
   function onPointerOver(event: PointerEvent): void {
+    // A touch tap fires over, down, up and out in that order, so handling the
+    // over for touch would open a tooltip the very same tap then closes at its
+    // `out`. Touch opens the tooltip on press instead — see `onPointerDown`.
+    if (event.pointerType === 'touch') return;
     const found = cellFrom(event.target);
     if (found === null) return;
     hoverIndex = found.index;
@@ -92,9 +96,46 @@
   }
 
   function onPointerOut(event: PointerEvent): void {
+    // The touch counterpart of the guard in `onPointerOver`. Touch dismissal
+    // is decided in one place instead — `ChartTooltip`, which knows whether
+    // the tooltip is pinned and which chart owns it.
+    if (event.pointerType === 'touch') return;
     if (cellFrom(event.relatedTarget) !== null) return;
     hoverIndex = null;
     onTip(null, null);
+  }
+
+  /**
+   * A press clears the keyboard ring, and a TOUCH press opens the tooltip.
+   *
+   * The ring is cleared first and unconditionally, exactly as it was by the
+   * inline arrow this replaced: a finger landing on a cell leaves no keyboard
+   * ring behind, just as a mouse click does.
+   *
+   * The touch branch is what makes a tap show something. Whether the engine
+   * also moves focus on a tap is its own decision and varies, so relying on
+   * `focusin` alone would leave the tap's tooltip at the mercy of the browser;
+   * resolving the cell here means the tap opens the tooltip whatever the engine
+   * does afterwards. A tap on the chart's padding — an axis label, the gutter,
+   * the space between cells — has no cell and closes the tooltip, which is the
+   * same rule `cellFrom` already gives the mouse path.
+   *
+   * The two Financial charts share ONE `onTip` and therefore one tooltip
+   * element, so this handler serves both: the surface it is read against is
+   * this chart's own scroller, and a tap in the other chart is a MOVE across
+   * charts rather than a tap inside this one.
+   */
+  function onPointerDown(event: PointerEvent): void {
+    keyboardFocus = false;
+    if (event.pointerType === 'touch') {
+      const found = cellFrom(event.target);
+      if (found === null) {
+        onTip(null, null);
+        return;
+      }
+      const node = (event.target as Element).closest('[data-index]');
+      if (node !== null) showTip(node, found.index);
+    }
   }
 
   function onFocusIn(event: FocusEvent): void {
@@ -153,7 +194,13 @@
   const ringWidth = $derived(Math.max(model.pitch, 8));
 </script>
 
-<div class="scroller" data-testid="bar-scroller">
+<!--
+  `data-tooltip-surface` is what makes a touch tap attributable to THIS chart
+  (07-03, `touchTapAction`): a tap inside it is this chart's business, and a tap
+  anywhere else on the page dismisses the pinned tooltip. It is on the scroller
+  rather than the svg because the scroller is the chart's whole addressable box.
+-->
+<div class="scroller" data-testid="bar-scroller" data-tooltip-surface>
   <svg
     bind:this={element}
     data-testid={chartTestId}
@@ -168,9 +215,7 @@
     onfocusin={onFocusIn}
     onfocusout={onFocusOut}
     onkeydown={onKeyDown}
-    onpointerdown={() => {
-      keyboardFocus = false;
-    }}
+    onpointerdown={onPointerDown}
   >
     <!-- Top & bottom plot boundary hairlines -->
     <line class="hairline" x1={56} y1={model.plotTop} x2={model.width - 4} y2={model.plotTop} />

@@ -1486,8 +1486,16 @@ test.describe('the battle-type summary at 375px (05-20 Task 3)', () => {
     await expect(region).toBeVisible();
     await expect(region).toHaveAttribute('tabindex', '0');
 
-    // It really does overflow, which is the reason it exists: four nowrap
-    // columns cannot fit 293px, and a region that fits proves nothing.
+    // It really does overflow, which is the reason it exists, and a region that
+    // fits proves nothing. Whether the four nowrap columns overflow 375px on
+    // their own depends on the machine's font metrics (they overflowed on the
+    // development Mac and fitted exactly, 309px in 309px, on the Linux CI
+    // runner), so the premise is made font-independent: the table is given a
+    // width no 375px card can hold, and the scroll box and the containment
+    // assertion below are tested against that.
+    await region.locator('table').evaluate((table) => {
+      table.style.minWidth = '640px';
+    });
     const box = await region.evaluate((el) => ({
       scrollWidth: el.scrollWidth,
       clientWidth: el.clientWidth,

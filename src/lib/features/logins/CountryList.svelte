@@ -113,8 +113,14 @@
     outline-offset: 2px;
   }
 
-  /* The 8px `sm` gap between the summary and the table inside the disclosure. */
+  /* The 8px `sm` gap between the summary and the table inside the disclosure.
+
+     Prophylactic (G-07-5): this list's header is `position: sticky` with no
+     z-index and paints below the nav's z-index 1 today, so nothing here overlaps
+     the nav. `isolation: isolate` keeps the four table scrollers one pattern and
+     contains any z-index a header is given later. */
   .scroller {
+    isolation: isolate;
     min-width: 0;
     max-height: 320px;
     margin-top: 8px;

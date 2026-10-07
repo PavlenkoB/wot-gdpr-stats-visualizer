@@ -750,11 +750,15 @@ test('at 375px the frame fits the card, the page does not scroll sideways, toolt
   await map.scrollIntoViewIfNeeded();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
 
-  // The frame fits the 295px card inner width: it is not wider, and it is not a
-  // fraction of it either.
+  // The frame fits the card's inner width: it is not wider, and it is not a
+  // fraction of it either. That width is 309px at 375px: the viewport less the
+  // two 16px page paddings of the phone block (07-05, D-03) and the card's own
+  // 16px padding and 1px border on each side. It was 293px under the 24px
+  // desktop padding this spec was written against, so both bounds moved by the
+  // 16px the page gave back (the lower bound is the old 280 plus those 16).
   const frame = (await page.getByTestId('login-map-frame').boundingBox())!;
-  expect(frame.width).toBeLessThanOrEqual(295.5);
-  expect(frame.width).toBeGreaterThan(280);
+  expect(frame.width).toBeLessThanOrEqual(311.5);
+  expect(frame.width).toBeGreaterThan(296);
   const svgBox = (await map.boundingBox())!;
   expect(svgBox.width).toBeLessThanOrEqual(frame.width);
 

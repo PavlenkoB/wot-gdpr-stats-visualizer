@@ -349,6 +349,52 @@
     outline-offset: 2px;
   }
 
+  /* Phone width: the 44px touch-target floor from `src/app.css`'s one
+     480px block lifts every link here from 38.6px to 44px, which would make
+     the nav 62px instead of the 56.59px it measures today — and the nav's
+     height is `--nav-offset`'s whole basis: the calendar's sticky year head,
+     every anchor's `scroll-margin-top`, the scroll-spy band and the tooltip
+     placement all read the one constant, and two existing specs pin the 56px
+     geometry.
+
+     So the nav pays for its own taller links instead. Its height is the two
+     1px borders plus twice this padding plus the link, so trimming the padding
+     from 8px to 5.5px returns 62px to 57px — within 1px of the 56.59px it
+     measured before the floor, so `--nav-offset` stays 72px and no spec that
+     reads it moves.
+
+     5.5px is OFF the spacing scale, and deliberately so: the alternatives are a
+     target under 44px or moving an offset four components and ten specs read,
+     and this is the cheapest of the three. It is also the tightest value that
+     still fits the focus ring — a 3px outline at a 2px offset reaches 5px
+     past the link, and `overflow-y: hidden` clips it at the nav's padding box,
+     so anything under 5px would cut the ring off. Only the BLOCK axis is
+     trimmed: the horizontal 8px is the inset the scroll code reads back
+     (`paddingLeft`) and the width the links were laid out against, so it stays
+     as it was.
+
+     The link text is centred in the 44px box with BLOCK padding, not with flex:
+     at a 44px box the text would otherwise sit hard against the top. The
+     name-bearing link must never become a flex or grid container at any width,
+     because that blockifies its status-suffix span and puts a separator in the
+     accessible name ("Payment_history , not in this export") — see the
+     `.screen-reader-only` comment below (GAP-WR01). The link stays the block box
+     it is at every other width, and the global floor in `src/app.css` lifts its
+     height to 44px; this padding only puts the text in the middle of that box.
+     It is half of (44px floor - 3px border - 1.4em line box), which is 10.7px at
+     14px. The 3px, 1.4 and 44px are the base rule's own border width and line
+     height and the floor's number, repeated here because CSS cannot read them
+     from another declaration. */
+  @media (max-width: 480px) {
+    nav {
+      padding-block: 5.5px;
+    }
+
+    a {
+      padding-block: calc((44px - 3px - 1.4em) / 2);
+    }
+  }
+
   /* The screen-reader-only status suffix.
 
      The clip pattern that Dropzone.svelte uses (`position: absolute` at 1px)
@@ -358,6 +404,9 @@
      positioning this span — or making it an inline-block — announces
      "Payment_history , not in this export", with the comma one character
      detached from the folder name the Copywriting Contract fixes (D-03).
+     Making the LINK itself a flex or grid container does the same, because it
+     blockifies this span: that was found by verification at phone width, where
+     the 07-05 centring rule had done exactly that (GAP-WR01).
 
      Staying in the inline formatting context and collapsing the text itself
      is what makes the name exact. `font-size: 0` gives the run no advance

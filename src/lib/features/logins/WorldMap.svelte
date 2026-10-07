@@ -176,6 +176,11 @@
   }
 
   function onPointerOver(event: PointerEvent): void {
+    // A touch tap fires over, down, up and out in that order, and a swipe fires
+    // a stream of moves. Neither may open or close anything here: a touch tap
+    // opens and pins on press instead — see `onPointerDown` — and a swipe is
+    // the reader moving the page, which `ChartTooltip` answers on its own.
+    if (event.pointerType === 'touch') return;
     const cc = countryFrom(event.target);
     if (cc === null) return;
     hoverCc = cc;
@@ -184,6 +189,10 @@
 
   /** Follow the pointer inside a large country, so the tooltip stays where it points. */
   function onPointerMove(event: PointerEvent): void {
+    // The same guard as in `onPointerOver`, and load-bearing for a swipe: a
+    // finger dragging across the map emits touch moves, and each one would
+    // otherwise re-open a tooltip at every country the drag crossed.
+    if (event.pointerType === 'touch') return;
     const cc = countryFrom(event.target);
     if (cc === null || cc !== hoverCc) return;
     showAtPointer(cc, event);
@@ -198,9 +207,49 @@
    * one being entered reopens it.
    */
   function onPointerOut(event: PointerEvent): void {
+    // The touch counterpart of the guards above: the `out` half of a tap is
+    // what would close the tooltip its own `over` opened, and the `out` a
+    // swipe ends with is not the reader asking for anything to close.
+    if (event.pointerType === 'touch') return;
     if (countryFrom(event.relatedTarget) !== null) return;
     hoverCc = null;
     dismiss();
+  }
+
+  /**
+   * A TOUCH press pins the tooltip on the country under the finger.
+   *
+   * This map differs from the other three charts in one way that matters here:
+   * a country's readable position is the FINGER, not a cell. `showAtPointer`
+   * already anchors the request at the pointer as a zero-size box, and that is
+   * the position a reader expects the tooltip to be at.
+   *
+   * So the country's OWN element becomes the anchor, and the two things that
+   * needs are worth spelling out. The shared tooltip reads
+   * `data-tooltip-surface` from the anchor to tell this chart from the rest of
+   * the page — without a real element there is no surface and every tap would
+   * dismiss. And its staleness check compares that element's box with the
+   * request's anchor, which is the finger: the two are never the same shape, so
+   * any scroll or resize the reader makes dismisses the tooltip, which is what
+   * the UI-SPEC asks for. A second tap on the same element also has something to
+   * compare against, so it toggles the pin off instead of re-pinning it.
+   *
+   * The hit circle counts: it is the only thing a finger can land on for a
+   * country a few pixels across, and it carries `data-iso` for exactly that.
+   *
+   * A press on the map that is not on a country closes the tooltip, which is
+   * the same rule `countryFrom` already gives the mouse.
+   */
+  function onPointerDown(event: PointerEvent): void {
+    if (event.pointerType === 'touch') {
+      const cc = countryFrom(event.target);
+      if (cc === null) {
+        dismiss();
+        return;
+      }
+      showAtPointer(cc, event);
+      tipAnchor = event.target instanceof Element ? event.target.closest('[data-iso]') : null;
+    }
   }
 
   /** Whether the browser itself would draw a keyboard focus ring on this element. */
@@ -294,10 +343,18 @@
   focus pattern's own shape and the one CalendarHeatmap uses on its grid.
 -->
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<!--
+  `data-tooltip-surface` is what makes a touch tap attributable to THIS map
+  (07-03, `touchTapAction`): a tap inside it is the map's business, and a tap
+  anywhere else on the page dismisses the pinned tooltip. It is on the svg
+  because the svg is the whole map — a country, its marker and its hit circle
+  are all inside it.
+-->
 <svg
   bind:this={svgEl}
   class="map"
   data-testid="login-map"
+  data-tooltip-surface
   viewBox={WORLD_VIEWBOX}
   role="group"
   aria-label={MAP_GROUP_LABEL}
@@ -308,6 +365,7 @@
   onfocusin={onFocusIn}
   onfocusout={onFocusOut}
   onkeydown={onKeyDown}
+  onpointerdown={onPointerDown}
 >
   {#each WORLD_SHAPES as shape (shape.iso)}
     {@const entry = drawnByIso.get(shape.iso)}

@@ -225,6 +225,10 @@
   }
 
   function onPointerOver(event: PointerEvent): void {
+    // A touch tap fires over, down, up and out in that order, so handling the
+    // over for touch would open a tooltip the very same tap then closes at its
+    // `out`. Touch opens the tooltip on press instead — see `onPointerDown`.
+    if (event.pointerType === 'touch') return;
     const found = cellFrom(event.target);
     if (found === null) return;
     hoverDay = found.day;
@@ -244,6 +248,11 @@
    * entered, and closing on the first would blank the tooltip mid-move.
    */
   function onPointerOut(event: PointerEvent): void {
+    // The touch counterpart of the guard in `onPointerOver`: the `out` half of
+    // a tap is what would close the tooltip its own `over` opened. Touch
+    // dismissal is decided in one place instead — `ChartTooltip`, which knows
+    // whether the tooltip is pinned.
+    if (event.pointerType === 'touch') return;
     if (cellFrom(event.relatedTarget) !== null) return;
     hoverDay = null;
     onTip(null, null);
@@ -411,12 +420,34 @@
    * and then clicks a different cell is left looking at a ring pointing at a
    * cell they are not on.
    */
-  function onPointerDown(): void {
+  function onPointerDown(event: PointerEvent): void {
     keyboardFocus = false;
+    // The touch branch is what makes a tap show something. Whether the engine
+    // also moves focus on a tap is its own decision and varies, so relying on
+    // `focusin` alone would leave the tap's tooltip at the mercy of the
+    // browser; resolving the day here means the tap opens the tooltip whatever
+    // the engine does afterwards. A tap on the chart's padding — a month
+    // label, the gutter, the space between days — has no cell and closes the
+    // tooltip, which is the same rule `cellFrom` already gives the mouse path.
+    if (event.pointerType === 'touch') {
+      const found = cellFrom(event.target);
+      if (found === null) {
+        onTip(null, null);
+        return;
+      }
+      const node = (event.target as Element).closest('[data-day]');
+      if (node !== null) showTip(node, found.cell);
+    }
   }
 </script>
 
-<div class="calendar" data-testid="calendar-chart" bind:this={element}>
+<!--
+  `data-tooltip-surface` is what makes a touch tap attributable to THIS chart
+  (07-03, `touchTapAction`): a tap inside it is this chart's business, and a tap
+  anywhere else on the page dismisses the pinned tooltip. It is on the root
+  because the root holds every year block — the whole chart is the surface.
+-->
+<div class="calendar" data-testid="calendar-chart" data-tooltip-surface bind:this={element}>
   <!--
     The key model as real text rather than a title attribute, linked with
     `aria-describedby` so a screen-reader user meets it before the first cell

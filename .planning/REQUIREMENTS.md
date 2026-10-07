@@ -48,6 +48,10 @@
 ### Platform & Privacy
 
 - [ ] **PLATFORM-01**: Dashboard is responsive and usable at phone width
+      <!-- 07-03 delivered the touch-tooltip half. Still OPEN: 07-04 (the other
+           three charts), 07-05 (the 480px block and the 375px sweep) and 07-06
+           also declare this id, and the shared-id gate keeps it Pending until
+           the LAST of them has a SUMMARY. -->
 - [ ] **PLATFORM-02**: Zero network requests after initial page load, enforced by an automated Playwright CI assertion, backed by a CSP meta tag as defense-in-depth
 - [ ] **PLATFORM-03**: Deployed as a static site to GitHub Pages via the official `actions/deploy-pages` GitHub Actions workflow
 
@@ -105,7 +109,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FINANCE-01 | Phase 5 | Complete |
 | FINANCE-02 | Phase 5 | Complete |
 | FINANCE-03 | Phase 5 | Complete |
-| PLATFORM-01 | Phase 7 | Pending |
+| PLATFORM-01 | Phase 7 | Gaps Found |
 | PLATFORM-02 | Phase 1 | Complete |
 | PLATFORM-03 | Phase 7 | Pending |
 

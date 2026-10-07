@@ -93,6 +93,23 @@ function cspMeta(): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig({
+  // The absolute base path the app is served under (phase 07, D-11). The deploy
+  // job sets `VITE_BASE` to the GitHub Pages project subpath; nothing else sets
+  // it, so `pnpm dev`, `pnpm preview` and the whole e2e suite keep serving at
+  // `/` and their URLs, snapshots and assertions are unchanged.
+  //
+  // It must be ABSOLUTE. `cityAssetUrl` (`src/lib/geo/city-fetch.ts`) builds the
+  // one opt-in URL by concatenating the page origin with
+  // `import.meta.env.BASE_URL`, and it validates that value against a pattern
+  // that admits only a leading slash and trailing slash, single path segments,
+  // and no `.` or `..` segment. A relative `./` base would be rejected there and
+  // would make the URL resolve against the current document instead of the
+  // project root.
+  //
+  // Nothing else in this file is aware of the base. `index.html` is NOT edited
+  // to carry prefixed asset URLs: Vite rewrites the favicon, script and
+  // stylesheet references, and the main chunk's worker URL, itself.
+  base: process.env.VITE_BASE ?? '/',
   plugins: [svelte(), cspMeta()],
   worker: {
     format: 'es',

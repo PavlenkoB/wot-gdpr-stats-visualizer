@@ -361,11 +361,13 @@ describe('04-09 Task 2 — the shared tooltip, the roving keyboard model and the
       expect(handler(name), `${name} leaves hoverIndex alone`).not.toMatch(/hoverIndex/);
     }
     // A press does not move the pointer, so pressing must not clear the ring,
-    // while it still clears the keyboard flag as before.
-    const press = /onpointerdown=\{[\s\S]*?\}\}/.exec(body);
-    expect(press, 'the inline pointer-down handler exists').not.toBeNull();
-    expect(press?.[0]).toMatch(/keyboardFocus/);
-    expect(press?.[0]).not.toMatch(/hoverIndex/);
+    // while it still clears the keyboard flag as before. The handler is a
+    // NAMED function since 07-03 (a touch tap needs a body with an event to
+    // read `pointerType` from, and an inline arrow had no name to be called
+    // by), so it is cut out the same way as the other four.
+    const press = handler('onPointerDown');
+    expect(press).toMatch(/keyboardFocus\s*=\s*false/);
+    expect(press).not.toMatch(/hoverIndex/);
 
     // One declaration list per ring rule, so the hover ring cannot drift from
     // the keyboard ring: same fill, same pointer behaviour, same inner stroke.

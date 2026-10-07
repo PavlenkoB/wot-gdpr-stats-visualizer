@@ -338,11 +338,36 @@ Plans:
 **Success Criteria** (what must be TRUE):
 
   1. At phone width (~375px), every section is readable and usable without horizontal page scrolling: identity header, heatmaps, tables, map, banners, and the clear-data control. Wide charts scroll inside their own container.
-  2. Tabs, tooltips, and popovers work by touch as well as by mouse.
-  3. Pushing to `main` runs the full CI suite. Only if it passes does the workflow deploy to GitHub Pages via `actions/upload-pages-artifact@v4` + `actions/deploy-pages@v4`, and the public URL serves the app.
+  2. The navigation anchor strip (the dashboard's "tabs") and the shared chart tooltip work by touch as well as by mouse: the tooltip opens and pins on a tap and dismisses on a tap outside, a second tap on the same mark, Escape or a scroll. The application has no popovers and none is added (amended by plan 07-06: D-06 reads "tabs, tooltips, and popovers" against what the application contains; bits-ui is unused in src/ and no dependency is added).
+  3. Pushing to `main` runs the full CI suite (`ci.yml`, self-hosted runner). Deployment is a separate workflow, `deploy.yml`, started by a manual `workflow_dispatch` from `main`, which refuses any commit that has no successful CI push run on `main`, builds on a GitHub-hosted runner with the real DB-IP city dataset, runs the zero-network gate against the built artifact before uploading it with `actions/upload-pages-artifact@v4`, publishes it with `actions/deploy-pages@v4`, and then runs a smoke check against the public URL, which serves the app (amended by plan 07-06: D-09 replaces "pushing to main ... only if it passes does the workflow deploy" with a deliberate manual step that cannot ship an unverified commit; rollback is re-running an earlier green Deploy run).
   4. On the live GitHub Pages URL, which uses a project subpath, the worker script and the opt-in city dataset both load without 404s. The country geo table is **inlined into the worker chunk, so it makes no request and there is nothing to 404 for** (amended by plan 06-06: RESEARCH Decision 5's inline delivery supersedes the original "the country geo table … load without 404s" wording; its correctness under a subpath is proved by the worker chunk itself being served and the zero-network check passing against the deployed build). The CSP is present, and the zero-network check passes against the deployed build.
 
-**Plans**: TBD
+**Plans:** 8/8 plans executed
+Plans:
+- [x] 07-08-PLAN.md
+
+**Wave 1**
+
+- [x] 07-01-PLAN.md — Pages preconditions recorded (D-12, deferral allowed), `VITE_BASE` subpath base, deployed-build gate harness: worker/favicon/CSP/zero-network/city-file and artifact-content checks on the built dist
+- [x] 07-03-PLAN.md — `chromium-mobile` touch project, tap-to-pin shared tooltip (pure decision module, tap-again/outside/Esc/silent-scroll dismissal), one page-level live region, hour-grid touch specs
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 07-02-PLAN.md — Manual, CI-gated `deploy.yml` (main-only, green-CI preflight, month-keyed DB-IP cache, city file generated before the build, pre-deploy gate, upload, deploy, post-deploy smoke job) with a mutation-tested structural guard
+- [x] 07-04-PLAN.md — Touch mechanism extended to the bar charts, the calendar and the map, with specs and the CI e2e budget raise
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 07-05-PLAN.md — Single 480px block (16px padding, 44px target floor, nav-offset re-measured), the 375px sweep spec across every section and state, bounding-box target spec
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [x] 07-06-PLAN.md — ROADMAP success criteria 2 and 3 amended (D-06, D-09), README publishing/preconditions/rollback section, manual verification list
+
+**Gap closure** *(verifier GAP-WR01, filed after the Phase 7 verification)*
+
+- [x] 07-07-PLAN.md — GAP-WR01: the nav link's accessible name is exact again at 480px and below (the phone-width link keeps its block box and centres its text with block padding instead of flex), held by four exact-name tests at 375px and 480px that fail on the 07-05 component, with the 44px target, the 57px nav and `--nav-offset` 72px re-measured (Wave 4, after 07-05)
+
 **UI hint**: yes
 
 ## Planning Notes
@@ -366,4 +391,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 4. Activity Time Dashboards | 18/18 | In Progress|  |
 | 5. Vehicle Stats & Financial Dashboards | 19/19 | Complete    | 2026-10-02 |
 | 6. Login-IP History & Offline Geolocation | 17/17 | Complete    | 2026-10-05 |
-| 7. Mobile Layout & Public Deploy | 0/TBD | Not started | - |
+| 7. Mobile Layout & Public Deploy | 8/8 | In Progress|  |

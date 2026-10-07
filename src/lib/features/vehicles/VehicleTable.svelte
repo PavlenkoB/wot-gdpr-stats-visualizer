@@ -369,9 +369,19 @@
      clip unless a POSITIONED ancestor sits between them, so without it every
      "no battles" suffix was laid out against the viewport at the far right of
      the 617px table and widened the PAGE — the 375px layout's scrollWidth was
-     475 because of it. */
+     475 because of it.
+
+     `isolation: isolate` makes the scroller a stacking context, so the header
+     cells' z-index 2, the corner cell's 3 and the first column's 1 are compared
+     with each other and never with the nav's z-index 1 in the page's root
+     stacking context. Without it the header cells outrank the nav and the
+     first-column cells tie it and win on tree order, so a scrolled table paints
+     over the sticky nav (G-07-5). The nav's z-index is deliberately NOT raised
+     instead: the fixed chart tooltip at z-index 2 relies on stacking being
+     z-index-free elsewhere (see the stacking note in PlaytimeCharts.svelte). */
   .scroller {
     position: relative;
+    isolation: isolate;
     overflow: auto;
     max-height: 480px;
     min-width: 0;

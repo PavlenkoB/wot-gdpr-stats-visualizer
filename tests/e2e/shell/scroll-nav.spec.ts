@@ -1,5 +1,5 @@
 import '../_support/pin-locale';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   buildLongTextExport,
   buildMissingPaymentHistoryExport,
@@ -489,6 +489,58 @@ test.describe('phone width', () => {
   });
 });
 
+// A flex or grid container on the nav LINK blockifies its status-suffix span,
+// and the accessible-name computation puts a separator before any child that is
+// not inline: "Payment_history , not in this export" (GAP-WR01). The desktop
+// tests above cannot see it because the phone-width rule is not in force there,
+// so the exact names are asserted at the two widths the rule covers.
+for (const width of [375, 480]) {
+  test.describe(`phone names at ${width}px`, () => {
+    test.use({ viewport: { width, height: 800 } });
+
+    test(`(phone-names) with nothing loaded every link carries its full status name at ${width}px`, async ({
+      page,
+    }) => {
+      await expect(nav(page)).toBeVisible({ timeout: 10_000 });
+
+      // The phone-width rule is the one in force at this width: a 44px link box.
+      // Asserted first so the test cannot pass vacuously if the breakpoint moves.
+      const box = (await navLink(page, FIRST_ID).boundingBox())!;
+      expect(box.height, `${width}px first link height`).toBeGreaterThanOrEqual(44);
+
+      for (const id of NAV_ORDER) {
+        await expect(
+          page.getByRole('link', {
+            name: `${SECTION_TITLES[id]}${NAV_STATUS_SUFFIX['not-loaded']}`,
+            exact: true,
+          }),
+        ).toHaveCount(1);
+      }
+    });
+
+    test(`(phone-names) a muted link keeps its exact name after an import at ${width}px`, async ({
+      page,
+    }) => {
+      await importZip(page, buildMissingPaymentHistoryExport(), 'export.zip');
+      await expect(page.getByTestId('identity-nickname')).toBeVisible({ timeout: 30_000 });
+
+      const missingName = `${SECTION_TITLES['payment-history']}${NAV_STATUS_SUFFIX['no-export']}`;
+      await expect(navLink(page, 'payment-history')).toHaveAccessibleName(missingName, {
+        timeout: 10_000,
+      });
+      await expect(page.getByRole('link', { name: missingName, exact: true })).toHaveCount(1);
+
+      // An unmuted link's name is its bare title.
+      await expect(
+        page.getByRole('link', { name: SECTION_TITLES[FIRST_ID], exact: true }),
+      ).toHaveCount(1);
+
+      const box = (await navLink(page, 'payment-history').boundingBox())!;
+      expect(box.height, `${width}px muted link height`).toBeGreaterThanOrEqual(44);
+    });
+  });
+}
+
 test.describe('long untrusted text', () => {
   for (const width of [375, 720]) {
     test(`(long-text) nothing overflows the ${width}px viewport`, async ({ page }) => {
@@ -515,4 +567,165 @@ test.describe('long untrusted text', () => {
       expect(rightEdges.banner!).toBeLessThanOrEqual(width);
     });
   }
+});
+
+// -----------------------------------------------------------------------------
+// 07-08 — a table scrolled under the sticky nav never paints over it (G-07-5)
+// -----------------------------------------------------------------------------
+//
+// The existing vehicle-stats check that "the nav clears the table" compares
+// bounding boxes, which cannot see paint order, so it passed while a table's
+// sticky header cells (z-index 2/3) and first-column cells (z-index 1) were
+// painting over the nav (z-index 1). These tests ask the browser what is
+// actually on top at the nav's centre line, with `elementsFromPoint`.
+
+interface PaintProbe {
+  found: boolean;
+  aligned: boolean;
+  navTop: number;
+  point: { x: number; y: number };
+  topmost: string;
+  navContainsTopmost: boolean;
+  /** Index in the hit stack of the first element the scroller contains, -1 when none. */
+  tableIndex: number;
+  /** Index in the hit stack of the first element the nav contains, -1 when none. */
+  navIndex: number;
+}
+
+/**
+ * Scroll the page until `target` sits on the nav's vertical centre line, then
+ * report what is painted topmost at that line.
+ *
+ * The alignment is a loop, not one computed scroll: the nav pins to the top only
+ * once the page has scrolled past its natural position, so its centre moves
+ * during the first scroll and a single computed scroll lands the target on the
+ * nav's old, unpinned centre.
+ */
+async function probePaintOrder(
+  scroller: Locator,
+  targetSelector: string,
+  probeAt: 'nav-centre' | 'target-centre',
+): Promise<PaintProbe> {
+  return scroller.evaluate(
+    async (scrollerEl, args) => {
+      const navEl = document.querySelector('[data-testid="dashboard-nav"]') as HTMLElement | null;
+      const target = scrollerEl.querySelector(args.targetSelector) as HTMLElement | null;
+      const empty = {
+        found: false,
+        aligned: false,
+        navTop: 0,
+        point: { x: 0, y: 0 },
+        topmost: '',
+        navContainsTopmost: false,
+        tableIndex: -1,
+        navIndex: -1,
+      };
+      if (navEl === null || target === null) return empty;
+
+      const centre = (r: DOMRect) => r.top + r.height / 2;
+      let aligned = false;
+      for (let pass = 0; pass < 12; pass += 1) {
+        const navRect = navEl.getBoundingClientRect();
+        const targetRect = target.getBoundingClientRect();
+        const diff = centre(targetRect) - centre(navRect);
+        if (Math.abs(navRect.top) <= 1 && Math.abs(diff) <= 1) {
+          aligned = true;
+          break;
+        }
+        window.scrollBy({ top: diff, left: 0, behavior: 'instant' });
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      }
+
+      const navRect = navEl.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const x =
+        args.probeAt === 'nav-centre'
+          ? navRect.left + navRect.width / 2
+          : targetRect.left + targetRect.width / 2;
+      const y = centre(navRect);
+      const stack = document.elementsFromPoint(x, y);
+      const top = stack[0] as HTMLElement | undefined;
+      const describe = (el: HTMLElement | undefined): string => {
+        if (el === undefined) return '(nothing)';
+        const testId = el.getAttribute('data-testid');
+        const classes = Array.from(el.classList)
+          .filter((c) => !c.startsWith('svelte-'))
+          .join('.');
+        const cell =
+          el.closest('th') !== null ? ' in th' : el.closest('td') !== null ? ' in td' : '';
+        return `${el.tagName.toLowerCase()}${testId !== null ? `[${testId}]` : ''}${
+          classes !== '' ? `.${classes}` : ''
+        }${cell}`;
+      };
+      return {
+        found: true,
+        aligned,
+        navTop: navRect.top,
+        point: { x, y },
+        topmost: describe(top),
+        navContainsTopmost: top !== undefined && navEl.contains(top),
+        tableIndex: stack.findIndex((el) => scrollerEl.contains(el)),
+        navIndex: stack.findIndex((el) => navEl.contains(el)),
+      };
+    },
+    { targetSelector, probeAt },
+  );
+}
+
+/**
+ * The two overlaps a scrolled table has with the nav: its header row and its
+ * first body row's first-column cell. Each is aligned afresh and checked in
+ * turn, and both soft assertions report so one red run names both positions.
+ */
+async function expectNavTopmostOverTable(page: Page, scrollerTestId: string): Promise<void> {
+  const scroller = page.getByTestId(scrollerTestId);
+  const positions = [
+    { name: 'header row', selector: 'thead th', probeAt: 'nav-centre' as const },
+    { name: 'first column', selector: 'tbody td.sticky-first', probeAt: 'target-centre' as const },
+  ];
+  for (const position of positions) {
+    const probe = await probePaintOrder(scroller, position.selector, position.probeAt);
+    // Hard: a layout change must never turn the check into a vacuous pass.
+    expect(probe.found, `${position.name}: target found`).toBe(true);
+    expect(probe.aligned, `${position.name}: scrolled to the nav's centre line`).toBe(true);
+    expect(probe.tableIndex, `${position.name}: the table is present at the point`).toBeGreaterThan(
+      -1,
+    );
+    expect
+      .soft(
+        probe.navContainsTopmost,
+        `${scrollerTestId} ${position.name}: topmost at (${Math.round(probe.point.x)}, ${Math.round(
+          probe.point.y,
+        )}) is ${probe.topmost}, not the nav`,
+      )
+      .toBe(true);
+  }
+}
+
+test.describe('a table scrolled under the sticky nav', () => {
+  test.use({ viewport: { width: 375, height: 700 } });
+
+  test('(stacking) the login table never paints over the sticky nav, header row or first column', async ({
+    page,
+  }) => {
+    await loadSample(page);
+    const scroller = page.getByTestId('login-scroller');
+    await expect(scroller).toBeVisible({ timeout: 30_000 });
+    await expect(scroller.locator('tbody td.sticky-first').first()).toBeVisible({
+      timeout: 30_000,
+    });
+    await expectNavTopmostOverTable(page, 'login-scroller');
+  });
+
+  test('(stacking) the vehicle table never paints over the sticky nav, header row or first column', async ({
+    page,
+  }) => {
+    await loadSample(page);
+    const scroller = page.getByTestId('vehicle-scroller');
+    await expect(scroller).toBeVisible({ timeout: 30_000 });
+    await expect(scroller.locator('tbody td.sticky-first').first()).toBeVisible({
+      timeout: 30_000,
+    });
+    await expectNavTopmostOverTable(page, 'vehicle-scroller');
+  });
 });
