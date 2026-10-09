@@ -9,11 +9,13 @@
   import { acceptDataOutcome, currencyChartInput, deriveFinanceState } from './finance-state.ts';
   import { unitsToNumber } from '../../core/decimal.ts';
   import { buildBarChartModel } from '../../charts/bar-chart-model.ts';
+  import AboutDisclosure from '../../charts/AboutDisclosure.svelte';
   import MonthlyBarChart from '../../charts/MonthlyBarChart.svelte';
   import MonthlyDataTable from '../../charts/MonthlyDataTable.svelte';
   import ExcludedNotice from '../../shell/ExcludedNotice.svelte';
   import FlowLegend from '../../charts/FlowLegend.svelte';
   import {
+    ABOUT_NAME_CURRENCY,
     FINANCIAL_ERROR,
     FINANCIAL_LOADING,
     FINANCIAL_NOT_IN_EXPORT,
@@ -318,9 +320,11 @@
           <p class="caption title">{chart.title}</p>
         {/if}
         <p class="body">{chart.summary}</p>
-        <p class="caption hint" id="currency-keyboard-hint-{index}">
-          {BAR_CHART_KEYBOARD_HINT}
-        </p>
+        <AboutDisclosure name={ABOUT_NAME_CURRENCY} testId="about-currency-{index}">
+          <p class="caption hint" id="currency-keyboard-hint-{index}">
+            {BAR_CHART_KEYBOARD_HINT}
+          </p>
+        </AboutDisclosure>
 
         <MonthlyBarChart
           model={chart.model}
@@ -429,19 +433,19 @@
   h3 {
     margin: 0;
     padding-bottom: 8px;
-    border-bottom: 1px solid #dadce0;
+    border-bottom: 1px solid var(--border);
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #08060d;
+    color: var(--ink);
   }
 
   .body {
     margin: 0;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 400;
     line-height: 1.5;
-    color: #3c4043;
+    color: var(--text);
     min-width: 0;
     overflow-wrap: anywhere;
   }
@@ -466,7 +470,7 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #08060d;
+    color: var(--ink);
     overflow-wrap: anywhere;
   }
 
@@ -475,7 +479,9 @@
     font-size: 14px;
     font-weight: 400;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   .hint {
@@ -507,7 +513,7 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #3c4043;
+    color: var(--text);
     min-width: 0;
     overflow-wrap: anywhere;
   }
@@ -517,11 +523,16 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
+  }
+
+  summary {
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   summary:focus-visible {
-    outline: 3px solid #1a73e8;
+    outline: 3px solid var(--focus);
     outline-offset: 2px;
   }
 </style>

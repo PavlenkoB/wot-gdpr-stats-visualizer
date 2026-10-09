@@ -11,6 +11,8 @@ import {
   VARIANT_NICKNAME,
   VARIANT_OVERFLOW_CANARY,
 } from '../../fixtures/export-fixtures.ts';
+import { PANE_IDS } from '../../../src/lib/shell/selection-state.ts';
+import { openSection } from '../_support/helpers.ts';
 
 // =============================================================================
 // 03-04 — SC1 / D-18 / D-20 / D-21 privacy-leak spec
@@ -216,6 +218,61 @@ async function expectNoSensitiveLeak(
   expect(dump).toContain('"IP"');
 }
 
+/**
+ * Count the non-overlapping occurrences of a literal in a text.
+ */
+function countOccurrences(text: string, needle: string): number {
+  return (text.match(new RegExp(escapeForRegExp(needle), 'g')) ?? []).length;
+}
+
+/**
+ * Run the full leak scan on the landing view and then on EVERY pane in turn.
+ *
+ * Only the open pane's section is mounted (D-01), so one read after an import
+ * would check a single pane and silently check less than the old one-page
+ * dashboard did. The pane list comes from `PANE_IDS`, never retyped, so a ninth
+ * pane is covered the moment it exists. A muted pane is opened anyway: its
+ * detail is the not-in-export panel, which is a surface like any other.
+ *
+ * Per pane, on top of `expectNoSensitiveLeak`: the nickname appears EXACTLY ONCE
+ * in the rendered text (D-21), so neither the Account pane nor Overview repeats
+ * it, and an optional canary is absent from that pane's markup and from the
+ * IndexedDB dump. Each pane runs in a named `test.step` and carries its id in
+ * the assertion message, so a failure says which pane leaked.
+ */
+async function scanEveryPane(
+  page: Page,
+  consoleMessages: readonly string[],
+  nickname: string,
+  extraNeedle: string | null = null,
+): Promise<void> {
+  await test.step('landing view', async () => {
+    await expectNoSensitiveLeak(page, consoleMessages, nickname);
+  });
+  for (const pane of PANE_IDS) {
+    await test.step(`pane ${pane}`, async () => {
+      await openSection(page, pane);
+      await expectNoSensitiveLeak(page, consoleMessages, nickname);
+
+      const surface = await readPageSurface(page);
+      expect(
+        countOccurrences(surface.innerText, nickname),
+        `pane ${pane}: the nickname must appear exactly once in the rendered text`,
+      ).toBe(1);
+
+      if (extraNeedle !== null) {
+        expect(surface.outerHtml, `pane ${pane}: overflow canary in markup`).not.toContain(
+          extraNeedle,
+        );
+        expect(
+          await readIndexedDbDump(page),
+          `pane ${pane}: overflow canary at rest`,
+        ).not.toContain(extraNeedle);
+      }
+    });
+  }
+}
+
 test.describe('identity privacy (SC1, D-18, D-20, D-21)', () => {
   test('(a) a fresh import shows the cached identity and leaks neither the email nor the birth date anywhere', async ({
     page,
@@ -231,7 +288,7 @@ test.describe('identity privacy (SC1, D-18, D-20, D-21)', () => {
     await expect(page.getByTestId('identity-region')).toHaveText(SAMPLE_REGION);
     await expect(page.getByTestId('identity-created')).toHaveText('2020-01-01');
 
-    await expectNoSensitiveLeak(page, consoleMessages, SAMPLE_NICKNAME);
+    await scanEveryPane(page, consoleMessages, SAMPLE_NICKNAME);
   });
 
   test('(b) a return visit replays the identity from cache and still leaks nothing', async ({
@@ -256,7 +313,8 @@ test.describe('identity privacy (SC1, D-18, D-20, D-21)', () => {
     await expect(page.getByTestId('identity-region')).toHaveText(SAMPLE_REGION);
     await expect(page.getByTestId('identity-created')).toHaveText('2020-01-01');
 
-    await expectNoSensitiveLeak(page, consoleMessages, SAMPLE_NICKNAME);
+    // A reload lands on Overview, so every pane is opened again.
+    await scanEveryPane(page, consoleMessages, SAMPLE_NICKNAME);
   });
 
   // ---------------------------------------------------------------------------
@@ -303,14 +361,15 @@ test.describe('identity privacy (SC1, D-18, D-20, D-21)', () => {
 
       if (variant.extraNeedle !== null) {
         // The canary lives in a header-less overflow cell; if it survived the
-        // parse it would be in the DOM, so assert the full leak surface.
+        // parse it would be in the DOM, so assert the full leak surface on the
+        // landing view too (scanEveryPane repeats it for every pane).
         const surface = await readPageSurface(page);
         expect(surface.outerHtml).not.toContain(variant.extraNeedle);
         const dump = await readIndexedDbDump(page);
         expect(dump).not.toContain(variant.extraNeedle);
       }
 
-      await expectNoSensitiveLeak(page, consoleMessages, variant.nickname);
+      await scanEveryPane(page, consoleMessages, variant.nickname, variant.extraNeedle);
     });
   }
 });

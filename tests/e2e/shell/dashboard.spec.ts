@@ -47,6 +47,7 @@ import {
   IDENTITY_SKELETON_TITLE,
   KEEP_CACHED_DATA_LABEL,
   KEEP_CURRENT_DATA_LABEL,
+  PANE_TITLES,
   REPLACE_DATASET_LABEL,
   SECTION_NOTE_PENDING,
   SECTION_NOTE_USER_INFO,
@@ -56,16 +57,33 @@ import {
   UNSUPPORTED_INTRO,
   UNSUPPORTED_NONE_DETECTED,
   formatAccountId,
+  formatChipUnsupported,
   formatImportSummary,
   formatParsingProgress,
+  formatProvenanceFrom,
   formatSectionStatus,
   formatSkippedRowCount,
 } from '../../../src/lib/ui-copy.ts';
-import { dropFiles, importLine, importLines } from '../_support/helpers.ts';
+import { PANE_IDS, PANE_SECTION, type PaneId } from '../../../src/lib/shell/selection-state.ts';
+import {
+  detailPane,
+  dropFiles,
+  ensureListScreen,
+  expectSelected,
+  importExport,
+  importLine,
+  listRow,
+  openSection,
+} from '../_support/helpers.ts';
 
 // =============================================================================
 // 03-04 — dashboard shell: identity header, section cards, retired markup
 // =============================================================================
+//
+// Migrated to the master-detail shell in 08-08. The page is a list pane (the
+// identity header and eight rows) beside a detail pane that mounts ONE pane's
+// section at a time, so every check that used to read all five cards at once now
+// opens each pane in turn (`openSection`) and keeps the same expected values.
 //
 // Every expected string below is computed from the SAME fixtures and the
 // SAME formatters the app uses, so a fixture or copy change fails the test
@@ -73,8 +91,8 @@ import { dropFiles, importLine, importLines } from '../_support/helpers.ts';
 // goes stale (the lockstep pattern from import-flow.spec.ts).
 //
 // The section ids are asserted as literals, not derived from SECTIONS: the
-// ids are the anchor contract Phase 03-05's scroll-spy and the nav depend
-// on, so a change to them must break a test here rather than be absorbed.
+// ids are the contract the panes mount under (`PANE_SECTION`), so a change to
+// them must break a test here rather than be absorbed.
 // =============================================================================
 
 /** The five supported section ids in D-02 order, block excluded (Task 3). */
@@ -87,10 +105,11 @@ const SUPPORTED_IDS = [
 ] as const;
 
 /**
- * The heading text each section must show: the folder name exactly as the
- * export spells it (D-02). Kept as a literal here, not imported from
- * `SECTION_TITLES`, because the rendered heading is the contract — if the
- * copy changed, this file should fail rather than follow the change.
+ * The canonical folder name each section reads, exactly as the export spells it
+ * (D-02). Kept as a literal here, not imported from `SECTIONS`, because the
+ * rendered text is the contract. Since the master-detail shell this is no longer
+ * the heading (that is the pane title, `PANE_TITLES`); it is the folder named in
+ * the `provenance` line and in the greyed sentences.
  */
 const SECTIONS_BY_ID: Record<(typeof SUPPORTED_IDS)[number], string> = {
   'activity-history': 'Activity_history',
@@ -99,6 +118,24 @@ const SECTIONS_BY_ID: Record<(typeof SUPPORTED_IDS)[number], string> = {
   'payment-history': 'Payment_history',
   'user-info': 'User_Info',
 };
+
+/**
+ * The six panes that show one supported section, in list order. Playtime and
+ * Login history are two views of the same Activity_history folder.
+ */
+const DATA_PANES = [
+  'playtime',
+  'login-history',
+  'vehicles',
+  'finance',
+  'payments',
+  'account',
+] as const satisfies readonly PaneId[];
+
+/** The canonical folder a data pane reads from. */
+function folderOfPane(pane: (typeof DATA_PANES)[number]): string {
+  return SECTIONS_BY_ID[PANE_SECTION[pane] as (typeof SUPPORTED_IDS)[number]];
+}
 
 /** The import summary text a section's counts must render (D-09). */
 function expectedSummary(folder: string): string {
@@ -121,26 +158,28 @@ async function importZip(page: Page, bytes: Uint8Array, name: string): Promise<v
   });
 }
 
-/** The section card for one id. */
+/**
+ * The section card for one id. Only the open pane's section exists in the DOM
+ * (R4), so a caller opens the pane first or asserts absence with `toHaveCount(0)`.
+ */
 function section(page: Page, id: string) {
   return page.getByTestId(`dashboard-section-${id}`);
 }
 
 /**
- * The ids of every section card on the page, in DOCUMENT order.
+ * The pane ids of the list rows, in DOCUMENT order.
  *
- * Read from the DOM rather than asserted per element, because the contract
- * is the order, not merely the presence: a nav that links `#user-info`
- * first while the card renders last is broken in a way no per-element
- * assertion would notice.
+ * Read from the DOM rather than asserted per element, because the contract is
+ * the order, not merely the presence: the rows are what the keyboard walks and
+ * what a screen reader announces, so an out-of-order row is broken in a way no
+ * per-element assertion would notice.
  */
-async function sectionIdsInOrder(page: Page): Promise<string[]> {
+async function listRowIdsInOrder(page: Page): Promise<string[]> {
   return page
-    .locator('[data-testid^="dashboard-section-"]')
+    .getByTestId('list-nav')
+    .locator('[data-testid^="list-row-"]')
     .evaluateAll((nodes) =>
-      nodes.map((node) =>
-        (node.getAttribute('data-testid') ?? '').replace('dashboard-section-', ''),
-      ),
+      nodes.map((node) => (node.getAttribute('data-testid') ?? '').replace('list-row-', '')),
     );
 }
 
@@ -170,119 +209,139 @@ test.describe('dashboard shell (03-04 Task 2)', () => {
     );
   });
 
-  test('(sections-pending) four sections ready and only User_Info pending, all five in D-02 order with counts', async ({
+  test('(sections-pending) four sections ready and only Account pending, each read through its own pane with its counts', async ({
     page,
   }) => {
-    await importZip(page, buildSampleExport(), 'sample.zip');
+    await importExport(page, 'sample.zip', buildSampleExport());
     await expect(page.getByTestId('identity-nickname')).toBeVisible({ timeout: 30_000 });
 
-    // The document order of all six cards — with the unsupported block
-    // last — is asserted once, by the `(order)` test in the block describe
-    // below. This test is about what each card SAYS.
+    // The row order of all eight panes is asserted once, by the `(order)` test
+    // in the block describe below. This test is about what each section SAYS,
+    // and it reads them one pane at a time because only the open pane's section
+    // is in the DOM (R4): the landing view after an import is Overview, where
+    // no section exists at all.
+    await expect(page.locator('[data-testid^="dashboard-section-"]')).toHaveCount(0);
 
-    for (const id of SUPPORTED_IDS) {
+    for (const pane of DATA_PANES) {
+      await openSection(page, pane);
+      const id = PANE_SECTION[pane]!;
+      const folder = folderOfPane(pane);
       const card = section(page, id);
+
+      // Exactly one section is mounted, and it is this pane's.
+      await expect(page.locator('[data-testid^="dashboard-section-"]')).toHaveCount(1);
+      await expect(card).toHaveCount(1);
+
       // Four sections have a dashboard and read `ready` — Activity_history
       // since 04-02, Player_statistics since 05-12, Financial_data since
-      // 05-10 and Payment_history since 05-15 — and User_Info is the one that
-      // still says it will never have one. Named rather than counted, so a
-      // phase that adds its own id to BUILT_DASHBOARDS has to come back and
-      // own this line.
-      await expect(card).toHaveAttribute(
-        'data-status',
-        id === 'activity-history' ||
-          id === 'player-statistics' ||
-          id === 'financial-data' ||
-          id === 'payment-history'
-          ? 'ready'
-          : 'pending',
-      );
-      // The heading carries the folder name exactly as written in the zip.
-      await expect(card.locator('h2')).toHaveText(SECTIONS_BY_ID[id]);
+      // 05-10 and Payment_history since 05-15 — and User_Info (the Account
+      // pane) is the one that still says it will never have one. Named rather
+      // than counted, so a phase that adds its own id to BUILT_DASHBOARDS has
+      // to come back and own this line.
+      await expect(card).toHaveAttribute('data-status', pane === 'account' ? 'pending' : 'ready');
+
+      // The heading is the pane's TITLE now (R3), never a folder name; the
+      // folder the numbers came from is named in the provenance line instead,
+      // exactly as the export spells it.
+      await expect(card.locator('h2')).toHaveText(PANE_TITLES[pane]);
+      await expect(card.getByTestId('provenance')).toContainText(formatProvenanceFrom(folder));
 
       // D-09: the import counts are the pending card's body and the ready
       // card's caption, and the skip tag is absent either way because
       // nothing was skipped in this fixture. `importLine` reads whichever
       // one this card renders.
-      await expect(importLine(card)).toHaveText(expectedSummary(SECTIONS_BY_ID[id]));
+      await expect(importLine(card)).toHaveText(expectedSummary(folder));
       await expect(card.getByTestId('skip-tag')).toHaveCount(0);
 
-      // D-06: the SECTION is always expanded, and nothing inside any card is a
+      // D-06: the SECTION is always expanded, and nothing inside any pane is a
       // control that collapses the section.
       //
-      // The `button` half holds for every card but Player_statistics and
-      // Activity_history, and the two exceptions are the same kind of thing.
-      // 05-12 is why the first: the Vehicle statistics table's sort buttons are
-      // controls over the DATA — which column the drawn rows are ordered by —
-      // and the column picker of 05-14 is a control over which columns are
-      // drawn. 06-08 is why the second: the Login history block's reveal
-      // control is a control over the DATA — whether the addresses are masked
-      // — and it governs nothing about the section. A `ready` section may hold
-      // those; what it may not hold is a control over ITS OWN visibility, and
+      // The `button` half holds for every pane but Vehicles and Login history,
+      // and the two exceptions are the same kind of thing. 05-12 is why the
+      // first: the Vehicle statistics table's sort buttons are controls over
+      // the DATA — which column the drawn rows are ordered by — and the column
+      // picker of 05-14 is a control over which columns are drawn. 06-08 is
+      // why the second: the Login history block's reveal control is a control
+      // over the DATA — whether the addresses are masked — and it governs
+      // nothing about the section. A `ready` section may hold those; what it
+      // may not hold is a control over ITS OWN visibility, and
       // `DashboardSection` is what would have to render one. So the section's
       // expansion is asserted where it is decided, by the `details` half below
-      // and by the `(no-collapse)` shape Phase 3 added, and this line keeps its
+      // and by the `(no-collapse)` shape Phase 3 added, and each line keeps its
       // claim only where it is true.
-      if (id !== 'player-statistics' && id !== 'activity-history') {
-        await expect(card.locator('button')).toHaveCount(0);
-      } else if (id === 'player-statistics') {
+      if (pane === 'vehicles') {
         // Named rather than merely allowed: the buttons that exist are the
-        // table's six sort buttons, and nothing else in the card is one.
+        // table's six sort buttons, and nothing else in the pane is one.
         await expect(card.getByTestId('vehicle-table').locator('button')).toHaveCount(6);
-      } else {
-        // The same discipline for 06-08, 06-10 and 06-13: the Activity_history
-        // card holds the mask toggle, the IP table's six sort buttons and the
-        // city opt-in's one Load button, and nothing else. Stated by name, so a
-        // future block that adds a control to this card has to come back and
-        // own this line rather than inheriting a silent exemption. The sort
-        // buttons are controls over the DATA (which column orders the drawn
-        // rows), the same kind of thing the vehicle table's are; the Load
-        // button asks for more data to show and governs nothing about the
-        // section's own visibility.
+        await expect(card.locator('button')).toHaveCount(6);
+      } else if (pane === 'login-history') {
+        // The same discipline for 06-08, 06-10 and 06-13: the Login history
+        // pane holds the mask toggle, the IP table's six sort buttons and the
+        // city opt-in's one Load button, and nothing else (8 buttons, the same
+        // eight the whole Activity_history card held before the split). Stated
+        // by name, so a future block that adds a control to this pane has to
+        // come back and own this line rather than inheriting a silent
+        // exemption. The sort buttons are controls over the DATA (which column
+        // orders the drawn rows), the same kind of thing the vehicle table's
+        // are; the Load button asks for more data to show and governs nothing
+        // about the section's own visibility.
         await expect(card.getByTestId('login-mask-toggle')).toHaveCount(1);
         await expect(card.getByTestId('login-table').locator('button')).toHaveCount(6);
         await expect(card.getByTestId('city-load')).toHaveCount(1);
         await expect(card.locator('button')).toHaveCount(8);
+      } else {
+        // Playtime, Finance, Payments and Account hold no button at all. The
+        // Playtime pane gave up the eight Activity_history buttons to the
+        // Login history pane in the split, so its own count is zero.
+        await expect(card.locator('button')).toHaveCount(0);
       }
+
       // The `details` half is narrower, and deliberately so. A `pending` card is
       // a promise with no dashboard, so a disclosure inside it would be a
-      // control over content that does not exist yet. A `ready` card may hold a
-      // `details` that is part of its dashboard: Financial_data's Premium block
-      // discloses the premium values it could not chart (05-10, D-20), and
-      // Player_statistics' Vehicle block discloses the export's own per-battle-
-      // type coverage (05-14, D-07). Both are disclosures about the DATA, not
-      // collapse controls for the section, and the section around them is still
-      // always expanded. Player_statistics holds two of them for the same
-      // reason: the battle-type summary and the column picker are both
-      // controls over the DATA it draws.
-      if (
-        id === 'activity-history' ||
-        id === 'financial-data' ||
-        id === 'player-statistics' ||
-        id === 'payment-history'
-      ) {
-        // Not a hole: the disclosure each of those cards DOES hold is
-        // named here, so a card that grew a disclosure over ITS OWN content —
-        // which is what D-06 forbids — would fail rather than pass by omission.
-        if (id === 'player-statistics') {
-          // Both of them named, and the count pinned — so a third disclosure
-          // is a test failure to own rather than a silent widening of what
-          // this card is allowed to contain.
-          await expect(card.getByTestId('battle-type-summary-disclosure')).toHaveCount(1);
-          await expect(card.getByTestId('column-picker')).toHaveCount(1);
-          await expect(card.locator('details')).toHaveCount(2);
-        }
-        continue;
+      // control over content that does not exist yet. A `ready` pane may hold a
+      // `details` that is part of its dashboard: Finance's Premium block
+      // discloses the premium values it could not chart (05-10, D-20),
+      // Vehicles discloses the export's own per-battle-type coverage (05-14,
+      // D-07), and every chart carries an "About this ..." disclosure for its
+      // keyboard-use hint (08-06). All of them are disclosures about the DATA or
+      // the CHART, not collapse controls for the section, and the section around
+      // them is still always expanded.
+      if (pane === 'vehicles') {
+        // Both of them named, and the count pinned — so a third disclosure
+        // is a test failure to own rather than a silent widening of what
+        // this pane is allowed to contain.
+        await expect(card.getByTestId('battle-type-summary-disclosure')).toHaveCount(1);
+        await expect(card.getByTestId('column-picker')).toHaveCount(1);
+        await expect(card.locator('details')).toHaveCount(2);
+      } else if (pane === 'playtime') {
+        // 08-06: one "About this ..." per chart, and no other disclosure.
+        await expect(card.getByTestId('about-calendar')).toHaveCount(1);
+        await expect(card.getByTestId('about-hour-grid')).toHaveCount(1);
+        await expect(card.locator('details')).toHaveCount(2);
+      } else if (pane === 'login-history') {
+        // The table's "About this table" (quick 261009-qbo), the map's "About
+        // this map" and the ranked country list.
+        await expect(card.getByTestId('about-login-table')).toHaveCount(1);
+        await expect(card.getByTestId('about-map')).toHaveCount(1);
+        await expect(card.getByTestId('country-list')).toHaveCount(1);
+        await expect(card.locator('details')).toHaveCount(3);
+      } else if (pane === 'account') {
+        // A `pending` card is a promise with no dashboard: no disclosure.
+        await expect(card.locator('details')).toHaveCount(0);
       }
-      await expect(card.locator('details')).toHaveCount(0);
+      // Finance and Payments hold disclosures over their own data (the monthly
+      // tables, the unrecognised premium values, the spend breakdowns); they
+      // are not enumerated here for the same reason they were not before, and
+      // their owning specs pin them.
     }
 
-    // User_Info is the ONLY pending section this phase ends with, and it
-    // promises no dashboard that will ever be built — so the
-    // SECTION_NOTE_PENDING loop that stood here through 05-10, 05-12 and 05-13
-    // is now EMPTY and is removed rather than left iterating over nothing.
-    // Its assertion, that the four READY cards say no longer "a dashboard is
-    // coming", is the part that carries the contract.
+    // Account is the ONLY pending pane this phase ends with, and it promises no
+    // dashboard that will ever be built — so the SECTION_NOTE_PENDING loop that
+    // stood here through 05-10, 05-12 and 05-13 is now EMPTY and is removed
+    // rather than left iterating over nothing. Its assertion, that the four
+    // READY panes say no longer "a dashboard is coming", is the part that
+    // carries the contract.
+    await openSection(page, 'account');
     await expect(section(page, 'user-info')).toContainText(SECTION_NOTE_USER_INFO);
     await expect(section(page, 'user-info')).not.toContainText(SECTION_NOTE_PENDING);
 
@@ -291,20 +350,18 @@ test.describe('dashboard shell (03-04 Task 2)', () => {
     // card that still says a dashboard is coming is a card that contradicts
     // itself. Activity_history was the LAST holdout — its Login history
     // sub-block was a placeholder that repeated the promise, and 06-08
-    // replaced it with the real block, so all four ready cards now agree and
-    // this one flipped to `not.toContainText` in the same commit that mounted
-    // the block. The `login-history-placeholder` element it carried is gone
-    // with it.
-    await expect(section(page, 'activity-history')).not.toContainText(SECTION_NOTE_PENDING);
-    await expect(section(page, 'financial-data')).not.toContainText(SECTION_NOTE_PENDING);
-    await expect(section(page, 'player-statistics')).not.toContainText(SECTION_NOTE_PENDING);
-    await expect(section(page, 'payment-history')).not.toContainText(SECTION_NOTE_PENDING);
+    // replaced it with the real block, so all four ready cards now agree. Both
+    // of its panes are checked, because the split made them two views.
+    for (const pane of ['playtime', 'login-history', 'vehicles', 'finance', 'payments'] as const) {
+      await openSection(page, pane);
+      await expect(section(page, PANE_SECTION[pane]!)).not.toContainText(SECTION_NOTE_PENDING);
+    }
   });
 
   test('(retired) the badge list, summary line, account heading and results wrapper are gone', async ({
     page,
   }) => {
-    await importZip(page, buildSampleExport(), 'sample.zip');
+    await importExport(page, 'sample.zip', buildSampleExport());
     await expect(page.getByTestId('identity-nickname')).toBeVisible({ timeout: 30_000 });
 
     for (const retired of ['category-badge', 'summary-line', 'account-heading', 'results']) {
@@ -312,7 +369,9 @@ test.describe('dashboard shell (03-04 Task 2)', () => {
     }
   });
 
-  test('(skeleton) a first visit shows the greyed skeleton everywhere', async ({ page }) => {
+  test('(skeleton) a first visit shows the skeleton header and eight muted rows', async ({
+    page,
+  }) => {
     const header = page.getByTestId('identity-header');
     await expect(header).toHaveAttribute('data-variant', 'skeleton');
     await expect(page.getByTestId('identity-title')).toHaveText(IDENTITY_SKELETON_TITLE);
@@ -321,48 +380,72 @@ test.describe('dashboard shell (03-04 Task 2)', () => {
     // "is a nickname showing?" would pass with a placeholder.
     await expect(page.getByTestId('identity-nickname')).toHaveCount(0);
 
-    for (const id of SUPPORTED_IDS) {
-      const card = section(page, id);
-      await expect(card).toHaveAttribute('data-status', 'not-loaded');
-      await expect(card.getByTestId('section-status')).toHaveText(
-        formatSectionStatus('not-loaded', SECTIONS_BY_ID[id]),
+    // The old claim was "every card is greyed `not-loaded`". On a first visit
+    // no section is mounted any more (the detail pane hosts the drop target), so
+    // the equivalent is the eight list rows: every one muted, and every one in
+    // the not-loaded wording, each under its own pane title. The title is read
+    // from `PANE_TITLES` and not retyped, so a renamed pane fails the row that
+    // shows it. (`master-detail-nav.spec.ts` `(empty-state)` asserts the same
+    // wording with an empty folder name; this one pins the title beside it.)
+    await expect(page.locator('[data-testid^="dashboard-section-"]')).toHaveCount(0);
+    for (const pane of PANE_IDS) {
+      const row = listRow(page, pane);
+      await expect(row).toHaveClass(/muted/);
+      await expect(row).toContainText(PANE_TITLES[pane]);
+      await expect(row).toContainText(
+        formatSectionStatus('not-loaded', pane === 'overview' ? PANE_TITLES.overview : ''),
       );
     }
+    await expect(page.locator('[data-testid^="list-row-"].muted')).toHaveCount(PANE_IDS.length);
   });
 
   test('(absent) a supported category missing from the export reads "Not in this export" and the other four keep their statuses', async ({
     page,
   }) => {
-    await importZip(page, buildMissingPaymentHistoryExport(), 'missing-payment.zip');
+    await importExport(page, 'missing-payment.zip', buildMissingPaymentHistoryExport());
     await expect(page.getByTestId('identity-nickname')).toBeVisible({ timeout: 30_000 });
 
+    // The missing folder's pane is the one that carries the wording.
+    await openSection(page, 'payments');
     const missing = section(page, 'payment-history');
     await expect(missing).toHaveAttribute('data-status', 'no-export');
     await expect(missing.getByTestId('section-status')).toHaveText('Not in this export');
     // DATA-04: absent is a different fact from empty, so it must not borrow
     // the empty wording either.
     await expect(missing).not.toContainText('This export contains no rows for Payment_history');
+    // The row says the same thing as the pane: muted, and in the same words.
+    await expect(listRow(page, 'payments')).toHaveClass(/muted/);
+    await expect(listRow(page, 'payments')).toContainText('Not in this export');
 
+    // Removing one folder must not change another section's status. Each other
+    // pane is opened in turn, because only the open pane's section is mounted.
     // User_Info is the one supported category no phase builds a dashboard for,
-    // so it is the only one left `pending` after this one.
-    await expect(section(page, 'user-info')).toHaveAttribute('data-status', 'pending');
-    // The three shipped sections are `ready` in this export too — the same
-    // statuses they read in the sample, which is the point: removing one
-    // folder must not change another section's status.
-    await expect(section(page, 'activity-history')).toHaveAttribute('data-status', 'ready');
-    // Financial_data left the pending set in 05-10, Player_statistics in
-    // 05-12 and Payment_history in 05-15, each in the same commit that mounted
-    // its block, so both are `ready` here as well.
-    await expect(section(page, 'financial-data')).toHaveAttribute('data-status', 'ready');
-    await expect(section(page, 'player-statistics')).toHaveAttribute('data-status', 'ready');
+    // so it is the only one left `pending` after this one; the three shipped
+    // sections are `ready` in this export too — the same statuses they read in
+    // the sample. (Financial_data left the pending set in 05-10, Player_statistics
+    // in 05-12 and Payment_history in 05-15, each in the same commit that mounted
+    // its block.)
+    const expected = [
+      ['account', 'pending'],
+      ['playtime', 'ready'],
+      ['login-history', 'ready'],
+      ['finance', 'ready'],
+      ['vehicles', 'ready'],
+    ] as const;
+    for (const [pane, status] of expected) {
+      await openSection(page, pane);
+      await expect(section(page, PANE_SECTION[pane]!)).toHaveAttribute('data-status', status);
+      await expect(listRow(page, pane)).not.toHaveClass(/muted/);
+    }
   });
 
   test('(empty) a category present with zero parsed rows says so, in words distinct from absent', async ({
     page,
   }) => {
-    await importZip(page, buildZeroRowPaymentExport(), 'zero-row-payment.zip');
+    await importExport(page, 'zero-row-payment.zip', buildZeroRowPaymentExport());
     await expect(page.getByTestId('identity-nickname')).toBeVisible({ timeout: 30_000 });
 
+    await openSection(page, 'payments');
     const card = section(page, 'payment-history');
     await expect(card).toHaveAttribute('data-status', 'empty');
     await expect(card.getByTestId('section-status')).toHaveText(
@@ -371,12 +454,17 @@ test.describe('dashboard shell (03-04 Task 2)', () => {
     // The empty card states a count of nothing; it does not dress a zero up
     // as an import summary.
     await expect(card.getByTestId('section-summary')).toHaveCount(0);
+    // The row agrees with the pane: muted, and in the same empty wording.
+    await expect(listRow(page, 'payments')).toHaveClass(/muted/);
+    await expect(listRow(page, 'payments')).toContainText(
+      'This export contains no rows for Payment_history',
+    );
   });
 
   test('(fallback) an export with no User_Info row falls back to the account ID as the title', async ({
     page,
   }) => {
-    await importZip(page, buildMissingUserInfoExport(), 'missing-user-info.zip');
+    await importExport(page, 'missing-user-info.zip', buildMissingUserInfoExport());
     const header = page.getByTestId('identity-header');
     await expect(header).toHaveAttribute('data-variant', 'fallback', { timeout: 30_000 });
 
@@ -388,18 +476,22 @@ test.describe('dashboard shell (03-04 Task 2)', () => {
     await expect(page.getByTestId('identity-created')).toHaveCount(0);
     await expect(page.getByTestId('identity-account-id')).toHaveCount(0);
 
+    // The fallback header is the list pane's; the section it is missing is the
+    // Account pane's.
+    await openSection(page, 'account');
     await expect(section(page, 'user-info')).toHaveAttribute('data-status', 'no-export');
   });
 
   test('(empty-user-info) a User_Info folder with no rows is an empty section and a fallback header', async ({
     page,
   }) => {
-    await importZip(page, buildEmptyAccountInfoExport(), 'empty-user-info.zip');
+    await importExport(page, 'empty-user-info.zip', buildEmptyAccountInfoExport());
     const header = page.getByTestId('identity-header');
     await expect(header).toHaveAttribute('data-variant', 'fallback', { timeout: 30_000 });
 
     // A folder that IS in the archive but yielded no row is `empty`, not
     // `no-export` — the two absences must not collapse (DATA-04).
+    await openSection(page, 'account');
     await expect(section(page, 'user-info')).toHaveAttribute('data-status', 'empty');
     await expect(section(page, 'user-info').getByTestId('section-status')).toHaveText(
       formatSectionStatus('empty', 'User_Info'),
@@ -483,7 +575,8 @@ test.describe('dashboard shell (03-04 Task 2)', () => {
   test('(case-sum) a User_Info plus a user_info folder are ONE section with summed counts', async ({
     page,
   }) => {
-    await importZip(page, buildCaseVariantFoldersExport(), 'case-variants.zip');
+    await importExport(page, 'case-variants.zip', buildCaseVariantFoldersExport());
+    await openSection(page, 'account');
     const card = section(page, 'user-info');
     await expect(card).toHaveAttribute('data-status', 'pending', { timeout: 30_000 });
 
@@ -542,7 +635,11 @@ test.describe('not yet supported block (03-04 Task 3)', () => {
   test('(banners-sample) every non-supported folder gets an identical banner, in worker order', async ({
     page,
   }) => {
-    await importZip(page, buildSampleExport(), 'sample.zip');
+    await importExport(page, 'sample.zip', buildSampleExport());
+    // The banners are the Not yet supported pane's content, so it is opened
+    // first; on Overview there are none.
+    await expect(page.getByTestId('unsupported-banner')).toHaveCount(0);
+    await openSection(page, 'not-yet-supported');
     const banners = page.getByTestId('unsupported-banner');
     await expect(banners).toHaveCount(4, { timeout: 30_000 });
 
@@ -581,7 +678,8 @@ test.describe('not yet supported block (03-04 Task 3)', () => {
   test('(banners-renamed) a fifth unknown folder appears with the same banner styling', async ({
     page,
   }) => {
-    await importZip(page, buildRenamedRootExport(), 'renamed.zip');
+    await importExport(page, 'renamed.zip', buildRenamedRootExport());
+    await openSection(page, 'not-yet-supported');
     const banners = page.getByTestId('unsupported-banner');
     await expect(banners).toHaveCount(5, { timeout: 30_000 });
 
@@ -597,7 +695,10 @@ test.describe('not yet supported block (03-04 Task 3)', () => {
   test('(none) an export with no unsupported folder greys the block and lists nothing', async ({
     page,
   }) => {
-    await importZip(page, buildOnlySupportedExport(), 'only-supported.zip');
+    await importExport(page, 'only-supported.zip', buildOnlySupportedExport());
+    // The row is muted but still selectable: its pane is where the sentence is.
+    await expect(listRow(page, 'not-yet-supported')).toHaveClass(/muted/);
+    await openSection(page, 'not-yet-supported');
     const block = section(page, 'not-yet-supported');
     await expect(block).toHaveAttribute('data-status', 'empty', { timeout: 30_000 });
 
@@ -611,18 +712,32 @@ test.describe('not yet supported block (03-04 Task 3)', () => {
   test('(skip) a folder with a parse error shows one skip tag, and it survives a reload', async ({
     page,
   }) => {
-    await importZip(page, buildMalformedRowsExport(), 'malformed.zip');
+    await importExport(page, 'malformed.zip', buildMalformedRowsExport());
+    await openSection(page, 'not-yet-supported');
     const banners = page.getByTestId('unsupported-banner');
     await expect(banners).toHaveCount(4, { timeout: 30_000 });
 
-    // Exactly one tag on the whole page, on the Bans banner, reading the
-    // one skipped row. The tag counts parse diagnostics, not files, so a
-    // page-wide count of 1 also proves no other folder is claiming a skip.
+    // Exactly one tag in the open pane, on the Bans banner, reading the one
+    // skipped row.
     const bansBanner = banners.filter({ hasText: 'Bans' }).first();
     await expect(bansBanner.getByTestId('skip-tag')).toHaveText(formatSkippedRowCount(1));
     await expect(page.getByTestId('skip-tag')).toHaveCount(1);
 
+    // The tag counts parse diagnostics, not files. The old page-wide count of 1
+    // also proved that no other folder was claiming a skip; only the open
+    // pane's section is in the DOM now, so that claim is made by opening every
+    // other pane in turn and asserting there is no tag in it.
+    for (const pane of ['overview', ...DATA_PANES] as const) {
+      await openSection(page, pane);
+      await expect(page.getByTestId('skip-tag')).toHaveCount(0);
+    }
+
+    // Selection is component state, so the reload lands on Overview (R1); the
+    // banner is read again by reopening its pane.
     await page.reload();
+    await expect(page.getByTestId('identity-nickname')).toBeVisible({ timeout: 30_000 });
+    await expect(detailPane(page)).toHaveAttribute('data-pane', 'overview');
+    await openSection(page, 'not-yet-supported');
     await expect(page.getByTestId('unsupported-banner')).toHaveCount(4, { timeout: 30_000 });
     await expect(page.getByTestId('skip-tag')).toHaveCount(1);
   });
@@ -630,7 +745,8 @@ test.describe('not yet supported block (03-04 Task 3)', () => {
   test('(case-variants) a lower-case bans folder is its own banner, and User_Info stays one section', async ({
     page,
   }) => {
-    await importZip(page, buildCaseVariantFoldersExport(), 'case-variants.zip');
+    await importExport(page, 'case-variants.zip', buildCaseVariantFoldersExport());
+    await openSection(page, 'not-yet-supported');
     const banners = page.getByTestId('unsupported-banner');
     await expect(banners).toHaveCount(5, { timeout: 30_000 });
 
@@ -645,32 +761,47 @@ test.describe('not yet supported block (03-04 Task 3)', () => {
       'Device_info',
     ]);
     // The matching side of the same fixture — two folders, one section,
-    // summed counts — is asserted in the `(case-sum)` test above.
+    // summed counts — is asserted in the `(case-sum)` test above. Here the
+    // Account pane is opened to show it is still ONE section, not two.
+    await openSection(page, 'account');
     await expect(page.locator('[data-testid="dashboard-section-user-info"]')).toHaveCount(1);
   });
 
-  test('(order) the six section cards render in D-02 order with the block last', async ({
+  test('(order) the eight list rows render in PANE_IDS order with Not yet supported last', async ({
     page,
   }) => {
-    await importZip(page, buildSampleExport(), 'sample.zip');
+    await importExport(page, 'sample.zip', buildSampleExport());
     await expect(page.getByTestId('identity-nickname')).toBeVisible({ timeout: 30_000 });
 
-    // Document order, because the sticky nav links by fragment and a card
-    // that renders before the link that points at it is a broken nav.
-    expect(await sectionIdsInOrder(page)).toEqual([
-      'activity-history',
-      'player-statistics',
-      'financial-data',
-      'payment-history',
-      'user-info',
-      'not-yet-supported',
-    ]);
+    // Document order, because the rows are what the keyboard walks (j, k and
+    // the arrows step through them) and what a screen reader reads: a row that
+    // renders before the one it should follow is a broken list. The expected
+    // order is the imported constant, not a retyped literal, so the one place
+    // that defines the order is the one place that can change it. The six
+    // section cards of the single-scroll page no longer exist side by side, so
+    // their document-order claim has no subject any more.
+    expect(await listRowIdsInOrder(page)).toEqual([...PANE_IDS]);
+    expect(PANE_IDS[PANE_IDS.length - 1]).toBe('not-yet-supported');
+    // No section is mounted on the landing view, whichever row is current.
+    await expect(page.locator('[data-testid^="dashboard-section-"]')).toHaveCount(0);
   });
 
   test('(markup) an untrusted folder name renders as text and creates no element', async ({
     page,
   }) => {
-    await importZip(page, buildLongTextExport(), 'long-text.zip');
+    await importExport(page, 'long-text.zip', buildLongTextExport());
+
+    // The landing view (Overview) and the list pane never carry the folder name
+    // as an element either: the chip and the row only state a count. Checked
+    // first because these surfaces are on screen before the pane is opened.
+    await expect(page.getByTestId('ov-chip-unsupported')).toHaveText(
+      formatChipUnsupported(SAMPLE_UNSUPPORTED_ORDER.length + 1),
+    );
+    await expect(page.getByTestId('overview').locator('b')).toHaveCount(0);
+    await expect(page.getByTestId('list-pane').locator('b')).toHaveCount(0);
+    await expect(listRow(page, 'not-yet-supported')).not.toContainText(LONG_UNKNOWN_FOLDER);
+
+    await openSection(page, 'not-yet-supported');
     const block = section(page, 'not-yet-supported');
     await expect(block).toHaveAttribute('data-status', 'ready', { timeout: 30_000 });
 
@@ -679,6 +810,10 @@ test.describe('not yet supported block (03-04 Task 3)', () => {
     // run that swallows the rest of the block.
     await expect(block).toContainText(LONG_UNKNOWN_FOLDER);
     await expect(block.locator('b')).toHaveCount(0);
+    // The whole detail pane, not only the block, and the list beside it, hold
+    // no element the folder name could have created.
+    await expect(detailPane(page).locator('b')).toHaveCount(0);
+    await expect(page.getByTestId('list-pane').locator('b')).toHaveCount(0);
     // Same rule on the identity side: a 70-character unbroken nickname
     // wraps rather than widening the page.
     await expect(page.getByTestId('identity-nickname')).toHaveText(LONG_NICKNAME);
@@ -695,6 +830,10 @@ test.describe('not yet supported block (03-04 Task 3)', () => {
 // regression that renders a second dropzone, re-creates the bar on the state
 // change, or parks the spinner back inside the dropzone all show up here
 // without a single pixel of visual assertion.
+//
+// The VISIBLE messages render inside the bar's notice slot, but the slot is not
+// the live region: the one persistent polite announcer lives in App.svelte,
+// outside every branch (quick 261009-qbo, WR-01).
 // =============================================================================
 
 /** Every phrase the processing notice is allowed to show (D-08, D-11). */
@@ -803,7 +942,7 @@ test.describe('import region (03-06 Task 1)', () => {
     await expect(dropzone).toHaveCount(1);
     await expect(dropzone).toContainText(DROPZONE_PROMPT);
 
-    // The live region exists before it has anything to say, and an empty one
+    // The notice slot exists before it has anything to show, and an empty one
     // takes up no room: a slot that pushed the dropzone down by a gap would
     // move the page around the moment the first notice arrives.
     const slot = page.getByTestId('notice-slot');
@@ -828,7 +967,8 @@ test.describe('import region (03-06 Task 1)', () => {
     // The prompt is still there, exactly as before the import started.
     expect(snapshot.prompt).toBe(DROPZONE_PROMPT);
 
-    // One live region, and it is the notice slot.
+    // One live region, and it is the notice announcer: the chart announcement
+    // region only exists once a dataset is on screen, so before one it is still one.
     expect(snapshot.liveRegionCount).toBe(1);
 
     // The progress line and its spinner live in the slot; the dropzone has
@@ -844,7 +984,7 @@ test.describe('import region (03-06 Task 1)', () => {
     ).toBe(true);
 
     // RESEARCH Pitfall 10: a status role inside a status region is announced
-    // twice. The slot owns the role; its children must not repeat it.
+    // twice. The announcer owns the role; the visible notice must not repeat it.
     expect(snapshot.processingHasStatusRole).toBe(false);
     expect(snapshot.statusRoleInSlot).toBe(0);
 
@@ -852,7 +992,10 @@ test.describe('import region (03-06 Task 1)', () => {
     // underneath the full-size dropzone.
     expect(snapshot.variant).toBe('full');
     expect(snapshot.identityVariant).toBe('skeleton');
-    expect(snapshot.sections).toBe(SUPPORTED_IDS.length + 1);
+    // No section is mounted during a first import: the detail pane hosts the
+    // drop target (the empty state), and a section only exists while its pane is
+    // open. (This used to count the six cards of the single-scroll page.)
+    expect(snapshot.sections).toBe(0);
   });
 
   test('(slim-variant) after the import the same element is the slim bar', async ({ page }) => {
@@ -875,34 +1018,50 @@ test.describe('import region (03-06 Task 1)', () => {
     await expect(dropzone).toContainText(COMPACT_DROPZONE_PROMPT);
     await expect(dropzone).not.toContainText(DROPZONE_PROMPT);
 
-    // The progress notice is gone now that there is nothing in flight, so
-    // the import bar's notice slot is the only live region it owns.
+    // The progress notice is gone now that there is nothing in flight. The bar
+    // owns no live region any more: the page-level announcer speaks for it.
     await expect(page.getByTestId('processing-status')).toHaveCount(0);
-    await expect(bar.locator('[aria-live]')).toHaveCount(1);
-    // The page carries exactly four live regions besides that slot: the
-    // playtime status line 04-02 added, the player-stats status line 05-12
-    // added, the login block's status line 06-08 added — all of which
-    // their UI-SPEC state matrices require to exist in every state (an empty
-    // live region announces nothing) — and the chart announcement region
-    // 07-03 added, which carries the touch tooltip's two fixed strings. The
-    // count is asserted rather than the selector avoided, so a second block
-    // that forgot to be polite-and-quiet fails here, and so does a fifth block
-    // forgetting this one. The error paragraphs use `role="alert"` and NO
-    // `aria-live` attribute, so they are implicit live regions and are
+    await expect(bar.locator('[aria-live]')).toHaveCount(0);
+    // The bar now lives in the list pane, beside the rows.
+    await expect(page.getByTestId('list-pane').getByTestId('import-bar')).toHaveCount(1);
+
+    // On Overview the page carries exactly TWO live regions: the notice announcer
+    // and the chart announcement region 07-03 added (it carries the touch tooltip's
+    // two fixed strings and is PAGE-LEVEL, outside every block, which is the
+    // only placement that serves all the chart owners at once). The count is
+    // asserted rather than the selector avoided, so a region that forgot to be
+    // polite-and-quiet fails here. The error paragraphs use `role="alert"` and
+    // NO `aria-live` attribute, so they are implicit live regions and are
     // deliberately not in this count.
-    //
-    // The chart region is PAGE-LEVEL and outside every block, which is the
-    // only placement that serves all three chart owners at once: the hour grid,
-    // the financial charts and the map sit in three different sections, and a
-    // region inside any one of them would be a region that only exists when
-    // that block's data is on screen — and would break the Playtime block's own
-    // contract of exactly one `aria-live` inside itself. It is absent on a
-    // first visit, so the empty page's count is still one.
-    await expect(page.locator('[aria-live]')).toHaveCount(5);
-    await expect(page.getByTestId('playtime-status')).toHaveCount(1);
-    await expect(page.getByTestId('player-stats-status')).toHaveCount(1);
-    await expect(page.getByTestId('login-history-status')).toHaveCount(1);
+    await expect(detailPane(page)).toHaveAttribute('data-pane', 'overview');
+    await expect(page.locator('[aria-live]')).toHaveCount(2);
+    await expect(page.getByTestId('notice-slot')).toHaveCount(1);
+    await expect(page.getByTestId('notice-announcer')).toHaveCount(1);
     await expect(page.getByTestId('chart-status')).toHaveCount(1);
+    for (const own of ['playtime-status', 'player-stats-status', 'login-history-status']) {
+      await expect(page.getByTestId(own)).toHaveCount(0);
+    }
+
+    // Rule R5: a block's own status line (04-02, 05-12, 06-08), which their
+    // UI-SPEC state matrices require to exist in every state of that block (an
+    // empty live region announces nothing), exists only while its pane is open.
+    // Each open adds exactly that one region on top of the two, and only one pane
+    // is ever open, so the count is three for each, and the other two blocks'
+    // regions are absent. This replaces the old page-wide count of five.
+    const ownStatus: ReadonlyArray<readonly [PaneId, string]> = [
+      ['playtime', 'playtime-status'],
+      ['vehicles', 'player-stats-status'],
+      ['login-history', 'login-history-status'],
+    ];
+    for (const [pane, own] of ownStatus) {
+      await openSection(page, pane);
+      await expect(page.getByTestId(own)).toHaveCount(1);
+      await expect(page.locator('[aria-live]')).toHaveCount(3);
+      for (const [, other] of ownStatus) {
+        if (other !== own) await expect(page.getByTestId(other)).toHaveCount(0);
+      }
+      await expect(page.getByTestId('chart-status')).toHaveCount(1);
+    }
   });
 
   test('(accessible-name) the full dropzone is named by its label, the compact one by its own prompt', async ({
@@ -926,20 +1085,30 @@ test.describe('import region (03-06 Task 1)', () => {
     await expect(dropzone).toHaveAccessibleName(COMPACT_DROPZONE_PROMPT);
   });
 
-  test('(single-live-region) the notice slot is the page’s only aria-live region and nests no status role', async ({
+  test('(single-live-region) the notice announcer is the page’s only aria-live region and nests no status role', async ({
     page,
   }) => {
+    // WR-01: the live region is one persistent element mounted once in App.svelte,
+    // not the notice slot (which sits in an import bar that is torn down and
+    // rebuilt). The slot is only the visible container and carries no live
+    // attribute, and its own height is still zero when empty.
+    const announcer = page.getByTestId('notice-announcer');
+    await expect(announcer).toHaveCount(1);
+    await expect(announcer).toHaveAttribute('role', 'status');
+    await expect(announcer).toHaveAttribute('aria-live', 'polite');
+    await expect(announcer).toHaveAttribute('aria-atomic', 'true');
     const slot = page.getByTestId('notice-slot');
-    await expect(slot).toHaveAttribute('role', 'status');
-    await expect(slot).toHaveAttribute('aria-live', 'polite');
-    await expect(slot).toHaveAttribute('aria-atomic', 'true');
+    await expect(slot).toHaveCount(1);
+    await expect(slot).not.toHaveAttribute('role', /.*/);
+    await expect(slot).not.toHaveAttribute('aria-live', /.*/);
+    expect(await slot.evaluate((node) => node.getBoundingClientRect().height)).toBe(0);
 
     // The cache-check block is a `role="status"` of its own, but it is never
     // on screen at the same time as the bar — and it carries no `aria-live`
     // attribute, so the attribute count below is 1, not 2.
     const live = page.locator('[aria-live]');
     await expect(live).toHaveCount(1);
-    await expect(live).toHaveAttribute('data-testid', 'notice-slot');
+    await expect(live).toHaveAttribute('data-testid', 'notice-announcer');
   });
 });
 
@@ -992,6 +1161,9 @@ test.describe('confirm panel and focus (03-06 Task 2)', () => {
     await expect(
       page.getByTestId('import-bar').locator('[data-testid="confirm-panel"]'),
     ).toHaveCount(1);
+    await expect(
+      page.getByTestId('list-pane').getByTestId('import-bar').getByTestId('confirm-panel'),
+    ).toHaveCount(1);
     const meta = await page.getByTestId('persistent-bar').boundingBox();
     const box = await panel.boundingBox();
     expect(meta).not.toBeNull();
@@ -1002,6 +1174,29 @@ test.describe('confirm panel and focus (03-06 Task 2)', () => {
     // nothing, so it is where focus starts.
     await expect(page.getByTestId('confirm-cancel')).toBeFocused();
     await expect(panel).toContainText(CONFIRM_CLEAR_MESSAGE);
+
+    // WR-05: aria-modal is backed by a keyboard trap. Tab and Shift+Tab wrap
+    // between the two buttons and focus never leaves the panel.
+    const cancel = page.getByTestId('confirm-cancel');
+    const commit = page.getByTestId('confirm-commit');
+    await page.keyboard.press('Tab');
+    await expect(commit).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(cancel).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(commit).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(cancel).toBeFocused();
+    expect(await panel.evaluate((node) => node.contains(document.activeElement))).toBe(true);
+
+    // Escape cancels and returns focus to the opener; nothing was cleared.
+    await page.keyboard.press('Escape');
+    await expect(panel).toHaveCount(0);
+    await expect(page.getByTestId('start-over')).toBeFocused();
+    await expect(page.getByTestId('import-bar')).toHaveAttribute('data-variant', 'slim');
+    await page.getByTestId('start-over').click();
+    await expect(panel).toBeVisible();
+    await expect(cancel).toBeFocused();
 
     // Saying no returns the user exactly where they were.
     await page.getByTestId('confirm-cancel').click();
@@ -1071,8 +1266,10 @@ test.describe('confirm panel and focus (03-06 Task 2)', () => {
 
     await page.getByTestId('confirm-commit').click();
 
-    // The trigger is gone with the dataset, so focus cannot go back to it.
+    // The trigger is gone with the dataset, so focus cannot go back to it. The
+    // bar is the full one again and is back in the empty state's drop target.
     await expect(page.getByTestId('import-bar')).toHaveAttribute('data-variant', 'full');
+    await expect(page.getByTestId('empty-state').getByTestId('import-bar')).toHaveCount(1);
     await expect(page.getByTestId('start-over')).toHaveCount(0);
     await expect(page.getByTestId('persistent-bar')).toHaveCount(0);
     await expect(page.getByTestId('identity-nickname')).toHaveCount(0);
@@ -1127,16 +1324,27 @@ function zipSpec(name: string, bytes: Uint8Array) {
   return { name, mimeType: 'application/zip', bytes: [...bytes] };
 }
 
-/** The import summary of every section that has one, keyed by section testid. */
-async function sectionSummaries(page: Page): Promise<Record<string, string>> {
-  return importLines(page).evaluateAll((nodes) =>
-    Object.fromEntries(
-      nodes.map((node) => [
-        node.closest('[data-testid^="dashboard-section-"]')?.getAttribute('data-testid') ?? '',
-        (node.textContent ?? '').trim(),
-      ]),
-    ),
-  );
+/**
+ * The text of every list row, keyed by its test id.
+ *
+ * The rows carry each pane's headline and summary (`19 files` style counts) and
+ * they are on screen whatever pane is open, so they are what "the old dataset is
+ * still on screen" is compared against. Reading the section captions instead
+ * would read nothing on Overview, where no section is mounted. A test that also
+ * wants the open section's own data opens a pane and reads `importLine`.
+ */
+async function rowSummaries(page: Page): Promise<Record<string, string>> {
+  return page
+    .getByTestId('list-nav')
+    .locator('[data-testid^="list-row-"]')
+    .evaluateAll((nodes) =>
+      Object.fromEntries(
+        nodes.map((node) => [
+          node.getAttribute('data-testid') ?? '',
+          (node.textContent ?? '').replace(/\s+/g, ' ').trim(),
+        ]),
+      ),
+    );
 }
 
 /** The identity header's account-ID line, or null when the header has none. */
@@ -1198,7 +1406,7 @@ test.describe('app-state matrix (03-06 Task 3)', () => {
     const sample = buildSampleExport();
     await importSampleAndWait(page, sample);
     const importedOnBefore = await page.getByTestId('imported-at').innerText();
-    const summariesBefore = await sectionSummaries(page);
+    const summariesBefore = await rowSummaries(page);
 
     await dropAndConfirm(page, 'sample.zip', sample);
 
@@ -1214,7 +1422,7 @@ test.describe('app-state matrix (03-06 Task 3)', () => {
     // Nothing about the dataset moved.
     await expect(page.getByTestId('imported-at')).toHaveText(importedOnBefore);
     await expect(page.getByTestId('identity-nickname')).toHaveText(SAMPLE_NICKNAME);
-    expect(await sectionSummaries(page)).toEqual(summariesBefore);
+    expect(await rowSummaries(page)).toEqual(summariesBefore);
     // The drop area is live again, so the user can act on the notice.
     await expect(page.getByTestId('dropzone')).not.toHaveAttribute('aria-disabled');
   });
@@ -1240,14 +1448,26 @@ test.describe('app-state matrix (03-06 Task 3)', () => {
       { timeout: 30_000 },
     );
     await expect(page.getByTestId('processing-status')).toHaveCount(0);
+    // R1: the replaced dataset lands on Overview, whatever was selected.
+    await expectSelected(page, 'overview');
   });
 
   test('(failed-replace) the error shows in the slot and the old dataset survives, including a reload', async ({
     page,
   }) => {
     await importSampleAndWait(page);
-    const summariesBefore = await sectionSummaries(page);
+    const summariesBefore = await rowSummaries(page);
     const importedOnBefore = await page.getByTestId('imported-at').innerText();
+
+    // The rows are always on screen, so they carry the "old dataset survives"
+    // claim; the OPEN section's own data is compared as well, so a failed
+    // replace that blanked the pane while leaving the list alone is caught. The
+    // Finance pane is open for the whole failure (a failed replace keeps the
+    // selection: the stamp is untouched).
+    await openSection(page, 'finance');
+    const finance = section(page, 'financial-data');
+    await expect(importLine(finance)).toHaveText(expectedSummary('Financial_data'));
+    const financeBefore = (await importLine(finance).innerText()).trim();
 
     await dropAndConfirm(page, 'truncated.zip', buildTruncatedExport());
 
@@ -1265,8 +1485,11 @@ test.describe('app-state matrix (03-06 Task 3)', () => {
     await expect(page.getByTestId('import-bar')).toHaveAttribute('data-variant', 'slim');
     await expect(page.getByTestId('identity-nickname')).toHaveText(SAMPLE_NICKNAME);
     expect(await accountIdText(page)).toBe(formatAccountId(SAMPLE_ACCOUNT_ROOT));
-    expect(await sectionSummaries(page)).toEqual(summariesBefore);
+    expect(await rowSummaries(page)).toEqual(summariesBefore);
     await expect(page.getByTestId('imported-at')).toHaveText(importedOnBefore);
+    await expectSelected(page, 'finance');
+    await expect(finance).toHaveAttribute('data-status', 'ready');
+    expect((await importLine(finance).innerText()).trim()).toBe(financeBefore);
 
     // Storage agrees with the screen: the half-written replacement left the
     // previous dataset exactly where it was.
@@ -1276,14 +1499,20 @@ test.describe('app-state matrix (03-06 Task 3)', () => {
     });
     await expect(page.getByTestId('identity-nickname')).toHaveText(SAMPLE_NICKNAME);
     expect(await accountIdText(page)).toBe(formatAccountId(SAMPLE_ACCOUNT_ROOT));
-    expect(await sectionSummaries(page)).toEqual(summariesBefore);
+    expect(await rowSummaries(page)).toEqual(summariesBefore);
     await expect(page.getByTestId('imported-at')).toHaveText(importedOnBefore);
+    // A reload keeps no selection (it lands on Overview), so the same section
+    // is opened again and must read the same counts.
+    await openSection(page, 'finance');
+    expect((await importLine(section(page, 'financial-data')).innerText()).trim()).toBe(
+      financeBefore,
+    );
   });
 
   test('(first-error) a rejected first import shows the banner above an untouched skeleton and recovers', async ({
     page,
   }) => {
-    const summariesBefore = await sectionSummaries(page);
+    const summariesBefore = await rowSummaries(page);
 
     // A .txt is rejected by the pre-check before anything is posted, so this
     // is the "no cached result" row of the matrix, not the replace row.
@@ -1302,7 +1531,7 @@ test.describe('app-state matrix (03-06 Task 3)', () => {
     await expect(page.getByTestId('dropzone')).not.toHaveAttribute('aria-disabled');
     await expect(page.getByTestId('dropzone')).toContainText(DROPZONE_PROMPT);
     await expect(page.getByTestId('identity-header')).toHaveAttribute('data-variant', 'skeleton');
-    expect(await sectionSummaries(page)).toEqual(summariesBefore);
+    expect(await rowSummaries(page)).toEqual(summariesBefore);
 
     // A valid drop immediately afterwards recovers with no ceremony: the
     // banner is replaced by the progress notice, then by the dashboard.
@@ -1316,6 +1545,10 @@ test.describe('app-state matrix (03-06 Task 3)', () => {
     page,
   }) => {
     await importSampleAndWait(page);
+    // WR-01: a handle on the announcer taken BEFORE the clear must still be the
+    // live element afterwards. A region that was torn down with the bar and
+    // rebuilt together with its text would not be announced.
+    const announcerHandle = await page.getByTestId('notice-announcer').elementHandle();
     await page.getByTestId('start-over').click();
     await expect(page.getByTestId('confirm-panel')).toBeVisible();
     await page.getByTestId('confirm-commit').click();
@@ -1326,6 +1559,10 @@ test.describe('app-state matrix (03-06 Task 3)', () => {
     await expect(
       page.getByTestId('notice-slot').locator('[data-testid="cleared-ack"]'),
     ).toHaveCount(1);
+    expect(await announcerHandle!.evaluate((node) => node.isConnected)).toBe(true);
+    await expect(page.getByTestId('notice-announcer')).toHaveText(CLEARED_ACK_MESSAGE);
+    // The visible acknowledgement is not itself inside a live region.
+    expect(await ack.evaluate((node) => node.closest('[aria-live]') === null)).toBe(true);
 
     await expect(page.getByTestId('import-bar')).toHaveAttribute('data-variant', 'full');
     await expect(page.getByTestId('persistent-bar')).toHaveCount(0);
@@ -1337,13 +1574,14 @@ test.describe('app-state matrix (03-06 Task 3)', () => {
     await importZip(page, buildSampleExport(), 'sample.zip');
     await expect(page.getByTestId('identity-nickname')).toBeVisible({ timeout: 30_000 });
     await expect(ack).toHaveCount(0);
+    await expect(page.getByTestId('notice-announcer')).toHaveText('');
   });
 
   test('(return-visit) a reload comes straight back to the loaded dashboard, with no file and no cache-check block', async ({
     page,
   }) => {
     await importSampleAndWait(page);
-    const summariesBefore = await sectionSummaries(page);
+    const summariesBefore = await rowSummaries(page);
 
     await page.reload();
 
@@ -1351,7 +1589,7 @@ test.describe('app-state matrix (03-06 Task 3)', () => {
       timeout: 30_000,
     });
     await expect(page.getByTestId('identity-nickname')).toHaveText(SAMPLE_NICKNAME);
-    expect(await sectionSummaries(page)).toEqual(summariesBefore);
+    expect(await rowSummaries(page)).toEqual(summariesBefore);
     // The cache-check block is gone once the check has resolved, and the
     // file input carries nothing across the reload.
     await expect(page.getByTestId('cache-check-status')).toHaveCount(0);
@@ -1421,6 +1659,9 @@ test.describe('app-state matrix (03-06 Task 3)', () => {
   test('(phone-375) at 375px the slim bar wraps without widening the page', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 });
     await importSampleAndWait(page);
+    // The slim bar lives in the list pane, which is its own screen on a phone.
+    await ensureListScreen(page);
+    await expect(page.getByTestId('list-pane')).toBeVisible();
 
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(scrollWidth).toBeLessThanOrEqual(375);
@@ -1463,7 +1704,8 @@ test.describe('cache check window (03-06 Task 3)', () => {
 
     await expect(page.getByTestId('import-bar')).toHaveCount(0);
     await expect(page.getByTestId('identity-header')).toHaveCount(0);
-    await expect(page.getByTestId('dashboard-nav')).toHaveCount(0);
+    await expect(page.getByTestId('list-pane')).toHaveCount(0);
+    await expect(page.getByTestId('list-nav')).toHaveCount(0);
     await expect(page.locator('[data-testid^="dashboard-section-"]')).toHaveCount(0);
     await expect(page.getByTestId('dropzone')).toHaveCount(0);
 
@@ -1474,11 +1716,12 @@ test.describe('cache check window (03-06 Task 3)', () => {
     });
     await expect(page.getByTestId('import-bar')).toHaveAttribute('data-variant', 'full');
     await expect(page.getByTestId('identity-header')).toBeVisible();
-    await expect(page.getByTestId('dashboard-nav')).toBeVisible();
-    // Five supported sections plus the block (05-03 D-01). Derived from the
-    // id list so a future sixth section cannot leave this stale.
-    await expect(page.locator('[data-testid^="dashboard-section-"]')).toHaveCount(
-      SUPPORTED_IDS.length + 1,
-    );
+    await expect(page.getByTestId('list-nav')).toBeVisible();
+    // The first-visit state has the eight list rows (every pane, derived from
+    // PANE_IDS so a ninth pane cannot leave this stale) and mounts no section:
+    // the detail pane hosts the drop target, and a section only exists while
+    // its pane is open.
+    await expect(page.locator('[data-testid^="list-row-"]')).toHaveCount(PANE_IDS.length);
+    await expect(page.locator('[data-testid^="dashboard-section-"]')).toHaveCount(0);
   });
 });

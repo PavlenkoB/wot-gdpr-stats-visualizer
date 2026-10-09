@@ -7,6 +7,7 @@ import {
   type Page,
   type TestInfo,
 } from '@playwright/test';
+import { PANE_SECTION, type PaneId } from '../../../src/lib/shell/selection-state.ts';
 
 /**
  * A single file payload as it is passed from the test runner into the
@@ -151,6 +152,10 @@ export async function gotoApp(page: Page): Promise<void> {
 /**
  * The Activity_history card: the section whose dashboard carries the Playtime
  * block, the split table and all three charts.
+ *
+ * Since the master-detail shell it exists ONLY while the Playtime or the Login
+ * history pane is open, so call `openSection(page, 'playtime')` (or
+ * `'login-history'`) first. On any other pane this locator matches nothing.
  */
 export function openActivity(page: Page): Locator {
   return page.getByTestId('dashboard-section-activity-history');
@@ -365,25 +370,114 @@ export async function pickExportFromDisk(
  * Wait until an import has landed, without waiting for any particular
  * dashboard's numbers.
  *
- * The signal is the Activity_history section's `data-status` LEAVING
- * `not-loaded`. `not-loaded` is the only status a page with no dataset can
- * show, and every completed import moves it to `ready`, `empty`, `pending` or
- * `no-export` — so this waits for "the import finished" and nothing more.
+ * The signal is the identity header LEAVING its `skeleton` variant, followed by
+ * the processing notice being gone. Overview is the landing view after every
+ * import and replace, so no section is present to wait on: the Activity_history
+ * card that this used to watch is only in the DOM while the Playtime or Login
+ * history pane is open. The header exists in every state and its variant moves
+ * to `loaded` (a User_Info row) or `fallback` (none) once a dataset is on
+ * screen, which is what makes it the one signal that holds for every fixture,
+ * including the hand fixture that has no User_Info row.
  *
- * The identity header is deliberately NOT the signal. The hand fixture is
- * built from Sessions.csv alone, so it has no `User_Info` row and the header
- * renders the D-16 FALLBACK (the account ID as the title) with no
- * `identity-nickname` element at all. A wait on the nickname would time out on
- * the very fixture the specs are built around, and adding a `User_Info` folder
- * to reach it would put an unrelated claim into these tests.
+ * `processing-status` is waited on as well because a REPLACE never shows the
+ * skeleton (the old dataset stays on screen), so the header alone would return
+ * while the new archive is still being parsed.
  *
- * A spec that wants the numbers waits for `playtime[data-state]` itself, which
- * is a strictly later moment and is what every playtime assertion uses.
+ * A spec that wants the numbers opens the pane it is about with `openSection`
+ * and waits for that block's `data-state` itself.
  */
 export async function waitForImported(page: Page): Promise<void> {
-  await expect(openActivity(page)).not.toHaveAttribute('data-status', 'not-loaded', {
-    timeout: 30_000,
-  });
+  await expect(page.getByTestId('identity-header')).not.toHaveAttribute(
+    'data-variant',
+    'skeleton',
+    { timeout: 30_000 },
+  );
+  await expect(page.getByTestId('processing-status')).toHaveCount(0, { timeout: 30_000 });
+}
+
+/**
+ * If the phone's detail screen is showing, go back to the list screen. A no-op
+ * on desktop and tablet, where the back button is never visible (R2).
+ */
+export async function ensureListScreen(page: Page): Promise<void> {
+  const back = page.getByTestId('back-button-sections');
+  if (await back.isVisible()) {
+    await back.click();
+    await expect(page.getByTestId('list-pane')).toBeVisible();
+  }
+}
+
+/** The list row of one pane. */
+export function listRow(page: Page, pane: PaneId): Locator {
+  return page.getByTestId('list-row-' + pane);
+}
+
+/** The detail pane, the element that carries `data-pane`. */
+export function detailPane(page: Page): Locator {
+  return page.getByTestId('detail-pane');
+}
+
+/** Assert that exactly one list row is current, and that it is `pane`'s. */
+export async function expectSelected(page: Page, pane: PaneId): Promise<void> {
+  await expect(listRow(page, pane)).toHaveAttribute('aria-current', 'true');
+  await expect(page.getByTestId('list-nav').locator('[aria-current="true"]')).toHaveCount(1);
+}
+
+/**
+ * Open one pane of the master-detail shell, and wait until its section exists.
+ *
+ * The contract every migrated spec follows (plans 08-08 to 08-17). Read it
+ * before editing a spec; the rules are declared once, here, so no migration plan
+ * edits this file:
+ *
+ *   R1  After any import or replace the page is on Overview, so a test that
+ *       reads a block calls `openSection` first, and again after every replace.
+ *   R2  At phone width the list and the detail are separate screens.
+ *       `openSection`, `replaceExport` and `startOver` press
+ *       `back-button-sections` first when it is visible.
+ *   R3  `dashboard-section-<sectionId>` ids are unchanged, but headings are now
+ *       pane titles (use PANE_TITLES) and the folder name appears in the
+ *       `provenance` element.
+ *   R4  Only the open pane's section exists in the DOM. A test that counts or
+ *       iterates sections opens each pane in turn, or asserts absence with
+ *       `toHaveCount(0)`.
+ *   R5  The live-region count on Overview is two (`notice-announcer` and
+ *       `chart-status`) and each open block adds its own status region.
+ *   R6  `dashboard-nav` and `nav-link-*` are retired. Every geometry assertion
+ *       about a sticky nav is rewritten against the new contract: plan 08-07
+ *       sets `--nav-offset` to 16px, the year head's sticky top to 0, and makes
+ *       `scrollClear` ignore the list.
+ *   R7  Collapsed `details` content is in the DOM but not visible: use
+ *       `toContainText` / `toHaveText`, or click the summary first.
+ *   R8  Never scroll to position a section. Selecting a pane scrolls the window
+ *       to the top.
+ *   R9  The listed-test budget is 258 and the suite starts at 257 before the old
+ *       nav spec is deleted, so merge before you add.
+ *   R10 Stat tile numerals are 30px on desktop and 18px at 375px.
+ *
+ * Overview needs no section wait. Every other pane waits for the section root
+ * its `PANE_SECTION` entry names, 'Not yet supported' included, since it has a
+ * root of its own.
+ */
+export async function openSection(page: Page, pane: PaneId): Promise<void> {
+  await ensureListScreen(page);
+  await listRow(page, pane).click();
+  await expect(detailPane(page)).toHaveAttribute('data-pane', pane);
+  const section = PANE_SECTION[pane];
+  if (section !== null) {
+    await expect(page.getByTestId('dashboard-section-' + section)).toHaveCount(1);
+  }
+}
+
+/** Import an export, then open one pane of it (R1). */
+export async function importAndOpen(
+  page: Page,
+  name: string,
+  bytes: Uint8Array,
+  pane: PaneId,
+): Promise<void> {
+  await importExport(page, name, bytes);
+  await openSection(page, pane);
 }
 
 /**
@@ -392,12 +486,25 @@ export async function waitForImported(page: Page): Promise<void> {
  * A drop onto a page that already holds a dataset opens the confirm panel
  * BEFORE anything is processed (Phase 3's replace-on-drop rule), so a test
  * that sets the file input twice without confirming waits for a panel nobody
- * dismisses. Confirming here and waiting for the new dataset's identity is the
+ * dismisses. Confirming here and waiting for the new dataset to land is the
  * whole difference between this and `importExport`.
+ *
+ * It no longer waits for the Playtime block: a replace lands on Overview (R1),
+ * where that block is not mounted, and waiting for it would hang. Pass `open`
+ * to have the helper open a pane once the replace has completed; otherwise the
+ * caller opens the pane it wants and waits for that block's own state. On a
+ * phone the helper returns to the list screen first, because the file input
+ * lives there once a dataset is loaded (R2).
  */
-export async function replaceExport(page: Page, name: string, bytes: Uint8Array): Promise<void> {
+export async function replaceExport(
+  page: Page,
+  name: string,
+  bytes: Uint8Array,
+  open?: PaneId,
+): Promise<void> {
   // A different zip is a different archive, so fflate's mtime stamp cannot
   // make the two byte-identical and the duplicate path is not reachable here.
+  await ensureListScreen(page);
   await page.getByTestId('file-input').setInputFiles({
     name,
     mimeType: 'application/zip',
@@ -408,14 +515,12 @@ export async function replaceExport(page: Page, name: string, bytes: Uint8Array)
   await expect(panel).toBeVisible();
   await panel.getByTestId('confirm-commit').click();
   await expect(panel).toHaveCount(0);
+  await expect(page.getByTestId('processing-status')).toHaveCount(0, { timeout: 30_000 });
   await waitForImported(page);
-  // The block settles on the new dataset's numbers. Proving that the dataset
-  // actually CHANGED is the caller's job and the selector-reset test does it
-  // by reading the option list; what this helper guarantees is only that the
-  // replace completed and the page is no longer mid-confirm.
-  await expect(playtimeBlock(page)).toHaveAttribute('data-state', /ready|updating|error/, {
-    timeout: 30_000,
-  });
+  // Proving that the dataset actually CHANGED is the caller's job; what this
+  // helper guarantees is only that the replace completed and the page is no
+  // longer mid-confirm.
+  if (open !== undefined) await openSection(page, open);
 }
 
 /**
@@ -426,6 +531,7 @@ export async function replaceExport(page: Page, name: string, bytes: Uint8Array)
  * rather than a replace.
  */
 export async function startOver(page: Page): Promise<void> {
+  await ensureListScreen(page);
   await page.getByTestId('start-over').click();
   const panel = page.getByTestId('confirm-panel');
   await expect(panel).toBeVisible();

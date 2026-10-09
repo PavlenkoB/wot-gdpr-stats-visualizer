@@ -85,10 +85,10 @@
 <style>
   .intro {
     margin: 0;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 400;
     line-height: 1.5;
-    color: #3c4043;
+    color: var(--text);
   }
 
   .banners {
@@ -114,10 +114,10 @@
     flex-direction: column;
     gap: 4px;
     padding: 12px 16px;
-    border: 1px solid #80868b;
+    border: 1px solid var(--faint);
     border-radius: 6px;
-    background: #f1f3f4;
-    color: #3c4043;
+    background: var(--list);
+    color: var(--text);
     min-width: 0;
   }
 
@@ -141,7 +141,7 @@
 
   /* Body role: the suffix is a sentence, not a label. */
   .banner-suffix {
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 400;
     line-height: 1.5;
     overflow-wrap: anywhere;

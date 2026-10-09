@@ -23,7 +23,7 @@
     border-radius: 6px;
     background: #fce8e6;
     color: #8a1c17;
-    font-size: 16px;
+    font-size: 14px;
     line-height: 1.5;
   }
 </style>

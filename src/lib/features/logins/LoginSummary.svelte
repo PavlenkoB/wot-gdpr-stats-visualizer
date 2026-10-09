@@ -75,7 +75,7 @@
   parts of ONE summary under ONE heading, and the block's 24px gaps are the
   gaps between sub-blocks one level up.
 -->
-<div class="summary">
+<div class="summary login-summary">
   <!--
     `auto-fit` with a 128px minimum is what makes the count tiles wrap to two
     per row at 375px rather than overflow, and `min-width: 0` lets a track
@@ -197,9 +197,9 @@
     flex-direction: column;
     gap: 4px;
     padding: 16px;
-    border: 1px solid #dadce0;
-    border-radius: 6px;
-    background: #f7f7fa;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    background: var(--list);
     min-width: 0;
   }
 
@@ -207,7 +207,7 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
   }
 
   /* Display role for a count numeral. A grouped number is not untrusted text
@@ -215,10 +215,10 @@
   dd {
     margin: 0;
     min-width: 0;
-    font-size: 28px;
+    font-size: 30px;
     font-weight: 600;
     line-height: 1.2;
-    color: #08060d;
+    color: var(--ink);
   }
 
   /*
@@ -239,7 +239,7 @@
     font-size: 14px;
     font-weight: 400;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
     overflow-wrap: anywhere;
   }
 

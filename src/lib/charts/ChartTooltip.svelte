@@ -232,9 +232,12 @@
   /**
    * `--nav-offset` from the one declaration in `app.css`, or 72.
    *
+   * It is the clearance above content: no sticky chrome sits over the detail
+   * pane any more, so it is now the 16px of breathing room, and the tooltip
+   * flips below its anchor only within that plus the gap of the viewport top.
    * Read from the document element's computed style rather than imported from
-   * CSS, because CSS is the single source of the value (the same reason the
-   * scroll-spy and the section anchors read it). `parseFloat` on an unreadable
+   * CSS, because CSS is the single source of the value (the sticky calendar
+   * year head reads it too). `parseFloat` on an unreadable
    * or empty value is NaN, and a NaN nav offset would place the tooltip with
    * NaN coordinates — so the fallback is a real number.
    */
@@ -329,7 +332,7 @@
   hidden={request === null}
 >
   <!-- Line 1 is Label role and line 2 is Caption, both white (UI-SPEC
-       Typography): the surface is #3c4043, so the hierarchy has to come from
+       Typography): the surface is var(--text), so the hierarchy has to come from
        weight, not from a second colour. -->
   <p class="line-one">{request?.line1 ?? ''}</p>
   <p class="line-two">{request?.line2 ?? ''}</p>
@@ -353,7 +356,7 @@
     max-width: 240px;
     padding: 8px 12px;
     border-radius: 6px;
-    background: #3c4043;
+    background: var(--text);
     color: #ffffff;
     font-size: 14px;
     line-height: 1.4;

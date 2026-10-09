@@ -116,37 +116,32 @@
 </section>
 
 <style>
-  /* The card shell, shared by all three variants: one flex column, the
-     spacing scale's md padding and sm gap (UI-SPEC). `min-width: 0` and
-     `overflow-wrap: anywhere` let a long unbroken nickname or account root
-     wrap instead of forcing a horizontal scrollbar — the values are
-     untrusted, so their length is not knowable in advance. */
+  /* The header sits directly in the list pane, which is the container, so it
+     has no card chrome of its own: one flex column with the pane's 20px side
+     padding. `min-width: 0` and `overflow-wrap: anywhere` let a long unbroken
+     nickname or account root wrap instead of widening the 320px pane — the
+     values are untrusted, so their length is not knowable in advance. */
   section {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 16px;
-    border: 1px solid #dadce0;
-    border-radius: 6px;
-    background: #fff;
+    gap: 4px;
+    padding: 4px 20px 4px;
     min-width: 0;
   }
 
-  /* Display role (28 / 600 / 1.2) — the one place the size is spent, since
-     the h1 is demoted to the Heading role in app.css. */
+  /* Display role (26 / 600 / 1.3) — the one place the size is spent, since the
+     h1 is demoted to the product label in the list pane. It collapses to the
+     Heading size at phone width, in the phone block of `src/app.css`. */
   .nickname,
   .skeleton-title,
   .fallback-title {
     margin: 0;
-    font-size: 28px;
+    font-size: 26px;
     font-weight: 600;
-    line-height: 1.2;
+    line-height: 1.3;
+    color: var(--ink);
     min-width: 0;
     overflow-wrap: anywhere;
-  }
-
-  .nickname {
-    color: #08060d;
   }
 
   .caption {
@@ -154,7 +149,7 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
   }
 
   /* Two columns sized by content and 1fr, so the value column takes the
@@ -170,16 +165,16 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
   }
 
   /* Body role for the values (D-13, D-15). */
   dd {
     margin: 0;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 400;
     line-height: 1.5;
-    color: #08060d;
+    color: var(--text);
     min-width: 0;
     overflow-wrap: anywhere;
   }
@@ -189,28 +184,20 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
     min-width: 0;
     overflow-wrap: anywhere;
   }
 
-  /* D-24 skeleton: a greyed card, told apart by surface AND by a dashed
-     border as well as by its words, so "nothing loaded" is never carried by
-     colour alone. Keyed on the variant attribute the tests already read. */
-  section[data-variant='skeleton'] {
-    border: 1px dashed #80868b;
-    background: #f7f7fa;
-  }
-
-  .skeleton-title {
-    color: #5f6368;
-  }
-
+  /* D-24 skeleton: "nothing loaded" is carried by its words (the title) and by
+     the muted prompt line under it, never by a tint or a border alone. The title
+     itself takes the shared ink heading rule above: D-24 asks for distinct
+     wording, not a muted heading. */
   .skeleton-prompt {
     margin: 0;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 400;
     line-height: 1.5;
-    color: #5f6368;
+    color: var(--muted);
   }
 </style>

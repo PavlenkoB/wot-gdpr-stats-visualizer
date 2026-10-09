@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sketch 019 - Fresh round 8</title>
+<link rel="stylesheet" href="../themes/default.css">
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding-top:48px;font-family:system-ui,sans-serif}
+#variant-nav{position:fixed;top:0;left:0;right:0;z-index:9998;background:#fff;border-bottom:1px solid #e5e5e5;padding:8px 16px;display:flex;gap:8px;overflow-x:auto}
+.variant-tab{border:1px solid #ccc;background:#fff;border-radius:6px;padding:6px 12px;cursor:pointer;white-space:nowrap;transition:all .15s ease}
+.variant-tab:hover{background:#f0f0f0}.variant-tab.active{background:#111;color:#fff;border-color:#111}
+#sketch-tools{position:fixed;bottom:12px;right:12px;z-index:9999;font:12px system-ui;background:rgba(0,0,0,.7);color:#fff;padding:8px 12px;border-radius:8px;opacity:.4;transition:opacity .2s;display:flex;gap:6px;align-items:center}
+#sketch-tools:hover{opacity:1}#sketch-tools button{font:inherit;cursor:pointer}
+#frame{margin:0 auto;transition:max-width .2s}
+
+/* shared page */
+.app{background:var(--bg);color:var(--text);font-family:var(--font);min-height:calc(100vh - 48px);font-size:14px;line-height:1.5}
+.app h1,.app h2,.app h3{font-family:var(--head);margin:0}
+.muted{color:var(--muted)}
+.btn{font:inherit;border:1px solid var(--border);background:var(--surface2);color:var(--text);border-radius:8px;padding:7px 14px;cursor:pointer;transition:all .15s ease}
+.btn:hover{border-color:var(--primary);color:var(--primary)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.primary:hover{filter:brightness(1.1);color:#fff}
+select,input.search{font:inherit;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 10px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px}
+.card h2{font-size:16px;margin-bottom:2px}
+.card .sub{color:var(--muted);font-size:13px;margin-bottom:14px}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
+.tile{background:var(--surface2);border-radius:calc(var(--radius) - 2px);padding:14px 16px}
+.tile .k{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+.tile .v{font-size:30px;font-weight:var(--numw);font-family:var(--head);line-height:1.2}
+.tile .v small{font-size:13px;color:var(--muted);font-weight:400}
+.hm{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,1fr);gap:3px;margin:10px 0}
+.hm i{aspect-ratio:1;border-radius:2px;min-width:8px}
+.hh{display:grid;grid-template-columns:repeat(24,1fr);gap:3px;margin:10px 0}
+.hh i{height:16px;border-radius:2px}
+.legend{display:flex;gap:4px;align-items:center;color:var(--muted);font-size:12px}
+.legend i{width:14px;height:14px;border-radius:2px}
+.bars div{display:grid;grid-template-columns:70px 1fr 70px;gap:10px;align-items:center;font-size:12px;color:var(--muted);padding:2px 0}
+.bars b{display:block;height:10px;border-radius:5px;background:var(--r4)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;color:var(--muted);font-weight:500;font-size:12px;padding:8px 6px;border-bottom:1px solid var(--border)}
+td{padding:9px 6px;border-bottom:1px solid var(--border)}
+tr:hover td{background:var(--surface2)}
+.chip{font-size:11px;padding:2px 8px;border-radius:99px;background:var(--surface2);border:1px solid var(--border);color:var(--muted)}
+.note{font-size:12.5px;color:var(--muted);max-width:60ch}
+.stat-row{display:flex;gap:6px;align-items:baseline}
+.avatar{width:44px;height:44px;border-radius:50%;background:var(--primary);color:#fff;display:grid;place-items:center;font-weight:700;font-size:18px}
+.toast{position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:8px 16px;border-radius:8px;z-index:9999;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+
+/* Y1 cards */
+.y1 .wr{max-width:1200px;margin:0 auto;padding:28px}.y1 .hd{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:22px}.y1 .hd h1{font-size:30px}
+.y1 .deck{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:22px}
+.y1 .cardx{aspect-ratio:.72;border-radius:18px;padding:3px;cursor:pointer;position:relative;transition:transform .25s,box-shadow .25s;transform-style:preserve-3d}
+.y1 .cardx:hover{transform:translateY(-8px) rotate(-1deg) scale(1.03);box-shadow:0 22px 40px rgba(0,0,0,.5)}
+.y1 .cardx.legendary{background:linear-gradient(135deg,#ffd166,#ff7ab6,#7cf2ff,#ffd166)}.y1 .cardx.epic{background:linear-gradient(135deg,#b78cff,#7a5cf0,#ff7ab6)}.y1 .cardx.rare{background:linear-gradient(135deg,#7cf2ff,#4a7cf0)}.y1 .cardx.common{background:linear-gradient(135deg,#8a8fa8,#4a4f68)}.y1 .cardx.locked{background:#33334a;filter:grayscale(1);opacity:.6}
+.y1 .in{height:100%;border-radius:15px;background:linear-gradient(180deg,#241d52,#14102b);padding:14px;display:flex;flex-direction:column;position:relative;overflow:hidden}
+.y1 .in:after{content:"";position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.14) 45%,transparent 60%);transform:translateX(-100%);transition:transform .6s}.y1 .cardx:hover .in:after{transform:translateX(100%)}
+.y1 .in .t{display:flex;justify-content:space-between;font-size:13px;font-weight:700}.y1 .in .t span{color:var(--primary)}
+.y1 .in .art{flex:1;margin:10px 0;border-radius:10px;background:radial-gradient(circle at 50% 40%,rgba(255,255,255,.18),transparent 65%),#1c1646;display:grid;place-items:center;font-size:46px;font-weight:900;color:var(--primary);text-align:center;line-height:1}
+.y1 .in .art small{display:block;font-size:12px;font-weight:500;color:var(--muted);margin-top:6px}.y1 .in .r{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);text-align:center}
+.y1 .ov{position:fixed;inset:48px 0 0 0;background:rgba(10,6,28,.88);backdrop-filter:blur(8px);z-index:60;display:none;padding:34px;overflow:auto}.y1 .ov.on{display:block}
+.y1 .ov .pn{max-width:900px;margin:0 auto;background:var(--surface);border:1px solid var(--border);border-radius:22px;padding:28px;position:relative}.y1 .ov .x{position:absolute;right:16px;top:16px}
+.y1 .card{border:0;padding:0;background:none}
+/* Y2 spreadsheet */
+.y2{font-size:13px}.y2 .mb{display:flex;gap:16px;padding:6px 14px;border-bottom:1px solid var(--border);color:var(--muted);align-items:center;flex-wrap:wrap}.y2 .mb b{color:var(--text);font-size:16px}
+.y2 .fb{display:flex;border-bottom:1px solid var(--border);align-items:center}.y2 .fb .nm{width:80px;padding:5px 10px;border-right:1px solid var(--border);color:var(--muted)}.y2 .fb .fx{padding:5px 10px;font-style:italic;color:var(--muted)}.y2 .fb .fv{padding:5px;flex:1;font-family:ui-monospace,Menlo,monospace}
+.y2 .gridw{overflow:auto;height:calc(100vh - 48px - 37px - 33px - 38px)}
+.y2 table.g{border-collapse:collapse;width:max-content;min-width:100%}.y2 table.g th{background:#f8f9fa;font-weight:400;color:var(--muted);border:1px solid var(--border);padding:3px 8px;position:sticky;top:0;z-index:2;text-align:center;font-size:12px}
+.y2 table.g th.rh{position:sticky;left:0;z-index:1;width:36px;min-width:36px}.y2 table.g td{border:1px solid var(--border);padding:3px 8px;min-width:78px;white-space:nowrap;height:24px;background:#fff;cursor:cell}
+.y2 table.g td.sel{outline:2px solid var(--accent);outline-offset:-2px;background:#e8f0fe}.y2 table.g td.n{text-align:right;font-variant-numeric:tabular-nums}.y2 table.g td.hd2{font-weight:700;background:#f1f3f4}
+.y2 .tabs{display:flex;border-top:1px solid var(--border);background:#f8f9fa;overflow-x:auto}.y2 .tabs a{padding:9px 18px;cursor:pointer;color:var(--muted);white-space:nowrap;border-right:1px solid var(--border)}.y2 .tabs a:hover{background:#eceff1}.y2 .tabs a.on{background:#fff;color:var(--primary);font-weight:700;box-shadow:inset 0 -3px var(--primary)}
+/* Y3 metro */
+.y3 .wr{max-width:1180px;margin:0 auto;padding:26px}.y3 .hd{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.y3 .hd h1{font-size:28px;letter-spacing:-.02em}
+.y3 .map{background:var(--surface);border:1px solid var(--border);border-radius:18px;margin:18px 0;padding:10px;overflow-x:auto}.y3 svg{width:100%;min-width:900px;height:auto;display:block}
+.y3 .st{cursor:pointer}.y3 .st circle{transition:r .15s}.y3 .st:hover circle,.y3 .st.on circle{r:13;stroke-width:5}.y3 .st text{font-size:13px;font-weight:700}.y3 .st .vv{font-size:12px;font-weight:400;fill:var(--muted)}
+.y3 .leg{display:flex;gap:18px;font-size:13px;flex-wrap:wrap;margin-bottom:6px}.y3 .leg span:before{content:"";display:inline-block;width:26px;height:8px;border-radius:4px;background:var(--c);margin-right:8px;vertical-align:middle}
+.y3 .pn{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:22px;min-height:200px}.y3 .pn h2{font-size:22px}.y3 .card{border:0;padding:0;background:none}
+@media(max-width:700px){.y1 .wr,.y3 .wr{padding:14px}.y1 .deck{grid-template-columns:1fr 1fr}.y1 .in .art{font-size:32px}}
+
+@media(max-width:700px){.tile .v{font-size:22px}}
+</style></head><body>
+<div id="variant-nav"><button class="variant-tab active" data-v="y1">Y1: Trading cards</button><button class="variant-tab" data-v="y2">Y2: Spreadsheet</button><button class="variant-tab" data-v="y3">Y3: Metro map</button><span style="margin-left:auto;color:#888;align-self:center;font-size:12px">Y1: click a card; Y2: click cells; Y3: click stations</span></div>
+<div id="frame"><div id="root"></div></div>
+<div id="sketch-tools"><button onclick="vp('100%')">Desktop</button><button onclick="vp('768px')">Tablet</button><button onclick="vp('375px')">Phone</button></div>
+<div class="toast" id="toast"></div>
+<script>
+const $=s=>document.querySelector(s);
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');setTimeout(()=>e.classList.remove('on'),1400)}
+function vp(w){$('#frame').style.maxWidth=w}
+let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+const days=[...Array(53*7)].map((_,i)=>{const r=rnd();return i>300?0:r<.45?0:Math.min(5,1+Math.floor(r*5.5))});
+const hours=[...Array(7*24)].map((_,i)=>{const h=i%24;const peak=(h>=18&&h<=22)?1:(h>=9&&h<=11?.5:0);const r=rnd();return r<.15+(1-peak)*.6?0:Math.min(5,Math.ceil(r*5*Math.max(peak,.3)))});
+const lv=l=>`background:var(--r${l})`;
+const cal=()=>`<div class="hm">${days.map(l=>`<i style="${lv(l)}" title="level ${l}"></i>`).join('')}</div>`;
+const hr=()=>`<div class="hh">${hours.map(l=>`<i style="${lv(l)}"></i>`).join('')}</div>`;
+const legend=()=>`<div class="legend">Less ${[0,1,2,3,4,5].map(l=>`<i style="${lv(l)}"></i>`).join('')} More</div>`;
+const bars=()=>`<div class="bars">${[['< 1 min',0],['20-30 min',30],['30-60 min',55],['1-2 hours',100],['2-4 hours',22]].map(([n,w])=>`<div><span>${n}</span><b style="width:${w}%;opacity:${w?1:.15}"></b><span>${w?Math.round(w/2.3):0}</span></div>`).join('')}</div>`;
+const tiles=()=>`<div class="tiles"><div class="tile"><div class="k">Total playtime</div><div class="v">31.2 <small>hours</small></div></div><div class="tile"><div class="k">Sessions</div><div class="v">30</div></div><div class="tile"><div class="k">Active days</div><div class="v">21</div></div></div>`;
+const server=()=>`<div style="display:flex;gap:10px;margin-bottom:14px"><select onchange="toast('Server: '+this.value)"><option>All servers</option><option>EU1</option><option>EU2</option><option>NA1</option></select><span class="chip" style="align-self:center">1 session excluded</span></div>`;
+const login=()=>`<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px"><span class="note">IP addresses are masked. The last part of each one is hidden.</span><button class="btn" id="ipbtn" onclick="ipToggle(this)">Show full IP addresses</button></div>
+<div class="tiles"><div class="tile"><div class="k">IP addresses</div><div class="v">3</div></div><div class="tile"><div class="k">Countries</div><div class="v">0</div></div><div class="tile"><div class="k">Unknown</div><div class="v">3</div></div></div>
+<table><thead><tr><th>IP address</th><th>Country</th><th>Logins</th><th>First seen</th><th>Last seen</th></tr></thead><tbody>
+${[['34','192.0.2','2024-01-01','2024-01-23'],['2','198.51.100','2024-01-12','2024-01-15'],['1','203.0.113','2024-01-18','2024-01-18']].map(r=>`<tr><td class="ip" data-p="${r[1]}">${r[1]}.xxx</td><td><span class="chip">Unknown</span></td><td>${r[0]}</td><td>${r[2]}</td><td>${r[3]}</td></tr>`).join('')}</tbody></table>
+<div style="margin-top:14px"><button class="btn primary" onclick="toast('Would download ~12 MB city file')">Load city-level detail (~12 MB)</button> <span class="note">Nothing from your export is sent.</span></div>`;
+function ipToggle(b){const s=b.textContent.startsWith('Show');document.querySelectorAll('.ip').forEach(c=>c.textContent=c.dataset.p+(s?'.17':'.xxx'));b.textContent=s?'Hide full IP addresses':'Show full IP addresses'}
+const spend=()=>`<div class="tiles" style="grid-template-columns:1fr 1fr 1fr"><div class="tile"><div class="k">USD spent</div><div class="v">9.99</div></div><div class="tile"><div class="k">Paid orders</div><div class="v">1</div></div><div class="tile"><div class="k">Failed / new</div><div class="v">0 / 0</div></div></div><p class="note">Each currency has its own total: nothing is converted or added across currencies.</p>`;
+const vehicles=()=>`<div style="display:flex;gap:10px;margin-bottom:12px"><select><option>WoT</option></select><input class="search" placeholder="Search vehicles"></div><p class="note">WoT is not in this export.</p>`;
+const NAV=[['Playtime & logins','on'],['Vehicles',''],['Finance','off'],['Payments',''],['Account','']];
+const ident=`<div class="avatar">T</div><div><h1>Tester</h1><div class="muted">Account 123456789 · EU · created 2024-01-01</div></div>`;
+const actions=`<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="toast('Start over?')">Start over</button><button class="btn" onclick="toast('Cache cleared')">Clear cached data</button></div>`;
+const secs={play:`<div class="card wide c12"><h2>Playtime</h2><div class="sub">When and how long you played</div>${server()}${tiles()}</div>`};
+const SECS=[['Playtime','31.2 h','30 sessions · 21 days','legendary',()=>server()+tiles()+cal()+legend()],['Rhythm','19:00','busiest hour','epic',()=>hr()+legend()],['Sessions','1-2 h','typical session','rare',()=>bars()],['Logins','3 IPs','37 logins','common',()=>login()],['Payments','$9.99','1 paid order','rare',()=>spend()],['Vehicles','???','not in this export','locked',()=>vehicles()]];
+function Y1(){return `<div class="app t-card y1"><div class="wr"><div class="hd"><h1>Tester's collection <span class="muted" style="font-size:14px;font-weight:400">5 of 6 cards unlocked</span></h1>${actions}</div><div class="deck">${SECS.map((s,i)=>`<div class="cardx ${s[3]}" onclick="${s[3]==='locked'?"toast('Not in this export')":`ycard(${i})`}"><div class="in"><div class="t">${s[0]}<span>★</span></div><div class="art"><div>${s[1]}<small>${s[2]}</small></div></div><div class="r">${s[3]}</div></div></div>`).join('')}</div></div>
+<div class="ov" onclick="if(event.target===this)this.classList.remove('on')"><div class="pn"><button class="btn x" onclick="this.closest('.ov').classList.remove('on')">Close ✕</button><h2 id="yt" style="font-size:26px;margin-bottom:14px"></h2><div class="card" id="yb"></div></div></div></div>`}
+function ycard(i){$('#yt').textContent=SECS[i][0]+' · '+SECS[i][2];$('#yb').innerHTML=SECS[i][4]();$('.y1 .ov').classList.add('on')}
+const MM=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],MH=[8.4,6.1,4.0,3.2,2.6,1.9,1.4,1.0,.7,.9,.6,.4];
+const cols='ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+function sheet(name){const rows=[];const hdr=a=>({h:1,v:a});
+ if(name==='Playtime'){rows.push([hdr('Month'),hdr('Sessions'),hdr('Hours'),hdr('Share')]);MM.forEach((m,i)=>rows.push([m+' 2024',Math.round(MH[i]*1.5),MH[i],Math.round(MH[i]/31.2*100)+'%']));rows.push([hdr('TOTAL'),30,31.2,'100%'])}
+ if(name==='Weekday x hour'){rows.push([hdr('')].concat([...Array(24)].map((_,h)=>hdr(String(h).padStart(2,'0')))));['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].forEach((d,di)=>rows.push([hdr(d)].concat([...Array(24)].map((_,h)=>{const l=hours[di*24+h];return {v:(l*.35).toFixed(1),c:l}}))))}
+ if(name==='Sessions'){rows.push([hdr('Length'),hdr('Count'),hdr('Share')]);[['20-30 min',5,'17%'],['30-60 min',9,'30%'],['1-2 hours',16,'53%'],['2-4 hours',0,'0%']].forEach(r=>rows.push(r))}
+ if(name==='Logins'){rows.push([hdr('IP address'),hdr('Country'),hdr('Logins'),hdr('First seen'),hdr('Last seen')]);[['192.0.2.xxx','Unknown',34,'2024-01-01','2024-01-23'],['198.51.100.xxx','Unknown',2,'2024-01-12','2024-01-15'],['203.0.113.xxx','Unknown',1,'2024-01-18','2024-01-18']].forEach(r=>rows.push(r))}
+ if(name==='Payments'){rows.push([hdr('Currency'),hdr('Paid orders'),hdr('Failed'),hdr('New'),hdr('Total')]);rows.push(['USD',1,0,0,9.99])}
+ return rows}
+const TABS=['Playtime','Weekday x hour','Sessions','Logins','Payments'];let tab=0;
+function gridHtml(){const rows=sheet(TABS[tab]);const nc=Math.max(...rows.map(r=>r.length));
+ return `<table class="g"><thead><tr><th class="rh"></th>${[...Array(nc)].map((_,i)=>`<th>${cols[i]}</th>`).join('')}</tr></thead><tbody>${rows.map((r,ri)=>`<tr><th class="rh">${ri+1}</th>${r.map((c,ci)=>{const o=typeof c==='object'?c:{v:c};const bg=o.c!==undefined?`style="background:var(--r${o.c});color:${o.c>3?'#fff':'#202124'}"`:'';return `<td class="${o.h?'hd2':''} ${typeof o.v==='number'||/^[\d.]+%?$/.test(String(o.v))?'n':''}" ${bg} onclick="sel(this,'${cols[ci]}${ri+1}',${JSON.stringify(String(o.v)).replace(/"/g,'&quot;')})">${o.v}</td>`}).join('')}</tr>`).join('')}</tbody></table>`}
+function sel(td,ref,val){document.querySelectorAll('.y2 td.sel').forEach(t=>t.classList.remove('sel'));td.classList.add('sel');$('#nm').textContent=ref;$('#fv').textContent=/^[\d.]+$/.test(val)&&ref[0]!=='A'?`=${val}`:val}
+function stab(i){tab=i;$('#gw').innerHTML=gridHtml();document.querySelectorAll('.y2 .tabs a').forEach((a,k)=>a.classList.toggle('on',k===i))}
+function Y2(){tab=0;return `<div class="app t-sheet y2"><div class="mb"><b>📗 Tester - WG export</b><span>File</span><span>Edit</span><span>View</span><span>Data</span><span style="margin-left:auto">${actions}</span></div><div class="fb"><div class="nm" id="nm">A1</div><div class="fx">fx</div><div class="fv" id="fv">Month</div></div><div class="gridw" id="gw">${gridHtml()}</div><div class="tabs">${TABS.map((t,i)=>`<a class="${i?'':'on'}" onclick="stab(${i})">${t}</a>`).join('')}</div></div>`}
+const ST=[['Tester',60,220,'hub','EU · 2024'],['Playtime',230,110,'a','31.2 h'],['Rhythm',400,110,'a','19:00'],['Sessions',570,110,'a','1-2 h'],['Hours/day',740,110,'a','21 days'],['Logins',230,220,'b','3 IPs'],['IP table',430,220,'b','37 logins'],['Payments',230,330,'c','$9.99'],['Vehicles',430,330,'c','none']];
+const LC={a:'#e2231a',b:'#0072bc',c:'#1a9b4b',hub:'#1d1d1b'};
+const BODY={Playtime:()=>server()+tiles()+cal()+legend(),Rhythm:()=>hr()+legend(),Sessions:()=>bars(),'Hours/day':()=>cal()+legend(),Logins:()=>login(),'IP table':()=>login(),Payments:()=>spend(),Vehicles:()=>vehicles(),Tester:()=>`<p>${ident.replace(/<[^>]+>/g,' ')}</p>${actions}`};
+function mpick(n){document.querySelectorAll('.y3 .st').forEach(s=>s.classList.toggle('on',s.dataset.n===n));$('#mp').innerHTML=`<h2>${n}</h2><div class="muted" style="margin-bottom:14px">${ST.find(s=>s[0]===n)[4]}</div><div class="card">${BODY[n]()}</div>`}
+function Y3(){const line=(c,pts)=>`<path d="M${pts.join(' L')}" fill="none" stroke="${LC[c]}" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>`;
+return `<div class="app t-metro y3"><div class="wr"><div class="hd"><h1>Tester's export · network map</h1>${actions}</div><div class="map"><div class="leg" style="padding:8px 14px"><span style="--c:#e2231a">Activity line</span><span style="--c:#0072bc">Logins line</span><span style="--c:#1a9b4b">Money line</span></div>
+<svg viewBox="0 0 900 400">${line('a',['60,220','140,220','190,110','740,110'])}${line('b',['60,220','430,220'])}${line('c',['60,220','140,220','190,330','430,330'])}
+${ST.map(s=>`<g class="st" data-n="${s[0]}" onclick="mpick('${s[0]}')"><circle cx="${s[1]}" cy="${s[2]}" r="${s[3]==='hub'?16:10}" fill="#fff" stroke="${LC[s[3]]}" stroke-width="4"/><text x="${s[1]}" y="${s[2]-26}" text-anchor="${s[3]==='hub'?'start':'middle'}" fill="#1d1d1b">${s[0]}</text><text class="vv" x="${s[1]}" y="${s[2]+34}" text-anchor="${s[3]==='hub'?'start':'middle'}">${s[4]}</text></g>`).join('')}</svg></div>
+<div class="pn" id="mp"><h2>Pick a station</h2><div class="muted">Click any stop on the map to open it.</div></div></div></div>`}
+function after(v){if(v==='y3')mpick('Playtime')}
+
+const R={y1:Y1,y2:Y2,y3:Y3};
+function show(v){$('#root').innerHTML=R[v]();document.querySelectorAll('.variant-tab').forEach(t=>t.classList.toggle('active',t.dataset.v===v));if(window.after)after(v)}
+document.querySelectorAll('.variant-tab').forEach(t=>t.onclick=()=>show(t.dataset.v));
+show('y1');
+</script></body></html>

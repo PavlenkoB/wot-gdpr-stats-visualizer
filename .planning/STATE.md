@@ -1,19 +1,18 @@
 ---
 gsd_state_version: "1.0"
-current_phase: 07
+current_phase: 7
 current_phase_name: Mobile Layout & Public Deploy
-current_plan: 2
-status: executing
-stopped_at: Completed 07-08-PLAN.md
-last_updated: "2026-10-06T05:47:53.199Z"
-last_activity: 2026-10-06
-last_activity_desc: Phase 07 execution started
-state_head: 9f284ce02ce1f1056a43d21f3d276b1de322fb74
+current_plan: Not started
+status: "Phase 8 shipped — PR #11"
+stopped_at: Phase 08 complete, ready to plan Phase 7
+last_updated: "2026-10-09T19:03:30.567Z"
+last_activity: 2026-10-09
+state_head: d599f53425bcd38849dff2372cc6b25ce6fb75b7
 progress:
-  total_phases: 7
+  total_phases: 8
   completed_phases: 5
-  total_plans: 86
-  completed_plans: 86
+  total_plans: 108
+  completed_plans: 108
   percent: 71
 last_session_stopped_at: Completed 06-07-PLAN.md
 last_session_resume_file: None
@@ -28,16 +27,16 @@ last_session_06_plan_05: "Phase 06 plan 05 executed — the worker-side source s
 See: .planning/PROJECT.md (updated 2026-09-27)
 
 **Core value:** Your data never leaves your machine. Zero network requests after page load, enforced by CI and a CSP.
-**Current focus:** Phase 07 — Mobile Layout & Public Deploy
+**Current focus:** Phase 08 — Master-detail UI redesign
 
 ## Current Position
 
-Phase: 07 (Mobile Layout & Public Deploy) — EXECUTING
-Plan: 2 of 8
-Current Plan: 2
-Total Plans in Phase: 8
-Status: Ready to execute
-Last activity: 2026-10-06 — Phase 07 execution started
+Phase: 7 — Mobile Layout & Public Deploy
+Plan: 4 of 22
+Current Plan: Not started
+Total Plans in Phase: 22
+Status: Phase 8 shipped — PR #11
+Last activity: 2026-10-09
 Previous activity (07-02): 2026-10-05 — 07-02 executed: deploying is a deliberate manual dispatch that cannot ship an commit CI has not verified. `.github/workflows/deploy.yml` is a NEW file triggered ONLY by `workflow_dispatch` with no inputs, and `ci.yml` is not edited by this plan at all (D-09 amends SC3: push to main runs CI; publishing is a separate, deliberate act). Its first job refuses any ref but `refs/heads/main` AND any commit without a successful `ci.yml` PUSH run on main for that exact `head_sha` — the push filter is load-bearing, because a pull-request run of `ci.yml` carries the PR's head commit rather than the commit that landed on main, so accepting any successful run would let an unmerged branch look verified. Every job runs on `ubuntu-latest`, never self-hosted; top-level permissions are empty and `pages: write` + `id-token: write` appear ONLY on the deploy job, beside the `github-pages` environment. No run block interpolates a `${{ }}` expression — every value a script needs arrives through `env` — and no dispatch input exists to inject. **The build job's ORDER is the whole point**, and it is asserted rather than documented: resolve the DB-IP month, restore the city cache by that month, generate the real dataset only on a cache miss, build, read this build's hashed entry script out of `dist/index.html`, install Chromium, run the pre-deploy gate, and only then upload `dist` and nothing else. The month comes from `scripts/geo/resolve-dbip-month.ts`, which calls the DOWNLOAD's own `resolveDbipUrl` rather than re-deriving the month, because a cache key is what a restore is asked for and the key must not be able to disagree with the file (run for real: `2026-10`). The cache declares no prefix-fallback list, and only this main-only workflow writes it. The post-deploy smoke is its OWN least-privilege job, not a step in `deploy`, because a step could only be reported while a job fails the run — and the run's red state IS the report. It first waits boundedly until the live HTML contains this build's hashed entry script, so a stale copy of an older deploy cannot produce a false green, then runs the shared `deployed-build.spec.ts` through `playwright.live.config.ts`, which differs from the gate config in exactly one thing: its `baseURL`. **The transferable finding: a workflow nobody can run before merge is still a unit-testable artifact, and the mutations found three things review would not have.** Reading the `on:` block with a fixed-arity regex reported a `push` trigger as ABSENT, because `push:` brings `branches:` and `workflow_dispatch:` brings `inputs:`, both indented deeper — indentation delimits a YAML block, not arity. A rule keyed on a variable's NAME misses the fault it exists to catch when that fault is pasting an expression into a command, because the edit removes the name from the line, so the smoke rules key on the output EXPRESSION instead. And `-le 999999` satisfies "has an upper bound" while being a hang, so the wait bound is capped at 100 attempts. A fourth is about assertion shape: one fault can legitimately trip several rules, so the mutation assertions come in two forms — `rejects` (only this rule fires) and `namesRule` (this rule is among those that fire) — and demanding exactly one problem would have pushed a future edit toward weakening a rule to make a count come out right. 57 guard tests, 46 of them mutations of the real file; no YAML library and no dependency. The live config was proven for real against a locally served build (5 tests green at `http://localhost:4173/wot-gdpr-stats-visualizer/`) and the wait script's grep was run against that page with a real entry name. The unit suite is 2483 green across 80 files; `pnpm run check` and `pnpm run lint` clean; `ci.yml`, `playwright.config.ts`, `ci-budget.test.ts`, `package.json` and `pnpm-lock.yaml` all untouched, and **no e2e budget limit moved** (still 239 tests / 23 files, E = 1243 s). PLATFORM-03 stays Pending: 07-06 also declares it, and the shared-ID gate holds it until that plan finishes. The first real dispatch cannot happen before merge — it is 07-06's checklist item.
 Previous activity (07-03): 2026-10-05 — 07-03 executed: the shared chart tooltip now has a touch behaviour, and the mechanism is general over any anchor so 07-04 is three more `data-tooltip-surface` attributes and the same five assertions. `chromium-mobile` is Desktop Chrome at 375x812 with `isMobile` + `hasTouch` — **not** a Playwright device descriptor, because one of those carries a WebKit default browser, WebKit is not installed in CI, and this project is Chrome-first — and the `touch-` filename prefix is the whole routing contract (`testMatch` on the touch project, `testIgnore` on `chromium`), so every spec still runs exactly once and a misfiled touch spec cannot pass on a mouse-capable browser. The tap opens the tooltip on PRESS, not on over: a tap fires over, down, up and out in that order, and the out half was closing what the over half had opened, so both pointer handlers now return immediately for a touch pointer and the press resolves the cell itself (an inline arrow had no way to read `pointerType`, so the press became a named function and the Phase 4 source-contract test moved from an inline-arrow regex to the file's own `handler()` extraction to assert the same two facts). The two decisions are pure functions in `src/lib/charts/tooltip-pin.ts` because no component here can be rendered in a unit test, and they are the only two decisions there are — 29 cases cover all eight rows of `touchTapAction` and all seven of `pinOutcome`, plus the wiring contracts. **The finding worth carrying into 07-04: a touch-origin flag must be cleared by INPUT, never by a state change.** One tap is TWO transitions, not one — the press opens the tooltip, and because every cell is focusable the engine's own focus handling opens it again against the same cell — so a flag consumed by the first transition made the second read as a MOUSE open and the tooltip un-pinned itself inside the gesture that pinned it. Tap-again did nothing and the silent scroll dismissal never cleared the live region, and both were found by the plan's own specs rather than by judgement. Relatedly, a silent dismissal announces the **empty string**, a third outcome and not a weaker `null`: a live region still holding "Tooltip pinned." will not announce that text a second time, so a scroll that said nothing at all would make every later pin silent. The three document listeners are on `svelte:document` with capture-suffixed attributes — capture is required, not preferred, because a tap on a pinned anchor has to stop before the chart's own delegated press handler reopens what it just closed, and by the bubble phase that decision is already made. The announcement region is page-level, not per-block: the three tooltip owners sit in three sections, and a region inside any one of them would break the Playtime block's own contract of exactly one `aria-live` inside itself; the page-wide count is 5 after an import and 1 before one. **The e2e budget is at its ceiling: no limit moved, and 239 listed tests is the LAST count 27 min covers** (240 projects a 1622.4 s floor against a 1620 s `globalTimeout`), so 07-04 must raise all three limits together. `playwright test --list` counts BOTH projects, which is why five new touch specs are five new listed tests and the desktop project lost nothing. The unit suite is 2426 green across 79 files; the full browser suite is 239 green in 1.5 min; `pnpm run check` and `pnpm run lint` clean; no dependency added and `ui-copy.ts` untouched.
 Previous activity (07-01): Phase 07 plan 01 executed — the Pages subpath base and the pre-deploy gate.
@@ -51,7 +50,7 @@ Progress: [███████░░░] 71% (5 of 7 phases complete)
 
 **Velocity:**
 
-- Total plans completed: 69
+- Total plans completed: 91
 - Average duration: -
 - Total execution time: 0.0 hours
 
@@ -65,6 +64,7 @@ Progress: [███████░░░] 71% (5 of 7 phases complete)
 | 4 | 16 | - | - |
 | 05 | 19 | - | - |
 | 6 | 17 | - | - |
+| 08 | 22 | - | - |
 
 **Recent Trend:**
 
@@ -125,8 +125,33 @@ Progress: [███████░░░] 71% (5 of 7 phases complete)
 | Phase 07 P06 | 9 min | 2 tasks | 2 files |
 | Phase 07 P07-07 | 25min | 2 tasks | 2 files |
 | Phase 07 P08 | 30min | 3 tasks | 6 files |
+| Phase 08 P01 | ~20min | 3 tasks | 6 files |
+| Phase 08 P02 | 45min | 3 tasks | 9 files |
+| Phase 08 P03 | 25 min | 3 tasks | 7 files |
+| Phase 08 P04 | 7 min | 3 tasks | 6 files |
+| Phase 08 P05 | 5 min | 2 tasks | 5 files |
+| Phase 08 P06 | 9 min | 3 tasks | 12 files |
+| Phase 08 P07 | 9 min | 3 tasks | 17 files |
+| Phase 08 P08 | 6 min | 3 tasks | 1 files |
+| Phase 08 P09 | 8 min | 3 tasks | 3 files |
+| Phase 08 P10 | 6 min | 2 tasks | 2 files |
+| Phase 08 P11 | 6 min | 3 tasks | 3 files |
+| Phase 08 P12 | 9 min | 3 tasks | 2 files |
+| Phase 08 P13 | 12 min | 3 tasks | 3 files |
+| Phase 08 P14 | 6min | 2 tasks | 2 files |
+| Phase 08 P15 | 12 min | 3 tasks | 1 files |
+| Phase 08 P16 | 10 min | 3 tasks | 2 files |
+| Phase 08 P17 | 12 min | 3 tasks | 1 files |
+| Phase 08 P18 | 40 min | 3 tasks | 4 files |
+| Phase 08 P19 | 20 min | 2 tasks | 2 files |
+| Phase 08 P20 | 45m | 3 tasks | 11 files |
+| Phase 08 P21 | 25m | 3 tasks | 9 files |
 
 ## Accumulated Context
+
+### Roadmap Evolution
+
+- Phase 8 added: Master-detail UI redesign (2026-10-07). Design chosen from sketches 001-021 (winner: sketch 021, light + rows + heatmap; see `.claude/skills/sketch-findings-wot-gdpr-stats-visualizer/`). Depends on Phase 7 finishing, since both rewrite the mobile layout.
 
 ### Decisions
 
@@ -335,6 +360,36 @@ CI budget at 07-03: no limit moved. `playwright test --list` counts BOTH project
 - [Phase 07]: 07-06: PLATFORM-03 not marked Complete - its wording is 'Deployed to GitHub Pages' and no deploy can happen before merge to main and the owner-only Pages settings (D-12 deferred)
 - [Phase 07]: 07-07: phone-width nav link centred with calc block padding, never a flex/grid container, so status-suffix span stays inline and accessible name is exact (GAP-WR01)
 - [Phase 07]: 07-08: isolation: isolate on all four table .scroller rules (nav z-index not raised, would cover the z-index 2 chart tooltip); CityList/CountryList covered by source guard only
+- [Phase 08]: Selection and phone view carry a dataset stamp (importedAt): any dataset change resets to Overview/list, and a user click on a muted pane is never vetoed
+- [Phase 08]: stepSelection clamps over the eight panes rather than wrapping, and reaches muted rows
+- [Phase 08]: Playtime and Login history both map to activity-history so they are muted or available together
+- [Phase 08]: 08-02: remaining pane branches landed with the Task 2 helpers because the (mount)/(lifecycle) tests open Finance; sectionProps(id, pane) gives Playtime and Login history their own headings over one section id
+- [Phase 08]: 08-03: DetailPane root stays in the DOM on the phone list screen; only its content is gated on detailMounted (tables measure clientHeight once at mount)
+- [Phase 08]: 08-03: j/k selection never changes the phone screen; pointer selection, Enter and the skip link open the detail screen
+- [Phase 08]: Plan 08-04: the empty state wraps the single import region in empty-state / dropzone-main with a plain role-less div, and the list-pane home is a ListPane wrapper (.import-region, margin-top auto, top rule), so the region renders in exactly one place and ImportBar stays container-agnostic. Clear my cached data is restyled through its test-id attribute selector so no ImportBar markup line changed. Focus-driven scrolls are smooth (html scroll-behavior), so geometry assertions on a just-focused element must poll.
+- [Phase 08]: 08-05: Overview chips count absent (no-export) and empty (zero rows) apart; a present zero-row pane is in neither chip (DATA-04) — Chips and cards are filters over paneEntries; Overview issues no worker query and is counts-based, previews deferred
+- [Phase 08]: 08-06: the About-this disclosure wraps only keyboard hints and the conditional hour-grid start-basis note; basis captions, the duration explanation and the map DB-IP attribution stay visible (Phase 4 D-01/D-05 and a licence obligation)
+- [Phase 08]: 08-06: tile phone numerals shrink in each component's own 480px rule; the UI-SPEC 3-up phone tile row and uppercase label are not applied (96px tracks do not fit a 14px uppercase label; pinned 128px tracks give two per row)
+- [Phase 08]: 08-07: scrollClear measures only [data-sticky-chrome] and --nav-offset is 16px, so the 100vh sticky list nav can never scroll the page on a chart keyboard move; ConfirmPanel focus rings tokenised to var(--focus) so blue is confined to ImportBar, Dropzone and App.svelte
+- [Phase 08]: 08-08: dashboard.spec.ts per-pane re-derivation; the old Activity_history 8 buttons are 0 on Playtime plus 8 on Login history, (skip) opens every other pane for its no-other-skip claim, and the state matrix compares list-row text because rows stay mounted when sections do not
+- [Phase 08]: 08-09: the Account list row is asserted by location code and ACCOUNT_ROW_SUMMARY (not folder counts); the privacy scan in import-flow (g) loops all eight panes
+- [Phase 08]: 08-10: scanEveryPane loops PANE_IDS (muted panes included) and asserts the nickname exactly once in each pane's rendered text; zero-network flows open the owning pane first and re-open vehicles, finance and payments after the replace lands on Overview
+- [Phase 08]: 08-11: playtime-scale uses a spec-local landed-wait with the caller's budget because waitForImported is fixed at 30 s and the 60,000-session import exceeds it
+- [Phase 08]: 08-12: the stuck year head is asserted at computed top 0px and viewport top; the parked-cell test keeps its three setup guards and real ArrowUp press, parking 12px below the viewport top
+- [Phase 08]: 08-12: the 375px head-taller-than-1280px claim became head taller than declared 32px at both widths, since the 343px detail pane fits the summary on one line
+- [Phase 08]: Plan 08-13: the masked-address attribute walk covers the block, detail pane, list pane and identity header, each asserted present before walking
+- [Phase 08]: Plan 08-13: a phone-width check of in-flight block state starts the action at 375px, since the phone list screen unmounts the detail content
+- [Phase 08]: 08-14: the topmost-country map tooltip is asserted at the 16px + 8px flip threshold from both sides (12px short flips below, 12px past stays above with 24px clearance), so a returning 72px nav offset would fail it
+- [Phase 08]: 08-14: the 375px map frame bounds follow the 343px detail pane (no card padding): 330 < width <= 343.5
+- [Phase 08]: 08-15: tooltip clip test states the flip as anchor.top - height - 8 < 16 + 8 with temporary body padding; right-edge check allows 0.5px for the integer offsetWidth clamp
+- [Phase 08]: 08-16: finance-scale waits for the import landing with its own READY_BUDGET_MS (60 s) instead of waitForImported, since the 50,000-operation import measured 25-27 s against the helper's fixed 30 s
+- [Phase 08]: 08-16: spend (no-blended) refuses blended figures on Overview, Finance and Payments surfaces, widening the attribute scan to the whole page
+- [Phase 08]: 08-17: the 5,000-vehicle scale describe lands with its own 60 s budget (spec-local, helpers.ts untouched); the retired nav-overlap poll is replaced by an elementFromPoint check on the stuck header at both widths
+- [Phase 08]: 08-18: UAT-3 lands its 60k import with a spec-local 90 s budget instead of editing helpers.ts; the sweep's expectPresent polls
+- [Phase 08]: 08-19: all three CI e2e limits (29/31/39 min) HELD; phase ends at 252 listed tests (ceiling 258), pinned by ci-budget 'phase 8 holds all three limits'
+- [Phase 08]: 08-19: never run the unit suite concurrently with Playwright; webserver-teardown.test.ts SIGKILLs port 4173
+- [Phase 08]: [08-20] Chart fill layout applies only when the measured plot is strictly greater than today's plot; slots in whole pixels, bars capped at 32px and centred, 8px right pad, no upper width bound, label stride keyed to today's pitch
+- [Phase 08]: 08-21: heatmaps fill only when plot beats today's (calendar 594, hour grid 576); row pitch capped 24/48, columns always fill the pane; no upper width bound
 
 ### Pending Todos
 
@@ -427,6 +482,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-06T05:47:53.140Z
-Stopped at: Completed 07-08-PLAN.md
+Last session: 2026-10-08T14:53:42.022Z
+Stopped at: Phase 08 complete, ready to plan Phase 7
 Resume file: None

@@ -100,6 +100,21 @@ import config from '../../../playwright.config';
 // so G = 29, W = 31 and J = 39, all three moved together, and 29 min holds up
 // to 258 listed tests.
 //
+// Phase 8 (the master-detail redesign) HELD all three limits. It deleted the
+// 20-test anchor-nav spec and added a 15-test master-detail-nav spec, and no
+// migrated spec added a test, so the phase ends BELOW where it started
+// (257 at the phase base - 20 + 15 = 252). L = 252 tests in 25 files, MEASURED
+// at the end of 08-19 Task 1:
+//
+//   E = 330 + 5 * (252 - 86 - 5 - 5 - 5) + 120 + 90 + 13
+//     = 330 + 755 + 223
+//     = 1308 s
+//   1.3 * E = 1700.4 s, and ceil(1700.4 / 60) = 29 min
+//
+// so G = 29, W = 31 and J = 39 stay exactly where 07-05 left them (39.6 s of
+// slack against the 1740 s globalTimeout), and 258 listed tests remains the
+// ceiling. A count above 258 needs all three raised together, never one.
+//
 // Every constant below is either MEASURED in this repository or an ESTIMATE
 // carried forward from an earlier phase, and is labelled as such. The
 // estimation lives here, not in a comment, because `globalTimeout` is
@@ -303,6 +318,11 @@ describe('CI e2e budget', () => {
     // - 5) + 120 + 90 + 13 = 1303. The floor is 1693.9 s, past the 1680 s that
     // 28 min gave, so this is the raise 07-04 predicted.
     expect(projectedE2eSeconds(251)).toBe(1303);
+    // The 252-test shape MEASURED at the end of 08-19 Task 1, after the phase
+    // deleted the 20-test nav spec and added a 15-test one: 330 + 5 * (252 - 86
+    // - 5 - 5 - 5) + 120 + 90 + 13 = 1308. The floor is 1700.4 s, which 29 min
+    // (1740 s) still covers, so the three limits were held.
+    expect(projectedE2eSeconds(252)).toBe(1308);
     // The 184-test shape of 05-16 under THIS function, which now also holds the
     // login block back: 330 + 5 * (184 - 86 - 5 - 5 - 5) + 120 + 90 + 13 = 968.
     expect(projectedE2eSeconds(184)).toBe(968);
@@ -332,6 +352,24 @@ describe('CI e2e budget', () => {
         `${e} s for ${total} listed tests; the smallest passing whole number of minutes ` +
         `is ${smallestPassingMinutes(e)}.`,
     ).toBeGreaterThanOrEqual(e * MIN_GLOBAL_MARGIN);
+  });
+
+  test('phase 8 holds all three limits', () => {
+    const { wrapperSeconds, jobSeconds } = workflowTimeouts();
+    const raiseRule =
+      'Phase 8 held G = 1740 s, W = 1860 s and J = 2340 s. A listed count above 258 needs all ' +
+      'three raised together (G + 2 min, W + 8 min per the rule in this file), never one.';
+
+    expect(globalTimeoutSeconds(), raiseRule).toBe(1740);
+    expect(wrapperSeconds, raiseRule).toBe(1860);
+    expect(jobSeconds, raiseRule).toBe(2340);
+
+    const { total } = listedTestTotal();
+    expect(
+      total,
+      `${total} listed tests is above the 258-test ceiling of a 1740 s globalTimeout ` +
+        `(E = ${projectedE2eSeconds(total)} s, floor ${projectedE2eSeconds(total) * MIN_GLOBAL_MARGIN} s). ${raiseRule}`,
+    ).toBeLessThanOrEqual(258);
   });
 
   test('the shell wrapper outlives globalTimeout by at least 90 s', () => {

@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sketch 014 - Master-detail round 2</title>
+<link rel="stylesheet" href="../themes/default.css">
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding-top:48px;font-family:system-ui,sans-serif}
+#variant-nav{position:fixed;top:0;left:0;right:0;z-index:9998;background:#fff;border-bottom:1px solid #e5e5e5;padding:8px 16px;display:flex;gap:8px;overflow-x:auto}
+.variant-tab{border:1px solid #ccc;background:#fff;border-radius:6px;padding:6px 12px;cursor:pointer;white-space:nowrap;transition:all .15s ease}
+.variant-tab:hover{background:#f0f0f0}.variant-tab.active{background:#111;color:#fff;border-color:#111}
+#sketch-tools{position:fixed;bottom:12px;right:12px;z-index:9999;font:12px system-ui;background:rgba(0,0,0,.7);color:#fff;padding:8px 12px;border-radius:8px;opacity:.4;transition:opacity .2s;display:flex;gap:6px;align-items:center}
+#sketch-tools:hover{opacity:1}#sketch-tools button{font:inherit;cursor:pointer}
+#frame{margin:0 auto;transition:max-width .2s}
+
+/* shared page */
+.app{background:var(--bg);color:var(--text);font-family:var(--font);min-height:calc(100vh - 48px);font-size:14px;line-height:1.5}
+.app h1,.app h2,.app h3{font-family:var(--head);margin:0}
+.muted{color:var(--muted)}
+.btn{font:inherit;border:1px solid var(--border);background:var(--surface2);color:var(--text);border-radius:8px;padding:7px 14px;cursor:pointer;transition:all .15s ease}
+.btn:hover{border-color:var(--primary);color:var(--primary)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.primary:hover{filter:brightness(1.1);color:#fff}
+select,input.search{font:inherit;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 10px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px}
+.card h2{font-size:16px;margin-bottom:2px}
+.card .sub{color:var(--muted);font-size:13px;margin-bottom:14px}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
+.tile{background:var(--surface2);border-radius:calc(var(--radius) - 2px);padding:14px 16px}
+.tile .k{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+.tile .v{font-size:30px;font-weight:var(--numw);font-family:var(--head);line-height:1.2}
+.tile .v small{font-size:13px;color:var(--muted);font-weight:400}
+.hm{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,1fr);gap:3px;margin:10px 0}
+.hm i{aspect-ratio:1;border-radius:2px;min-width:8px}
+.hh{display:grid;grid-template-columns:repeat(24,1fr);gap:3px;margin:10px 0}
+.hh i{height:16px;border-radius:2px}
+.legend{display:flex;gap:4px;align-items:center;color:var(--muted);font-size:12px}
+.legend i{width:14px;height:14px;border-radius:2px}
+.bars div{display:grid;grid-template-columns:70px 1fr 70px;gap:10px;align-items:center;font-size:12px;color:var(--muted);padding:2px 0}
+.bars b{display:block;height:10px;border-radius:5px;background:var(--r4)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;color:var(--muted);font-weight:500;font-size:12px;padding:8px 6px;border-bottom:1px solid var(--border)}
+td{padding:9px 6px;border-bottom:1px solid var(--border)}
+tr:hover td{background:var(--surface2)}
+.chip{font-size:11px;padding:2px 8px;border-radius:99px;background:var(--surface2);border:1px solid var(--border);color:var(--muted)}
+.note{font-size:12.5px;color:var(--muted);max-width:60ch}
+.stat-row{display:flex;gap:6px;align-items:baseline}
+.avatar{width:44px;height:44px;border-radius:50%;background:var(--primary);color:#fff;display:grid;place-items:center;font-weight:700;font-size:18px}
+.toast{position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:8px 16px;border-radius:8px;z-index:9999;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+
+.det h2{font-size:24px;margin-bottom:4px}.det .card{border:0;padding:0;background:none}.det>*{margin-bottom:18px}.off{opacity:.45}
+/* U1 top KPI chips + detail */
+.u1 .chips{display:flex;gap:10px;padding:16px 24px;overflow-x:auto;border-bottom:1px solid var(--border);background:var(--surface)}
+.u1 .chip2{flex:1;min-width:150px;border:1px solid var(--border);border-radius:14px;padding:12px 16px;cursor:pointer;transition:all .15s;background:var(--bg)}
+.u1 .chip2:hover{border-color:var(--primary)}.u1 .chip2.on{background:var(--primary);color:#fff;border-color:var(--primary)}.u1 .chip2.on .l{color:rgba(255,255,255,.8)}
+.u1 .chip2 .l{font-size:12px;color:var(--muted)}.u1 .chip2 .v{font-size:26px;font-weight:700}
+.u1 .hd{display:flex;justify-content:space-between;align-items:center;padding:16px 24px 0;gap:12px;flex-wrap:wrap}.u1 .hd h1{font-size:20px}
+.u1 .det{max-width:1000px;margin:0 auto;padding:24px}
+/* U2 inbox j/k with properties panel */
+.u2{display:grid;grid-template-columns:300px minmax(0,1fr) 240px;height:calc(100vh - 48px)}
+.u2 .ls{border-right:1px solid var(--border);overflow:auto;background:var(--surface)}.u2 .ls .sr{padding:10px;border-bottom:1px solid var(--border)}.u2 .ls input{width:100%;font:inherit;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text)}
+.u2 .it{padding:11px 14px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;gap:10px;align-items:center;transition:background .12s}.u2 .it:hover{background:var(--surface2)}.u2 .it.on{background:var(--surface2);box-shadow:inset 3px 0 0 var(--primary)}
+.u2 .it .m{flex:1}.u2 .it b{font-size:14px;display:block}.u2 .it small{color:var(--muted)}.u2 .it .v{font-weight:700;color:var(--primary)}
+.u2 .it kbd{font-size:10px;border:1px solid var(--border);border-radius:4px;padding:0 5px;color:var(--muted)}
+.u2 .dt{overflow:auto;padding:26px 30px}.u2 .pp{border-left:1px solid var(--border);padding:20px;background:var(--surface);overflow:auto;font-size:13px}
+.u2 .pp h4{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 8px}.u2 .pp .row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--border)}.u2 .pp .row b{font-weight:600}
+.u2 .hint{padding:8px 14px;font-size:11px;color:var(--muted)}
+/* U3 compare pins */
+.u3{display:grid;grid-template-columns:320px 1fr;height:calc(100vh - 48px)}
+.u3 .ls{border-right:1px solid var(--border);overflow:auto;background:var(--surface2);padding:14px;display:grid;gap:8px;align-content:start}
+.u3 .ls .t{font-size:12px;color:var(--muted);padding:2px 4px}
+.u3 .it{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;cursor:pointer;display:flex;gap:10px;align-items:center;transition:all .15s}
+.u3 .it:hover{border-color:var(--primary)}.u3 .it.on{border-color:var(--primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 22%,transparent)}
+.u3 .it input{accent-color:var(--primary);width:18px;height:18px}.u3 .it .m{flex:1}.u3 .it b{display:block;font-size:14px}.u3 .it small{color:var(--muted)}.u3 .it .v{font-weight:700}
+.u3 .dt{overflow:auto;padding:18px;display:grid;gap:16px;align-content:start}.u3 .dt.two{grid-template-columns:1fr 1fr}
+.u3 .pane{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;min-width:0}.u3 .pane h2{font-size:20px;display:flex;justify-content:space-between;align-items:center}
+.u3 .pane h2 button{all:unset;cursor:pointer;color:var(--muted);font-size:13px}.u3 .pane h2 button:hover{color:var(--text)}
+.u3 .empty{color:var(--muted);text-align:center;padding:60px 20px;border:2px dashed var(--border);border-radius:16px}
+.u3 .hm i,.u3 .hh i{min-width:0}
+@media(max-width:700px){.u2,.u3{grid-template-columns:1fr;height:auto}.u2 .pp{display:none}.u2 .ls,.u3 .ls{max-height:300px}.u3 .dt.two{grid-template-columns:1fr}}
+
+@media(max-width:700px){.tile .v{font-size:22px}}
+</style></head><body>
+<div id="variant-nav"><button class="variant-tab active" data-v="u1">Q2d: KPI chips on top</button><button class="variant-tab" data-v="u2">Q2e: Inbox j/k + properties</button><button class="variant-tab" data-v="u3">Q2f: Compare two sections</button><span style="margin-left:auto;color:#888;align-self:center;font-size:12px">Q2e: press j / k; Q2f: tick two boxes</span></div>
+<div id="frame"><div id="root"></div></div>
+<div id="sketch-tools"><button onclick="vp('100%')">Desktop</button><button onclick="vp('768px')">Tablet</button><button onclick="vp('375px')">Phone</button></div>
+<div class="toast" id="toast"></div>
+<script>
+const $=s=>document.querySelector(s);
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');setTimeout(()=>e.classList.remove('on'),1400)}
+function vp(w){$('#frame').style.maxWidth=w}
+let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+const days=[...Array(53*7)].map((_,i)=>{const r=rnd();return i>300?0:r<.45?0:Math.min(5,1+Math.floor(r*5.5))});
+const hours=[...Array(7*24)].map((_,i)=>{const h=i%24;const peak=(h>=18&&h<=22)?1:(h>=9&&h<=11?.5:0);const r=rnd();return r<.15+(1-peak)*.6?0:Math.min(5,Math.ceil(r*5*Math.max(peak,.3)))});
+const lv=l=>`background:var(--r${l})`;
+const cal=()=>`<div class="hm">${days.map(l=>`<i style="${lv(l)}" title="level ${l}"></i>`).join('')}</div>`;
+const hr=()=>`<div class="hh">${hours.map(l=>`<i style="${lv(l)}"></i>`).join('')}</div>`;
+const legend=()=>`<div class="legend">Less ${[0,1,2,3,4,5].map(l=>`<i style="${lv(l)}"></i>`).join('')} More</div>`;
+const bars=()=>`<div class="bars">${[['< 1 min',0],['20-30 min',30],['30-60 min',55],['1-2 hours',100],['2-4 hours',22]].map(([n,w])=>`<div><span>${n}</span><b style="width:${w}%;opacity:${w?1:.15}"></b><span>${w?Math.round(w/2.3):0}</span></div>`).join('')}</div>`;
+const tiles=()=>`<div class="tiles"><div class="tile"><div class="k">Total playtime</div><div class="v">31.2 <small>hours</small></div></div><div class="tile"><div class="k">Sessions</div><div class="v">30</div></div><div class="tile"><div class="k">Active days</div><div class="v">21</div></div></div>`;
+const server=()=>`<div style="display:flex;gap:10px;margin-bottom:14px"><select onchange="toast('Server: '+this.value)"><option>All servers</option><option>EU1</option><option>EU2</option><option>NA1</option></select><span class="chip" style="align-self:center">1 session excluded</span></div>`;
+const login=()=>`<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px"><span class="note">IP addresses are masked. The last part of each one is hidden.</span><button class="btn" id="ipbtn" onclick="ipToggle(this)">Show full IP addresses</button></div>
+<div class="tiles"><div class="tile"><div class="k">IP addresses</div><div class="v">3</div></div><div class="tile"><div class="k">Countries</div><div class="v">0</div></div><div class="tile"><div class="k">Unknown</div><div class="v">3</div></div></div>
+<table><thead><tr><th>IP address</th><th>Country</th><th>Logins</th><th>First seen</th><th>Last seen</th></tr></thead><tbody>
+${[['34','192.0.2','2024-01-01','2024-01-23'],['2','198.51.100','2024-01-12','2024-01-15'],['1','203.0.113','2024-01-18','2024-01-18']].map(r=>`<tr><td class="ip" data-p="${r[1]}">${r[1]}.xxx</td><td><span class="chip">Unknown</span></td><td>${r[0]}</td><td>${r[2]}</td><td>${r[3]}</td></tr>`).join('')}</tbody></table>
+<div style="margin-top:14px"><button class="btn primary" onclick="toast('Would download ~12 MB city file')">Load city-level detail (~12 MB)</button> <span class="note">Nothing from your export is sent.</span></div>`;
+function ipToggle(b){const s=b.textContent.startsWith('Show');document.querySelectorAll('.ip').forEach(c=>c.textContent=c.dataset.p+(s?'.17':'.xxx'));b.textContent=s?'Hide full IP addresses':'Show full IP addresses'}
+const spend=()=>`<div class="tiles" style="grid-template-columns:1fr 1fr 1fr"><div class="tile"><div class="k">USD spent</div><div class="v">9.99</div></div><div class="tile"><div class="k">Paid orders</div><div class="v">1</div></div><div class="tile"><div class="k">Failed / new</div><div class="v">0 / 0</div></div></div><p class="note">Each currency has its own total: nothing is converted or added across currencies.</p>`;
+const vehicles=()=>`<div style="display:flex;gap:10px;margin-bottom:12px"><select><option>WoT</option></select><input class="search" placeholder="Search vehicles"></div><p class="note">WoT is not in this export.</p>`;
+const NAV=[['Playtime & logins','on'],['Vehicles',''],['Finance','off'],['Payments',''],['Account','']];
+const ident=`<div class="avatar">T</div><div><h1>Tester</h1><div class="muted">Account 123456789 · EU · created 2024-01-01</div></div>`;
+const actions=`<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="toast('Start over?')">Start over</button><button class="btn" onclick="toast('Cache cleared')">Clear cached data</button></div>`;
+const secs={play:`<div class="card wide c12"><h2>Playtime</h2><div class="sub">When and how long you played</div>${server()}${tiles()}</div>`};
+const SECS=[['Playtime','31.2 h','30 sessions · 21 days',()=>server()+tiles()+cal()+legend()],['Weekday & time','19:00','busiest hour',()=>hr()+legend()],['Session length','1-2 h','typical session',()=>bars()],['Login history','3 IPs','37 logins',()=>login()],['Vehicles','—','not in this export',()=>vehicles()],['Payments','$9.99','1 paid order',()=>spend()]];
+let sel=0,pins=[0];
+const body=i=>`<h2>${SECS[i][0]}</h2><div class="muted">${SECS[i][2]}</div><div class="card" style="margin-top:16px">${SECS[i][3]()}</div>`;
+function pick(i){sel=i;document.querySelectorAll('.pickable').forEach((r,k)=>r.classList.toggle('on',k===i));const d=$('#det');if(d)d.innerHTML=body(i);const p=$('#pp');if(p)p.innerHTML=props()}
+function U1(){sel=0;return `<div class="app t-cl u1"><div class="hd"><h1>Tester <span class="muted" style="font-weight:400;font-size:13px">123456789 · EU</span></h1>${actions}</div><div class="chips" style="margin-top:12px">${SECS.map((s,i)=>`<div class="chip2 pickable ${i?'':'on'} ${s[0]==='Vehicles'?'off':''}" onclick="pick(${i})"><div class="l">${s[0]}</div><div class="v">${s[1]}</div></div>`).join('')}</div><div class="det" id="det">${body(0)}</div></div>`}
+const props=()=>{const s=SECS[sel];return `<h4>Properties</h4><div class="row"><span>Section</span><b>${s[0]}</b></div><div class="row"><span>Headline</span><b>${s[1]}</b></div><div class="row"><span>Rows used</span><b>${['31','168 cells','30','37','0','1'][sel]}</b></div><div class="row"><span>Excluded</span><b>${sel===0?'1 session':'none'}</b></div><div class="row"><span>Source</span><b>${['Sessions.csv','Sessions.csv','Sessions.csv','Logins.csv','—','Orders.csv'][sel]}</b></div><h4 style="margin-top:22px">Notes</h4><p class="note">${['Overlapping sessions across servers are merged in All.','Shown as recorded, not converted to local time.','Bin widths grow so short and long sessions are both visible.','Last part of each address is masked until revealed.','Not in this export.','Currencies are never added together.'][sel]}</p>`};
+function U2(){sel=0;return `<div class="app t-md u2"><div class="ls"><div class="sr"><input placeholder="Filter sections..." oninput="flt(this.value)"></div><div id="lst">${lst('')}</div><div class="hint"><kbd>j</kbd> next · <kbd>k</kbd> previous</div><div style="padding:12px">${actions}</div></div><div class="dt" id="det">${body(0)}</div><div class="pp" id="pp">${props()}</div></div>`}
+const lst=q=>SECS.map((s,i)=>[s,i]).filter(([s])=>s[0].toLowerCase().includes(q.toLowerCase())).map(([s,i])=>`<div class="it pickable ${i===sel?'on':''} ${s[0]==='Vehicles'?'off':''}" onclick="pick(${i})"><div class="m"><b>${s[0]}</b><small>${s[2]}</small></div><span class="v">${s[1]}</span></div>`).join('');
+function flt(q){$('#lst').innerHTML=lst(q)}
+document.addEventListener('keydown',e=>{if(!$('.u2')||['INPUT','SELECT'].includes(document.activeElement.tagName))return;if(e.key==='j')pick(Math.min(SECS.length-1,sel+1));if(e.key==='k')pick(Math.max(0,sel-1))});
+function U3(){pins=[0];return `<div class="app t-cl u3"><div class="ls"><div class="t">Tick up to two sections to compare side by side</div>${SECS.map((s,i)=>`<label class="it ${pins.includes(i)?'on':''} ${s[0]==='Vehicles'?'off':''}" id="u3i${i}"><input type="checkbox" ${pins.includes(i)?'checked':''} onchange="pin(${i},this.checked)"><span class="m"><b>${s[0]}</b><small>${s[2]}</small></span><span class="v">${s[1]}</span></label>`).join('')}<div>${actions}</div></div><div class="dt" id="u3d">${u3d()}</div></div>`}
+function pin(i,on){if(on){pins.push(i);if(pins.length>2){const o=pins.shift();const c=$('#u3i'+o+' input');if(c)c.checked=false}}else pins=pins.filter(x=>x!==i);SECS.forEach((_,k)=>$('#u3i'+k).classList.toggle('on',pins.includes(k)));$('#u3d').innerHTML=u3d();$('#u3d').classList.toggle('two',pins.length===2)}
+const u3d=()=>pins.length?pins.map(i=>`<div class="pane"><h2>${SECS[i][0]}<button onclick="pin(${i},false);$('#u3i${i} input').checked=false">✕ unpin</button></h2><div class="muted" style="margin-bottom:12px">${SECS[i][2]}</div>${SECS[i][3]()}</div>`).join(''):'<div class="empty">Nothing selected. Tick a section on the left.</div>';
+
+const R={u1:U1,u2:U2,u3:U3};
+function show(v){$('#root').innerHTML=R[v]();document.querySelectorAll('.variant-tab').forEach(t=>t.classList.toggle('active',t.dataset.v===v));if(window.after)after(v)}
+document.querySelectorAll('.variant-tab').forEach(t=>t.onclick=()=>show(t.dataset.v));
+show('u1');
+</script></body></html>

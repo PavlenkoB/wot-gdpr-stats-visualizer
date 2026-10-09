@@ -15,6 +15,7 @@ import {
   generateCurrencyOpsCsv,
 } from '../../fixtures/finance-fixtures.ts';
 import { buildCustomExport } from '../../fixtures/export-fixtures.ts';
+import { openSection } from '../_support/helpers.ts';
 import { oracleCurrency, type OracleCurrency } from '../../helpers/finance-oracle.ts';
 
 // =============================================================================
@@ -325,12 +326,37 @@ async function gotoApp(page: Page): Promise<void> {
 }
 
 /**
- * Import an export and wait for the currency card to reach `ready`.
+ * Wait until an import or a replace has landed on Overview, within this spec's
+ * own budget.
  *
- * `data-state` on the card is the single signal: it is set in every state, so a
- * wait on it cannot silently pass on a page that never rendered the charts.
- * Returns the milliseconds from submission to `ready`, which is the number the
- * CI budget in plan 05-16 Task 2 is derived from.
+ * The shared `waitForImported` helper has a fixed 30 s ceiling, which a
+ * 50,000-operation import is not promised to meet; the budget here is the one
+ * the whole spec is measured against. The signal is the same one the helper
+ * uses: the identity header leaving its `skeleton` variant, then the processing
+ * notice being gone (a replace never shows the skeleton, so the notice is what
+ * tells a replace apart from the dataset it is replacing).
+ */
+async function awaitLanded(page: Page): Promise<void> {
+  await expect(page.getByTestId('identity-header')).not.toHaveAttribute(
+    'data-variant',
+    'skeleton',
+    { timeout: READY_BUDGET_MS },
+  );
+  await expect(page.getByTestId('processing-status')).toHaveCount(0, {
+    timeout: READY_BUDGET_MS,
+  });
+}
+
+/**
+ * Import an export, open the Finance pane and wait for the currency card to
+ * reach `ready`.
+ *
+ * An import lands on Overview (R1), where the currency block is not mounted, so
+ * the pane is opened once the import has landed. `data-state` on the card is the
+ * single signal: it is set in every state, so a wait on it cannot silently pass
+ * on a page that never rendered the charts. Returns the milliseconds from
+ * submission to `ready`, which is the number the CI budget in plan 05-16 Task 2
+ * is derived from; the start point is still the submission.
  */
 async function importAndAwaitReady(page: Page, bytes: Uint8Array): Promise<number> {
   const started = Date.now();
@@ -339,6 +365,8 @@ async function importAndAwaitReady(page: Page, bytes: Uint8Array): Promise<numbe
     mimeType: 'application/zip',
     buffer: Buffer.from(bytes),
   });
+  await awaitLanded(page);
+  await openSection(page, 'finance');
   await expect(page.getByTestId('currency-block')).toHaveAttribute('data-state', 'ready', {
     timeout: READY_BUDGET_MS,
   });
@@ -399,6 +427,10 @@ async function replaceAndAwaitReady(
   await expect(panel).toBeVisible();
   await panel.getByTestId('confirm-commit').click();
   await expect(panel).toHaveCount(0);
+  // The replace landed on Overview (R1): re-open the Finance pane before the
+  // block can be read, then wait for the NEW dataset's own sentence below.
+  await awaitLanded(page);
+  await openSection(page, 'finance');
   await expect(page.getByTestId('currency-block')).toHaveAttribute('data-state', 'ready', {
     timeout: READY_BUDGET_MS,
   });

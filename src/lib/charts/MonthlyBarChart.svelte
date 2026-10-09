@@ -1,7 +1,12 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import type { BarChartModel, BarChartKey, BarCell } from './bar-chart-model.ts';
-  import { barChartNavigate, initialBarFocus } from './bar-chart-model.ts';
+  import {
+    BAR_LAYOUT,
+    barChartNavigate,
+    buildBarChartModel,
+    initialBarFocus,
+  } from './bar-chart-model.ts';
   import type { TooltipRequest } from '../features/playtime/playtime-model.ts';
   import { scrollClear } from '../core/focus-clear.ts';
 
@@ -50,18 +55,28 @@
   let hoverIndex = $state.raw<number | null>(null);
   let element = $state<SVGSVGElement | null>(null);
 
+  // The scroller's own content box, delivered by a ResizeObserver. The scroller
+  // is a block whose width its parent sets (never the svg), so measuring it cannot
+  // feed back. `contentRect.width` is fractional and the model floors it, so a
+  // filled chart is never wider than its box. Until the first observation it
+  // reads 0, which means today's geometry (plan 08-20, G-08-3).
+  let rect = $state<DOMRectReadOnly | null | undefined>(undefined);
+  const measured = $derived(rect?.width ?? 0);
+  const laid = $derived(buildBarChartModel(model.input, measured));
+
+  // Keyed to the DATA model, never to `laid`: a resize must not reset roving focus.
   $effect(() => {
     active = initialBarFocus(model) ?? 0;
   });
 
-  const activeCell = $derived(model.cells[active]);
-  const hoverCell = $derived(hoverIndex === null ? null : (model.cells[hoverIndex] ?? null));
+  const activeCell = $derived(laid.cells[active]);
+  const hoverCell = $derived(hoverIndex === null ? null : (laid.cells[hoverIndex] ?? null));
 
   function cellFrom(target: EventTarget | null): { index: number; cell: BarCell } | null {
     const node = target instanceof Element ? target.closest('[data-index]') : null;
     if (node === null) return null;
     const index = Number(node.getAttribute('data-index'));
-    const cell = Number.isInteger(index) ? model.cells[index] : undefined;
+    const cell = Number.isInteger(index) ? laid.cells[index] : undefined;
     return cell === undefined ? null : { index, cell };
   }
 
@@ -191,7 +206,14 @@
     return root === null ? null : root.querySelector<SVGRectElement>(`[data-index="${index}"]`);
   }
 
-  const ringWidth = $derived(Math.max(model.pitch, 8));
+  function tickOffset(index: number): number {
+    return Math.floor((laid.cells[index]?.hitWidth ?? laid.pitch) / 2);
+  }
+
+  /** A ring follows its own cell's width, with an 8px floor so a narrow cell still shows one. */
+  function ringWidthOf(cell: BarCell): number {
+    return Math.max(cell.hitWidth, 8);
+  }
 </script>
 
 <!--
@@ -200,7 +222,7 @@
   anywhere else on the page dismisses the pinned tooltip. It is on the scroller
   rather than the svg because the scroller is the chart's whole addressable box.
 -->
-<div class="scroller" data-testid="bar-scroller" data-tooltip-surface>
+<div class="scroller" data-testid="bar-scroller" data-tooltip-surface bind:contentRect={rect}>
   <svg
     bind:this={element}
     data-testid={chartTestId}
@@ -208,8 +230,8 @@
     tabindex="-1"
     aria-label={ariaLabel}
     aria-describedby={describedBy}
-    width={model.width}
-    height={model.height}
+    width={laid.width}
+    height={laid.height}
     onpointerover={onPointerOver}
     onpointerout={onPointerOut}
     onfocusin={onFocusIn}
@@ -218,30 +240,42 @@
     onpointerdown={onPointerDown}
   >
     <!-- Top & bottom plot boundary hairlines -->
-    <line class="hairline" x1={56} y1={model.plotTop} x2={model.width - 4} y2={model.plotTop} />
     <line
       class="hairline"
-      x1={56}
-      y1={model.plotTop + model.plotHeight}
-      x2={model.width - 4}
-      y2={model.plotTop + model.plotHeight}
+      x1={BAR_LAYOUT.gutterPx}
+      y1={laid.plotTop}
+      x2={laid.plotRight}
+      y2={laid.plotTop}
+    />
+    <line
+      class="hairline"
+      x1={BAR_LAYOUT.gutterPx}
+      y1={laid.plotTop + laid.plotHeight}
+      x2={laid.plotRight}
+      y2={laid.plotTop + laid.plotHeight}
     />
     <!-- Zero / baseline -->
-    <line class="zero-line" x1={56} y1={model.zeroY} x2={model.width - 4} y2={model.zeroY} />
+    <line
+      class="zero-line"
+      x1={BAR_LAYOUT.gutterPx}
+      y1={laid.zeroY}
+      x2={laid.plotRight}
+      y2={laid.zeroY}
+    />
 
     <!-- Y Axis Labels -->
-    <text class="axis y-axis" x={48} y={model.plotTop + 4} text-anchor="end" aria-hidden="true">
+    <text class="axis y-axis" x={48} y={laid.plotTop + 4} text-anchor="end" aria-hidden="true">
       {yTop.text}
       <title>{yTop.exact}</title>
     </text>
-    <text class="axis y-axis" x={48} y={model.zeroY + 4} text-anchor="end" aria-hidden="true">
+    <text class="axis y-axis" x={48} y={laid.zeroY + 4} text-anchor="end" aria-hidden="true">
       0
     </text>
     {#if yBottom}
       <text
         class="axis y-axis"
         x={48}
-        y={model.plotTop + model.plotHeight + 4}
+        y={laid.plotTop + laid.plotHeight + 4}
         text-anchor="end"
         aria-hidden="true"
       >
@@ -252,7 +286,7 @@
 
     <!-- Single row for gridcell elements -->
     <g role="row">
-      {#each model.cells as cell (cell.index)}
+      {#each laid.cells as cell (cell.index)}
         <!-- Render bars first so hit rect covers them -->
         {#if cell.up !== null}
           <rect
@@ -284,9 +318,9 @@
           role="gridcell"
           class="cell-hit"
           x={cell.x}
-          y={model.plotTop}
+          y={laid.plotTop}
           width={cell.hitWidth}
-          height={model.plotHeight}
+          height={laid.plotHeight}
           data-testid={cellTestId}
           data-index={cell.index}
           {...cellAttrs(cell.index)}
@@ -297,19 +331,19 @@
     </g>
 
     <!-- X Axis Month Labels and ticks -->
-    {#each model.labels as label (label.index)}
+    {#each laid.labels as label (label.index)}
       <line
         class="tick"
-        x1={label.x + Math.floor(model.pitch / 2)}
-        y1={model.plotTop + model.plotHeight}
-        x2={label.x + Math.floor(model.pitch / 2)}
-        y2={model.plotTop + model.plotHeight + 4}
+        x1={label.x + tickOffset(label.index)}
+        y1={laid.plotTop + laid.plotHeight}
+        x2={label.x + tickOffset(label.index)}
+        y2={laid.plotTop + laid.plotHeight + 4}
         aria-hidden="true"
       />
       <text
         class="axis x-axis"
-        x={label.x + Math.floor(model.pitch / 2)}
-        y={model.plotTop + model.plotHeight + 18}
+        x={label.x + tickOffset(label.index)}
+        y={laid.plotTop + laid.plotHeight + 18}
         text-anchor="middle"
         aria-hidden="true"
       >
@@ -323,17 +357,17 @@
         class="hover-ring"
         data-testid="bar-hover-ring"
         x={hoverCell.x - 1.5}
-        y={model.plotTop - 1.5}
-        width={ringWidth + 3}
-        height={model.plotHeight + 3}
+        y={laid.plotTop - 1.5}
+        width={ringWidthOf(hoverCell) + 3}
+        height={laid.plotHeight + 3}
         aria-hidden="true"
       />
       <rect
         class="hover-ring hover-ring-inner"
         x={hoverCell.x - 3.5}
-        y={model.plotTop - 3.5}
-        width={ringWidth + 7}
-        height={model.plotHeight + 7}
+        y={laid.plotTop - 3.5}
+        width={ringWidthOf(hoverCell) + 7}
+        height={laid.plotHeight + 7}
         aria-hidden="true"
       />
     {/if}
@@ -344,17 +378,17 @@
         class="focus-ring"
         data-testid="bar-focus-ring"
         x={activeCell.x - 1.5}
-        y={model.plotTop - 1.5}
-        width={ringWidth + 3}
-        height={model.plotHeight + 3}
+        y={laid.plotTop - 1.5}
+        width={ringWidthOf(activeCell) + 3}
+        height={laid.plotHeight + 3}
         aria-hidden="true"
       />
       <rect
         class="focus-ring focus-ring-inner"
         x={activeCell.x - 3.5}
-        y={model.plotTop - 3.5}
-        width={ringWidth + 7}
-        height={model.plotHeight + 7}
+        y={laid.plotTop - 3.5}
+        width={ringWidthOf(activeCell) + 7}
+        height={laid.plotHeight + 7}
         aria-hidden="true"
       />
     {/if}
@@ -379,24 +413,24 @@
     font-size: 14px;
     font-weight: 400;
     line-height: 1.4;
-    fill: #5f6368;
+    fill: var(--muted);
   }
 
   /* The 05-UI-SPEC Color table, "Chart zero line / bound lines". */
   .hairline {
-    stroke: #dadce0;
+    stroke: var(--border);
     stroke-width: 1;
   }
 
   /* The Color table's zero line. This is the non-colour cue the diverging chart
      leans on, so it is a dark line and not a hairline. */
   .zero-line {
-    stroke: #5f6368;
+    stroke: var(--muted);
     stroke-width: 1;
   }
 
   .tick {
-    stroke: #5f6368;
+    stroke: var(--muted);
     stroke-width: 1;
   }
 
@@ -416,7 +450,7 @@
   .focus-ring,
   .hover-ring {
     fill: none;
-    stroke: #1a73e8;
+    stroke: var(--focus);
     stroke-width: 3;
     pointer-events: none;
   }

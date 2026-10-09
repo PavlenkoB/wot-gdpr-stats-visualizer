@@ -832,11 +832,11 @@
   h3 {
     margin: 0;
     padding-bottom: 8px;
-    border-bottom: 1px solid #dadce0;
+    border-bottom: 1px solid var(--border);
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #08060d;
+    color: var(--ink);
   }
 
   /* The table title, an h4 so the outline is h1 > h2 section > h3 block >
@@ -846,16 +846,16 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #3c4043;
+    color: var(--text);
   }
 
   .status {
     margin: 0;
     min-height: 0;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 400;
     line-height: 1.5;
-    color: #3c4043;
+    color: var(--text);
     min-width: 0;
     overflow-wrap: anywhere;
   }
@@ -877,10 +877,10 @@
 
   .body {
     margin: 0;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 400;
     line-height: 1.5;
-    color: #3c4043;
+    color: var(--text);
     min-width: 0;
     overflow-wrap: anywhere;
   }
@@ -897,7 +897,7 @@
     font-size: 14px;
     font-weight: 400;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
     min-width: 0;
     overflow-wrap: anywhere;
   }
@@ -907,7 +907,7 @@
   .count {
     font-size: 14px;
     font-weight: 600;
-    color: #3c4043;
+    color: var(--text);
   }
 
   /* Neutral info, not chrome for a failure: an absent title or a title with
@@ -915,10 +915,10 @@
      for a query that failed. */
   .info {
     padding: 8px 12px;
-    border: 1px solid #dadce0;
+    border: 1px solid var(--border);
     border-radius: 6px;
-    background: #f7f7fa;
-    color: #3c4043;
+    background: var(--list);
+    color: var(--text);
   }
 
   /* The project's destructive error colour, reused verbatim from
@@ -964,7 +964,7 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #3c4043;
+    color: var(--text);
   }
 
   /* Label role, the Phase 4 select exactly (05-UI-SPEC section 3). The
@@ -975,21 +975,21 @@
     max-width: 100%;
     min-width: 0;
     padding: 8px 12px;
-    border: 1px solid #80868b;
+    border: 1px solid var(--faint);
     border-radius: 6px;
-    background: #ffffff;
-    color: #3c4043;
+    background: var(--page);
+    color: var(--text);
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
   }
 
   select:hover {
-    background: #f1f3f4;
+    background: var(--hover);
   }
 
   select:focus-visible {
-    outline: 3px solid #1a73e8;
+    outline: 3px solid var(--focus);
     outline-offset: 2px;
   }
 
@@ -1002,21 +1002,21 @@
     max-width: 100%;
     min-width: 0;
     padding: 8px 12px;
-    border: 1px solid #80868b;
+    border: 1px solid var(--faint);
     border-radius: 6px;
-    background: #ffffff;
-    color: #3c4043;
-    font-size: 16px;
+    background: var(--page);
+    color: var(--text);
+    font-size: 14px;
     font-weight: 400;
     line-height: 1.4;
   }
 
   input:hover {
-    background: #f1f3f4;
+    background: var(--hover);
   }
 
   input:focus-visible {
-    outline: 3px solid #1a73e8;
+    outline: 3px solid var(--focus);
     outline-offset: 2px;
   }
 
@@ -1039,7 +1039,7 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
   }
 
   /* Body role in the body colour, wrapping. The expiry is the export's own
@@ -1047,16 +1047,16 @@
      one every other untrusted string in the project uses. */
   .header dd {
     margin: 0;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 400;
     line-height: 1.5;
-    color: #08060d;
+    color: var(--ink);
     min-width: 0;
     overflow-wrap: anywhere;
   }
 
   /* D-10's column picker. The `<summary>` is styled as a button — the shared
-     control chrome, the same 1px `#80868b` border, 6px radius and 8px/12px
+     control chrome, the same 1px `var(--faint)` border, 6px radius and 8px/12px
      padding as the two selects above it — because it IS the control, and a
      reader should not have to tell one kind of control from another by shape.
      The accent focus ring is the project's, exactly: the accent is reserved
@@ -1068,10 +1068,10 @@
   .picker > summary {
     display: inline-block;
     padding: 8px 12px;
-    border: 1px solid #80868b;
+    border: 1px solid var(--faint);
     border-radius: 6px;
-    background: #ffffff;
-    color: #3c4043;
+    background: var(--page);
+    color: var(--text);
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
@@ -1079,11 +1079,11 @@
   }
 
   .picker > summary:hover {
-    background: #f1f3f4;
+    background: var(--hover);
   }
 
   .picker > summary:focus-visible {
-    outline: 3px solid #1a73e8;
+    outline: 3px solid var(--focus);
     outline-offset: 2px;
   }
 
@@ -1096,7 +1096,7 @@
     gap: 4px 16px;
     margin: 12px 0 0;
     padding: 8px 12px;
-    border: 1px solid #dadce0;
+    border: 1px solid var(--border);
     border-radius: 6px;
     min-width: 0;
   }
@@ -1106,7 +1106,7 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
   }
 
   /* Body-weight Caption label beside a native checkbox, per the UI-SPEC — 14px
@@ -1121,12 +1121,12 @@
     font-size: 14px;
     font-weight: 400;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
     cursor: pointer;
   }
 
   .toggle input:focus-visible {
-    outline: 3px solid #1a73e8;
+    outline: 3px solid var(--focus);
     outline-offset: 2px;
   }
 

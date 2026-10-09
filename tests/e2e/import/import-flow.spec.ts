@@ -1,5 +1,5 @@
 import '../_support/pin-locale';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import {
   EXTRA_UNKNOWN_FOLDER,
   LARGE_EXPORT_FILES_PER_CATEGORY,
@@ -9,6 +9,7 @@ import {
   SAMPLE_EXPECTED_COUNTS,
   SAMPLE_FILE_COUNTS,
   SAMPLE_NICKNAME,
+  SAMPLE_REGION,
   SAMPLE_ROW_COUNTS,
   buildLargeExport,
   buildNotAZipBytes,
@@ -16,8 +17,21 @@ import {
   buildSampleExport,
   buildTruncatedExport,
 } from '../../fixtures/export-fixtures.ts';
-import { formatAccountId, formatImportSummary } from '../../../src/lib/ui-copy.ts';
-import { dropFiles, importLine, pickExportFromDisk } from '../_support/helpers.ts';
+import {
+  ACCOUNT_ROW_SUMMARY,
+  formatAccountId,
+  formatImportSummary,
+  formatRowCount,
+  formatRowSummary,
+} from '../../../src/lib/ui-copy.ts';
+import { PANE_IDS, PANE_SECTION, type PaneId } from '../../../src/lib/shell/selection-state.ts';
+import {
+  dropFiles,
+  importLine,
+  listRow,
+  openSection,
+  pickExportFromDisk,
+} from '../_support/helpers.ts';
 
 // =============================================================================
 // IMPORT-02 / PLATFORM-02 — success-path slice against the dashboard (03-07)
@@ -27,11 +41,14 @@ import { dropFiles, importLine, pickExportFromDisk } from '../_support/helpers.t
 //   - While a file is processing, the import bar's notice slot shows a
 //     spinner and STAGE_TEXT-driven text (D-26), and the dropzone is
 //     disabled and busy (D-08, D-10).
-//   - On success the bar goes slim, the identity header shows the raw
-//     account root, the five supported sections appear in D-02 order with
-//     a `section-summary` built by `formatImportSummary`, and the four
-//     unsupported folders become `unsupported-banner` cards in worker
-//     order (D-01, D-02, D-03, D-11, D-12, D-13).
+//   - On success the bar goes slim and moves into the list pane, the
+//     identity header (also in the list pane) shows the raw account root,
+//     the eight list rows appear in PANE_IDS order, each data pane opens to
+//     one section whose import line is built by `formatImportSummary` (and
+//     whose list row says the same counts), and the four unsupported
+//     folders become `unsupported-banner` cards, in worker order, in the
+//     Not yet supported pane (D-01, D-02, D-03, D-11, D-12, D-13, Phase 8
+//     D-01).
 //   - Exactly one dropzone exists in BOTH layouts — the co-render that
 //     makes replace-on-drop reachable survives the Phase 3 redesign.
 //   - Start over confirms before it clears (D-15, D-16).
@@ -73,18 +90,30 @@ const STAGE_PATTERN =
   /^\s*(Checking for a duplicate\.\.\.|Unzipping\.\.\.|Classifying folders\.\.\.|Parsing categories\.\.\.|Saving to local storage\.\.\.|Parsing \S+ \(\d+\/\d+\)\.\.\.)\s*$/;
 
 /**
- * The five supported sections in D-02 order, paired with the fixture
- * folder each one counts. This is the order the DOM must present, and it
- * is NOT `SAMPLE_BADGE_ORDER` (that constant is the worker's
- * status-grouped order, still asserted below for the banners).
+ * The six data panes, each paired with the fixture folder whose counts it
+ * shows. Playtime and Login history are two views of the one Activity_history
+ * folder, so both read its counts; every pane mounts exactly one section, and
+ * only while it is open (R4), so a check that used to read five cards at once
+ * opens these in turn.
  */
-const SUPPORTED_SECTIONS = [
-  { id: 'activity-history', folder: 'Activity_history' },
-  { id: 'player-statistics', folder: 'Player_statistics' },
-  { id: 'financial-data', folder: 'Financial_data' },
-  { id: 'payment-history', folder: 'Payment_history' },
-  { id: 'user-info', folder: 'User_Info' },
-] as const;
+const DATA_PANES = [
+  { pane: 'playtime', folder: 'Activity_history' },
+  { pane: 'login-history', folder: 'Activity_history' },
+  { pane: 'vehicles', folder: 'Player_statistics' },
+  { pane: 'finance', folder: 'Financial_data' },
+  { pane: 'payments', folder: 'Payment_history' },
+  { pane: 'account', folder: 'User_Info' },
+] as const satisfies readonly { pane: PaneId; folder: string }[];
+
+/** The list rows' pane ids in document order, read from the nav. */
+async function listRowIdsInOrder(page: Page): Promise<string[]> {
+  return page
+    .getByTestId('list-nav')
+    .locator('[data-testid^="list-row-"]')
+    .evaluateAll((nodes) =>
+      nodes.map((node) => (node.getAttribute('data-testid') ?? '').replace('list-row-', '')),
+    );
+}
 
 /**
  * Where the supported group ENDS inside `SAMPLE_BADGE_ORDER`, i.e. the
@@ -125,7 +154,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 /** The bar is slim once a dataset is loaded, full on the skeleton. */
-async function expectSlimBar(page: import('@playwright/test').Page): Promise<void> {
+async function expectSlimBar(page: Page): Promise<void> {
   await expect(page.getByTestId('import-bar')).toHaveAttribute('data-variant', 'slim', {
     timeout: 30_000,
   });
@@ -196,6 +225,10 @@ test('(a) shows stage feedback while busy, then account, summary and grouped bad
   // re-breaking D-13. D-24/D-25: exactly one dropzone in both variants.
   await expect(page.getByTestId('dropzone')).toHaveCount(1);
   await expect(processing).toHaveCount(0);
+  // Phase 8 D-01: once a dataset is loaded the import region has moved from
+  // the empty-state detail pane to the foot of the list pane, still ONE.
+  await expect(page.getByTestId('list-pane').getByTestId('dropzone')).toHaveCount(1);
+  await expect(page.getByTestId('detail-pane').getByTestId('dropzone')).toHaveCount(0);
 
   // Identity header — D-11/D-13: the raw root, on the account-ID line.
   await expect(page.getByTestId('identity-header')).toHaveAttribute('data-variant', 'loaded');
@@ -204,33 +237,42 @@ test('(a) shows stage feedback while busy, then account, summary and grouped bad
     formatAccountId(SAMPLE_ACCOUNT_ROOT),
   );
 
-  // The five supported sections, in D-02 order, each with the summary
-  // built by the SAME formatter the component uses.
-  for (const [index, section] of SUPPORTED_SECTIONS.entries()) {
-    const card = page.getByTestId(`dashboard-section-${section.id}`);
+  // The eight list rows are in PANE_IDS order (the list replaced the card
+  // order of D-02; pixel positions are no longer the contract).
+  expect(await listRowIdsInOrder(page)).toEqual([...PANE_IDS]);
+
+  // Each data pane: open it, exactly one section is mounted, its import line is
+  // the summary built by the SAME formatter the component uses, and the list
+  // row (always on screen) says the same counts so the list and the pane agree.
+  for (const { pane, folder } of DATA_PANES) {
+    await openSection(page, pane);
+    const sectionId = PANE_SECTION[pane]!;
+    const card = page.getByTestId(`dashboard-section-${sectionId}`);
     await expect(card).toHaveCount(1);
-    const fileCount = SAMPLE_FILE_COUNTS[section.folder]!;
-    const rowCount = SAMPLE_ROW_COUNTS[section.folder]!;
-    // Two sections are `ready` — Activity_history since 04-02 and
-    // Financial_data since 05-10 — and show these counts as their caption; the
-    // other three are `pending` and show them as their body. `importLine`
-    // reads whichever element this card renders, so the assertion is about the
-    // counts rather than about which of the two the card chose.
+    const fileCount = SAMPLE_FILE_COUNTS[folder]!;
+    const rowCount = SAMPLE_ROW_COUNTS[folder]!;
+    // Activity_history and Financial_data panes are `ready` and show these
+    // counts as their caption; the others are `pending` and show them as their
+    // body. `importLine` reads whichever element the section renders, so the
+    // assertion is about the counts rather than about which of the two it chose.
     await expect(importLine(card)).toHaveText(formatImportSummary(fileCount, rowCount));
-    // DOM order is the D-02 contract, not the worker's grouping.
-    if (index > 0) {
-      const previousId = SUPPORTED_SECTIONS[index - 1]!.id;
-      const previousBox = await page.getByTestId(`dashboard-section-${previousId}`).boundingBox();
-      const box = await card.boundingBox();
-      expect(previousBox).not.toBeNull();
-      expect(box).not.toBeNull();
-      expect(previousBox!.y).toBeLessThan(box!.y);
+
+    const row = listRow(page, pane);
+    if (pane === 'account') {
+      // The Account row states the location code and what the pane holds, not
+      // folder counts (`paneEntries`); the counts are the pane's import line.
+      await expect(row).toContainText(SAMPLE_REGION);
+      await expect(row).toContainText(ACCOUNT_ROW_SUMMARY);
+    } else {
+      await expect(row).toContainText(formatRowSummary(folder, fileCount));
+      await expect(row).toContainText(formatRowCount(rowCount));
     }
   }
 
   // Four unsupported banners in worker order (the suffix of
   // SAMPLE_BADGE_ORDER after the supported group), with the status each
-  // carries and its counts line.
+  // carries and its counts line. They live in the Not yet supported pane.
+  await openSection(page, 'not-yet-supported');
   const banners = page.getByTestId('unsupported-banner');
   await expect(banners).toHaveCount(UNSUPPORTED_BANNERS.length);
   for (const [index, expected] of UNSUPPORTED_BANNERS.entries()) {
@@ -247,18 +289,17 @@ test('(a) shows stage feedback while busy, then account, summary and grouped bad
     ),
   );
 
-  // D-12: identity header, first section and first banner tops strictly
-  // increase (top-of-element bounding box).
-  const headerBox = await page.getByTestId('identity-header').boundingBox();
-  const firstSectionBox = await page
-    .getByTestId('dashboard-section-activity-history')
-    .boundingBox();
-  const firstBannerBox = await banners.first().boundingBox();
-  expect(headerBox).not.toBeNull();
-  expect(firstSectionBox).not.toBeNull();
-  expect(firstBannerBox).not.toBeNull();
-  expect(headerBox!.y).toBeLessThan(firstSectionBox!.y);
-  expect(firstSectionBox!.y).toBeLessThan(firstBannerBox!.y);
+  // Phase 8 layout fact (replaces the old header / first section / first
+  // banner top-position chain): the identity header is part of the list pane
+  // and the open section is part of the detail pane.
+  await expect(page.getByTestId('list-pane').getByTestId('identity-header')).toHaveCount(1);
+  await expect(
+    page.getByTestId('detail-pane').getByTestId('dashboard-section-not-yet-supported'),
+  ).toHaveCount(1);
+  await openSection(page, 'playtime');
+  await expect(
+    page.getByTestId('detail-pane').getByTestId('dashboard-section-activity-history'),
+  ).toHaveCount(1);
 });
 
 // -----------------------------------------------------------------------------
@@ -279,7 +320,9 @@ test('(b) a renamed root with a never-seen folder is detected without a fixed la
     formatAccountId(RENAMED_ACCOUNT_ROOT),
   );
 
-  // The sample's four unsupported folders, plus the never-seen one.
+  // The sample's four unsupported folders, plus the never-seen one. The
+  // banners live in the Not yet supported pane, which an import lands outside of.
+  await openSection(page, 'not-yet-supported');
   await expect(page.getByTestId('unsupported-banner')).toHaveCount(5);
 
   // Find the unknown folder banner by its folder name. It must carry
@@ -466,8 +509,10 @@ test('(f) the page stays responsive while a large export is unzipped', async ({
     formatAccountId(SAMPLE_ACCOUNT_ROOT),
   );
 
-  // The Activity_history section counts read "2500 files, ...". The card is
+  // The Activity_history section counts read "2500 files, ...". The import
+  // lands on Overview (R1), so open the Playtime pane first; the card is
   // `ready`, so the line is the caption after the playtime block.
+  await openSection(page, 'playtime');
   const activitySummary = importLine(page.getByTestId('dashboard-section-activity-history'));
   await expect(activitySummary).toContainText(
     formatImportSummary(LARGE_EXPORT_FILES_PER_CATEGORY, LARGE_EXPORT_FILES_PER_CATEGORY),
@@ -528,14 +573,23 @@ test('(g) no value from inside the export files is rendered', async ({ page }) =
   // and counts are allowed on screen. The IP is still STORED (D-18);
   // this asserts it is still never RENDERED. Deep leak coverage lives in
   // identity-privacy.spec.ts.
-  const body = await page.locator('body').innerText();
-  expect(body).not.toContain('example.invalid');
-  expect(body).not.toContain('192.0.2.10');
+  //
+  // Only the open pane's section is in the DOM (R4), so a scan of the body on
+  // one pane would say nothing about the other seven. Scan every pane's text,
+  // each opened in turn, Overview and Not yet supported included.
+  for (const pane of PANE_IDS) {
+    await openSection(page, pane);
+    const body = await page.locator('body').innerText();
+    expect(body, `pane ${pane} leaks the synthetic email domain`).not.toContain('example.invalid');
+    expect(body, `pane ${pane} leaks the synthetic IP`).not.toContain('192.0.2.10');
 
-  // Sanity: the account-ID line DOES contain the raw root (D-11/D-13) —
-  // that's the one allowed place where a value from the export is
-  // on-screen.
-  expect(body).toContain(formatAccountId(SAMPLE_ACCOUNT_ROOT));
+    // Sanity: the account-ID line DOES contain the raw root (D-11/D-13) —
+    // that's the one allowed place where a value from the export is
+    // on-screen. It sits in the list pane header, so every pane's body has it.
+    expect(body, `pane ${pane} lost the account-id line`).toContain(
+      formatAccountId(SAMPLE_ACCOUNT_ROOT),
+    );
+  }
 });
 
 // -----------------------------------------------------------------------------
@@ -559,6 +613,9 @@ test('(h) start over + second import classifies a fresh result', async ({ page }
   await expect(page.getByTestId('confirm-panel')).toBeVisible();
   await page.getByTestId('confirm-commit').click();
   await expect(page.getByTestId('import-bar')).toHaveAttribute('data-variant', 'full');
+  // Start over returns the page to the empty state, which hosts the import
+  // region again; the second import goes through that dropzone.
+  await expect(page.getByTestId('empty-state').getByTestId('dropzone')).toHaveCount(1);
 
   await page.getByTestId('file-input').setInputFiles({
     name: 'renamed.zip',
@@ -571,6 +628,8 @@ test('(h) start over + second import classifies a fresh result', async ({ page }
   );
   // The renamed export carries one extra unsupported folder, so five
   // banners (the old assertion counted eight badges; four of those
-  // became sections and the other four stayed banners).
+  // became sections and the other four stayed banners). They are read from
+  // the Not yet supported pane, which the second import does not land on.
+  await openSection(page, 'not-yet-supported');
   await expect(page.getByTestId('unsupported-banner')).toHaveCount(5);
 });

@@ -3,9 +3,11 @@
   import { ingestClient } from './lib/import/ingest-client.ts';
   import {
     CACHE_CHECK_TEXT,
+    CLEARED_ACK_MESSAGE,
     CONFIRM_CLEAR_MESSAGE,
     CONFIRM_REPLACE_MESSAGE,
     DELETE_CACHED_DATA_LABEL,
+    DUPLICATE_BANNER_MESSAGE,
     KEEP_CACHED_DATA_LABEL,
     KEEP_CURRENT_DATA_LABEL,
     REPLACE_DATASET_LABEL,
@@ -173,6 +175,29 @@
     }
   });
 
+  /**
+   * What the persistent notice announcer says (WR-01). The visible notice lives
+   * in the import bar, which is torn down and rebuilt when the dataset appears
+   * or disappears, so a live region owned by the bar would be created together
+   * with its own text, and a region created with its content is not announced
+   * (RESEARCH Pitfall 10). This one is mounted once, before every branch. An
+   * error says nothing here: the failure banner is `role="alert"` and speaks for
+   * itself. Plain text only; the stage or progress line is the one processing
+   * already shows.
+   */
+  const announcement = $derived.by<string>(() => {
+    switch (notice) {
+      case 'processing':
+        return statusTextFor ?? '';
+      case 'duplicate':
+        return DUPLICATE_BANNER_MESSAGE;
+      case 'cleared':
+        return CLEARED_ACK_MESSAGE;
+      default:
+        return '';
+    }
+  });
+
   /** "Imported on {date}", or null while no dataset is displayed. */
   const importedOn = $derived.by<string | null>(() => {
     const result = ingestClient.result;
@@ -198,6 +223,23 @@
   }
 
   /**
+   * Confirm the pending action. A confirmed REPLACE leaves focus on the dropzone
+   * (WR-05): the panel and the control that opened it are gone, so focus would
+   * otherwise fall to <body>. A drop has no trigger button to return to, and the
+   * dropzone is where the user's attention already was. The new dataset still
+   * lands on Overview (Phase 8 D-03); only keyboard focus is placed here. A
+   * confirmed clear or start-over is handled by the `justCleared` effect below.
+   */
+  async function onConfirmPending(): Promise<void> {
+    const isReplace = ingestClient.pendingAction?.kind === 'replace';
+    ingestClient.confirmPending();
+    confirmTrigger = null;
+    if (!isReplace) return;
+    await tick();
+    importBar?.focusDropzone();
+  }
+
+  /**
    * After a CONFIRMED clear the button that opened the panel is gone, so
    * there is nothing to return focus to. The full-size dropzone is the only
    * sensible landing spot (UI-SPEC). The effect reads justCleared and nothing
@@ -215,7 +257,20 @@
 <svelte:window ondragover={onWindowDragOver} ondrop={onWindowDrop} />
 
 <main data-worker-ready={ingestClient.workerReady ? 'true' : 'false'}>
-  <h1>WG Data Export Viewer</h1>
+  <!--
+    The ONE live region for import notices (WR-01). It is mounted before every
+    conditional below and never moves, so it survives a first import, a replace
+    and a confirmed clear. The bar's notice slot only shows the same messages.
+  -->
+  <p
+    class="notice-announcer"
+    role="status"
+    aria-live="polite"
+    aria-atomic="true"
+    data-testid="notice-announcer"
+  >
+    {announcement}
+  </p>
 
   <!--
     D-28: during the on-load cache check this block IS the page body. It
@@ -229,36 +284,45 @@
       <span class="cache-check-text">{CACHE_CHECK_TEXT}</span>
     </p>
   {:else}
-    <ImportBar
-      bind:this={importBar}
-      variant={hasResult ? 'slim' : 'full'}
-      {notice}
-      statusText={statusTextFor}
-      errorMessage={ingestClient.errorMessage}
-      {importedOn}
-      busy={ingestClient.busy}
-      onfiles={onDropFiles}
-      onstartover={onStartOver}
-      onclear={onClearData}
-    >
-      <!--
-        The one shared ConfirmPanel (Phase 2 D-22), rendered by the import
-        bar below its controls so the destructive answer sits next to the
-        controls it is about. The dataset behind it is NOT swapped out — the
-        user's data stays on screen until they confirm or cancel.
-      -->
-      {#snippet confirm()}
-        {#if ingestClient.state === 'confirm-pending' && ingestClient.pendingAction && confirmCopy}
-          <ConfirmPanel
-            message={confirmCopy.message}
-            confirmLabel={confirmCopy.confirmLabel}
-            cancelLabel={confirmCopy.cancelLabel}
-            onconfirm={() => ingestClient.confirmPending()}
-            oncancel={() => void onCancelConfirm()}
-          />
-        {/if}
-      {/snippet}
-    </ImportBar>
+    <!--
+      The import region, passed down as a snippet so App keeps ownership of
+      every import handler, the `importBar` binding, the confirm panel and the
+      focus return. Dashboard decides WHERE it renders (the detail pane while
+      nothing is loaded, the foot of the list pane afterwards) and renders it
+      once, so there is never more than one dropzone or file input in the DOM.
+    -->
+    {#snippet importRegion()}
+      <ImportBar
+        bind:this={importBar}
+        variant={hasResult ? 'slim' : 'full'}
+        {notice}
+        statusText={statusTextFor}
+        errorMessage={ingestClient.errorMessage}
+        {importedOn}
+        busy={ingestClient.busy}
+        onfiles={onDropFiles}
+        onstartover={onStartOver}
+        onclear={onClearData}
+      >
+        <!--
+          The one shared ConfirmPanel (Phase 2 D-22), rendered by the import
+          bar below its controls so the destructive answer sits next to the
+          controls it is about. The dataset behind it is NOT swapped out — the
+          user's data stays on screen until they confirm or cancel.
+        -->
+        {#snippet confirm()}
+          {#if ingestClient.state === 'confirm-pending' && ingestClient.pendingAction && confirmCopy}
+            <ConfirmPanel
+              message={confirmCopy.message}
+              confirmLabel={confirmCopy.confirmLabel}
+              cancelLabel={confirmCopy.cancelLabel}
+              onconfirm={() => void onConfirmPending()}
+              oncancel={() => void onCancelConfirm()}
+            />
+          {/if}
+        {/snippet}
+      </ImportBar>
+    {/snippet}
 
     <!--
       The dashboard is driven by `ingestClient.result`, the LAST KNOWN
@@ -267,35 +331,18 @@
       instead of blanking the page (RESEARCH Pitfall 3), and a `null`
       result renders the first-visit skeleton (D-24).
     -->
-    <Dashboard result={ingestClient.result} />
+    <Dashboard result={ingestClient.result} {importRegion} />
   {/if}
 </main>
 
 <style>
-  /* One flex column, the spacing scale's lg (24px) between top-level
-     blocks. The gap lives here rather than on each block so the document
-     order below is the only thing that decides what sits where. */
+  /* The app root is a plain block: the shell owns the page layout and each
+     pane pads itself (Phase 8), so `main` declares no padding, no gap and no
+     flex column. A scoped rule here would outrank the global `main` rule in
+     `src/app.css`, which is why this one deliberately says less than it used
+     to rather than repeating it. */
   main {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-    padding: 24px;
-  }
-
-  /* Phone width: the spacing scale's md (16px) page padding (D-03, UI-SPEC
-     Spacing — the one documented exception to the 24px above).
-
-     This lives here rather than only in `src/app.css`'s phone-width block
-     because a Svelte scoped rule carries an attribute selector and therefore
-     outranks a bare type selector in the global stylesheet: the `padding:
-     24px` above beats a global `main { padding: 16px }` at every width, so a
-     block that only existed globally would be silently dead. Same breakpoint,
-     added by the same plan (07-05), for the same reason the UI-SPEC rules out
-     a second one — `DurationList.svelte` is the precedent. */
-  @media (max-width: 480px) {
-    main {
-      padding: 16px;
-    }
+    display: block;
   }
 
   /* D-07/D-08 cache-check loading block. Layout matches the import bar's
@@ -308,13 +355,30 @@
     justify-content: center;
     gap: 12px;
     margin: 0;
-    padding: 0;
-    font-size: 16px;
+    /* `main` no longer pads, so the on-load check carries its own padding. */
+    padding: 48px 16px;
+    font-size: 14px;
     line-height: 1.5;
   }
 
   .cache-check-text {
     text-align: center;
+  }
+
+  /* Visually hidden, but not display none or hidden, which would remove it from
+     the accessibility tree and silence it. The same clip pattern as the
+     dashboard's chart announcement region. No font-size on purpose: the 14px
+     floor guard scans every stylesheet. */
+  .notice-announcer {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
   }
 
   /* CSS-only spinner, identical to ImportBar.svelte's `.spinner` —
@@ -325,7 +389,7 @@
     width: 1.25em;
     height: 1.25em;
     border: 3px solid rgba(26, 115, 232, 0.25);
-    border-top-color: #1a73e8;
+    border-top-color: var(--focus);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
     flex: 0 0 auto;

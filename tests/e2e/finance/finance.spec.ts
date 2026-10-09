@@ -1,11 +1,18 @@
 import '../_support/pin-locale';
-import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import {
+  expect,
+  test,
+  type Browser,
+  type BrowserContext,
+  type Locator,
+  type Page,
+} from '@playwright/test';
 import {
   SYNTHETIC_ZIP_NAME,
   currencyBlock,
   financialSection,
   gotoApp,
-  importExport,
+  importAndOpen,
   premiumBlock,
   replaceExport,
 } from '../_support/helpers.ts';
@@ -94,6 +101,25 @@ import {
 // =============================================================================
 
 /**
+ * G-08-3: a monthly chart's svg is exactly as wide as the scroller that
+ * measures itself (within a pixel). The geometry used to be a fixed width
+ * (140, 76, ...); it now follows the detail pane, so a literal width would pin
+ * the pane and not the chart.
+ */
+async function expectFillsScroller(svg: Locator): Promise<void> {
+  await expect
+    .poll(async () =>
+      svg.evaluate((node) => {
+        const scroller = node.closest('[data-testid="bar-scroller"]');
+        return scroller === null
+          ? Number.POSITIVE_INFINITY
+          : Math.abs(Number(node.getAttribute('width')) - scroller.clientWidth);
+      }),
+    )
+    .toBeLessThanOrEqual(1);
+}
+
+/**
  * The axis length, read from the fixture's own `axisMonths` rather than from
  * `months.length`.
  *
@@ -157,7 +183,7 @@ test.describe('05-10 premium time: the sample export', () => {
     context = await browser.newContext();
     page = await context.newPage();
     await gotoApp(page);
-    await importExport(page, SYNTHETIC_ZIP_NAME, buildSampleExport());
+    await importAndOpen(page, SYNTHETIC_ZIP_NAME, buildSampleExport(), 'finance');
   });
 
   test.afterAll(async () => {
@@ -249,7 +275,18 @@ test.describe('05-10 premium time: the sample export', () => {
   test('(chart) the premium chart draws one cell per month with the hand-derived heights', async () => {
     const chart = page.getByTestId('premium-chart');
     await expect(chart).toHaveCount(1);
-    await expect(chart).toHaveAttribute('width', '140');
+    // G-08-3: the chart fills its scroller (it was a fixed 140px). The svg is
+    // exactly as wide as the box that measures itself, within a pixel.
+    await expect
+      .poll(async () =>
+        chart.evaluate((svg) => {
+          const scroller = svg.closest('[data-testid="bar-scroller"]');
+          return scroller === null
+            ? Number.POSITIVE_INFINITY
+            : Math.abs(Number(svg.getAttribute('width')) - scroller.clientWidth);
+        }),
+      )
+      .toBeLessThanOrEqual(1);
     await expect(chart).toHaveAttribute('height', '128');
 
     const cells = chart.locator('[role="gridcell"]');
@@ -420,7 +457,7 @@ test.describe('05-11 single-month premium timeline', () => {
       },
     });
     await gotoApp(page);
-    await importExport(page, SYNTHETIC_ZIP_NAME, singleGrantExport);
+    await importAndOpen(page, SYNTHETIC_ZIP_NAME, singleGrantExport, 'finance');
 
     const chart = page.getByTestId('premium-chart');
     await expect(chart).toBeVisible();
@@ -482,7 +519,7 @@ test.describe('05-18 premium time: the real export dates each grant by CURR_PREM
       },
     });
     await gotoApp(page);
-    await importExport(page, SYNTHETIC_ZIP_NAME, realShapeExport);
+    await importAndOpen(page, SYNTHETIC_ZIP_NAME, realShapeExport, 'finance');
 
     await expect(premiumBlock(page)).toHaveAttribute('data-state', 'ready');
 
@@ -538,7 +575,7 @@ test.describe('05-10 premium time: a file that is absent and a file with no rows
     // what is being asserted, so it has to happen on the page the first import
     // put on screen.
     await gotoApp(page);
-    await importExport(page, SYNTHETIC_ZIP_NAME, buildAbsentPremiumFileExport());
+    await importAndOpen(page, SYNTHETIC_ZIP_NAME, buildAbsentPremiumFileExport(), 'finance');
 
     await expect(financialSection(page)).toHaveAttribute('data-status', 'ready');
     await expect(premiumBlock(page)).toHaveAttribute('data-state', 'not-in-export');
@@ -555,7 +592,7 @@ test.describe('05-10 premium time: a file that is absent and a file with no rows
     // `FINANCIAL_NOT_IN_EXPORT` here and `toContainText` would pass on the
     // stale value. The exact-text assertion below is what distinguishes the
     // two sentences.
-    await replaceExport(page, SYNTHETIC_ZIP_NAME, buildHeaderOnlyPremiumExport());
+    await replaceExport(page, SYNTHETIC_ZIP_NAME, buildHeaderOnlyPremiumExport(), 'finance');
 
     await expect(financialSection(page)).toHaveAttribute('data-status', 'ready');
     await expect(premiumBlock(page)).toHaveAttribute('data-state', 'no-rows');
@@ -627,7 +664,7 @@ test.describe('05-10 premium time: excluded rows the sample does not cover', () 
     expect(JUNK_STRING_COUNT - MAX_LISTED_UNRECOGNISED).toBe(5);
 
     await gotoApp(page);
-    await importExport(page, SYNTHETIC_ZIP_NAME, buildJunkPremiumExport());
+    await importAndOpen(page, SYNTHETIC_ZIP_NAME, buildJunkPremiumExport(), 'finance');
 
     // Every row was excluded for its value, so the block has no months and is
     // `no-usable` — which still shows the notice, because "every row was
@@ -667,7 +704,7 @@ test.describe('05-10 premium time: excluded rows the sample does not cover', () 
     expect(DATE_EXCLUDED_ROWS.length - 1).toBe(3);
 
     await gotoApp(page);
-    await importExport(page, SYNTHETIC_ZIP_NAME, buildDateExcludedPremiumExport());
+    await importAndOpen(page, SYNTHETIC_ZIP_NAME, buildDateExcludedPremiumExport(), 'finance');
 
     // The usable row is still charted, so the block is `ready` and the summary
     // renders: three dropped rows must not cost the reader the one month.
@@ -693,10 +730,11 @@ test.describe('05-10 premium time: no Financial_data folder', () => {
     page,
   }) => {
     await gotoApp(page);
-    await importExport(
+    await importAndOpen(
       page,
       SYNTHETIC_ZIP_NAME,
       buildCustomExport({ omitFolders: ['Financial_data'] }),
+      'finance',
     );
 
     // The card is a greyed skeleton: `no-export`, the D-10 wording, and none of
@@ -871,7 +909,7 @@ test.describe('05-13 virtual currency: the sample export', () => {
     context = await browser.newContext();
     page = await context.newPage();
     await gotoApp(page);
-    await importExport(page, SYNTHETIC_ZIP_NAME, buildSampleExport());
+    await importAndOpen(page, SYNTHETIC_ZIP_NAME, buildSampleExport(), 'finance');
   });
 
   test.afterAll(async () => {
@@ -963,13 +1001,16 @@ test.describe('05-13 virtual currency: the sample export', () => {
   });
 
   test('(frame) the zero line and both bound hairlines carry the Color table strokes', async () => {
-    // 05-UI-REVIEW top fix 2, UAT G-05-9. The rgb strings are the spec's
-    // `#5f6368` and `#dadce0` written out as literals and never read back off
-    // the page: the contract is the source of these values, so a test that
-    // scraped the computed colour and compared it with itself would pass
-    // against a chart painted in whatever the stylesheet happened to say.
-    const ZERO_LINE = 'rgb(95, 99, 104)'; // #5f6368
-    const HAIRLINE = 'rgb(218, 220, 224)'; // #dadce0
+    // 05-UI-REVIEW top fix 2, UAT G-05-9. The rgb strings are the --muted
+    // token (the Phase 8 palette supersedes the 05 zero-line hex per the
+    // 08-UI-SPEC Hex migrations) and the --border hairline (quick 261009-qbo:
+    // the hairline reads the token instead of the 05 `#dadce0`), written out
+    // as literals and never read back off the page: the contract is the source
+    // of these values, so a test that scraped the computed colour and compared
+    // it with itself would pass against a chart painted in whatever the
+    // stylesheet happened to say.
+    const ZERO_LINE = 'rgb(92, 92, 92)'; // --muted, #5c5c5c
+    const HAIRLINE = 'rgb(220, 220, 220)'; // --border, #dcdcdc
 
     const strokes = (testId: string) =>
       page
@@ -1125,7 +1166,7 @@ test.describe('05-13 virtual currency: the sample export (other rows and tables)
     context = await browser.newContext();
     page = await context.newPage();
     await gotoApp(page);
-    await importExport(page, SYNTHETIC_ZIP_NAME, buildSampleExport());
+    await importAndOpen(page, SYNTHETIC_ZIP_NAME, buildSampleExport(), 'finance');
   });
 
   test.afterAll(async () => {
@@ -1293,12 +1334,13 @@ test.describe('05-21 the currency axis on a one-sided currency', () => {
       currencyRow('2019-05-15 12:30:00', 'solo.axis', 'Solo Axis', '10', 'withdrawal'),
     ];
     await gotoApp(page);
-    await importExport(page, SYNTHETIC_ZIP_NAME, currencyExport(rows));
+    await importAndOpen(page, SYNTHETIC_ZIP_NAME, currencyExport(rows), 'finance');
 
     const svg = page.getByTestId('currency-svg');
     await expect(svg).toHaveCount(1);
-    // One month at the widest pitch, and the frame is unchanged by the split.
-    await expect(svg).toHaveAttribute('width', '76');
+    // One month fills the pane (it was a 76px stub), and the frame is
+    // unchanged by the split.
+    await expectFillsScroller(svg);
     await expect(svg).toHaveAttribute('height', '192');
 
     const frame = await svg.evaluate((node) => {
@@ -1375,39 +1417,67 @@ test.describe('05-22 the whole-pixel pitch', () => {
       ),
     );
     await gotoApp(page);
-    await importExport(page, SYNTHETIC_ZIP_NAME, currencyExport(rows));
+    await importAndOpen(page, SYNTHETIC_ZIP_NAME, currencyExport(rows), 'finance');
 
     const svg = page.getByTestId('currency-svg');
     await expect(svg).toHaveCount(1);
-    await expect(svg).toHaveAttribute('width', '571');
     // The frame is untouched by the pitch: 8 + 160 + 24, split by the extents.
     await expect(svg).toHaveAttribute('height', '192');
-
     const cells = svg.getByTestId('currency-cell');
     await expect(cells).toHaveCount(73);
-    // The cell x attributes, not just the width: a chart could reach 571px by
-    // scaling, and this says it got there by using a 7px pitch.
+
+    // G-08-3: at desktop width the chart fills its pane, so the 571px chart
+    // this spec used to pin is now the PHONE geometry (asserted below at
+    // 375px). Here the svg is as wide as its scroller, within a pixel.
+    await expect
+      .poll(async () =>
+        svg.evaluate((node) => {
+          const scroller = node.closest('[data-testid="bar-scroller"]');
+          return scroller === null
+            ? Number.POSITIVE_INFINITY
+            : Math.abs(Number(node.getAttribute('width')) - scroller.clientWidth);
+        }),
+      )
+      .toBeLessThanOrEqual(1);
+    const filled = Number(await svg.getAttribute('width'));
+    // The plot is divided in whole pixels: slots of floor(plot / 73) and the
+    // remainder spread over them, so cell 1 starts at 56 + floor(plot / 73).
+    const plot = filled - 56 - 8;
     expect(Number(await cells.nth(0).getAttribute('x'))).toBe(56);
-    expect(Number(await cells.nth(1).getAttribute('x'))).toBe(63);
-    // Bar width stays pitch - 1, so a 7px pitch draws a 6px bar and a 1px gap.
-    await expect(svg.locator('[data-testid="in-bar"]').first()).toHaveAttribute('width', '6');
+    expect(Number(await cells.nth(1).getAttribute('x'))).toBe(56 + Math.floor(plot / 73));
 
     // 12 x 7 is 84, under the UI-SPEC's 96px floor, so the stride doubles to 24
-    // months: 2015-01, 2017-01 and 2019-01. There is no fourth label, because
-    // 2021-01 sits at x 560 and 560 + 56 = 616 runs past the 571px width.
+    // months whatever the width: 2015-01, 2017-01 and 2019-01. There is no
+    // fourth label, because 2021-01 would need x + 56 inside the svg.
     expect(await svg.locator('text.x-axis').allTextContents()).toEqual([
       '2015-01',
       '2017-01',
       '2019-01',
     ]);
 
-    // And the point of the whole rule at this month count: at 571px the chart
-    // fits its own column, so there is nothing left to scroll. The 240-month
-    // spec above asserts the other half of the same scroller.
+    // Filled: nothing left to scroll.
     const metrics = await currencyBlock(page)
       .getByTestId('bar-scroller')
       .evaluate((node) => ({ scrollWidth: node.scrollWidth, clientWidth: node.clientWidth }));
     expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth);
+
+    // At a phone width the pane (343px) is narrower than today's 571px chart,
+    // so the 05-22 geometry is unchanged there: 571 wide, a 7px pitch, a 6px
+    // bar and a 1px gap, scrolling inside its own box.
+    await page.setViewportSize({ width: 375, height: 800 });
+    await expect(svg).toHaveAttribute('width', '571');
+    expect(Number(await cells.nth(0).getAttribute('x'))).toBe(56);
+    expect(Number(await cells.nth(1).getAttribute('x'))).toBe(63);
+    await expect(svg.locator('[data-testid="in-bar"]').first()).toHaveAttribute('width', '6');
+    expect(await svg.locator('text.x-axis').allTextContents()).toEqual([
+      '2015-01',
+      '2017-01',
+      '2019-01',
+    ]);
+    const phone = await currencyBlock(page)
+      .getByTestId('bar-scroller')
+      .evaluate((node) => ({ scrollWidth: node.scrollWidth, clientWidth: node.clientWidth }));
+    expect(phone.scrollWidth).toBeGreaterThan(phone.clientWidth);
   });
 });
 
@@ -1466,7 +1536,7 @@ test.describe('05-13 virtual currency: no currency clears the threshold', () => 
     const codes = ['alpha', 'bravo', 'charlie', 'delta', 'echo'];
     const rows = codes.flatMap((code) => depositsIn(code, code, '2019-05', 4));
     await gotoApp(page);
-    await importExport(page, SYNTHETIC_ZIP_NAME, currencyExport(rows));
+    await importAndOpen(page, SYNTHETIC_ZIP_NAME, currencyExport(rows), 'finance');
 
     const block = currencyBlock(page);
     await expect(block).toHaveAttribute('data-state', 'ready');
@@ -1512,7 +1582,7 @@ test.describe('05-13 virtual currency: the cap of eight', () => {
     );
     const rows = codes.flatMap((code) => depositsIn(code, code, '2019-05', 60));
     await gotoApp(page);
-    await importExport(page, SYNTHETIC_ZIP_NAME, currencyExport(rows));
+    await importAndOpen(page, SYNTHETIC_ZIP_NAME, currencyExport(rows), 'finance');
 
     await expect(page.getByTestId('currency-chart')).toHaveCount(8);
     const chartCodes = await page
@@ -1553,16 +1623,15 @@ test.describe('05-13 virtual currency: singular forms', () => {
       ...depositsIn('solo.one', 'Solo One', '2019-05', 1, '7'),
     ];
     await gotoApp(page);
-    await importExport(page, SYNTHETIC_ZIP_NAME, currencyExport(rows));
+    await importAndOpen(page, SYNTHETIC_ZIP_NAME, currencyExport(rows), 'finance');
 
     const chart = page.getByTestId('currency-chart');
     await expect(chart).toHaveCount(1);
     await expect(chart).toHaveAttribute('data-currency', 'solo.many');
 
-    // One cell, and the widest pitch: 1 × 16 ≤ 576 and nothing narrower is
-    // tried, so a one-month chart is a one-month chart at full width.
+    // One cell that fills the pane (it was a 76px stub at pitch 16).
     const svg = page.getByTestId('currency-svg');
-    await expect(svg).toHaveAttribute('width', '76');
+    await expectFillsScroller(svg);
     await expect(chart.getByTestId('currency-cell')).toHaveCount(1);
     await expect(svg.locator('text.x-axis')).toHaveCount(1);
     await expect(svg.locator('text.x-axis')).toHaveText('2019-05');
@@ -1614,7 +1683,7 @@ test.describe('05-13 virtual currency: a file that is empty and one nothing surv
     // is a different problem for the reader than a file that is not in the zip
     // at all — only the first is fixed by a wider export range.
     await gotoApp(page);
-    await importExport(
+    await importAndOpen(
       page,
       SYNTHETIC_ZIP_NAME,
       buildCustomExport({
@@ -1625,6 +1694,7 @@ test.describe('05-13 virtual currency: a file that is empty and one nothing surv
           ),
         },
       }),
+      'finance',
     );
     await expect(financialSection(page)).toHaveAttribute('data-status', 'ready');
     await expect(currencyBlock(page)).toHaveAttribute('data-state', 'no-rows');
@@ -1647,6 +1717,7 @@ test.describe('05-13 virtual currency: a file that is empty and one nothing surv
           currencyRow('2019-05-01 10:00:00', 'ru.wot.credits', 'Credits', '100', 'refund'),
         ),
       ),
+      'finance',
     );
     await expect(currencyBlock(page)).toHaveAttribute('data-state', 'no-usable');
     await expect(currencyBlock(page).locator('p.body')).toHaveText(CURRENCY_NO_USABLE);
@@ -1725,10 +1796,11 @@ test.describe('05-13 virtual currency: a twenty-year history', () => {
     context = await browser.newContext();
     page = await context.newPage();
     await gotoApp(page);
-    await importExport(
+    await importAndOpen(
       page,
       SYNTHETIC_ZIP_NAME,
       generatedCurrencyExport(generateCurrencyOpsCsv(CURRENCY_20Y_SPEC)),
+      'finance',
     );
   });
 
@@ -1842,32 +1914,37 @@ test.describe('05-13 virtual currency: a twenty-year history', () => {
     const cells = page.getByTestId('currency-svg').getByTestId('currency-cell');
     const tooltip = page.getByTestId('finance-tooltip');
     const viewport = page.viewportSize()!;
-    // The sticky nav's own bottom, so the flip assertion below states the
-    // condition rather than a guessed pixel.
-    const navBottom = await page.evaluate(() => {
-      const nav = document.querySelector('[data-testid="dashboard-nav"]');
-      return nav === null ? 72 : nav.getBoundingClientRect().bottom;
-    });
 
     // Both ends, and the near-the-top flip, are the two places a tooltip
     // anchored to a cell is most likely to leave the screen: one horizontally
-    // against the column edge, the other vertically under the sticky nav.
+    // against the column edge, the other vertically against the top of the
+    // viewport. Nothing is sticky above the detail content any more, so the
+    // tooltip keeps 8px from every edge of the viewport.
     for (const index of [0, 239]) {
       await cells.nth(index).hover();
       await expect(tooltip).toBeVisible();
       const box = (await tooltip.boundingBox())!;
       expect(box.x).toBeGreaterThanOrEqual(8);
-      expect(box.x + box.width).toBeLessThanOrEqual(viewport.width - 8);
-      expect(box.y).toBeGreaterThanOrEqual(0);
+      // Half a pixel of slack on the right edge: the clamp measures the tooltip
+      // by its integer `offsetWidth`, and the box it is compared with is the
+      // fractional rendered width.
+      expect(box.x + box.width).toBeLessThanOrEqual(viewport.width - 8 + 0.5);
+      expect(box.y).toBeGreaterThanOrEqual(8);
       expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
     }
 
     // The FLIP, which is the half of the backstop a plain clamp does not
     // reach: a cell near the TOP of the viewport has no room above it, so the
-    // tooltip goes below rather than off the screen. The page is scrolled to
-    // put the chart's first cell just under the top edge, which is the only
-    // way to create that condition — an unscrolled page puts the cell in the
-    // middle, where "above" is always the right answer.
+    // tooltip goes below rather than off the screen. The tooltip goes below when
+    // there is less than `--nav-offset` (16px) plus the 8px gap between its top
+    // and the viewport top, i.e. when `anchor.top - height - 8 < 16 + 8`. The
+    // page is scrolled to put the chart's first cell just under the top edge,
+    // which is the only way to create that condition — an unscrolled page puts
+    // the cell in the middle, where "above" is always the right answer.
+    //
+    // The finance pane is a short page and cannot scroll far enough to lift the
+    // chart to the top of the viewport, so room below it is added for this check
+    // and removed after.
     //
     // The scroll is INSTANT, and that is what makes this test deterministic.
     // `app.css` gives the page `scroll-behavior: smooth` whenever the reader has
@@ -1878,8 +1955,9 @@ test.describe('05-13 virtual currency: a twenty-year history', () => {
     // cell more than a pixel. The shared tooltip dismisses a tooltip whose
     // cell has moved — correctly, see `ChartTooltip.isStale` — so the box read
     // below came back null in 4 to 15 of 20 isolated runs, depending on load.
-    // The other specs that scroll the page pin it too: playtime-charts.spec.ts
-    // with reduced motion, scroll-nav.spec.ts with this same instant scroll.
+    await page.evaluate(() => {
+      document.body.style.paddingBottom = '1200px';
+    });
     await page.evaluate(() => {
       const chart = document.querySelector('[data-testid="currency-svg"]');
       if (chart !== null)
@@ -1893,9 +1971,16 @@ test.describe('05-13 virtual currency: a twenty-year history', () => {
     await expect(tooltip).toBeVisible();
     const cellBox = (await cells.nth(0).boundingBox())!;
     const flipped = (await tooltip.boundingBox())!;
-    expect(cellBox.y).toBeLessThan(navBottom);
+    // The flip condition, stated against the measured tooltip height: no room
+    // above the anchor once the tooltip, the 8px gap, `--nav-offset` and the 8px
+    // gap are taken out of the space between the viewport top and the cell.
+    expect(cellBox.y - flipped.height - 8).toBeLessThan(16 + 8);
     expect(flipped.y).toBeGreaterThanOrEqual(cellBox.y + cellBox.height);
+    expect(flipped.y).toBeGreaterThanOrEqual(8);
     expect(flipped.y + flipped.height).toBeLessThanOrEqual(viewport.height);
+    await page.evaluate(() => {
+      document.body.style.paddingBottom = '';
+    });
 
     // An empty month is the other tooltip form, and a 20-year history drawn
     // round-robin has no gaps — so the reachable one is the FIRST month of a
@@ -1925,7 +2010,7 @@ test.describe('05-13 virtual currency: dates outside the window', () => {
     expect(oracle.others).toHaveLength(1);
 
     await gotoApp(page);
-    await importExport(page, SYNTHETIC_ZIP_NAME, generatedCurrencyExport(csv));
+    await importAndOpen(page, SYNTHETIC_ZIP_NAME, generatedCurrencyExport(csv), 'finance');
 
     await expect(currencyBlock(page)).toHaveAttribute('data-state', 'ready');
     await expect(page.getByTestId('currency-chart')).toHaveCount(0);
@@ -1962,7 +2047,12 @@ test.describe('05-17 virtual currency: an income counts as up', () => {
     // a blank title, and nothing else. This is the export that read
     // "Deposited 0 / Withdrawn 0 over 5 operations" in UAT.
     await gotoApp(page);
-    await importExport(page, SYNTHETIC_ZIP_NAME, currencyExport(CURRENCY_INCOME_ONLY_ROWS));
+    await importAndOpen(
+      page,
+      SYNTHETIC_ZIP_NAME,
+      currencyExport(CURRENCY_INCOME_ONLY_ROWS),
+      'finance',
+    );
 
     const block = currencyBlock(page);
     await expect(block).toHaveAttribute('data-state', 'ready');
@@ -2011,7 +2101,7 @@ test.describe('05-17 virtual currency: an income counts as up', () => {
       ),
     );
     await gotoApp(page);
-    await importExport(page, SYNTHETIC_ZIP_NAME, currencyExport(rows));
+    await importAndOpen(page, SYNTHETIC_ZIP_NAME, currencyExport(rows), 'finance');
 
     const chart = page.getByTestId('currency-chart');
     await expect(chart).toHaveCount(1);

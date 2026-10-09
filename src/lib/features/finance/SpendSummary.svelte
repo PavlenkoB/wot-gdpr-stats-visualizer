@@ -392,19 +392,19 @@
   h3 {
     margin: 0;
     padding-bottom: 8px;
-    border-bottom: 1px solid #dadce0;
+    border-bottom: 1px solid var(--border);
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #08060d;
+    color: var(--ink);
   }
 
   .body {
     margin: 0;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 400;
     line-height: 1.5;
-    color: #3c4043;
+    color: var(--text);
     min-width: 0;
     overflow-wrap: anywhere;
   }
@@ -433,9 +433,9 @@
     gap: 4px;
     min-width: 0;
     padding: 16px;
-    border: 1px solid #dadce0;
+    border: 1px solid var(--border);
     border-radius: 6px;
-    background: #f7f7fa;
+    background: var(--list);
   }
 
   /* Label role, and the code as WRITTEN: `usd` stays `usd` and `USD` stays
@@ -447,17 +447,17 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #08060d;
+    color: var(--ink);
     min-width: 0;
     overflow-wrap: anywhere;
   }
 
   .headline {
     margin: 0;
-    font-size: 28px;
+    font-size: 26px;
     font-weight: 600;
-    line-height: 1.2;
-    color: #08060d;
+    line-height: 1.3;
+    color: var(--ink);
     min-width: 0;
     overflow-wrap: anywhere;
   }
@@ -467,7 +467,7 @@
     font-size: 14px;
     font-weight: 400;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
     min-width: 0;
     overflow-wrap: anywhere;
   }
@@ -488,17 +488,17 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
     min-width: 0;
     overflow-wrap: anywhere;
   }
 
   dd {
     margin: 0;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 400;
     line-height: 1.4;
-    color: #3c4043;
+    color: var(--text);
     text-align: right;
     font-variant-numeric: tabular-nums;
   }
@@ -511,11 +511,11 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
   }
 
   summary:focus-visible {
-    outline: 3px solid #1a73e8;
+    outline: 3px solid var(--focus);
     outline-offset: 2px;
   }
 
@@ -543,23 +543,23 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
     padding-bottom: 4px;
   }
 
   th {
     padding: 8px 12px;
     font-weight: 600;
-    color: #5f6368;
+    color: var(--muted);
     text-align: left;
-    border-bottom: 1px solid #dadce0;
+    border-bottom: 1px solid var(--border);
   }
 
   td {
     padding: 8px 12px;
     font-weight: 400;
-    color: #3c4043;
-    border-bottom: 1px solid #dadce0;
+    color: var(--text);
+    border-bottom: 1px solid var(--border);
     /* A game code is 80 characters of clamped zip text in the long-text
        fixture, so the FIRST column wraps anywhere and the numeric columns keep
        their alignment (T-05-46, UI-SPEC 14). */

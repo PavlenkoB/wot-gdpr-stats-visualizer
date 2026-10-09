@@ -1,7 +1,9 @@
 <script lang="ts">
   import { WORLD_SHAPES } from '../../geo/world-map.generated.ts';
+  import AboutDisclosure from '../../charts/AboutDisclosure.svelte';
   import ChartLegend from '../../charts/ChartLegend.svelte';
   import {
+    ABOUT_NAME_MAP,
     MAP_ATTRIBUTION_LINK_TEXT,
     MAP_ATTRIBUTION_SUFFIX,
     MAP_HEADING,
@@ -93,7 +95,9 @@
     <p class="body" data-testid="login-map-summary" data-form={summary.form}>
       {formatMapSummary(...summary.args)}
     </p>
-    <p class="caption" id={hintId}>{MAP_KEYBOARD_HINT}</p>
+    <AboutDisclosure name={ABOUT_NAME_MAP} testId="about-map">
+      <p class="caption" id={hintId}>{MAP_KEYBOARD_HINT}</p>
+    </AboutDisclosure>
     <div class="frame" data-testid="login-map-frame">
       <WorldMap {rows} {max} {hintId} />
     </div>
@@ -132,17 +136,17 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #08060d;
+    color: var(--ink);
   }
 
   /* Body role: the summary sentence is the text equivalent of the map. */
   .body {
     margin: 0;
     min-width: 0;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 400;
     line-height: 1.5;
-    color: #3c4043;
+    color: var(--text);
     overflow-wrap: anywhere;
   }
 
@@ -153,7 +157,7 @@
     font-size: 14px;
     font-weight: 400;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
     overflow-wrap: anywhere;
   }
 
@@ -161,21 +165,21 @@
      padding, so the map fills the card's inner width. */
   .frame {
     min-width: 0;
-    border: 1px solid #dadce0;
+    border: 1px solid var(--border);
     border-radius: 6px;
-    background: #ffffff;
+    background: var(--page);
   }
 
   /* The attribution link: a link needs a non-colour affordance, so it is
      underlined, in the body-text colour with no hover change; the accent is for
      the focus ring alone. */
   a {
-    color: #3c4043;
+    color: var(--text);
     text-decoration: underline;
   }
 
   a:focus-visible {
-    outline: 3px solid #1a73e8;
+    outline: 3px solid var(--focus);
     outline-offset: 2px;
   }
 </style>

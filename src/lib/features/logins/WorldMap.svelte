@@ -455,7 +455,7 @@
   /* A country's outline: a 1px hairline that stays 1px at every scale, so a
      295px phone overview and a 638px desktop map draw the same weight. */
   .shape {
-    stroke: #dadce0;
+    stroke: var(--border);
     stroke-width: 1px;
     vector-effect: non-scaling-stroke;
   }
@@ -488,7 +488,7 @@
   /* The marker for a country too small to see: its own shade and a muted stroke,
      so it reads against both the ocean and a neighbour. */
   .marker {
-    stroke: #5f6368;
+    stroke: var(--muted);
     stroke-width: 1px;
     vector-effect: non-scaling-stroke;
   }
@@ -509,7 +509,7 @@
   }
 
   .ring-outer {
-    stroke: #1a73e8;
+    stroke: var(--focus);
     stroke-width: 3px;
   }
 

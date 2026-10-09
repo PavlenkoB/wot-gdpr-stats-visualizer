@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Alternative A, triage list and two-column detail</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+button,select{font:inherit}
+.row{transition:background .12s}
+.row:hover{background:#f1f3f4}
+button:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #1a73e8;outline-offset:-3px}
+summary{cursor:pointer}
+@media (min-width:900px){.pane-list{position:sticky;top:0;height:100vh;overflow:auto}}
+</style>
+</helmet>
+<div style="display:flex;flex-wrap:wrap;min-height:100vh;background:#ffffff;color:#3c4043;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.5">
+
+<aside class="pane-list" style="flex:1 0 340px;box-sizing:border-box;background:#f7f7fa;border-right:1px solid #dadce0;display:flex;flex-direction:column;align-self:flex-start">
+  <div style="padding:20px 20px 16px;border-bottom:1px solid #dadce0">
+    <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5f6368">WG Data Export Viewer</div>
+    <h1 style="margin:6px 0 4px;font-size:22px;line-height:1.25;font-weight:600;color:#08060d">Tester</h1>
+    <div style="font-size:12.5px;color:#5f6368">Account ID 123456789 · Location code EU</div>
+    <div style="font-size:12.5px;color:#5f6368">Account created 2024-01-01 · Imported Oct 7, 2026</div>
+  </div>
+  <nav aria-label="Sections">
+    <ul style="list-style:none;margin:0;padding:0">
+      <li>
+        <button class="row" aria-current="true" style="all:unset;box-sizing:border-box;width:100%;min-height:76px;padding:12px 20px;display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;row-gap:2px;cursor:pointer;border-bottom:1px solid #dadce0;box-shadow:inset 3px 0 0 #1a73e8;background:#e8f0fe">
+          <span style="font-size:14px;font-weight:600;color:#08060d">Playtime</span>
+          <span style="font-size:14px;font-weight:600;color:#08060d;text-align:right">412.8 h</span>
+          <span style="font-size:12.5px;color:#5f6368">286 sessions · 143 active days</span>
+          <span aria-hidden="true" style="grid-column:1 / -1;display:flex;align-items:flex-end;gap:2px;height:18px;margin-top:4px">
+            <sc-for list="{{ spark }}" as="s" hint-placeholder-count="12"><span style="flex:1;border-radius:1px;background:#43a89c;height:{{ s.h }}"></span></sc-for>
+          </span>
+        </button>
+      </li>
+      <li>
+        <button class="row" style="all:unset;box-sizing:border-box;width:100%;min-height:76px;padding:12px 20px;display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;row-gap:2px;cursor:pointer;border-bottom:1px solid #dadce0">
+          <span style="font-size:14px;font-weight:600;color:#08060d">Login history</span>
+          <span style="font-size:14px;font-weight:600;color:#08060d;text-align:right">3 IPs</span>
+          <span style="font-size:12.5px;color:#5f6368">612 logins · 0 countries matched</span>
+          <span aria-hidden="true" style="grid-column:1 / -1;display:flex;gap:2px;height:8px;margin-top:6px">
+            <span style="flex:402;background:#1f7a74;border-radius:2px"></span><span style="flex:131;background:#7cc7bc;border-radius:2px"></span><span style="flex:79;background:#b2dcd4;border-radius:2px"></span>
+          </span>
+        </button>
+      </li>
+      <li>
+        <button class="row" style="all:unset;box-sizing:border-box;width:100%;min-height:56px;padding:10px 20px;display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;cursor:pointer;border-bottom:1px solid #dadce0">
+          <span style="font-size:14px;font-weight:600;color:#5f6368">Vehicles</span><span style="font-size:14px;font-weight:600;color:#5f6368;text-align:right">—</span>
+          <span style="grid-column:1 / -1;font-size:12.5px;color:#5f6368">WoT is not in this export</span>
+        </button>
+      </li>
+      <li>
+        <button class="row" style="all:unset;box-sizing:border-box;width:100%;min-height:56px;padding:10px 20px;display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;cursor:pointer;border-bottom:1px solid #dadce0">
+          <span style="font-size:14px;font-weight:600;color:#5f6368">Finance</span><span style="font-size:14px;font-weight:600;color:#5f6368;text-align:right">—</span>
+          <span style="grid-column:1 / -1;font-size:12.5px;color:#5f6368">Not in this export</span>
+        </button>
+      </li>
+      <li>
+        <button class="row" style="all:unset;box-sizing:border-box;width:100%;min-height:56px;padding:10px 20px;display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;cursor:pointer;border-bottom:1px solid #dadce0">
+          <span style="font-size:14px;font-weight:600;color:#08060d">Payments</span><span style="font-size:14px;font-weight:600;color:#08060d;text-align:right">USD 29.97</span>
+          <span style="grid-column:1 / -1;font-size:12.5px;color:#5f6368">3 paid orders</span>
+        </button>
+      </li>
+      <li>
+        <button class="row" style="all:unset;box-sizing:border-box;width:100%;min-height:56px;padding:10px 20px;display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;cursor:pointer;border-bottom:1px solid #dadce0">
+          <span style="font-size:14px;font-weight:600;color:#08060d">Account</span><span style="font-size:14px;font-weight:600;color:#08060d;text-align:right">EU</span>
+          <span style="grid-column:1 / -1;font-size:12.5px;color:#5f6368">Location code and creation date</span>
+        </button>
+      </li>
+    </ul>
+    <button class="row" style="all:unset;box-sizing:border-box;width:100%;min-height:48px;padding:8px 20px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;border-bottom:1px solid #dadce0">
+      <span style="font-size:13px">Not yet supported</span>
+      <span style="font-size:12px;font-weight:600;background:#f1f3f4;border:1px solid #dadce0;border-radius:999px;padding:1px 9px">4 folders</span>
+    </button>
+  </nav>
+  <div style="padding:16px 20px 20px;display:flex;flex-direction:column;gap:10px;margin-top:auto">
+    <button class="row" style="all:unset;box-sizing:border-box;min-height:44px;padding:8px 14px;border:1px dashed #80868b;border-radius:8px;text-align:center;font-size:13px;background:#ffffff;cursor:pointer">Drop a new export (.zip) here, or click to choose it</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="row" style="all:unset;box-sizing:border-box;min-height:44px;padding:8px 14px;border:1px solid #dadce0;border-radius:8px;font-size:13px;color:#08060d;background:#ffffff;cursor:pointer">Start over</button>
+      <button style="all:unset;box-sizing:border-box;min-height:44px;padding:8px 14px;font-size:13px;color:#1a73e8;text-decoration:underline;cursor:pointer">Clear my cached data</button>
+    </div>
+  </div>
+</aside>
+
+<main style="flex:999 1 560px;min-width:0;box-sizing:border-box;padding:32px 40px 64px">
+<div style="max-width:1100px;display:flex;flex-direction:column;gap:20px">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
+    <div>
+      <h2 style="margin:0;font-size:26px;line-height:1.25;font-weight:600;color:#08060d">Playtime</h2>
+      <p style="margin:4px 0 0;font-size:12.5px;color:#5f6368">From Activity_history · 1 file, 287 rows · 1 session row excluded</p>
+    </div>
+    <button style="all:unset;box-sizing:border-box;min-height:44px;padding:8px 14px;border:1px solid #dadce0;border-radius:8px;font-size:13px;color:#08060d;background:#ffffff;cursor:pointer;display:flex;align-items:center;gap:8px">
+      <span style="font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#5f6368">#playtime</span> Copy link
+    </button>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(160px,100%),1fr));gap:12px">
+    <div style="background:#f7f7fa;border:1px solid #dadce0;border-radius:8px;padding:14px 16px;grid-column:span 1"><div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5f6368">Total playtime</div><div style="font-size:34px;line-height:1.2;font-weight:600;color:#08060d">412.8 <span style="font-size:14px;font-weight:400;color:#5f6368">hours</span></div></div>
+    <div style="background:#f7f7fa;border:1px solid #dadce0;border-radius:8px;padding:14px 16px"><div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5f6368">Sessions</div><div style="font-size:30px;line-height:1.2;font-weight:600;color:#08060d">286</div></div>
+    <div style="background:#f7f7fa;border:1px solid #dadce0;border-radius:8px;padding:14px 16px"><div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5f6368">Active days</div><div style="font-size:30px;line-height:1.2;font-weight:600;color:#08060d">143</div></div>
+    <div style="background:#ffffff;border:1px solid #dadce0;border-radius:8px;padding:14px 16px"><div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5f6368">Busiest hour</div><div style="font-size:30px;line-height:1.2;font-weight:600;color:#08060d">19:00</div></div>
+    <div style="background:#ffffff;border:1px solid #dadce0;border-radius:8px;padding:14px 16px"><div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5f6368">Typical session</div><div style="font-size:30px;line-height:1.2;font-weight:600;color:#08060d">1-2 h</div></div>
+  </div>
+
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+    <label for="srv" style="font-size:13px;font-weight:600;color:#08060d">Server name</label>
+    <select id="srv" style="min-height:44px;padding:6px 12px;border:1px solid #dadce0;border-radius:8px;background:#ffffff;color:#08060d"><option>All</option><option>EU1</option><option>EU2</option><option>NA1</option></select>
+    <span style="font-size:12.5px;color:#5f6368">EU1 142.0 h · EU2 130.6 h · NA1 140.2 h</span>
+  </div>
+
+  <section aria-labelledby="h-cal" style="border:1px solid #dadce0;border-radius:8px;padding:20px">
+    <h3 id="h-cal" style="margin:0;font-size:16px;font-weight:600;color:#08060d">Hours per day</h3>
+    <p style="margin:2px 0 14px;font-size:13px;color:#5f6368">2024 · shades rank your active days</p>
+    <div style="overflow-x:auto;padding-bottom:6px">
+      <div role="img" aria-label="Calendar heatmap of hours played per day in 2024" style="display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,14px);grid-auto-columns:14px;gap:3px;width:max-content">
+        <sc-for list="{{ calCells }}" as="c" hint-placeholder-count="12"><span style="width:14px;height:14px;border-radius:2px;background:{{ c.bg }}"></span></sc-for>
+      </div>
+    </div>
+    <details style="margin-top:6px;font-size:12.5px;color:#5f6368"><summary style="min-height:36px;display:flex;align-items:center;color:#1a73e8">About this chart</summary><p style="margin:0 0 4px">Dates are as recorded in the export. Darkest: more than 1.8 hours.</p></details>
+  </section>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(420px,100%),1fr));gap:20px;align-items:start">
+    <section aria-labelledby="h-hr" style="border:1px solid #dadce0;border-radius:8px;padding:20px">
+      <h3 id="h-hr" style="margin:0;font-size:16px;font-weight:600;color:#08060d">Weekday and time of day</h3>
+      <p style="margin:2px 0 14px;font-size:13px;color:#5f6368">Hours as recorded, not local time</p>
+      <div role="img" aria-label="Heatmap of hours by weekday and hour" style="display:grid;grid-template-columns:34px repeat(24,minmax(0,1fr));gap:2px;align-items:center">
+        <sc-for list="{{ hourCells }}" as="c" hint-placeholder-count="25">
+          <sc-if value="{{ c.isLabel }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:#5f6368">{{ c.text }}</span></sc-if>
+          <sc-if value="{{ c.isCell }}" hint-placeholder-val="{{ true }}"><span style="height:20px;border-radius:2px;background:{{ c.bg }}"></span></sc-if>
+        </sc-for>
+      </div>
+    </section>
+    <section aria-labelledby="h-len" style="border:1px solid #dadce0;border-radius:8px;padding:20px">
+      <h3 id="h-len" style="margin:0;font-size:16px;font-weight:600;color:#08060d">Session length</h3>
+      <p style="margin:2px 0 14px;font-size:13px;color:#5f6368">Each bar covers a longer range than the one before</p>
+      <div style="display:grid;grid-template-columns:88px minmax(0,1fr) 78px;gap:5px 10px;align-items:center;font-size:12.5px">
+        <sc-for list="{{ bars }}" as="b" hint-placeholder-count="12">
+          <span>{{ b.label }}</span>
+          <span style="height:10px;border-radius:5px;background:#eef0f2;overflow:hidden"><span style="display:block;height:10px;border-radius:5px;background:#1f7a74;width:{{ b.width }}"></span></span>
+          <span style="text-align:right">{{ b.count }} · {{ b.pct }}</span>
+        </sc-for>
+      </div>
+    </section>
+  </div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const RAMP = ['#eef0f2', '#b2dcd4', '#7cc7bc', '#43a89c', '#1f7a74', '#0d4f4c'];
+    let seed = 11;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    const calCells = [];
+    for (let i = 0; i < 371; i++) {
+      if (i >= 366) { calCells.push({ bg: 'transparent' }); continue; }
+      const weekend = (i % 7) >= 5;
+      let lv = 0;
+      if (rnd() < (weekend ? 0.55 : 0.3)) { const r = rnd(); lv = r < 0.28 ? 1 : r < 0.55 ? 2 : r < 0.78 ? 3 : r < 0.92 ? 4 : 5; }
+      calCells.push({ bg: RAMP[lv] });
+    }
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const hourCells = [{ isLabel: true, isCell: false, text: '' }];
+    for (let h = 0; h < 24; h++) hourCells.push({ isLabel: true, isCell: false, text: h % 6 === 0 ? String(h).padStart(2, '0') : '' });
+    days.forEach((d, di) => {
+      hourCells.push({ isLabel: true, isCell: false, text: d });
+      for (let h = 0; h < 24; h++) {
+        const eve = h >= 18 && h <= 22, morn = h >= 9 && h <= 11;
+        const p = (eve ? 0.78 : morn ? 0.4 : h >= 12 && h <= 17 ? 0.28 : 0.1) + (di >= 4 ? 0.2 : 0);
+        let lv = 0;
+        if (rnd() < p) { const r = rnd() + (eve ? 0.25 : 0); lv = r < 0.3 ? 1 : r < 0.55 ? 2 : r < 0.78 ? 3 : r < 0.93 ? 4 : 5; }
+        hourCells.push({ isLabel: false, isCell: true, bg: RAMP[lv] });
+      }
+    });
+    const bins = [['Under 1 min', 3], ['1-2 min', 4], ['2-5 min', 6], ['5-10 min', 9], ['10-20 min', 24], ['20-30 min', 38], ['30-60 min', 71], ['1-2 hours', 82], ['2-4 hours', 41], ['4-8 hours', 8], ['8-16 hours', 0], ['16+ hours', 0]];
+    const mh = [58, 52, 49, 41, 38, 30, 27, 29, 33, 36, 40, 44];
+    return {
+      calCells, hourCells,
+      bars: bins.map(([label, count]) => ({ label, count: String(count), pct: Math.round((count / 286) * 100) + '%', width: (count / 82 * 100).toFixed(1) + '%' })),
+      spark: mh.map((v) => ({ h: Math.round(v / 58 * 100) + '%' })),
+    };
+  }
+}
+</script>
+</body>
+</html>

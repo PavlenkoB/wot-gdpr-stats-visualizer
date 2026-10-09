@@ -6,6 +6,7 @@
   import type { CityView } from './city-shared.ts';
   import type { LoginsView } from './login-shared.ts';
   import {
+    ABOUT_NAME_LOGIN_TABLE,
     LOGIN_HISTORY_ERROR,
     LOGIN_HISTORY_HEADING,
     LOGIN_HISTORY_LOADING,
@@ -47,6 +48,7 @@
     visibleLoginColumns,
     type LoginSort,
   } from './login-model.ts';
+  import AboutDisclosure from '../../charts/AboutDisclosure.svelte';
   import ExcludedNotice from '../../shell/ExcludedNotice.svelte';
   import LoginSummary from './LoginSummary.svelte';
   import LoginMapSection from './LoginMapSection.svelte';
@@ -400,12 +402,26 @@
     <!--
       The IP table section (06-10, D-05): one row per distinct address, under the
       tiles and governed by the same mask flag as everything above it.
+
+      The two hints under the table are supplementary usage guidance, so they sit
+      in an "About this table" disclosure (Phase 8 disclosure pattern). The Account
+      record note stays above the table (Amendment A-3), and the city intro further
+      down is deliberately NOT in a disclosure (Phase 6 D-14, D-16: it is the
+      consent text for the one sanctioned request).
     -->
     <section class="table-section">
       <h4>{LOGIN_TABLE_HEADING}</h4>
       <p class="caption count" data-testid="login-count">
         {formatLoginCountLine(listed.addresses, listed.logins)}
       </p>
+      <!--
+        The Account record note labels the pinned row, so it is read with the
+        row, directly above the table (Amendment A-3). The record is excluded from
+        every tile (Phase 6 D-02), and this sentence is what says so.
+      -->
+      {#if account !== null}
+        <p class="caption" data-testid="login-account-note">{LOGIN_ACCOUNT_NOTE}</p>
+      {/if}
       <LoginTable
         {columns}
         rows={sortedRows}
@@ -416,8 +432,10 @@
         regionName={LOGIN_TABLE_ARIA_NAME}
         resetKey={`${importedAt}|${sort.key}|${sort.dir}`}
       />
-      <p class="caption">{VEHICLE_SCROLL_HINT}</p>
-      <p class="caption">{LOGIN_TABLE_FIND_HINT}</p>
+      <AboutDisclosure name={ABOUT_NAME_LOGIN_TABLE} testId="about-login-table">
+        <p class="caption">{VEHICLE_SCROLL_HINT}</p>
+        <p class="caption">{LOGIN_TABLE_FIND_HINT}</p>
+      </AboutDisclosure>
       <ExcludedNotice
         count={excluded}
         pill={formatLoginExcludedPill(excluded)}
@@ -428,9 +446,6 @@
         <p class="caption" data-testid="login-cap-line">
           {formatLoginCapLine(capped.addresses, capped.logins)}
         </p>
-      {/if}
-      {#if account !== null}
-        <p class="caption" data-testid="login-account-note">{LOGIN_ACCOUNT_NOTE}</p>
       {/if}
     </section>
 
@@ -492,11 +507,11 @@
   h3 {
     margin: 0;
     padding-bottom: 8px;
-    border-bottom: 1px solid #dadce0;
+    border-bottom: 1px solid var(--border);
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #08060d;
+    color: var(--ink);
   }
 
   /* Body role, state messages. Empty in every state but `loading`, where it is
@@ -504,10 +519,10 @@
   .status {
     margin: 0;
     min-height: 0;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 400;
     line-height: 1.5;
-    color: #3c4043;
+    color: var(--text);
     min-width: 0;
     overflow-wrap: anywhere;
   }
@@ -529,10 +544,10 @@
 
   .body {
     margin: 0;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 400;
     line-height: 1.5;
-    color: #3c4043;
+    color: var(--text);
     min-width: 0;
     overflow-wrap: anywhere;
   }
@@ -564,21 +579,21 @@
      element", and the accent is reserved for exactly that. */
   button {
     padding: 8px 16px;
-    border: 1px solid #80868b;
+    border: 1px solid var(--faint);
     border-radius: 6px;
-    background: #ffffff;
-    color: #3c4043;
+    background: var(--page);
+    color: var(--text);
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
   }
 
   button:hover {
-    background: #f1f3f4;
+    background: var(--hover);
   }
 
   button:focus-visible {
-    outline: 3px solid #1a73e8;
+    outline: 3px solid var(--focus);
     outline-offset: 2px;
   }
 
@@ -604,12 +619,12 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #3c4043;
+    color: var(--text);
   }
 
   .count {
     font-weight: 600;
-    color: #3c4043;
+    color: var(--text);
   }
 
   .caption {
@@ -618,7 +633,7 @@
     font-size: 14px;
     font-weight: 400;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
     overflow-wrap: anywhere;
   }
 </style>

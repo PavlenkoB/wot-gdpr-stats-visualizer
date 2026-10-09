@@ -23,7 +23,13 @@
 
 import '../_support/pin-locale';
 import { test, expect, type Page } from '@playwright/test';
-import { gotoApp, importExport, playtimeBlock, SYNTHETIC_ZIP_NAME } from '../_support/helpers';
+import {
+  gotoApp,
+  importAndOpen,
+  openSection,
+  playtimeBlock,
+  SYNTHETIC_ZIP_NAME,
+} from '../_support/helpers';
 import { HAND_ALL, HAND_ROWS } from '../../fixtures/playtime-hand-fixture.ts';
 import {
   SCALE_5K_SPEC,
@@ -56,7 +62,7 @@ test('UAT-1: HAND_EXPORT → populated Playtime block, split selector, value lis
   page,
 }) => {
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT);
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT, 'playtime');
   await expect(playtimeBlock(page)).toHaveAttribute('data-state', 'ready');
 
   // Three tiles populated, hand-arithmetic values (HAND_ALL).
@@ -111,7 +117,7 @@ test('UAT-2: HAND_EXPORT row 1 SESSION_START day maps to a populated calendar ce
   page,
 }) => {
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT);
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT, 'playtime');
   await expect(playtimeBlock(page)).toHaveAttribute('data-state', 'ready');
 
   // Row 1 of HAND_ROWS: 2018-03-05 20:00:00 → 22:00:00 (Monday, 2h merged).
@@ -151,8 +157,22 @@ test('UAT-3: SCALE_60K_SPEC → calendar renders at least 2 distinct shade colou
   page,
 }) => {
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, scale60kExport().bytes);
-  await expect(playtimeBlock(page)).toHaveAttribute('data-state', 'ready');
+  // A 60,000-row import can outlast `waitForImported`'s fixed 30 s ceiling on a
+  // loaded machine, so the helper's two landing signals are applied here with
+  // this test's own budget (the test timeout is 120 s).
+  await page.getByTestId('file-input').setInputFiles({
+    name: SYNTHETIC_ZIP_NAME,
+    mimeType: 'application/zip',
+    buffer: Buffer.from(scale60kExport().bytes),
+  });
+  await expect(page.getByTestId('identity-header')).not.toHaveAttribute(
+    'data-variant',
+    'skeleton',
+    { timeout: 90_000 },
+  );
+  await expect(page.getByTestId('processing-status')).toHaveCount(0, { timeout: 90_000 });
+  await openSection(page, 'playtime');
+  await expect(playtimeBlock(page)).toHaveAttribute('data-state', 'ready', { timeout: 60_000 });
 
   // Wait for at least one cell to be drawn (calendar may be lazy-rendered).
   await expect(page.locator('[data-day]').first()).toBeVisible({ timeout: 30_000 });
@@ -180,15 +200,17 @@ test('UAT-3: SCALE_60K_SPEC → calendar renders at least 2 distinct shade colou
 
 // -----------------------------------------------------------------------------
 // UAT-4: At 375px, a calendar cell stays clear of the sticky year head and
-// nav after PageUp/PageDown.
+// inside the viewport after PageUp/PageDown.
 //
 // Maps to 04-UAT.md Test 4.
 //
 // SCALE_5K_SPEC gives 12 active years (2012-2023) so PageDown can cross year
 // boundaries. The scroll-clearance is a real DOM measurement in
 // CalendarHeatmap.svelte (headHeightFor reads head.offsetHeight). At 375px
-// the year head measures 52px and the main nav is sticky, so we verify the
-// focused cell's top is below BOTH after a PageDown across a boundary.
+// the year head measures 52px and sticks at the very top of the viewport (the
+// master-detail shell has no sticky nav above it), so we verify the focused
+// cell's top is at or below the year head's bottom and its bottom is inside
+// the viewport after a PageDown across a boundary.
 // -----------------------------------------------------------------------------
 test('UAT-4: at 375px viewport, PageDown across year boundary keeps focused cell visible', async ({
   browser,
@@ -197,7 +219,7 @@ test('UAT-4: at 375px viewport, PageDown across year boundary keeps focused cell
   const page = await context.newPage();
   try {
     await gotoApp(page);
-    await importExport(page, SYNTHETIC_ZIP_NAME, scale5kExport().bytes);
+    await importAndOpen(page, SYNTHETIC_ZIP_NAME, scale5kExport().bytes, 'playtime');
     await expect(playtimeBlock(page)).toHaveAttribute('data-state', 'ready');
     await expect(page.locator('[data-day]').first()).toBeVisible({ timeout: 30_000 });
 
@@ -229,25 +251,30 @@ test('UAT-4: at 375px viewport, PageDown across year boundary keeps focused cell
     const focusedLocator = page.locator('[data-day]:focus');
     await expect(focusedLocator.first()).toBeVisible({ timeout: 5_000 });
 
-    // Measure sticky nav bottom + sticky year head bottom + focused cell top.
-    // Nav lives at data-testid="dashboard-nav" (DashboardNav.svelte:165); year
-    // head at [data-testid^="calendar-year-head-"] (CalendarHeatmap.svelte:431).
+    // Measure the sticky year head's bottom, the focused cell's top and bottom,
+    // and the viewport height. The year head is at
+    // [data-testid^="calendar-year-head-"] (CalendarHeatmap.svelte); nothing
+    // else sticks over the detail pane, so there is no nav term.
     const geometry = await page.evaluate(() => {
       const cell = document.activeElement;
       if (!cell || !cell.matches('[data-day]')) return null;
       const cellRect = cell.getBoundingClientRect();
-      const nav = document.querySelector('[data-testid="dashboard-nav"]') as HTMLElement | null;
       const head = document.querySelector(
         '[data-testid^="calendar-year-head-"]',
       ) as HTMLElement | null;
-      const navBottom = nav ? nav.getBoundingClientRect().bottom : 0;
-      const headBottom = head ? head.getBoundingClientRect().bottom : 0;
-      return { cellTop: cellRect.top, navBottom, headBottom };
+      const headBottom = head ? head.getBoundingClientRect().bottom : null;
+      return {
+        cellTop: cellRect.top,
+        cellBottom: cellRect.bottom,
+        headBottom,
+        viewportHeight: window.innerHeight,
+      };
     });
     expect(geometry).not.toBeNull();
     if (geometry === null) return;
-    expect(geometry.cellTop).toBeGreaterThanOrEqual(geometry.navBottom);
-    expect(geometry.cellTop).toBeGreaterThanOrEqual(geometry.headBottom);
+    expect(geometry.headBottom, 'the calendar has a year head to measure against').not.toBeNull();
+    expect(geometry.cellTop).toBeGreaterThanOrEqual(geometry.headBottom ?? 0);
+    expect(geometry.cellBottom).toBeLessThanOrEqual(geometry.viewportHeight);
   } finally {
     await context.close();
   }

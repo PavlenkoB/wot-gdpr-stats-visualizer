@@ -1,4 +1,7 @@
 import type { NavId, NavMutedReason, SectionStatus } from './shell/dashboard-status.ts';
+// Type-only: selection-state.ts imports this module at runtime, so the pane id
+// union must come across without a runtime cycle.
+import type { PaneId } from './shell/selection-state.ts';
 import type { IngestStage, ParsingProgress } from './core/types/worker-messages.ts';
 // Type-only: the split-column keys label strings, and a runtime import would
 // put a module in the bundle that this one only needs a union from.
@@ -285,7 +288,8 @@ export const SECTION_NOTE_PENDING = 'Dashboard coming in a later update';
  * identity header — so "coming in a later update" there would be a
  * promise the project will never keep.
  */
-export const SECTION_NOTE_USER_INFO = 'Account details are shown in the header above';
+export const SECTION_NOTE_USER_INFO =
+  'Account details are shown under your nickname in the section list';
 
 /**
  * The unsupported block's intro, shown above the banner list (D-22).
@@ -2954,3 +2958,137 @@ export function formatCityMoreCities(k: number, locale?: string): string {
 export function formatCityNoCity(n: number, locale?: string): string {
   return `${ipAddressesLabel(n, locale)} ${n === 1 ? 'has' : 'have'} no city in the database.`;
 }
+
+// =============================================================================
+// Phase 8 - master-detail shell copy (08-01-PLAN Task 1)
+// =============================================================================
+//
+// The pane titles and the list-row strings. Every row string comes from here so
+// a list row, an Overview card and a detail header cannot word the same fact
+// two ways. The wording is the 08-UI-SPEC Copywriting Contract; each constant is
+// pinned by `tests/unit/shell/ui-copy.test.ts`.
+// =============================================================================
+
+/**
+ * The visible title of each pane, in the list and as the detail heading.
+ *
+ * Prose titles rather than folder names: the folder a pane reads from is shown
+ * in its provenance line instead (`formatProvenanceFrom`). `Record<PaneId,
+ * string>` so a ninth pane without a title is a type error, not a blank row.
+ */
+export const PANE_TITLES: Record<PaneId, string> = {
+  overview: 'Overview',
+  playtime: 'Playtime',
+  'login-history': 'Login history',
+  vehicles: 'Vehicles',
+  finance: 'Finance',
+  payments: 'Payments',
+  account: 'Account',
+  'not-yet-supported': 'Not yet supported',
+};
+
+/** The headline of a row that has nothing to count: an em dash. */
+export const ROW_HEADLINE_NONE = '—';
+
+/** The Overview row's summary line when an export is loaded. */
+export const OVERVIEW_ROW_SUMMARY = 'What your export contains';
+
+/** The Account row's summary line. The headline beside it is the location code. */
+export const ACCOUNT_ROW_SUMMARY = 'Location code and creation date';
+
+/**
+ * A data row's summary: `{folder} · {n file(s)}`, with a middle dot.
+ *
+ * `folder` is the canonical `SECTIONS` constant, never a zip-entry name, so an
+ * untrusted entry name cannot reach a row (T-08-01).
+ */
+export function formatRowSummary(folder: string, fileCount: number): string {
+  return `${folder} · ${formatFileCount(fileCount)}`;
+}
+
+/** The Not-yet-supported row's headline: `1 folder` / `N folders`. */
+export function formatFolderCount(n: number): string {
+  return n === 1 ? '1 folder' : `${formatNumber(n)} folders`;
+}
+
+// =============================================================================
+// Phase 8 - Overview, list chrome and phone bar copy (08-01-PLAN Task 2)
+// =============================================================================
+//
+// The chips above the Overview grid, the card links, and the small strings the
+// shell chrome carries. Copied exactly from the 08-UI-SPEC Copywriting Contract
+// and the sketch layout notes.
+// =============================================================================
+
+/** The Overview chip counting panes that have data: `1 section with data` / `N sections with data`. */
+export function formatChipWithData(n: number): string {
+  return n === 1 ? '1 section with data' : `${formatNumber(n)} sections with data`;
+}
+
+/** The Overview chip counting supported folders the export lacks: `N not in this export`. */
+export function formatChipAbsent(n: number): string {
+  return `${formatNumber(n)} not in this export`;
+}
+
+/** The Overview chip counting unsupported folders: `1 folder not yet supported` / `N folders not yet supported`. */
+export function formatChipUnsupported(n: number): string {
+  return n === 1 ? '1 folder not yet supported' : `${formatNumber(n)} folders not yet supported`;
+}
+
+/** The sentence under the Overview heading. */
+export const OVERVIEW_INTRO = 'What your export contains. Open a section for the full charts.';
+
+/** An Overview card's link: `Open Playtime →`, with the arrow character. */
+export function formatOpenSectionLink(title: string): string {
+  return `Open ${title} →`;
+}
+
+/** The phone detail screen's back button. */
+export const BACK_TO_SECTIONS_LABEL = '‹ Sections';
+
+/** The hint shown while the list pane has focus. */
+export const LIST_KEYBOARD_HINT = 'Move with j and k';
+
+/** The skip link that jumps past the list to the detail pane. */
+export const SKIP_TO_DETAIL_LABEL = 'Skip to section detail';
+
+/** The line under the large empty-state drop target. */
+export const EMPTY_STATE_PRIVACY = 'Your data stays in this tab.';
+
+/**
+ * The start of a detail pane's provenance line: `From {folder} ·`, with a
+ * trailing middle dot so the counts line can follow it on the same row.
+ * `folder` is the canonical `SECTIONS` constant, never a zip-entry name.
+ */
+export function formatProvenanceFrom(folder: string): string {
+  return `From ${folder} ·`;
+}
+
+/** The product's name, shown in the list pane's masthead. */
+export const PRODUCT_LABEL = 'WG Data Export Viewer';
+
+/**
+ * The summary of an "About this <name>" disclosure (UI-SPEC copy row
+ * "Disclosure summary"). `name` is always one of the `ABOUT_NAME_*` constants.
+ */
+export function formatAboutThis(name: string): string {
+  return `About this ${name}`;
+}
+
+/** What the calendar's disclosure calls its chart: `About this calendar`. */
+export const ABOUT_NAME_CALENDAR = 'calendar';
+
+/** What the weekday-by-hour grid's disclosure calls its chart: `About this hour grid`. */
+export const ABOUT_NAME_HOUR_GRID = 'hour grid';
+
+/** What the premium chart's disclosure calls it: `About this chart`. */
+export const ABOUT_NAME_PREMIUM = 'chart';
+
+/** What each currency chart's disclosure calls it: `About this chart`. */
+export const ABOUT_NAME_CURRENCY = 'chart';
+
+/** What the login map's disclosure calls it: `About this map`. */
+export const ABOUT_NAME_MAP = 'map';
+
+/** What the Login history table's disclosure calls it: `About this table`. */
+export const ABOUT_NAME_LOGIN_TABLE = 'table';

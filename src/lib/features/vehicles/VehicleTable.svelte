@@ -385,13 +385,13 @@
     overflow: auto;
     max-height: 480px;
     min-width: 0;
-    border: 1px solid #dadce0;
+    border: 1px solid var(--border);
     border-radius: 6px;
-    background: #ffffff;
+    background: var(--page);
   }
 
   .scroller:focus-visible {
-    outline: 3px solid #1a73e8;
+    outline: 3px solid var(--focus);
     outline-offset: 2px;
   }
 
@@ -420,7 +420,7 @@
     border: 0;
   }
 
-  /* The header row, sticky to the TOP OF THE SCROLLER. Surface #f7f7fa and
+  /* The header row, sticky to the TOP OF THE SCROLLER. Surface var(--list) and
      muted text, per the UI-SPEC geometry row. */
   th {
     position: sticky;
@@ -428,8 +428,8 @@
     z-index: 2;
     height: 40px;
     padding: 0;
-    background: #f7f7fa;
-    color: #5f6368;
+    background: var(--list);
+    color: var(--muted);
     font-size: 14px;
     font-weight: 600;
     text-align: left;
@@ -441,13 +441,13 @@
   th.sticky-first {
     left: 0;
     z-index: 3;
-    border-right: 1px solid #dadce0;
+    border-right: 1px solid var(--border);
   }
 
   /* The sorted header's own surface, so the arrow's column is visible even
      when the reader has scrolled past the corner. */
   th.sorted {
-    background: #f1f3f4;
+    background: var(--hover);
   }
 
   /* The sort button fills its cell: Label weight, muted text, transparent
@@ -461,7 +461,7 @@
     padding: 0 8px;
     border: 0;
     background: transparent;
-    color: #5f6368;
+    color: var(--muted);
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
@@ -470,12 +470,12 @@
   }
 
   button:hover {
-    background: #dadce0;
-    color: #3c4043;
+    background: var(--sel);
+    color: var(--text);
   }
 
   button:focus-visible {
-    outline: 3px solid #1a73e8;
+    outline: 3px solid var(--focus);
     outline-offset: -3px;
   }
 
@@ -501,8 +501,8 @@
   td {
     height: 40px;
     padding: 0 8px;
-    background: #ffffff;
-    color: #3c4043;
+    background: var(--page);
+    color: var(--text);
     font-size: 14px;
     line-height: 1.4;
     white-space: nowrap;
@@ -518,17 +518,17 @@
     position: sticky;
     left: 0;
     z-index: 1;
-    border-right: 1px solid #dadce0;
+    border-right: 1px solid var(--border);
   }
 
   /* A zero-battle row is a vehicle the player owns and has not fought, which
      is information and not an error — so it reads as chrome, not as a failure. */
   tr.muted td {
-    color: #5f6368;
+    color: var(--muted);
   }
 
   td.muted-cell {
-    color: #5f6368;
+    color: var(--muted);
   }
 
   /* A special value: never shown as a zero, so never styled as a number. */
@@ -560,10 +560,10 @@
     max-width: 70px;
     margin-right: 4px;
     padding: 0 8px;
-    border: 1px solid #dadce0;
+    border: 1px solid var(--border);
     border-radius: 6px;
-    background: #f1f3f4;
-    color: #5f6368;
+    background: var(--chip);
+    color: var(--muted);
     font-size: 14px;
     line-height: 18px;
     vertical-align: middle;

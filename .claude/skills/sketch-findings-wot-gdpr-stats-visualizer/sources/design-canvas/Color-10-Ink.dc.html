@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Day palette 10, ink and teal</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+:root{--page:#ffffff;--list:#f5f5f5;--card:#ffffff;--border:#dcdcdc;--faint:#8c8c8c;--ink:#111111;--text:#3a3a3a;--muted:#5c5c5c;--primary:#111111;--sel:#e0e0e0;--hover:#ececec;--chip:#ebebeb;--track:#ececec;--r1:#b2dcd4;--r2:#7cc7bc;--r3:#43a89c;--r4:#1f7a74;--r5:#0d4f4c}
+body{margin:0}
+button{font:inherit}
+.row{transition:background .12s}
+.row:hover{background:var(--hover)}
+.card-link:hover{border-color:var(--primary)}
+button:focus-visible{outline:3px solid #1a73e8;outline-offset:-3px}
+@media (min-width:900px){.pane-list{position:sticky;top:0;height:100vh;overflow:auto}}
+</style>
+</helmet>
+<div style="display:flex;flex-wrap:wrap;min-height:100vh;background:var(--page);color:var(--text);font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.5">
+
+<aside class="pane-list" style="flex:1 0 320px;box-sizing:border-box;background:var(--list);border-right:1px solid var(--border);display:flex;flex-direction:column;align-self:flex-start">
+  <div style="padding:20px 20px 16px;border-bottom:1px solid var(--border)">
+    <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">WG Data Export Viewer</div>
+    <h1 style="margin:6px 0 4px;font-size:22px;line-height:1.25;font-weight:600;color:var(--ink)">Tester</h1>
+    <div style="font-size:12.5px;color:var(--muted)">Account ID 123456789 · Location code EU</div>
+    <div style="font-size:12.5px;color:var(--muted)">Account created 2024-01-01 · Imported Oct 7, 2026</div>
+  </div>
+  <nav aria-label="Sections">
+    <ul style="list-style:none;margin:0;padding:0">
+      <sc-for list="{{ rows }}" as="r" hint-placeholder-count="7">
+        <li>
+          <button class="row" aria-current="{{ r.current }}" style="all:unset;box-sizing:border-box;width:100%;min-height:56px;padding:10px 20px;display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;cursor:pointer;border-bottom:1px solid var(--border);box-shadow:{{ r.bar }};background:{{ r.bg }}">
+            <span style="font-size:14px;font-weight:600;color:{{ r.color }}">{{ r.title }}</span>
+            <span style="font-size:14px;font-weight:600;color:{{ r.color }};text-align:right">{{ r.headline }}</span>
+            <span style="grid-column:1 / -1;font-size:12.5px;color:var(--muted)">{{ r.sub }}</span>
+          </button>
+        </li>
+      </sc-for>
+    </ul>
+    <button class="row" style="all:unset;box-sizing:border-box;width:100%;min-height:48px;padding:8px 20px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;border-bottom:1px solid var(--border)">
+      <span style="font-size:13px">Not yet supported</span>
+      <span style="font-size:12px;font-weight:600;background:var(--chip);border:1px solid var(--border);border-radius:999px;padding:1px 9px">4 folders</span>
+    </button>
+  </nav>
+  <div style="padding:16px 20px 20px;display:flex;flex-direction:column;gap:10px;margin-top:auto">
+    <button class="row" style="all:unset;box-sizing:border-box;min-height:44px;padding:8px 14px;border:1px dashed var(--faint);border-radius:8px;text-align:center;font-size:13px;background:var(--card);cursor:pointer">Drop a new export (.zip) here, or click to choose it</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="row" style="all:unset;box-sizing:border-box;min-height:44px;padding:8px 14px;border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--ink);background:var(--card);cursor:pointer">Start over</button>
+      <button style="all:unset;box-sizing:border-box;min-height:44px;padding:8px 14px;font-size:13px;color:var(--primary);text-decoration:underline;cursor:pointer">Clear my cached data</button>
+    </div>
+  </div>
+</aside>
+
+<main style="flex:999 1 560px;min-width:0;box-sizing:border-box;padding:32px 40px 64px">
+<div style="max-width:1100px;display:flex;flex-direction:column;gap:20px">
+  <div>
+    <h2 style="margin:0;font-size:26px;line-height:1.25;font-weight:600;color:var(--ink)">Overview</h2>
+    <p style="margin:4px 0 0;font-size:13px;color:var(--text)">What your export contains. Open a section for the full charts.</p>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <span style="font-size:12.5px;font-weight:600;color:var(--ink);background:var(--card);border:1px solid var(--border);border-radius:999px;padding:4px 12px">4 sections with data</span>
+    <span style="font-size:12.5px;font-weight:600;color:var(--ink);background:var(--card);border:1px solid var(--border);border-radius:999px;padding:4px 12px">2 not in this export</span>
+    <span style="font-size:12.5px;font-weight:600;color:var(--ink);background:var(--card);border:1px solid var(--border);border-radius:999px;padding:4px 12px">4 folders not yet supported</span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:16px">
+    <button class="card-link" style="all:unset;box-sizing:border-box;border:1px solid var(--border);border-radius:8px;padding:18px;display:flex;flex-direction:column;gap:10px;cursor:pointer;background:var(--card)">
+      <span style="font-size:13px;font-weight:600;color:var(--muted)">Playtime</span>
+      <span style="font-size:30px;line-height:1.2;font-weight:600;color:var(--ink)">412.8 <span style="font-size:14px;font-weight:400;color:var(--muted)">hours</span></span>
+      <span style="font-size:12.5px;color:var(--muted)">286 sessions · 143 active days</span>
+      <span aria-hidden="true" style="display:flex;align-items:flex-end;gap:3px;height:44px">
+        <sc-for list="{{ spark }}" as="s" hint-placeholder-count="12"><span style="flex:1;border-radius:2px;background:var(--r3);height:{{ s.h }}"></span></sc-for>
+      </span>
+      <span style="font-size:13px;color:var(--primary);font-weight:600;margin-top:auto;text-decoration:underline">Open Playtime →</span>
+    </button>
+    <button class="card-link" style="all:unset;box-sizing:border-box;border:1px solid var(--border);border-radius:8px;padding:18px;display:flex;flex-direction:column;gap:10px;cursor:pointer;background:var(--card)">
+      <span style="font-size:13px;font-weight:600;color:var(--muted)">Login history</span>
+      <span style="font-size:30px;line-height:1.2;font-weight:600;color:var(--ink)">3 <span style="font-size:14px;font-weight:400;color:var(--muted)">IP addresses</span></span>
+      <span style="font-size:12.5px;color:var(--muted)">612 logins · 0 countries matched · addresses masked</span>
+      <span aria-hidden="true" style="display:flex;gap:3px;height:12px;margin-top:6px"><span style="flex:402;background:var(--r4);border-radius:3px"></span><span style="flex:131;background:var(--r3);border-radius:3px"></span><span style="flex:79;background:var(--r2);border-radius:3px"></span></span>
+      <span style="font-size:12px;color:var(--muted)">Logins per address</span>
+      <span style="font-size:13px;color:var(--primary);font-weight:600;margin-top:auto;text-decoration:underline">Open Login history →</span>
+    </button>
+    <button class="card-link" style="all:unset;box-sizing:border-box;border:1px solid var(--border);border-radius:8px;padding:18px;display:flex;flex-direction:column;gap:10px;cursor:pointer;background:var(--card)">
+      <span style="font-size:13px;font-weight:600;color:var(--muted)">Payments</span>
+      <span style="font-size:30px;line-height:1.2;font-weight:600;color:var(--ink)">USD 29.97</span>
+      <span style="font-size:12.5px;color:var(--muted)">3 paid orders · 0 failed · 0 new</span>
+      <span style="font-size:12px;color:var(--muted)">Each currency has its own total; nothing is converted.</span>
+      <span style="font-size:13px;color:var(--primary);font-weight:600;margin-top:auto;text-decoration:underline">Open Payments →</span>
+    </button>
+    <button class="card-link" style="all:unset;box-sizing:border-box;border:1px solid var(--border);border-radius:8px;padding:18px;display:flex;flex-direction:column;gap:10px;cursor:pointer;background:var(--card)">
+      <span style="font-size:13px;font-weight:600;color:var(--muted)">Account</span>
+      <span style="font-size:30px;line-height:1.2;font-weight:600;color:var(--ink)">EU</span>
+      <span style="font-size:12.5px;color:var(--muted)">Location code (per export) · created 2024-01-01</span>
+      <span style="font-size:13px;color:var(--primary);font-weight:600;margin-top:auto;text-decoration:underline">Open Account →</span>
+    </button>
+    <div style="border:1px dashed var(--faint);border-radius:8px;padding:18px;display:flex;flex-direction:column;gap:6px;background:var(--list)">
+      <span style="font-size:13px;font-weight:600;color:var(--muted)">Vehicles</span>
+      <span style="font-size:14px;color:var(--text)">WoT is not in this export.</span>
+    </div>
+    <div style="border:1px dashed var(--faint);border-radius:8px;padding:18px;display:flex;flex-direction:column;gap:6px;background:var(--list)">
+      <span style="font-size:13px;font-weight:600;color:var(--muted)">Finance</span>
+      <span style="font-size:14px;color:var(--text)">Not in this export.</span>
+    </div>
+  </div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const mh = [58, 52, 49, 41, 38, 30, 27, 29, 33, 36, 40, 44];
+    const defs = [
+      ['Overview', '', 'What your export contains', true, false],
+      ['Playtime', '412.8 h', '286 sessions · 143 active days', false, false],
+      ['Login history', '3 IPs', '612 logins · 0 countries matched', false, false],
+      ['Vehicles', '—', 'WoT is not in this export', false, true],
+      ['Finance', '—', 'Not in this export', false, true],
+      ['Payments', 'USD 29.97', '3 paid orders', false, false],
+      ['Account', 'EU', 'Location code and creation date', false, false],
+    ];
+    return {
+      rows: defs.map(([title, headline, sub, cur, muted]) => ({
+        title, headline, sub,
+        color: muted ? 'var(--muted)' : 'var(--ink)',
+        current: cur ? 'true' : 'false',
+        bg: cur ? 'var(--sel)' : 'transparent',
+        bar: cur ? 'inset 3px 0 0 var(--primary)' : 'none',
+      })),
+      spark: mh.map((v) => ({ h: Math.round(v / 58 * 100) + '%' })),
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -40,6 +40,19 @@ describe('05-11 MonthlyBarChart & MonthlyDataTable component contracts', () => {
     expect(raw).toContain('var(--flow-out)');
   });
 
+  it('MonthlyBarChart.svelte measures its scroller and re-lays out from the data model (G-08-3)', () => {
+    const clean = stripComments(code(CHART_FILE));
+
+    expect(clean).toContain('bind:contentRect');
+    expect(clean).toMatch(/buildBarChartModel\(\s*model\.input/);
+    // The roving-focus reset stays keyed to the data, never to the laid-out model.
+    expect(clean).toContain('initialBarFocus(model)');
+    expect(clean).not.toContain('initialBarFocus(laid)');
+    expect(clean).not.toMatch(/ui-copy/);
+    expect(clean).not.toContain('viewBox');
+    expect(clean).not.toMatch(/\bstyle="/);
+  });
+
   it('MonthlyDataTable.svelte exists and implements structural and accessibility contracts', () => {
     expect(existsSync(componentPath(TABLE_FILE))).toBe(true);
     const raw = code(TABLE_FILE);

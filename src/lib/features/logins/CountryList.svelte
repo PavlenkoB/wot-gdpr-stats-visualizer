@@ -88,16 +88,16 @@
   }
 
   /* The `<summary>` is a button-looking control and still a `<summary>`: the
-     shared control chrome, the 1px `#80868b` border, 6px radius and 8px/12px
+     shared control chrome, the 1px `var(--faint)` border, 6px radius and 8px/12px
      padding of the column picker, with the accent focus ring every interactive
      element carries. */
   summary {
     display: inline-block;
     padding: 8px 12px;
-    border: 1px solid #80868b;
+    border: 1px solid var(--faint);
     border-radius: 6px;
-    background: #ffffff;
-    color: #3c4043;
+    background: var(--page);
+    color: var(--text);
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
@@ -105,11 +105,11 @@
   }
 
   summary:hover {
-    background: #f1f3f4;
+    background: var(--hover);
   }
 
   summary:focus-visible {
-    outline: 3px solid #1a73e8;
+    outline: 3px solid var(--focus);
     outline-offset: 2px;
   }
 
@@ -128,7 +128,7 @@
   }
 
   .scroller:focus-visible {
-    outline: 3px solid #1a73e8;
+    outline: 3px solid var(--focus);
     outline-offset: 2px;
   }
 
@@ -144,9 +144,9 @@
     position: sticky;
     top: 0;
     padding: 8px;
-    border-bottom: 1px solid #dadce0;
-    background: #f7f7fa;
-    color: #5f6368;
+    border-bottom: 1px solid var(--border);
+    background: var(--list);
+    color: var(--muted);
     font-size: 14px;
     font-weight: 600;
     text-align: right;
@@ -157,8 +157,8 @@
      down a column; the country name is the exception, a label to scan down. */
   td {
     padding: 8px;
-    border-bottom: 1px solid #f1f3f4;
-    color: #3c4043;
+    border-bottom: 1px solid var(--hover);
+    color: var(--text);
     font-size: 14px;
     font-weight: 400;
     text-align: right;
@@ -175,6 +175,6 @@
 
   /* The unknown-country row is a special value, so it reads as one. */
   .muted td {
-    color: #5f6368;
+    color: var(--muted);
   }
 </style>

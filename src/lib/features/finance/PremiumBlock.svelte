@@ -8,10 +8,12 @@
   import type { TooltipRequest } from '../playtime/playtime-model.ts';
   import { acceptDataOutcome, deriveFinanceState, premiumFigures } from './finance-state.ts';
   import { buildBarChartModel } from '../../charts/bar-chart-model.ts';
+  import AboutDisclosure from '../../charts/AboutDisclosure.svelte';
   import MonthlyBarChart from '../../charts/MonthlyBarChart.svelte';
   import MonthlyDataTable from '../../charts/MonthlyDataTable.svelte';
   import ExcludedNotice from '../../shell/ExcludedNotice.svelte';
   import {
+    ABOUT_NAME_PREMIUM,
     FINANCIAL_ERROR,
     FINANCIAL_LOADING,
     FINANCIAL_NOT_IN_EXPORT,
@@ -193,7 +195,9 @@
       <div class="chart-container">
         <h4 class="chart-title">{PREMIUM_CHART_TITLE}</h4>
         <p class="caption">{BAR_CHART_BASIS_CAPTION}</p>
-        <p class="caption hint" id="premium-keyboard-hint">{BAR_CHART_KEYBOARD_HINT}</p>
+        <AboutDisclosure name={ABOUT_NAME_PREMIUM} testId="about-premium">
+          <p class="caption hint" id="premium-keyboard-hint">{BAR_CHART_KEYBOARD_HINT}</p>
+        </AboutDisclosure>
 
         <MonthlyBarChart
           model={chartModel}
@@ -260,19 +264,19 @@
   h3 {
     margin: 0;
     padding-bottom: 8px;
-    border-bottom: 1px solid #dadce0;
+    border-bottom: 1px solid var(--border);
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #08060d;
+    color: var(--ink);
   }
 
   .body {
     margin: 0;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 400;
     line-height: 1.5;
-    color: #3c4043;
+    color: var(--text);
     min-width: 0;
     overflow-wrap: anywhere;
   }
@@ -297,7 +301,7 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #08060d;
+    color: var(--ink);
   }
 
   .caption {
@@ -305,7 +309,9 @@
     font-size: 14px;
     font-weight: 400;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   .hint {
@@ -317,11 +323,16 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
+  }
+
+  summary {
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   summary:focus-visible {
-    outline: 3px solid #1a73e8;
+    outline: 3px solid var(--focus);
     outline-offset: 2px;
   }
 
@@ -331,14 +342,14 @@
     font-size: 14px;
     font-weight: 400;
     line-height: 1.5;
-    color: #3c4043;
+    color: var(--text);
     min-width: 0;
     overflow-wrap: anywhere;
   }
 
   .overflow {
     margin-top: 4px;
-    color: #5f6368;
+    color: var(--muted);
     font-style: italic;
   }
 </style>

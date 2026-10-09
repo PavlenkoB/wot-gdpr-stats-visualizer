@@ -39,10 +39,11 @@ import { dropFiles } from '../_support/helpers.ts';
 //
 //   "No identity was ever loaded" is asserted as `identity-nickname`
 // having count 0 plus the bar being the FULL variant. It used to be a
-// level-2 heading count, but the skeleton itself renders six `<h2>`
-// (the header title plus one per section), so that count is no longer
-// a meaningful "nothing loaded" signal — and a heading text assertion
-// would be ambiguous for the same reason.
+// level-2 heading count, but headings are pane titles now and the
+// first-visit page still carries several, so that count is not a
+// meaningful "nothing loaded" signal. The first-visit page is the
+// empty-state detail pane, which hosts the one dropzone and file input;
+// once a dataset loads the import region moves to the list pane.
 //
 // All console errors observed during each test are collected by the
 // beforeEach handler so individual tests can assert specific causes
@@ -226,6 +227,14 @@ test('(f) after a failure, dropping a valid export loads the identity header and
 
   await expect(page.getByTestId('identity-nickname')).toHaveText(SAMPLE_NICKNAME);
   await expect(page.getByTestId('failure-banner')).toHaveCount(0);
+
+  // The import region moved with the dataset: the banner was shown from the
+  // empty-state detail pane, and the slim bar now lives in the list pane.
+  await expect(page.getByTestId('list-pane').getByTestId('import-bar')).toHaveAttribute(
+    'data-variant',
+    'slim',
+  );
+  await expect(page.getByTestId('empty-state')).toHaveCount(0);
 });
 
 // -----------------------------------------------------------------------------

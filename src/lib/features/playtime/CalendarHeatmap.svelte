@@ -8,7 +8,6 @@
     TooltipRequest,
   } from './playtime-model.ts';
   import {
-    CALENDAR_LAYOUT,
     calendarNavigate,
     hoursAttribute,
     initialCalendarFocus,
@@ -16,6 +15,7 @@
   } from './playtime-model.ts';
   import { scrollClear } from '../../core/focus-clear.ts';
   import {
+    ABOUT_NAME_CALENDAR,
     CALENDAR_KEYBOARD_HINT,
     MONTH_SHORT,
     WEEKDAY_SHORT,
@@ -27,6 +27,7 @@
     formatEmptyYearRun,
     formatYearSummary,
   } from '../../ui-copy.ts';
+  import AboutDisclosure from '../../charts/AboutDisclosure.svelte';
   import ChartLegend from '../../charts/ChartLegend.svelte';
 
   /**
@@ -54,9 +55,10 @@
    * ## Why the svg is never scaled
    *
    * No `viewBox`, for the same reason the hour grid has none: the month and
-   * weekday labels are set in the Caption role and must stay 14px, and the
-   * 634 x 97 geometry is what fits 54 week columns. At 375px the SCRIMMER
-   * moves and the chart does not.
+   * weekday labels are set in the Caption role and must stay 14px. The svg has
+   * a fixed pixel size equal to the measured pane width (`model.layout`), and
+   * is never scaled. Below the floor, today's 634 x 97 geometry fits 54 week
+   * columns and at 375px the SCROLLER moves and the chart does not.
    *
    * ## Why the fill is a class and never an attribute
    *
@@ -452,9 +454,13 @@
     The key model as real text rather than a title attribute, linked with
     `aria-describedby` so a screen-reader user meets it before the first cell
     instead of having to go looking for it. It is inside the calendar and not
-    in the container because the calendar owns the keys it describes.
+    in the container because the calendar owns the keys it describes. It sits
+    inside the "About this calendar" disclosure (08-06): a collapsed details
+    keeps its content in the tree, so the id still resolves for the cells.
   -->
-  <p class="caption" id={hintId}>{CALENDAR_KEYBOARD_HINT}</p>
+  <AboutDisclosure name={ABOUT_NAME_CALENDAR} testId="about-calendar">
+    <p class="caption" id={hintId}>{CALENDAR_KEYBOARD_HINT}</p>
+  </AboutDisclosure>
 
   {#each model.blocks as block (block.kind === 'year' ? `y${block.year}` : `e${block.fromYear}`)}
     {#if block.kind === 'empty'}
@@ -476,9 +482,10 @@
           height is measured at focus time in both cases, so a head assumed to
           be 32px is never the height the focus correction uses.
 
-          `top: calc(var(--nav-offset) - 16px)` is 56px against a 72px nav, so
-          the head parks UNDER the nav and never under it; `z-index: 0` keeps it
-          below the nav's 1.
+          There is no sticky chrome over the content (the list pane is a column
+          beside it), so `top: calc(var(--nav-offset) - 16px)` resolves to 0:
+          the head sticks at the very top of the viewport; `z-index: 0` keeps it
+          below the tooltip and anything else that is positioned.
         -->
         <div class="year-head" data-testid="calendar-year-head-{block.year}">
           <h5>{block.year}</h5>
@@ -502,8 +509,8 @@
             tabindex="-1"
             aria-label={formatCalendarYearLabel(block.year)}
             aria-describedby={hintId}
-            width={CALENDAR_LAYOUT.width}
-            height={CALENDAR_LAYOUT.height}
+            width={model.layout.width}
+            height={model.layout.height}
             onpointerover={onPointerOver}
             onpointerout={onPointerOut}
             onfocusin={onFocusIn}
@@ -528,17 +535,20 @@
               vertically centred on their row, at the same place the UI-SPEC
               geometry row puts them: the left gutter, `text-anchor: end`.
 
-              The pad is `CALENDAR_LAYOUT.labelPad` and not a literal, because
+              The pad is `model.layout.labelPad` and not a literal, because
               the room these labels have is the gutter MINUS it: at an 8px pad
               the 32px gutter left 24px for a 29px "Wed", which started at a
               negative x and had its first letter clipped by the scroller in
               every year (UAT G-04-UI-1, 04-UI-SPEC Amendment A-1).
             -->
-            {#each CALENDAR_LAYOUT.weekdayLabelRows as row (row)}
+            {#each model.layout.weekdayLabelRows as row (row)}
               <text
                 class="axis"
-                x={CALENDAR_LAYOUT.gutter - CALENDAR_LAYOUT.labelPad}
-                y={row * CALENDAR_LAYOUT.pitch + 27}
+                x={model.layout.gutter - model.layout.labelPad}
+                y={model.layout.band +
+                  row * model.layout.rowPitch +
+                  Math.round(model.layout.cellHeight / 2) +
+                  2}
                 text-anchor="end"
                 aria-hidden="true"
               >
@@ -570,8 +580,8 @@
                     class="cell level-{cell.level}"
                     x={cell.x}
                     y={cell.y}
-                    width={CALENDAR_LAYOUT.cell}
-                    height={CALENDAR_LAYOUT.cell}
+                    width={cell.width}
+                    height={model.layout.cellHeight}
                     data-testid="calendar-cell"
                     data-date={cell.date}
                     data-day={cell.day}
@@ -611,15 +621,15 @@
                 class="hover-ring"
                 x={hoverCell.x - 1.5}
                 y={hoverCell.y - 1.5}
-                width={CALENDAR_LAYOUT.cell + 3}
-                height={CALENDAR_LAYOUT.cell + 3}
+                width={hoverCell.width + 3}
+                height={model.layout.cellHeight + 3}
               />
               <rect
                 class="hover-ring hover-ring-inner"
                 x={hoverCell.x - 3.5}
                 y={hoverCell.y - 3.5}
-                width={CALENDAR_LAYOUT.cell + 7}
-                height={CALENDAR_LAYOUT.cell + 7}
+                width={hoverCell.width + 7}
+                height={model.layout.cellHeight + 7}
               />
             {/if}
 
@@ -637,7 +647,7 @@
               ring.
 
               Two rects, because the accent alone is unreadable on the dark end
-              of the ramp: a 3px #1a73e8 stroke outside a 1px #ffffff one, so
+              of the ramp: a 3px var(--focus) stroke outside a 1px #ffffff one, so
               there is always a light edge between the ring and the cell under
               it (UI-SPEC's Color table, same construction as the hour grid's).
             -->
@@ -648,15 +658,15 @@
                   class="focus-ring"
                   x={focusCell.x - 1.5}
                   y={focusCell.y - 1.5}
-                  width={CALENDAR_LAYOUT.cell + 3}
-                  height={CALENDAR_LAYOUT.cell + 3}
+                  width={focusCell.width + 3}
+                  height={model.layout.cellHeight + 3}
                 />
                 <rect
                   class="focus-ring focus-ring-inner"
                   x={focusCell.x - 3.5}
                   y={focusCell.y - 3.5}
-                  width={CALENDAR_LAYOUT.cell + 7}
-                  height={CALENDAR_LAYOUT.cell + 7}
+                  width={focusCell.width + 7}
+                  height={model.layout.cellHeight + 7}
                 />
               {/if}
             {/if}
@@ -702,7 +712,7 @@
     font-size: 14px;
     font-weight: 400;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
     overflow-wrap: anywhere;
   }
 
@@ -727,11 +737,11 @@
     min-height: 32px;
     padding: 4px 0;
     min-width: 0;
-    background: #ffffff;
-    border-bottom: 1px solid #dadce0;
+    background: var(--page);
+    border-bottom: 1px solid var(--border);
   }
 
-  /* The year itself is the Label role, #08060d — the same role the chart
+  /* The year itself is the Label role, var(--ink) — the same role the chart
      titles use, so a year reads as a level of the same kind rather than
      introducing a sixth size. `h1` -> `h2` section -> `h3` Playtime -> `h4`
      chart title -> `h5` year: nothing skips a level. */
@@ -740,7 +750,7 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #08060d;
+    color: var(--ink);
   }
 
   /*
@@ -786,7 +796,7 @@
   .focus-ring,
   .hover-ring {
     fill: none;
-    stroke: #1a73e8;
+    stroke: var(--focus);
     stroke-width: 3;
     pointer-events: none;
   }
@@ -815,7 +825,7 @@
     font-size: 14px;
     font-weight: 400;
     line-height: 1.4;
-    fill: #5f6368;
+    fill: var(--muted);
   }
 
   /*

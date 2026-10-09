@@ -186,7 +186,12 @@ describe('Phase 3 section, nav and banner copy', () => {
   });
 
   test('SECTION_NOTE_USER_INFO overrides the note — no phase builds that dashboard', () => {
-    expect(SECTION_NOTE_USER_INFO).toBe('Account details are shown in the header above');
+    // 08-01: the identity header moved into the list pane, so "above" stopped
+    // being true. The note now points at where the nickname actually is.
+    expect(SECTION_NOTE_USER_INFO).toBe(
+      'Account details are shown under your nickname in the section list',
+    );
+    expect(SECTION_NOTE_USER_INFO).not.toContain('above');
   });
 
   test('the unsupported block intro, empty state and banner suffix', () => {
@@ -1933,5 +1938,117 @@ describe('05-08 export inventory', () => {
       (name) => (playtimeCopy as unknown as Record<string, unknown>)[name] === undefined,
     );
     expect(missing).toEqual([]);
+  });
+});
+
+// =============================================================================
+// Phase 8 master-detail shell copy (08-01-PLAN Task 1)
+// =============================================================================
+//
+// The pane titles and list-row strings from the 08-UI-SPEC Copywriting Contract.
+// Literals are typed out here, not read back from the constants, so a paraphrase
+// in ui-copy.ts fails here rather than reaching a user.
+describe('08-01 pane and row copy', () => {
+  test('PANE_TITLES names the eight panes', () => {
+    expect(playtimeCopy.PANE_TITLES).toEqual({
+      overview: 'Overview',
+      playtime: 'Playtime',
+      'login-history': 'Login history',
+      vehicles: 'Vehicles',
+      finance: 'Finance',
+      payments: 'Payments',
+      account: 'Account',
+      'not-yet-supported': 'Not yet supported',
+    });
+  });
+
+  test('the row constants', () => {
+    expect(playtimeCopy.ROW_HEADLINE_NONE).toBe('\u2014');
+    expect(playtimeCopy.OVERVIEW_ROW_SUMMARY).toBe('What your export contains');
+    expect(playtimeCopy.ACCOUNT_ROW_SUMMARY).toBe('Location code and creation date');
+  });
+
+  test('formatRowSummary joins the folder and the file count with a middle dot', () => {
+    expect(playtimeCopy.formatRowSummary('Activity_history', 2)).toBe(
+      'Activity_history \u00b7 2 files',
+    );
+    expect(playtimeCopy.formatRowSummary('User_Info', 1)).toBe('User_Info \u00b7 1 file');
+  });
+
+  test('formatFolderCount singularises at 1', () => {
+    expect(playtimeCopy.formatFolderCount(1)).toBe('1 folder');
+    expect(playtimeCopy.formatFolderCount(2)).toBe('2 folders');
+    expect(playtimeCopy.formatFolderCount(1204)).toBe('1,204 folders');
+  });
+});
+
+// =============================================================================
+// Phase 8 shell, Overview and phone-bar copy (08-01-PLAN Task 2)
+// =============================================================================
+//
+// These are the strings the e2e specs compute their expectations from, so the
+// pin is deliberate: a paraphrase is an edit to this file.
+describe('08-01 shell, Overview and phone-bar copy', () => {
+  test('the sections-with-data chip singularises at 1', () => {
+    expect(playtimeCopy.formatChipWithData(0)).toBe('0 sections with data');
+    expect(playtimeCopy.formatChipWithData(1)).toBe('1 section with data');
+    expect(playtimeCopy.formatChipWithData(6)).toBe('6 sections with data');
+  });
+
+  test('the not-in-this-export chip has one form', () => {
+    expect(playtimeCopy.formatChipAbsent(0)).toBe('0 not in this export');
+    expect(playtimeCopy.formatChipAbsent(1)).toBe('1 not in this export');
+    expect(playtimeCopy.formatChipAbsent(3)).toBe('3 not in this export');
+  });
+
+  test('the unsupported chip singularises at 1', () => {
+    expect(playtimeCopy.formatChipUnsupported(1)).toBe('1 folder not yet supported');
+    expect(playtimeCopy.formatChipUnsupported(2)).toBe('2 folders not yet supported');
+  });
+
+  test('the Open link names the pane and ends with an arrow', () => {
+    expect(playtimeCopy.formatOpenSectionLink('Playtime')).toBe('Open Playtime \u2192');
+    expect(playtimeCopy.formatOpenSectionLink('Login history')).toBe('Open Login history \u2192');
+  });
+
+  test('provenance leads with the folder and a trailing middle dot', () => {
+    expect(playtimeCopy.formatProvenanceFrom('Activity_history')).toBe(
+      'From Activity_history \u00b7',
+    );
+  });
+
+  const STATIC_ROWS = [
+    ['OVERVIEW_INTRO', 'What your export contains. Open a section for the full charts.'],
+    ['BACK_TO_SECTIONS_LABEL', '\u2039 Sections'],
+    ['LIST_KEYBOARD_HINT', 'Move with j and k'],
+    ['SKIP_TO_DETAIL_LABEL', 'Skip to section detail'],
+    ['EMPTY_STATE_PRIVACY', 'Your data stays in this tab.'],
+    ['PRODUCT_LABEL', 'WG Data Export Viewer'],
+  ] as const;
+
+  test.each(STATIC_ROWS)('%s is the UI-SPEC wording', (name, literal) => {
+    expect(playtimeCopy[name]).toBe(literal);
+  });
+});
+
+// 08-06: the "About this <name>" disclosure summary. The chart names are part of
+// the visible summary, so a paraphrase is an edit to this file.
+describe('08-06 About-this disclosure copy', () => {
+  test('formatAboutThis prefixes the chart name', () => {
+    expect(playtimeCopy.formatAboutThis('calendar')).toBe('About this calendar');
+    expect(playtimeCopy.formatAboutThis('hour grid')).toBe('About this hour grid');
+  });
+
+  const NAME_ROWS = [
+    ['ABOUT_NAME_CALENDAR', 'calendar'],
+    ['ABOUT_NAME_HOUR_GRID', 'hour grid'],
+    ['ABOUT_NAME_PREMIUM', 'chart'],
+    ['ABOUT_NAME_CURRENCY', 'chart'],
+    ['ABOUT_NAME_MAP', 'map'],
+    ['ABOUT_NAME_LOGIN_TABLE', 'table'],
+  ] as const;
+
+  test.each(NAME_ROWS)('%s is the UI-SPEC name', (name, literal) => {
+    expect(playtimeCopy[name]).toBe(literal);
   });
 });

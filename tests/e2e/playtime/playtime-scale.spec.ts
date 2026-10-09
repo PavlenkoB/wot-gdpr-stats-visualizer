@@ -1,6 +1,7 @@
 import '../_support/pin-locale';
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
+import { openSection } from '../_support/helpers.ts';
 import {
   DURATION_BIN_COUNT,
   HOUR_CELL_COUNT,
@@ -294,12 +295,36 @@ async function gotoApp(page: Page): Promise<void> {
 }
 
 /**
- * Import an export and wait for the Playtime block to reach `ready`.
+ * Wait for an import to land, with a ceiling the caller sets.
+ *
+ * The same two signals as `waitForImported` in `_support/helpers.ts` (the
+ * identity header leaving its `skeleton` variant, then the processing notice
+ * being gone), but with the caller's budget instead of that helper's fixed
+ * 30 s: the 60,000-session import is allowed `READY_BUDGET_MS`, so a 30 s
+ * ceiling on the import wait would fail the spec before the budget it exists to
+ * measure was reached.
+ */
+async function waitForImportLanded(page: Page, budgetMs: number): Promise<void> {
+  await expect(page.getByTestId('identity-header')).not.toHaveAttribute(
+    'data-variant',
+    'skeleton',
+    { timeout: budgetMs },
+  );
+  await expect(page.getByTestId('processing-status')).toHaveCount(0, { timeout: budgetMs });
+}
+
+/**
+ * Import an export, open the Playtime pane and wait for the block to reach
+ * `ready`.
  *
  * `data-state` on the block is the single signal: it is set in every state, so
  * a wait on it cannot silently pass on a page that never rendered the charts.
- * Returns the milliseconds from submission to `ready`, which is the number the
- * CI budget in plan 04-13 is derived from.
+ * The import lands on Overview, where the Playtime block is not mounted, so the
+ * import is awaited first (a click on a muted row before the dataset stamp
+ * arrives would be discarded) and the pane is opened before the block is
+ * awaited. Returns the milliseconds from submission to `ready`, measured from
+ * the same start point as before, which is the number the CI budget in plan
+ * 04-13 is derived from.
  */
 async function importAndAwaitReady(
   page: Page,
@@ -312,6 +337,8 @@ async function importAndAwaitReady(
     mimeType: 'application/zip',
     buffer: Buffer.from(bytes),
   });
+  await waitForImportLanded(page, budgetMs);
+  await openSection(page, 'playtime');
   await expect(page.getByTestId('playtime')).toHaveAttribute('data-state', 'ready', {
     timeout: budgetMs,
   });
@@ -662,7 +689,12 @@ test.describe('04-12 scale: 60,000 sessions in a real browser', () => {
     await expect(page.locator('main')).toHaveAttribute('data-worker-ready', 'true', {
       timeout: 10_000,
     });
+    // The reload lands on Overview, where the Playtime block is not mounted:
+    // wait for the cached dataset, then open the pane, inside the measured
+    // return visit so the budget still covers submission-free load to ready.
     const started = Date.now();
+    await waitForImportLanded(page, RETURN_VISIT_BUDGET_MS);
+    await openSection(page, 'playtime');
     await expect(page.getByTestId('playtime')).toHaveAttribute('data-state', 'ready', {
       timeout: RETURN_VISIT_BUDGET_MS,
     });

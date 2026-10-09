@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sketch 008 - Fresh round 3</title>
+<link rel="stylesheet" href="../themes/default.css">
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding-top:48px;font-family:system-ui,sans-serif}
+#variant-nav{position:fixed;top:0;left:0;right:0;z-index:9998;background:#fff;border-bottom:1px solid #e5e5e5;padding:8px 16px;display:flex;gap:8px;overflow-x:auto}
+.variant-tab{border:1px solid #ccc;background:#fff;border-radius:6px;padding:6px 12px;cursor:pointer;white-space:nowrap;transition:all .15s ease}
+.variant-tab:hover{background:#f0f0f0}.variant-tab.active{background:#111;color:#fff;border-color:#111}
+#sketch-tools{position:fixed;bottom:12px;right:12px;z-index:9999;font:12px system-ui;background:rgba(0,0,0,.7);color:#fff;padding:8px 12px;border-radius:8px;opacity:.4;transition:opacity .2s;display:flex;gap:6px;align-items:center}
+#sketch-tools:hover{opacity:1}#sketch-tools button{font:inherit;cursor:pointer}
+#frame{margin:0 auto;transition:max-width .2s}
+
+/* shared page */
+.app{background:var(--bg);color:var(--text);font-family:var(--font);min-height:calc(100vh - 48px);font-size:14px;line-height:1.5}
+.app h1,.app h2,.app h3{font-family:var(--head);margin:0}
+.muted{color:var(--muted)}
+.btn{font:inherit;border:1px solid var(--border);background:var(--surface2);color:var(--text);border-radius:8px;padding:7px 14px;cursor:pointer;transition:all .15s ease}
+.btn:hover{border-color:var(--primary);color:var(--primary)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.primary:hover{filter:brightness(1.1);color:#fff}
+select,input.search{font:inherit;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 10px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px}
+.card h2{font-size:16px;margin-bottom:2px}
+.card .sub{color:var(--muted);font-size:13px;margin-bottom:14px}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
+.tile{background:var(--surface2);border-radius:calc(var(--radius) - 2px);padding:14px 16px}
+.tile .k{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+.tile .v{font-size:30px;font-weight:var(--numw);font-family:var(--head);line-height:1.2}
+.tile .v small{font-size:13px;color:var(--muted);font-weight:400}
+.hm{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,1fr);gap:3px;margin:10px 0}
+.hm i{aspect-ratio:1;border-radius:2px;min-width:8px}
+.hh{display:grid;grid-template-columns:repeat(24,1fr);gap:3px;margin:10px 0}
+.hh i{height:16px;border-radius:2px}
+.legend{display:flex;gap:4px;align-items:center;color:var(--muted);font-size:12px}
+.legend i{width:14px;height:14px;border-radius:2px}
+.bars div{display:grid;grid-template-columns:70px 1fr 70px;gap:10px;align-items:center;font-size:12px;color:var(--muted);padding:2px 0}
+.bars b{display:block;height:10px;border-radius:5px;background:var(--r4)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;color:var(--muted);font-weight:500;font-size:12px;padding:8px 6px;border-bottom:1px solid var(--border)}
+td{padding:9px 6px;border-bottom:1px solid var(--border)}
+tr:hover td{background:var(--surface2)}
+.chip{font-size:11px;padding:2px 8px;border-radius:99px;background:var(--surface2);border:1px solid var(--border);color:var(--muted)}
+.note{font-size:12.5px;color:var(--muted);max-width:60ch}
+.stat-row{display:flex;gap:6px;align-items:baseline}
+.avatar{width:44px;height:44px;border-radius:50%;background:var(--primary);color:#fff;display:grid;place-items:center;font-weight:700;font-size:18px}
+.toast{position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:8px 16px;border-radius:8px;z-index:9999;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+
+/* Q1: timeline feed */
+.q1 .wrap{max-width:1100px;margin:0 auto;padding:24px;display:grid;grid-template-columns:200px 1fr;gap:28px}
+.q1 .rail{position:sticky;top:72px;align-self:start}
+.q1 .rail h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:10px}
+.q1 .rail a{display:grid;grid-template-columns:34px 1fr;gap:8px;align-items:center;padding:4px 0;cursor:pointer;color:var(--muted);font-size:13px}
+.q1 .rail a:hover,.q1 .rail a.on{color:var(--primary);font-weight:600}.q1 .rail a b{display:block;height:8px;border-radius:4px;background:var(--r3);min-width:2px}
+.q1 .feed{display:grid;gap:16px;min-width:0;position:relative}
+.q1 .ev{display:grid;grid-template-columns:44px 1fr;gap:12px}
+.q1 .ev .dot{width:44px;height:44px;border-radius:50%;background:var(--surface2);display:grid;place-items:center;font-size:20px;border:2px solid var(--border);position:relative;z-index:1}
+.q1 .ev:not(:last-child) .dot:after{content:"";position:absolute;left:50%;top:44px;width:2px;height:calc(100% + 20px);background:var(--border);transform:translateX(-50%);z-index:-1}
+.q1 .ev .card{padding:16px 18px}.q1 .ev h3{font-size:15px;margin-bottom:2px}.q1 .when{font-size:12px;color:var(--muted)}
+.q1 .strip{display:flex;gap:2px;margin-top:10px;align-items:flex-end;height:30px}.q1 .strip i{flex:1;background:var(--r3);border-radius:2px;min-height:2px}
+.q1 .sum{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+/* Q2: master-detail */
+.q2 .shell{display:grid;grid-template-columns:340px 1fr;height:calc(100vh - 48px)}
+.q2 .list{border-right:1px solid var(--border);overflow:auto;background:var(--surface)}
+.q2 .list .who{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:center}
+.q2 .list .who h1{font-size:16px}
+.q2 .row{padding:14px 18px;border-bottom:1px solid var(--border);cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:2px 10px;transition:background .12s}
+.q2 .row:hover{background:var(--surface2)}.q2 .row.on{background:#e6f1ff;box-shadow:inset 3px 0 0 var(--primary)}
+.q2 .row b{font-size:14px}.q2 .row .v{font-size:20px;font-weight:600;text-align:right}.q2 .row small{color:var(--muted);grid-column:1/-1}
+.q2 .row.off{opacity:.45}
+.q2 .detail{overflow:auto;padding:28px 34px}.q2 .detail h2{font-size:24px;margin-bottom:4px}.q2 .detail .card{border:0;padding:0;background:none}
+.q2 .detail>*{margin-bottom:18px}.q2 .acts{padding:14px 18px;display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid var(--border)}
+/* Q3: blueprint */
+.q3{background-color:#0f3a6b;background-image:linear-gradient(rgba(255,255,255,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.07) 1px,transparent 1px),linear-gradient(rgba(255,255,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.04) 1px,transparent 1px);background-size:100px 100px,100px 100px,20px 20px,20px 20px}
+.q3 main{max-width:1180px;margin:0 auto;padding:26px;display:grid;grid-template-columns:repeat(12,1fr);gap:22px}
+.q3 .ttl{grid-column:1/-1;display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #fff;padding-bottom:12px;gap:12px;flex-wrap:wrap}
+.q3 .ttl h1{font-size:28px;font-weight:500;letter-spacing:.12em;text-transform:uppercase}.q3 .ttl .muted{font-size:12px;letter-spacing:.1em}
+.q3 .card{border:1.5px solid rgba(255,255,255,.8);padding:18px;background:rgba(15,58,107,.55);position:relative}
+.q3 .card:before,.q3 .card:after{content:"";position:absolute;width:10px;height:10px;border:2px solid var(--accent)}
+.q3 .card:before{left:-5px;top:-5px;border-right:0;border-bottom:0}.q3 .card:after{right:-5px;bottom:-5px;border-left:0;border-top:0}
+.q3 .card h2{font-size:13px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;border-bottom:1px dashed rgba(255,255,255,.5);padding-bottom:6px;margin-bottom:10px}
+.q3 .card h2:before{content:attr(data-n);color:var(--accent);margin-right:8px}
+.q3 .card .sub{display:none}
+.q3 .c4{grid-column:span 4}.q3 .c6{grid-column:span 6}.q3 .c8{grid-column:span 8}.q3 .c12{grid-column:span 12}
+.q3 .tile{background:transparent;border:1px solid rgba(255,255,255,.5);border-radius:0}.q3 .tile .v{font-weight:500;color:#fff}
+.q3 .btn{border-radius:0;background:transparent;border:1.5px solid #fff;color:#fff;text-transform:uppercase;letter-spacing:.08em;font-size:12px}.q3 .btn:hover{background:#fff;color:#0f3a6b}
+.q3 .btn.primary{border-color:var(--accent);color:var(--accent)}.q3 .btn.primary:hover{background:var(--accent);color:#0f3a6b}
+.q3 select,.q3 input.search{border-radius:0;background:transparent;border:1.5px solid #fff;color:#fff}.q3 option{color:#000}
+.q3 th{color:var(--accent);letter-spacing:.1em;text-transform:uppercase;font-size:11px;border-bottom:1.5px solid #fff}.q3 td{border-bottom:1px dashed rgba(255,255,255,.35)}.q3 tr:hover td{background:rgba(255,255,255,.1)}
+.q3 .chip{border-radius:0;background:transparent;color:#fff;border-color:#fff}
+.q3 .hm i,.q3 .hh i{border-radius:0;outline:1px solid rgba(255,255,255,.12)}.q3 .bars b{border-radius:0;background:#fff}
+.q3 .titleblock{grid-column:8/-1;border:2px solid #fff;display:grid;grid-template-columns:1fr 1fr;font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+.q3 .titleblock div{padding:8px 12px;border:1px solid rgba(255,255,255,.5)}.q3 .titleblock span{display:block;color:var(--muted)}
+@media(max-width:700px){.q1 .wrap{grid-template-columns:1fr;padding:12px}.q1 .rail{display:none}.q2 .shell{grid-template-columns:1fr;height:auto}.q2 .list{max-height:300px}.q3 .c4,.q3 .c6,.q3 .c8{grid-column:span 12}.q3 .titleblock{grid-column:1/-1}.q3 main{padding:14px}}
+
+@media(max-width:700px){.tile .v{font-size:22px}}
+</style></head><body>
+<div id="variant-nav"><button class="variant-tab active" data-v="q1">Q1: Timeline feed</button><button class="variant-tab" data-v="q2">Q2: Master-detail</button><button class="variant-tab" data-v="q3">Q3: Blueprint</button><span style="margin-left:auto;color:#888;align-self:center;font-size:12px">Q2: click list rows</span></div>
+<div id="frame"><div id="root"></div></div>
+<div id="sketch-tools"><button onclick="vp('100%')">Desktop</button><button onclick="vp('768px')">Tablet</button><button onclick="vp('375px')">Phone</button></div>
+<div class="toast" id="toast"></div>
+<script>
+const $=s=>document.querySelector(s);
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');setTimeout(()=>e.classList.remove('on'),1400)}
+function vp(w){$('#frame').style.maxWidth=w}
+let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+const days=[...Array(53*7)].map((_,i)=>{const r=rnd();return i>300?0:r<.45?0:Math.min(5,1+Math.floor(r*5.5))});
+const hours=[...Array(7*24)].map((_,i)=>{const h=i%24;const peak=(h>=18&&h<=22)?1:(h>=9&&h<=11?.5:0);const r=rnd();return r<.15+(1-peak)*.6?0:Math.min(5,Math.ceil(r*5*Math.max(peak,.3)))});
+const lv=l=>`background:var(--r${l})`;
+const cal=()=>`<div class="hm">${days.map(l=>`<i style="${lv(l)}" title="level ${l}"></i>`).join('')}</div>`;
+const hr=()=>`<div class="hh">${hours.map(l=>`<i style="${lv(l)}"></i>`).join('')}</div>`;
+const legend=()=>`<div class="legend">Less ${[0,1,2,3,4,5].map(l=>`<i style="${lv(l)}"></i>`).join('')} More</div>`;
+const bars=()=>`<div class="bars">${[['< 1 min',0],['20-30 min',30],['30-60 min',55],['1-2 hours',100],['2-4 hours',22]].map(([n,w])=>`<div><span>${n}</span><b style="width:${w}%;opacity:${w?1:.15}"></b><span>${w?Math.round(w/2.3):0}</span></div>`).join('')}</div>`;
+const tiles=()=>`<div class="tiles"><div class="tile"><div class="k">Total playtime</div><div class="v">31.2 <small>hours</small></div></div><div class="tile"><div class="k">Sessions</div><div class="v">30</div></div><div class="tile"><div class="k">Active days</div><div class="v">21</div></div></div>`;
+const server=()=>`<div style="display:flex;gap:10px;margin-bottom:14px"><select onchange="toast('Server: '+this.value)"><option>All servers</option><option>EU1</option><option>EU2</option><option>NA1</option></select><span class="chip" style="align-self:center">1 session excluded</span></div>`;
+const login=()=>`<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px"><span class="note">IP addresses are masked. The last part of each one is hidden.</span><button class="btn" id="ipbtn" onclick="ipToggle(this)">Show full IP addresses</button></div>
+<div class="tiles"><div class="tile"><div class="k">IP addresses</div><div class="v">3</div></div><div class="tile"><div class="k">Countries</div><div class="v">0</div></div><div class="tile"><div class="k">Unknown</div><div class="v">3</div></div></div>
+<table><thead><tr><th>IP address</th><th>Country</th><th>Logins</th><th>First seen</th><th>Last seen</th></tr></thead><tbody>
+${[['34','192.0.2','2024-01-01','2024-01-23'],['2','198.51.100','2024-01-12','2024-01-15'],['1','203.0.113','2024-01-18','2024-01-18']].map(r=>`<tr><td class="ip" data-p="${r[1]}">${r[1]}.xxx</td><td><span class="chip">Unknown</span></td><td>${r[0]}</td><td>${r[2]}</td><td>${r[3]}</td></tr>`).join('')}</tbody></table>
+<div style="margin-top:14px"><button class="btn primary" onclick="toast('Would download ~12 MB city file')">Load city-level detail (~12 MB)</button> <span class="note">Nothing from your export is sent.</span></div>`;
+function ipToggle(b){const s=b.textContent.startsWith('Show');document.querySelectorAll('.ip').forEach(c=>c.textContent=c.dataset.p+(s?'.17':'.xxx'));b.textContent=s?'Hide full IP addresses':'Show full IP addresses'}
+const spend=()=>`<div class="tiles" style="grid-template-columns:1fr 1fr 1fr"><div class="tile"><div class="k">USD spent</div><div class="v">9.99</div></div><div class="tile"><div class="k">Paid orders</div><div class="v">1</div></div><div class="tile"><div class="k">Failed / new</div><div class="v">0 / 0</div></div></div><p class="note">Each currency has its own total: nothing is converted or added across currencies.</p>`;
+const vehicles=()=>`<div style="display:flex;gap:10px;margin-bottom:12px"><select><option>WoT</option></select><input class="search" placeholder="Search vehicles"></div><p class="note">WoT is not in this export.</p>`;
+const NAV=[['Playtime & logins','on'],['Vehicles',''],['Finance','off'],['Payments',''],['Account','']];
+const ident=`<div class="avatar">T</div><div><h1>Tester</h1><div class="muted">Account 123456789 · EU · created 2024-01-01</div></div>`;
+const actions=`<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="toast('Start over?')">Start over</button><button class="btn" onclick="toast('Cache cleared')">Clear cached data</button></div>`;
+const secs={play:`<div class="card wide c12"><h2>Playtime</h2><div class="sub">When and how long you played</div>${server()}${tiles()}</div>`};
+const M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];const mh=[8.4,6.1,4.0,3.2,2.6,1.9,1.4,1.0,0.7,0.9,0.6,0.4];
+const strip=(n,s)=>`<div class="strip">${[...Array(n)].map((_,i)=>`<i style="height:${Math.max(6,((i*s*37)%97))}%"></i>`).join('')}</div>`;
+function Q1(){const ev=(ic,t,when,body)=>`<div class="ev"><div class="dot">${ic}</div><div class="card"><div class="when">${when}</div><h3>${t}</h3>${body}</div></div>`;
+return `<div class="app t-feed q1"><div class="wrap"><aside class="rail"><h3>2024</h3>${M.map((m,i)=>`<a class="${i?'':'on'}" onclick="navClick(this)"><span>${m}</span><b style="width:${mh[i]*10}%"></b></a>`).join('')}</aside><div class="feed">
+${ev('👋','Tester joined Wargaming','2024-01-01 · account created',`<div class="muted">Account 123456789 · EU</div><div style="margin-top:10px">${actions}</div>`)}
+${ev('📈','Your year at a glance','Summary',`<div class="sum"><div class="tile"><div class="k">Playtime</div><div class="v">31.2h</div></div><div class="tile"><div class="k">Sessions</div><div class="v">30</div></div><div class="tile"><div class="k">Active days</div><div class="v">21</div></div></div>${server()}`)}
+${ev('🎮','January: your busiest month','2024-01 · 12 sessions · 8.4 h',strip(31,3))}
+${ev('🌍','New IP address first seen','2024-01-12 · 198.51.100.xxx',`<div class="muted">Unknown country · 2 logins</div>`)}
+${ev('🎮','February','2024-02 · 9 sessions · 6.1 h',strip(29,5))}
+${ev('🌍','Login history summary','37 logins · 3 addresses',login())}
+${ev('💳','First paid order','USD 9.99',spend())}
+${ev('🔥','Your rhythm','Weekday & time of day',cal()+hr()+legend()+bars())}
+</div></div></div>`}
+const SECS=[['Playtime','31.2 h','30 sessions · 21 days',()=>server()+tiles()+cal()+legend()],['Weekday & time','19:00','busiest hour',()=>hr()+legend()],['Session length','1-2 h','typical session',()=>bars()],['Login history','3 IPs','37 logins',()=>login()],['Vehicles','—','not in this export',()=>vehicles()],['Payments','$9.99','1 paid order',()=>spend()]];
+let sel=0;
+function Q2(){return `<div class="app t-md q2"><div class="shell"><div class="list"><div class="who"><div class="avatar">T</div><div><h1>Tester</h1><div class="muted" style="font-size:12px">123456789 · EU</div></div></div>
+${SECS.map((s,i)=>`<div class="row ${i===sel?'on':''} ${s[0]==='Vehicles'?'off':''}" onclick="pick(${i})"><b>${s[0]}</b><span class="v">${s[1]}</span><small>${s[2]}</small></div>`).join('')}<div class="acts">${actions}</div></div>
+<div class="detail" id="det">${det()}</div></div></div>`}
+function det(){const s=SECS[sel];return `<h2>${s[0]}</h2><div class="muted">${s[2]}</div><div class="card" style="margin-top:18px">${s[3]()}</div>`}
+function pick(i){sel=i;document.querySelectorAll('.q2 .row').forEach((r,k)=>r.classList.toggle('on',k===i));$('#det').innerHTML=det()}
+function Q3(){return `<div class="app t-bp q3"><main><div class="ttl"><div><div class="muted">DRAWING NO. 123456789 · REV A</div><h1>Tester / Data export</h1></div>${actions}</div>
+<div class="card c12"><h2 data-n="01">Playtime</h2>${server()}${tiles()}</div>
+<div class="card c8"><h2 data-n="02">Hours per day</h2>${cal()}${legend()}</div><div class="card c4"><h2 data-n="03">Session length</h2>${bars()}</div>
+<div class="card c12"><h2 data-n="04">Weekday / hour matrix</h2>${hr()}${legend()}</div>
+<div class="card c12"><h2 data-n="05">Login history</h2>${login()}</div>
+<div class="card c6"><h2 data-n="06">Vehicles</h2>${vehicles()}</div><div class="card c6"><h2 data-n="07">Payments</h2>${spend()}</div>
+<div class="titleblock"><div><span>Scale</span>1:1 · offline</div><div><span>Sheet</span>1 / 1</div><div><span>Imported</span>2026-10-07</div><div><span>Network</span>0 requests</div></div></main></div>`}
+
+const R={q1:Q1,q2:Q2,q3:Q3};
+function show(v){$('#root').innerHTML=R[v]();document.querySelectorAll('.variant-tab').forEach(t=>t.classList.toggle('active',t.dataset.v===v));if(window.after)after(v)}
+document.querySelectorAll('.variant-tab').forEach(t=>t.onclick=()=>show(t.dataset.v));
+show('q1');
+</script></body></html>

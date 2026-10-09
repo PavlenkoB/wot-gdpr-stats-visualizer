@@ -93,7 +93,7 @@
   notice are four parts of ONE summary under ONE heading, and the 24px gaps of
   the Playtime block are the gap to the charts that follow it.
 -->
-<div class="summary">
+<div class="summary playtime-summary">
   <dl data-testid="playtime-tiles">
     <div class="tile">
       <dt>{TILE_LABEL_TOTAL_PLAYTIME}</dt>
@@ -195,9 +195,9 @@
     flex-direction: column;
     gap: 4px;
     padding: 16px;
-    border: 1px solid #dadce0;
-    border-radius: 6px;
-    background: #f7f7fa;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    background: var(--list);
     min-width: 0;
   }
 
@@ -205,7 +205,7 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
   }
 
   /* Display role for the number, with the unit in Label beside it. `baseline`
@@ -231,10 +231,10 @@
     column-gap: 4px;
     margin: 0;
     min-width: 0;
-    font-size: 28px;
+    font-size: 30px;
     font-weight: 600;
     line-height: 1.2;
-    color: #08060d;
+    color: var(--ink);
     overflow-wrap: normal;
   }
 
@@ -242,7 +242,7 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
     /* One word, always: the smallest breakable thing in this component, and
        the part that read as "hour" over "s" before the dd rule above was
        fixed. */
@@ -269,7 +269,7 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
     min-width: 0;
     overflow-wrap: anywhere;
   }
@@ -288,7 +288,7 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
   }
 
   /* Caption role for the numbers, which is what the typography role table
@@ -297,7 +297,7 @@
     font-size: 14px;
     font-weight: 400;
     line-height: 1.4;
-    color: #3c4043;
+    color: var(--text);
   }
 
   /* The hours column is fixed, so the value column takes the rest and wraps.
@@ -313,7 +313,7 @@
      without colour. */
   tr.selected td {
     font-weight: 600;
-    background: #f1f3f4;
+    background: var(--sel);
   }
 
   .note {
@@ -321,7 +321,7 @@
     font-size: 14px;
     font-weight: 400;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
     min-width: 0;
     overflow-wrap: anywhere;
   }

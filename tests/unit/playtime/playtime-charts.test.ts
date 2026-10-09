@@ -106,8 +106,8 @@ describe('04-09 Task 1 — the charts container, the weekday by hour grid and th
     // ACTIVITY-03's node count must not depend on session count, and the
     // 14px axis text must stay 14px — a `viewBox` with a scaling
     // `preserveAspectRatio` would shrink both.
-    expect(code(GRID)).toMatch(/width=\{HOUR_GRID_LAYOUT\.width\}/);
-    expect(code(GRID)).toMatch(/height=\{HOUR_GRID_LAYOUT\.height\}/);
+    expect(code(GRID)).toMatch(/width=\{model\.layout\.width\}/);
+    expect(code(GRID)).toMatch(/height=\{model\.layout\.height\}/);
     expect(code(GRID)).not.toContain('viewBox');
   });
 
@@ -502,10 +502,23 @@ describe('04-09 Task 3 — the session length list', () => {
   });
 
   test('the two-line narrow layout is a media query, not a second markup', () => {
-    // Below 480px the count moves under the label so a long bin range does not
-    // wrap into three lines. Asserted as a media query because a duplicated
-    // row for the narrow case would be two places for the copy to diverge.
-    expect(code(LIST)).toMatch(/@media \(max-width: 480px\)/);
+    // At phone width the count moves under the label so a long bin range does
+    // not wrap into three lines. Asserted as a media query because a duplicated
+    // row for the narrow case would be two places for the copy to diverge. The
+    // query lives in the one phone block of `src/app.css` (quick 261009-0qw),
+    // keyed on the list's test id; the component itself declares none.
+    expect(code(LIST)).not.toMatch(/max-width:\s*480px/);
+    const appCss = readFileSync(path.join(REPO_ROOT, 'src/app.css'), 'utf8').replace(
+      /\/\*[\s\S]*?\*\//g,
+      '',
+    );
+    const phone = appCss.slice(appCss.search(/@media\s*\(max-width:\s*480px\)/));
+    expect(phone).toMatch(
+      /\[data-testid='duration-chart'\]\s+\.row\s*\{[^}]*grid-template-columns:\s*1fr auto/,
+    );
+    expect(phone).toMatch(
+      /\[data-testid='duration-chart'\]\s+\.bar\s*\{[^}]*grid-area:\s*2 \/ 1 \/ 3 \/ -1/,
+    );
   });
 });
 
@@ -538,13 +551,24 @@ describe('04-10 Task 1 — the calendar heatmap: year blocks, cells and the basi
     expect(code(CALENDAR)).not.toContain('buildCalendarModel(');
   });
 
+  test('the calendar layout comes from one measurement of the charts root', () => {
+    // Plan 08-21 (G-08-3): the width the heatmaps lay out at is the measured
+    // content box of the charts root, floored, passed to a pure layout function.
+    const body = code(CHARTS);
+    expect(body).toContain('bind:contentRect');
+    expect(body).toContain('calendarLayoutFor(');
+    expect(body).toContain('hourGridLayoutFor(');
+    expect(body).toMatch(/buildHourGridModel\([^)]*hourGridLayoutFor\(/);
+    expect(body).toMatch(/buildCalendarModel\(\s*slice,\s*calendarLayoutFor\(/);
+  });
+
   test("each year's svg is a fixed-size role grid that is never scaled", () => {
     // No `viewBox`: the 626x97 geometry is what puts 54 week columns in the
     // card, and the 14px month and weekday labels must stay 14px. A `viewBox`
     // with a scaling `preserveAspectRatio` would shrink both.
     const body = code(CALENDAR);
-    expect(body).toMatch(/width=\{CALENDAR_LAYOUT\.width\}/);
-    expect(body).toMatch(/height=\{CALENDAR_LAYOUT\.height\}/);
+    expect(body).toMatch(/width=\{model\.layout\.width\}/);
+    expect(body).toMatch(/height=\{model\.layout\.height\}/);
     expect(body).not.toContain('viewBox');
     expect(body).toContain('role="grid"');
     expect(body).toContain('role="row"');

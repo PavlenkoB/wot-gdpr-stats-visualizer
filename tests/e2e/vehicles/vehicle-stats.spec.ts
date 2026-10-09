@@ -9,7 +9,9 @@ import {
 } from '@playwright/test';
 import {
   gotoApp,
+  importAndOpen,
   importExport,
+  openSection,
   playerStatsBlock,
   replaceExport,
   startOver,
@@ -310,6 +312,9 @@ test.describe('the Vehicle statistics block (05-12)', () => {
     page = await context.newPage();
     await gotoApp(page);
     await importExport(page, 'sample.zip', buildSampleExport());
+    // R1: an import lands on Overview, so the Vehicles pane is opened once for
+    // the shared page, and the table is awaited only after it is mounted.
+    await openSection(page, 'vehicles');
     await waitForTable(page);
   });
 
@@ -1273,7 +1278,7 @@ test.describe('the Vehicle statistics block (05-12)', () => {
     ).toHaveLength(names.length + 1);
     expect(rows[0]?.[names.indexOf('BATTLES_COUNT')]).toBe('100');
 
-    await importExport(
+    await importAndOpen(
       page,
       'no-xp.zip',
       buildCustomExport({
@@ -1281,6 +1286,7 @@ test.describe('the Vehicle statistics block (05-12)', () => {
           'Player_statistics/WOT_Vehicle_Statistics.csv': renderStatsCsv(names, rows),
         },
       }),
+      'vehicles',
     );
     const block = playerStatsBlock(page);
     await expect(block).toHaveAttribute('data-title-state', 'ready', { timeout: 30_000 });
@@ -1359,7 +1365,9 @@ test.describe('the column picker at 375px (05-14 Task 3)', () => {
   }) => {
     await gotoApp(page);
     await page.setViewportSize({ width: 375, height: 667 });
-    await importExport(page, 'sample.zip', buildSampleExport());
+    // R2: at 375px the import leaves the list screen showing, so the pane is
+    // opened (list row, then detail screen) before the table is read.
+    await importAndOpen(page, 'sample.zip', buildSampleExport(), 'vehicles');
     const block = playerStatsBlock(page);
     await expect(block).toHaveAttribute('data-title-state', 'ready', { timeout: 30_000 });
 
@@ -1469,6 +1477,8 @@ test.describe('the battle-type summary at 375px (05-20 Task 3)', () => {
     page = await context.newPage();
     await gotoApp(page);
     await importExport(page, 'sample.zip', buildSampleExport());
+    // R2: the phone's list screen is showing after the import; open the pane.
+    await openSection(page, 'vehicles');
     await waitForTable(page);
   });
 
@@ -1656,7 +1666,27 @@ test.describe('the Vehicle statistics block at 5,000 vehicles (05-12 Task 3)', (
     await gotoApp(page);
 
     const started = Date.now();
-    await importExport(page, 'scale.zip', buildScaleVehicleExport());
+    // The landing is awaited with this describe's own 60 s budget rather than
+    // `waitForImported`, whose fixed 30 s ceiling is too close to a
+    // 5,000-vehicle import. The two signals are the helper's own: the identity
+    // header leaving its skeleton, and the processing notice going.
+    await page.getByTestId('file-input').setInputFiles({
+      name: 'scale.zip',
+      mimeType: 'application/zip',
+      buffer: Buffer.from(buildScaleVehicleExport()),
+    });
+    await expect(page.getByTestId('identity-header')).not.toHaveAttribute(
+      'data-variant',
+      'skeleton',
+      { timeout: SCALE_READY_BUDGET_MS },
+    );
+    await expect(page.getByTestId('processing-status')).toHaveCount(0, {
+      timeout: SCALE_READY_BUDGET_MS,
+    });
+    // R1: the import lands on Overview; open the Vehicles pane once for the
+    // shared page, so the table is mounted while visible and measures a
+    // non-zero scroller.
+    await openSection(page, 'vehicles');
     await expect(page.getByTestId('vehicle-row').first()).toBeVisible({ timeout: 60_000 });
     importToFirstRowMs = Date.now() - started;
   });
@@ -1782,6 +1812,10 @@ test.describe('the Vehicle statistics block at 5,000 vehicles (05-12 Task 3)', (
       { width: 375, height: 667 },
     ]) {
       await page.setViewportSize(size);
+      // R2: at 375px the shell shows the list and the detail as separate
+      // screens, so the pane is opened again at each width before the table is
+      // measured, never read while hidden.
+      await openSection(page, 'vehicles');
       // Put the table ON SCREEN first. A sticky element's position is a
       // function of where its scroll container is relative to the viewport, and
       // a container that is entirely below the fold has a header that is too —
@@ -1831,22 +1865,26 @@ test.describe('the Vehicle statistics block at 5,000 vehicles (05-12 Task 3)', (
         .poll(() => gap('left'), { message: `the sticky first column at ${size.width}px` })
         .toBeLessThanOrEqual(2);
 
-      // The nav is a sticky sibling higher up the page, and the table must
-      // never end up UNDER it: a header under the nav is unreadable and
-      // unreachable with the keyboard.
-      // How far the table's top edge sits ABOVE the nav's bottom edge: zero
-      // or less means the nav is clear of it. A box the browser has not laid
-      // out yet reads as `Number.POSITIVE_INFINITY` so the poll keeps waiting
-      // rather than dereferencing null.
-      const navOverlap = async (): Promise<number> => {
-        const navBox = await page.getByTestId('dashboard-nav').boundingBox();
-        const scrollerBox = await scroller.boundingBox();
-        if (navBox === null || scrollerBox === null) return Number.POSITIVE_INFINITY;
-        return navBox.y + navBox.height - scrollerBox.y;
-      };
+      // The shell has no sticky nav any more (R6), so the old half of this
+      // claim, "the nav clears the table", is replaced by its real intent: with
+      // the table scrolled so the header is stuck, NOTHING sits on top of the
+      // header. The topmost element at the header cell's centre must be the
+      // header cell itself or one of its descendants (its sort button). A
+      // header under an overlay is unreadable and unreachable by pointer.
+      // `elementFromPoint` returns null for a point outside the viewport, which
+      // reads as `false` here, so a header scrolled off screen cannot pass
+      // vacuously. POLLED for the same reason as the gaps above.
+      const headerIsTopmost = async (): Promise<boolean> =>
+        header.evaluate((th) => {
+          const box = th.getBoundingClientRect();
+          const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+          return hit !== null && th.contains(hit);
+        });
       await expect
-        .poll(navOverlap, { message: `the nav clears the table at ${size.width}px` })
-        .toBeLessThanOrEqual(2);
+        .poll(headerIsTopmost, {
+          message: `nothing overlays the sticky header at ${size.width}px`,
+        })
+        .toBe(true);
     }
 
     await scroller.evaluate((el) => {
@@ -1861,7 +1899,7 @@ test.describe('the Vehicle statistics block: the states and the privacy rule (05
     page,
   }) => {
     await gotoApp(page);
-    await importExport(page, 'sample.zip', buildSampleExport());
+    await importAndOpen(page, 'sample.zip', buildSampleExport(), 'vehicles');
     await waitForTable(page);
 
     // D-13 / T-05-12c: the account `NAME` column is the nickname, and Phase 3
@@ -1874,19 +1912,38 @@ test.describe('the Vehicle statistics block: the states and the privacy rule (05
     // incomplete: a `title` attribute or a `data-` hook would carry the string
     // without a reader ever seeing it, and a reader who saw it is the failure
     // this is here for.
+    //
+    // Only the open pane is in the DOM (R4), so the claim is made pane by pane:
+    // the Vehicles pane (the block that reads these files), Overview (where the
+    // identity header lives), and the list pane's own subtree.
     const canary = STATS_NAME_CANARY;
-    const found = await page.evaluate((needle) => {
-      if ((document.body.textContent ?? '').includes(needle)) return 'text content';
-      for (const element of document.querySelectorAll('*')) {
-        for (const attribute of element.attributes) {
-          if (attribute.value.includes(needle)) {
-            return `${element.tagName}[${attribute.name}]`;
+    const scan = (root: string): Promise<string | null> =>
+      page.evaluate(
+        ({ needle, selector }) => {
+          const scope = document.querySelector(selector);
+          if (scope === null) return `no element matches ${selector}`;
+          if ((scope.textContent ?? '').includes(needle)) return 'text content';
+          for (const element of [scope, ...scope.querySelectorAll('*')]) {
+            for (const attribute of element.attributes) {
+              if (attribute.value.includes(needle)) {
+                return `${element.tagName}[${attribute.name}]`;
+              }
+            }
           }
-        }
-      }
-      return null;
-    }, canary);
-    expect(found, `the account canary reached the page as ${found}`).toBeNull();
+          return null;
+        },
+        { needle: canary, selector: root },
+      );
+
+    const onVehicles = await scan('body');
+    expect(onVehicles, `the account canary reached the Vehicles pane as ${onVehicles}`).toBeNull();
+
+    await openSection(page, 'overview');
+    const onOverview = await scan('body');
+    expect(onOverview, `the account canary reached Overview as ${onOverview}`).toBeNull();
+
+    const onList = await scan('[data-testid="list-pane"]');
+    expect(onList, `the account canary reached the list pane as ${onList}`).toBeNull();
   });
 
   test('(states) a folder holding one title marks the other three absent, and an empty title says so', async ({
@@ -1904,7 +1961,7 @@ test.describe('the Vehicle statistics block: the states and the privacy rule (05
         .filter((name) => name !== 'WOT_Vehicle_Statistics.csv')
         .map((name) => `Player_statistics/${name}`),
     });
-    await importExport(page, 'wot-only.zip', wotOnly);
+    await importAndOpen(page, 'wot-only.zip', wotOnly, 'vehicles');
     const block = playerStatsBlock(page);
     await expect(block).toHaveAttribute('data-title-state', 'ready', { timeout: 30_000 });
 
@@ -1962,7 +2019,7 @@ test.describe('the Vehicle statistics block: the states and the privacy rule (05
         'Player_statistics/WOT_Vehicle_Statistics.csv': renderStatsCsv(WOT_MAIN_HEADER, []),
       },
     });
-    await importExport(page, 'empty-wot.zip', emptyMain);
+    await importAndOpen(page, 'empty-wot.zip', emptyMain, 'vehicles');
     const block = playerStatsBlock(page);
     await expect(block).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
 
@@ -2017,7 +2074,7 @@ test.describe('the Vehicle statistics block: the states and the privacy rule (05
       '',
       '',
     ];
-    await importExport(
+    await importAndOpen(
       page,
       'long-id.zip',
       buildCustomExport({
@@ -2027,6 +2084,7 @@ test.describe('the Vehicle statistics block: the states and the privacy rule (05
           ]),
         },
       }),
+      'vehicles',
     );
     const block = playerStatsBlock(page);
     await expect(block).toHaveAttribute('data-title-state', 'ready', { timeout: 30_000 });
@@ -2038,6 +2096,10 @@ test.describe('the Vehicle statistics block: the states and the privacy rule (05
 
     for (const width of [720, 375]) {
       await page.setViewportSize({ width, height: 800 });
+      // R2: reopen the pane at each width, so the cell is measured while its
+      // screen is showing (the phone's list screen unmounts the detail).
+      await openSection(page, 'vehicles');
+      await expect(cell).toBeVisible();
       // The page must not scroll sideways at either width. The table scrolls
       // INSIDE its own scroller and the page never does (D-14).
       const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
@@ -2071,7 +2133,7 @@ test.describe('the Vehicle statistics block: the states and the privacy rule (05
     // The header-only account file parses to zero rows, which is the case the
     // stored file-presence fact exists for (05-07): without it, a file that is
     // present with nothing in it would be indistinguishable from one absent.
-    await importExport(
+    await importAndOpen(
       page,
       'account-header-only.zip',
       buildCustomExport({
@@ -2081,6 +2143,7 @@ test.describe('the Vehicle statistics block: the states and the privacy rule (05
           ),
         },
       }),
+      'vehicles',
     );
     const block = playerStatsBlock(page);
     await expect(block).toHaveAttribute('data-title-state', 'ready', { timeout: 30_000 });
@@ -2106,6 +2169,7 @@ test.describe('the Vehicle statistics block: the states and the privacy rule (05
           ]),
         },
       }),
+      'vehicles',
     );
     await expect(block).toHaveAttribute('data-title-state', 'ready', { timeout: 30_000 });
     await select.selectOption('wot');
@@ -2125,7 +2189,7 @@ test.describe('the Vehicle statistics block: the states and the privacy rule (05
     page,
   }) => {
     await gotoApp(page);
-    await importExport(page, 'sample.zip', buildSampleExport());
+    await importAndOpen(page, 'sample.zip', buildSampleExport(), 'vehicles');
     const block = playerStatsBlock(page);
     await expect(block).toHaveAttribute('data-title-state', 'ready', { timeout: 30_000 });
 
@@ -2167,6 +2231,9 @@ test.describe('the Vehicle statistics block: the states and the privacy rule (05
       page,
       'replacement.zip',
       buildCustomExport({ omitFolders: ['Payment_history'] }),
+      // R1: a replace lands on Overview, so the Vehicles pane is re-opened
+      // before any control is read back.
+      'vehicles',
     );
     await expect(block).toHaveAttribute('data-title-state', 'ready', { timeout: 30_000 });
     await expect(select).toHaveValue('wot');
@@ -2204,7 +2271,8 @@ test.describe('the Vehicle statistics block: the states and the privacy rule (05
     await search.fill('no-such-vehicle');
     await expect(block.getByTestId('vehicle-no-match')).toBeVisible();
     await startOver(page);
-    await importExport(page, 'again.zip', buildSampleExport());
+    // R1 again: the fresh import lands on Overview, so open the pane.
+    await importAndOpen(page, 'again.zip', buildSampleExport(), 'vehicles');
     await expect(block).toHaveAttribute('data-title-state', 'ready', { timeout: 30_000 });
     await expect(select).toHaveValue('wot');
     await expect(search).toHaveValue('');

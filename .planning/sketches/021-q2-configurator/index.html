@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sketch 021 - Q2 configurator</title>
+<link rel="stylesheet" href="../themes/default.css">
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding-top:48px;font-family:system-ui,sans-serif}
+#variant-nav{position:fixed;top:0;left:0;right:0;z-index:9998;background:#fff;border-bottom:1px solid #e5e5e5;padding:8px 16px;display:flex;gap:8px;overflow-x:auto}
+.variant-tab{border:1px solid #ccc;background:#fff;border-radius:6px;padding:6px 12px;cursor:pointer;white-space:nowrap;transition:all .15s ease}
+.variant-tab:hover{background:#f0f0f0}.variant-tab.active{background:#111;color:#fff;border-color:#111}
+#sketch-tools{position:fixed;bottom:12px;right:12px;z-index:9999;font:12px system-ui;background:rgba(0,0,0,.7);color:#fff;padding:8px 12px;border-radius:8px;opacity:.4;transition:opacity .2s;display:flex;gap:6px;align-items:center}
+#sketch-tools:hover{opacity:1}#sketch-tools button{font:inherit;cursor:pointer}
+#frame{margin:0 auto;transition:max-width .2s}
+
+/* shared page */
+.app{background:var(--bg);color:var(--text);font-family:var(--font);min-height:calc(100vh - 48px);font-size:14px;line-height:1.5}
+.app h1,.app h2,.app h3{font-family:var(--head);margin:0}
+.muted{color:var(--muted)}
+.btn{font:inherit;border:1px solid var(--border);background:var(--surface2);color:var(--text);border-radius:8px;padding:7px 14px;cursor:pointer;transition:all .15s ease}
+.btn:hover{border-color:var(--primary);color:var(--primary)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.primary:hover{filter:brightness(1.1);color:#fff}
+select,input.search{font:inherit;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 10px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px}
+.card h2{font-size:16px;margin-bottom:2px}
+.card .sub{color:var(--muted);font-size:13px;margin-bottom:14px}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
+.tile{background:var(--surface2);border-radius:calc(var(--radius) - 2px);padding:14px 16px}
+.tile .k{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+.tile .v{font-size:30px;font-weight:var(--numw);font-family:var(--head);line-height:1.2}
+.tile .v small{font-size:13px;color:var(--muted);font-weight:400}
+.hm{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,1fr);gap:3px;margin:10px 0}
+.hm i{aspect-ratio:1;border-radius:2px;min-width:8px}
+.hh{display:grid;grid-template-columns:repeat(24,1fr);gap:3px;margin:10px 0}
+.hh i{height:16px;border-radius:2px}
+.legend{display:flex;gap:4px;align-items:center;color:var(--muted);font-size:12px}
+.legend i{width:14px;height:14px;border-radius:2px}
+.bars div{display:grid;grid-template-columns:70px 1fr 70px;gap:10px;align-items:center;font-size:12px;color:var(--muted);padding:2px 0}
+.bars b{display:block;height:10px;border-radius:5px;background:var(--r4)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;color:var(--muted);font-weight:500;font-size:12px;padding:8px 6px;border-bottom:1px solid var(--border)}
+td{padding:9px 6px;border-bottom:1px solid var(--border)}
+tr:hover td{background:var(--surface2)}
+.chip{font-size:11px;padding:2px 8px;border-radius:99px;background:var(--surface2);border:1px solid var(--border);color:var(--muted)}
+.note{font-size:12.5px;color:var(--muted);max-width:60ch}
+.stat-row{display:flex;gap:6px;align-items:baseline}
+.avatar{width:44px;height:44px;border-radius:50%;background:var(--primary);color:#fff;display:grid;place-items:center;font-weight:700;font-size:18px}
+.toast{position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:8px 16px;border-radius:8px;z-index:9999;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+
+.cw{height:calc(100vh - 48px);display:flex;flex-direction:column}
+.cfg{display:flex;gap:18px;flex-wrap:wrap;align-items:center;padding:8px 16px;background:#111;color:#ddd;font:12px system-ui;overflow-x:auto;white-space:nowrap}
+.cfg .g{display:flex;align-items:center;gap:6px}.cfg .g>span{color:#999;margin-right:2px}
+.cfg button{font:inherit;cursor:pointer;border:1px solid #444;background:#222;color:#ddd;padding:4px 10px;border-radius:6px;transition:.12s}.cfg button:hover{border-color:#888}.cfg button.on{background:#fff;color:#111;border-color:#fff;font-weight:700}
+.cfg .sum{margin-left:auto;color:#8f8;font-family:ui-monospace,Menlo,monospace}
+.cw .app{flex:1;min-height:0;overflow:hidden}
+.q{display:grid;height:100%}
+.q .ls{overflow:auto;border-right:1px solid var(--border);background:var(--surface)}
+.q .dt{overflow:auto;min-width:0}.q .pp{overflow:auto;border-left:1px solid var(--border);padding:20px;background:var(--surface);font-size:13px}
+.q .who{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:center}.q .who h1{font-size:16px}
+.q .crumb{display:flex;justify-content:space-between;align-items:center;padding:12px 28px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:2;font-size:13px;color:var(--muted)}.q .crumb b{color:var(--text)}
+.q .det{padding:24px 28px;display:grid;gap:16px}.q .det h2{font-size:24px}.q .det .card{border:0;padding:0;background:none}
+.q .chips{display:flex;gap:10px;padding:14px 28px;overflow-x:auto;border-bottom:1px solid var(--border)}
+.q .chip2{flex:1;min-width:120px;border:1px solid var(--border);border-radius:12px;padding:8px 14px;cursor:pointer;transition:.15s;background:var(--surface)}.q .chip2:hover{border-color:var(--primary)}.q .chip2.on{background:var(--primary);color:#fff;border-color:var(--primary)}.q .chip2 .l{font-size:11px;opacity:.7}.q .chip2 .v{font-size:20px;font-weight:700}
+.q .off{opacity:.45}
+/* list styles */
+.q .rw{padding:13px 18px;border-bottom:1px solid var(--border);cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:2px 10px;transition:background .12s}.q .rw:hover{background:var(--surface2)}.q .rw.on{background:var(--surface2);box-shadow:inset 3px 0 0 var(--primary)}.q .rw b{font-size:14px}.q .rw .v{font-weight:700;color:var(--primary)}.q .rw small{grid-column:1/-1;color:var(--muted)}
+.q .ls.cards{padding:14px;display:grid;gap:10px;align-content:start;background:var(--surface2)}.q .ls.cards .pc{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;cursor:pointer;transition:all .15s;position:relative}.q .ls.cards .pc:hover{border-color:var(--primary)}.q .ls.cards .pc.on{border-color:var(--primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 22%,transparent)}
+.q .pc .t{display:flex;justify-content:space-between;align-items:baseline}.q .pc .t b{font-size:14px}.q .pc .t span{font-size:20px;font-weight:700}.q .pc small{color:var(--muted)}.q .pc .pv{margin-top:8px;height:30px;display:flex;gap:2px;align-items:flex-end}.q .pc .pv i{flex:1;background:var(--r3);border-radius:2px}.q .pc.pw{padding-right:84px;min-height:92px}.q .pc.pw .t span{font-size:18px}.q .pc .mp{position:absolute;right:14px;bottom:10px;width:54px;height:54px}
+.q .ls.big .bt{padding:16px 22px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;flex-direction:column;transition:all .15s}.q .bt .v{font-size:50px;font-weight:800;letter-spacing:-.05em;line-height:1;color:var(--r1);transition:color .15s}.q .bt:hover .v{color:var(--muted)}.q .bt b{font-size:14px;margin-top:4px}.q .bt small{color:var(--muted)}.q .bt.on{background:var(--text);color:var(--bg)}.q .bt.on .v{color:var(--primary)}.q .bt.on small{color:var(--bg);opacity:.7}
+/* props */
+.q .pp h4{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 8px}.q .pp .row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--border)}.q .pp .row b{font-weight:600}
+/* polar */
+.polwrap{display:grid;grid-template-columns:minmax(0,420px) 1fr;gap:24px;align-items:center}.polwrap svg{width:100%;height:auto}.ro{background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:12px}.ro .k{font-size:12px;color:var(--muted);text-transform:uppercase}.ro .v{font-size:28px;font-weight:700}
+.pl path{cursor:pointer}.pl path:hover{opacity:.75;stroke:var(--text);stroke-width:1.5}
+@media(max-width:900px){.q{grid-template-columns:1fr!important;height:auto}.cw{height:auto}.cw .app{overflow:visible}.q .ls{max-height:300px}.q .pp{display:none}.polwrap{grid-template-columns:1fr}}
+
+@media(max-width:700px){.tile .v{font-size:22px}}
+</style></head><body>
+<div id="variant-nav"><button class="variant-tab active" data-v="q">Q2 configurator</button><span style="margin-left:auto;color:#888;align-self:center;font-size:12px">Use the dark bar to mix options; j/k move between sections</span></div>
+<div id="frame"><div id="root"></div></div>
+<div id="sketch-tools"><button onclick="vp('100%')">Desktop</button><button onclick="vp('768px')">Tablet</button><button onclick="vp('375px')">Phone</button></div>
+<div class="toast" id="toast"></div>
+<script>
+const $=s=>document.querySelector(s);
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');setTimeout(()=>e.classList.remove('on'),1400)}
+function vp(w){$('#frame').style.maxWidth=w}
+let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+const days=[...Array(53*7)].map((_,i)=>{const r=rnd();return i>300?0:r<.45?0:Math.min(5,1+Math.floor(r*5.5))});
+const hours=[...Array(7*24)].map((_,i)=>{const h=i%24;const peak=(h>=18&&h<=22)?1:(h>=9&&h<=11?.5:0);const r=rnd();return r<.15+(1-peak)*.6?0:Math.min(5,Math.ceil(r*5*Math.max(peak,.3)))});
+const lv=l=>`background:var(--r${l})`;
+const cal=()=>`<div class="hm">${days.map(l=>`<i style="${lv(l)}" title="level ${l}"></i>`).join('')}</div>`;
+const hr=()=>`<div class="hh">${hours.map(l=>`<i style="${lv(l)}"></i>`).join('')}</div>`;
+const legend=()=>`<div class="legend">Less ${[0,1,2,3,4,5].map(l=>`<i style="${lv(l)}"></i>`).join('')} More</div>`;
+const bars=()=>`<div class="bars">${[['< 1 min',0],['20-30 min',30],['30-60 min',55],['1-2 hours',100],['2-4 hours',22]].map(([n,w])=>`<div><span>${n}</span><b style="width:${w}%;opacity:${w?1:.15}"></b><span>${w?Math.round(w/2.3):0}</span></div>`).join('')}</div>`;
+const tiles=()=>`<div class="tiles"><div class="tile"><div class="k">Total playtime</div><div class="v">31.2 <small>hours</small></div></div><div class="tile"><div class="k">Sessions</div><div class="v">30</div></div><div class="tile"><div class="k">Active days</div><div class="v">21</div></div></div>`;
+const server=()=>`<div style="display:flex;gap:10px;margin-bottom:14px"><select onchange="toast('Server: '+this.value)"><option>All servers</option><option>EU1</option><option>EU2</option><option>NA1</option></select><span class="chip" style="align-self:center">1 session excluded</span></div>`;
+const login=()=>`<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px"><span class="note">IP addresses are masked. The last part of each one is hidden.</span><button class="btn" id="ipbtn" onclick="ipToggle(this)">Show full IP addresses</button></div>
+<div class="tiles"><div class="tile"><div class="k">IP addresses</div><div class="v">3</div></div><div class="tile"><div class="k">Countries</div><div class="v">0</div></div><div class="tile"><div class="k">Unknown</div><div class="v">3</div></div></div>
+<table><thead><tr><th>IP address</th><th>Country</th><th>Logins</th><th>First seen</th><th>Last seen</th></tr></thead><tbody>
+${[['34','192.0.2','2024-01-01','2024-01-23'],['2','198.51.100','2024-01-12','2024-01-15'],['1','203.0.113','2024-01-18','2024-01-18']].map(r=>`<tr><td class="ip" data-p="${r[1]}">${r[1]}.xxx</td><td><span class="chip">Unknown</span></td><td>${r[0]}</td><td>${r[2]}</td><td>${r[3]}</td></tr>`).join('')}</tbody></table>
+<div style="margin-top:14px"><button class="btn primary" onclick="toast('Would download ~12 MB city file')">Load city-level detail (~12 MB)</button> <span class="note">Nothing from your export is sent.</span></div>`;
+function ipToggle(b){const s=b.textContent.startsWith('Show');document.querySelectorAll('.ip').forEach(c=>c.textContent=c.dataset.p+(s?'.17':'.xxx'));b.textContent=s?'Hide full IP addresses':'Show full IP addresses'}
+const spend=()=>`<div class="tiles" style="grid-template-columns:1fr 1fr 1fr"><div class="tile"><div class="k">USD spent</div><div class="v">9.99</div></div><div class="tile"><div class="k">Paid orders</div><div class="v">1</div></div><div class="tile"><div class="k">Failed / new</div><div class="v">0 / 0</div></div></div><p class="note">Each currency has its own total: nothing is converted or added across currencies.</p>`;
+const vehicles=()=>`<div style="display:flex;gap:10px;margin-bottom:12px"><select><option>WoT</option></select><input class="search" placeholder="Search vehicles"></div><p class="note">WoT is not in this export.</p>`;
+const NAV=[['Playtime & logins','on'],['Vehicles',''],['Finance','off'],['Payments',''],['Account','']];
+const ident=`<div class="avatar">T</div><div><h1>Tester</h1><div class="muted">Account 123456789 · EU · created 2024-01-01</div></div>`;
+const actions=`<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="toast('Start over?')">Start over</button><button class="btn" onclick="toast('Cache cleared')">Clear cached data</button></div>`;
+const secs={play:`<div class="card wide c12"><h2>Playtime</h2><div class="sub">When and how long you played</div>${server()}${tiles()}</div>`};
+const D7=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+function polarSvg(big){const cx=250,cy=250,r0=big?70:40,w=24,gap=3;let o='';
+for(let d=0;d<7;d++){const ri=r0+d*(w+gap),ro=ri+w;for(let h=0;h<24;h++){const l=hours[d*24+h];const a0=(h/24)*2*Math.PI-Math.PI/2+.012,a1=((h+1)/24)*2*Math.PI-Math.PI/2-.012;const p=(r,a)=>[cx+r*Math.cos(a),cy+r*Math.sin(a)];const [x0,y0]=p(ro,a0),[x1,y1]=p(ro,a1),[x2,y2]=p(ri,a1),[x3,y3]=p(ri,a0);
+o+=`<path d="M${x0},${y0} A${ro},${ro} 0 0 1 ${x1},${y1} L${x2},${y2} A${ri},${ri} 0 0 0 ${x3},${y3}Z" fill="var(--r${l})" ${big?`data-d="${d}" data-h="${h}" data-l="${l}" onmouseover="ro(this)" onclick="ro(this)"`:''}/>`}}
+let lab='';if(big)[0,6,12,18].forEach(h=>{const a=(h/24)*2*Math.PI-Math.PI/2;const R=r0+7*(w+gap)+16;lab+=`<text x="${cx+R*Math.cos(a)}" y="${cy+R*Math.sin(a)+4}" fill="var(--muted)" font-size="13" text-anchor="middle">${String(h).padStart(2,'0')}:00</text>`});
+return `<svg class="${big?'pl':'pm'}" viewBox="0 0 500 500" role="img" aria-label="24-hour clock heatmap; rings are weekdays Monday inner to Sunday outer">${o}${lab}</svg>`}
+function ro(el){const l=+el.dataset.l;$('#ro').innerHTML=`<div class="k">${D7[el.dataset.d]} · ${String(el.dataset.h).padStart(2,'0')}:00</div><div class="v">${['No play','Light','Some','Regular','Heavy','Peak'][l]}</div>`}
+const cfg={theme:'t-cl',list:'rows',props:false,chips:false,polar:false,nav:true};
+const SECS=[['Playtime','31.2 h','30 sessions · 21 days',()=>server()+tiles()+cal()+legend(),'Sessions.csv','Overlapping sessions across servers are merged in All.'],['Weekday & time','19:00','busiest hour',()=>cfg.polar?`<div class="polwrap">${polarSvg(1)}<div><div class="ro" id="ro"><div class="k">Hover or tap a segment</div><div class="v">—</div></div>${legend()}<p class="note">Rings: Monday (inner) to Sunday (outer). Hours as recorded, not local time.</p></div></div>`:hr()+legend(),'Sessions.csv','Shown as recorded, not converted to local time.'],['Session length','1-2 h','typical session',()=>bars(),'Sessions.csv','Bin widths grow so short and long sessions are both visible.'],['Login history','3 IPs','37 logins',()=>login(),'Logins.csv','Last part of each address is masked until revealed.'],['Vehicles','—','not in this export',()=>vehicles(),'—','Not in this export.'],['Payments','$9.99','1 paid order',()=>spend(),'Orders.csv','Currencies are never added together.']];
+let sel=0;
+const sp=a=>`<div class="pv">${a.map(h=>`<i style="height:${h}%"></i>`).join('')}</div>`;const PV=[sp([30,45,20,60,80,55,90,40,70,100]),'',sp([5,30,55,100,22]),sp([100,6,3]),'',sp([100])];
+function listHtml(){const off=s=>s[0]==='Vehicles'?'off':'';
+ if(cfg.list==='cards')return `<div class="ls cards"><div class="who" style="border:0;padding:0 2px"><div class="avatar">T</div><div><h1>Tester</h1><div class="muted" style="font-size:12px">123456789 · EU</div></div></div>${SECS.map((s,i)=>`<div class="pc pk ${i===sel?'on':''} ${i===1?'pw':''} ${off(s)}" onclick="pk(${i})"><div class="t"><b>${s[0]}</b><span>${s[1]}</span></div><small>${s[2]}</small>${i===1?`<div class="mp">${polarSvg(0)}</div>`:PV[i]}</div>`).join('')}<div>${actions}</div></div>`;
+ if(cfg.list==='big')return `<div class="ls big"><div class="who"><h1>Tester · 123456789 · EU</h1></div>${SECS.map((s,i)=>`<div class="bt pk ${i===sel?'on':''} ${off(s)}" onclick="pk(${i})"><span class="v">${s[1]}</span><b>${s[0]}</b><small>${s[2]}</small></div>`).join('')}<div style="padding:16px 22px">${actions}</div></div>`;
+ return `<div class="ls"><div class="who"><div class="avatar">T</div><div><h1>Tester</h1><div class="muted" style="font-size:12px">123456789 · EU</div></div></div>${SECS.map((s,i)=>`<div class="rw pk ${i===sel?'on':''} ${off(s)}" onclick="pk(${i})"><b>${s[0]}</b><span class="v">${s[1]}</span><small>${s[2]}</small></div>`).join('')}<div style="padding:14px">${actions}</div></div>`}
+const crumb=()=>`<span>Tester / <b>${SECS[sel][0]}</b></span>${cfg.nav?`<span><button class="btn" onclick="pk(Math.max(0,sel-1))">← Prev</button> <button class="btn" onclick="pk(Math.min(SECS.length-1,sel+1))">Next →</button></span>`:''}`;
+const chipsHtml=()=>cfg.chips?`<div class="chips">${SECS.map((s,i)=>`<div class="chip2 pk ${i===sel?'on':''}" onclick="pk(${i})"><div class="l">${s[0]}</div><div class="v">${s[1]}</div></div>`).join('')}</div>`:'';
+const propsHtml=()=>{const s=SECS[sel];return `<h4>Properties</h4><div class="row"><span>Section</span><b>${s[0]}</b></div><div class="row"><span>Headline</span><b>${s[1]}</b></div><div class="row"><span>Source</span><b>${s[4]}</b></div><div class="row"><span>Excluded</span><b>${sel===0?'1 session':'none'}</b></div><h4 style="margin-top:20px">Notes</h4><p class="note">${s[5]}</p>`};
+const detHtml=()=>{const s=SECS[sel];return `<div class="crumb">${crumb()}</div>${chipsHtml()}<div class="det"><h2>${s[0]}</h2><div class="muted" style="margin-top:-10px">${s[2]}</div><div class="card">${s[3]()}</div></div>`};
+function cols(){return (cfg.list==='cards'?'360px':cfg.list==='big'?'340px':'300px')+' minmax(0,1fr)'+(cfg.props?' 240px':'')}
+function render(){const a=$('#qa');a.className='app '+cfg.theme;a.innerHTML=`<div class="q" style="grid-template-columns:${cols()}">${cfg.list==='none'?'':listHtml()}<div class="dt" id="dt">${detHtml()}</div>${cfg.props?`<div class="pp" id="pp">${propsHtml()}</div>`:''}</div>`;sum()}
+function pk(i){sel=i;render()}
+function set(k,v){cfg[k]=v;render();document.querySelectorAll('.cfg button').forEach(b=>b.classList.toggle('on',String(cfg[b.dataset.k])===b.dataset.v))}
+const opt=(lab,k,vals)=>`<div class="g"><span>${lab}</span>${vals.map(([v,t])=>`<button data-k="${k}" data-v="${v}" class="${String(cfg[k])===String(v)?'on':''}" onclick="set('${k}',${typeof v==='boolean'?v:`'${v}'`})">${t}</button>`).join('')}</div>`;
+function sum(){const s=$('#sm');if(s)s.textContent=`theme=${{'t-cl':'light','t-docsd':'dark','t-swiss':'swiss'}[cfg.theme]} list=${cfg.list} props=${cfg.props?'on':'off'} chips=${cfg.chips?'on':'off'} clock=${cfg.polar?'polar':'heatmap'} prevnext=${cfg.nav?'on':'off'}`}
+function Q(){return `<div class="cw"><div class="cfg">${opt('Theme','theme',[['t-cl','Light'],['t-docsd','Dark'],['t-swiss','Swiss']])}${opt('List','list',[['rows','Rows'],['cards','Preview cards'],['big','Big type']])}${opt('Properties panel','props',[[false,'Off'],[true,'On']])}${opt('KPI chips','chips',[[false,'Off'],[true,'On']])}${opt('Rhythm chart','polar',[[false,'Heatmap'],[true,'Polar clock']])}${opt('Prev/Next','nav',[[true,'On'],[false,'Off']])}<span class="sum" id="sm"></span></div><div class="app" id="qa"></div></div>`}
+function after(){render()}
+document.addEventListener('keydown',e=>{if(['INPUT','SELECT','BUTTON'].includes(document.activeElement.tagName))return;if(e.key==='j')pk(Math.min(SECS.length-1,sel+1));if(e.key==='k')pk(Math.max(0,sel-1))});
+
+const R={q:Q};
+function show(v){$('#root').innerHTML=R[v]();document.querySelectorAll('.variant-tab').forEach(t=>t.classList.toggle('active',t.dataset.v===v));if(window.after)after(v)}
+document.querySelectorAll('.variant-tab').forEach(t=>t.onclick=()=>show(t.dataset.v));
+show('q');
+</script></body></html>

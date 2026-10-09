@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sketch 015 - Fresh round 6</title>
+<link rel="stylesheet" href="../themes/default.css">
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding-top:48px;font-family:system-ui,sans-serif}
+#variant-nav{position:fixed;top:0;left:0;right:0;z-index:9998;background:#fff;border-bottom:1px solid #e5e5e5;padding:8px 16px;display:flex;gap:8px;overflow-x:auto}
+.variant-tab{border:1px solid #ccc;background:#fff;border-radius:6px;padding:6px 12px;cursor:pointer;white-space:nowrap;transition:all .15s ease}
+.variant-tab:hover{background:#f0f0f0}.variant-tab.active{background:#111;color:#fff;border-color:#111}
+#sketch-tools{position:fixed;bottom:12px;right:12px;z-index:9999;font:12px system-ui;background:rgba(0,0,0,.7);color:#fff;padding:8px 12px;border-radius:8px;opacity:.4;transition:opacity .2s;display:flex;gap:6px;align-items:center}
+#sketch-tools:hover{opacity:1}#sketch-tools button{font:inherit;cursor:pointer}
+#frame{margin:0 auto;transition:max-width .2s}
+
+/* shared page */
+.app{background:var(--bg);color:var(--text);font-family:var(--font);min-height:calc(100vh - 48px);font-size:14px;line-height:1.5}
+.app h1,.app h2,.app h3{font-family:var(--head);margin:0}
+.muted{color:var(--muted)}
+.btn{font:inherit;border:1px solid var(--border);background:var(--surface2);color:var(--text);border-radius:8px;padding:7px 14px;cursor:pointer;transition:all .15s ease}
+.btn:hover{border-color:var(--primary);color:var(--primary)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.primary:hover{filter:brightness(1.1);color:#fff}
+select,input.search{font:inherit;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 10px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px}
+.card h2{font-size:16px;margin-bottom:2px}
+.card .sub{color:var(--muted);font-size:13px;margin-bottom:14px}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
+.tile{background:var(--surface2);border-radius:calc(var(--radius) - 2px);padding:14px 16px}
+.tile .k{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+.tile .v{font-size:30px;font-weight:var(--numw);font-family:var(--head);line-height:1.2}
+.tile .v small{font-size:13px;color:var(--muted);font-weight:400}
+.hm{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,1fr);gap:3px;margin:10px 0}
+.hm i{aspect-ratio:1;border-radius:2px;min-width:8px}
+.hh{display:grid;grid-template-columns:repeat(24,1fr);gap:3px;margin:10px 0}
+.hh i{height:16px;border-radius:2px}
+.legend{display:flex;gap:4px;align-items:center;color:var(--muted);font-size:12px}
+.legend i{width:14px;height:14px;border-radius:2px}
+.bars div{display:grid;grid-template-columns:70px 1fr 70px;gap:10px;align-items:center;font-size:12px;color:var(--muted);padding:2px 0}
+.bars b{display:block;height:10px;border-radius:5px;background:var(--r4)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;color:var(--muted);font-weight:500;font-size:12px;padding:8px 6px;border-bottom:1px solid var(--border)}
+td{padding:9px 6px;border-bottom:1px solid var(--border)}
+tr:hover td{background:var(--surface2)}
+.chip{font-size:11px;padding:2px 8px;border-radius:99px;background:var(--surface2);border:1px solid var(--border);color:var(--muted)}
+.note{font-size:12.5px;color:var(--muted);max-width:60ch}
+.stat-row{display:flex;gap:6px;align-items:baseline}
+.avatar{width:44px;height:44px;border-radius:50%;background:var(--primary);color:#fff;display:grid;place-items:center;font-weight:700;font-size:18px}
+.toast{position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:8px 16px;border-radius:8px;z-index:9999;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+
+.bx{border:1px solid var(--primary);position:relative;padding:20px 14px 14px;margin-bottom:6px}
+.bx>h2{position:absolute;top:-10px;left:12px;background:var(--bg);padding:0 8px;font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:var(--primary)}
+/* X1 TUI */
+.x1{font-size:13px;text-shadow:0 0 6px rgba(51,255,102,.35)}
+.x1 .top{display:flex;justify-content:space-between;padding:8px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px}.x1 .top b{color:var(--accent)}
+.x1 .wr{padding:18px;display:grid;grid-template-columns:repeat(12,1fr);gap:18px}.x1 .c4{grid-column:span 4}.x1 .c6{grid-column:span 6}.x1 .c8{grid-column:span 8}.x1 .c12{grid-column:span 12}
+.x1 .bx.card{background:none}.x1 .card .sub{display:none}.x1 .tile{background:none;border:1px dashed var(--border);border-radius:0}.x1 .tile .v{color:var(--primary);font-weight:700}
+.x1 .btn{border-radius:0;background:none;border:1px solid var(--primary);color:var(--primary);text-transform:uppercase;font-size:12px}.x1 .btn:hover{background:var(--primary);color:#000}.x1 .btn.primary{color:var(--accent);border-color:var(--accent)}.x1 .btn.primary:hover{background:var(--accent);color:#000}
+.x1 select,.x1 input.search{border-radius:0;background:#000;border-color:var(--primary);color:var(--text)}
+.x1 th{color:var(--accent);border-bottom:1px solid var(--border)}.x1 td{border-bottom:1px dotted var(--border)}.x1 .chip{border-radius:0;background:none}
+.x1 .hm i,.x1 .hh i{border-radius:0;min-width:0}.x1 .bars b{border-radius:0;height:12px;background:repeating-linear-gradient(90deg,var(--primary) 0 8px,transparent 8px 10px)}
+.x1 .cur:after{content:"█";animation:bl 1s steps(2) infinite;color:var(--primary)}@keyframes bl{50%{opacity:0}}
+.x1 .spk{letter-spacing:2px;color:var(--primary)}
+/* X2 pixel */
+.x2{font-weight:700}
+.x2 .score{display:flex;justify-content:space-between;gap:12px;background:#000;color:var(--primary);padding:12px 22px;text-transform:uppercase;letter-spacing:.12em;flex-wrap:wrap;font-size:14px}
+.x2 .wr{max-width:1150px;margin:0 auto;padding:24px;display:grid;grid-template-columns:repeat(12,1fr);gap:24px}.x2 .c4{grid-column:span 4}.x2 .c6{grid-column:span 6}.x2 .c8{grid-column:span 8}.x2 .c12{grid-column:span 12}
+.x2 .card{background:var(--surface);padding:18px;box-shadow:0 -4px 0 0 #000,0 4px 0 0 #000,-4px 0 0 0 #000,4px 0 0 0 #000,8px 8px 0 0 rgba(0,0,0,.35)}
+.x2 .card h2{font-size:15px;text-transform:uppercase;color:var(--primary);margin-bottom:10px}.x2 .card h2:before{content:"▶ "}.x2 .card .sub{display:none}
+.x2 .tile{background:var(--surface2);box-shadow:0 -3px #000,0 3px #000,-3px 0 #000,3px 0 #000;border-radius:0}.x2 .tile .v{color:var(--primary)}
+.x2 .btn{border-radius:0;background:var(--accent);color:#000;border:0;box-shadow:0 -3px #000,0 3px #000,-3px 0 #000,3px 0 #000;text-transform:uppercase;font-weight:900}.x2 .btn:hover{background:var(--primary);color:#000}
+.x2 select,.x2 input.search{border-radius:0;background:#000;border:0;color:#fff;box-shadow:0 0 0 3px var(--muted)}
+.x2 th{color:var(--primary)}.x2 td{border-bottom:2px dashed #000}.x2 .chip{border-radius:0;background:#000}.x2 .hm i,.x2 .hh i{border-radius:0;min-width:0;box-shadow:inset 0 -2px rgba(0,0,0,.35)}.x2 .bars b{border-radius:0;height:14px}
+/* X3 swiss */
+.x3 .wr{max-width:1240px;margin:0 auto;padding:30px 30px 80px}
+.x3 .hdr{display:grid;grid-template-columns:repeat(12,1fr);gap:20px;border-bottom:4px solid #111;padding-bottom:18px;align-items:end}
+.x3 .hdr .big{grid-column:1/9;font-size:clamp(90px,22vw,300px);font-weight:800;line-height:.8;letter-spacing:-.07em;color:var(--primary)}
+.x3 .hdr .meta{grid-column:9/13;font-size:14px;line-height:1.4}.x3 .hdr .meta b{display:block;font-size:34px;letter-spacing:-.03em;margin-bottom:6px}
+.x3 .sec{display:grid;grid-template-columns:repeat(12,1fr);gap:20px;border-bottom:1px solid #111;padding:22px 0}
+.x3 .sec .lab{grid-column:1/4}.x3 .sec .lab span{font-size:13px;color:var(--primary);font-weight:700}.x3 .sec .lab h2{font-size:34px;letter-spacing:-.03em;line-height:1;margin-top:4px}
+.x3 .sec .bd{grid-column:4/13;min-width:0}
+.x3 .card{border:0;padding:0;background:none}.x3 .card>h2,.x3 .card .sub{display:none}
+.x3 .tile{background:none;border-top:2px solid #111;border-radius:0;padding:8px 0}.x3 .tile .v{font-size:56px;letter-spacing:-.04em}
+.x3 .btn{border-radius:0;border:2px solid #111;background:none;font-weight:700}.x3 .btn:hover{background:#111;color:#fff}.x3 .btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.x3 select,.x3 input.search{border-radius:0;border:2px solid #111;background:none}.x3 th{color:#111;border-bottom:2px solid #111}.x3 td{border-bottom:1px solid #111}.x3 .chip{border-radius:0;background:none;border-color:#111}
+.x3 .hm i,.x3 .hh i{border-radius:0;min-width:0}.x3 .bars b{border-radius:0;height:14px}
+@media(max-width:700px){.x1 .wr,.x2 .wr{grid-template-columns:1fr;padding:12px}.x1 .c4,.x1 .c6,.x1 .c8,.x1 .c12,.x2 .c4,.x2 .c6,.x2 .c8,.x2 .c12{grid-column:auto}.x3 .hdr .big,.x3 .hdr .meta,.x3 .sec .lab,.x3 .sec .bd{grid-column:1/-1}.x3 .wr{padding:14px}}
+
+@media(max-width:700px){.tile .v{font-size:22px}}
+</style></head><body>
+<div id="variant-nav"><button class="variant-tab active" data-v="x1">X1: Terminal TUI</button><button class="variant-tab" data-v="x2">X2: Pixel arcade</button><button class="variant-tab" data-v="x3">X3: Swiss poster</button><span style="margin-left:auto;color:#888;align-self:center;font-size:12px"></span></div>
+<div id="frame"><div id="root"></div></div>
+<div id="sketch-tools"><button onclick="vp('100%')">Desktop</button><button onclick="vp('768px')">Tablet</button><button onclick="vp('375px')">Phone</button></div>
+<div class="toast" id="toast"></div>
+<script>
+const $=s=>document.querySelector(s);
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');setTimeout(()=>e.classList.remove('on'),1400)}
+function vp(w){$('#frame').style.maxWidth=w}
+let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+const days=[...Array(53*7)].map((_,i)=>{const r=rnd();return i>300?0:r<.45?0:Math.min(5,1+Math.floor(r*5.5))});
+const hours=[...Array(7*24)].map((_,i)=>{const h=i%24;const peak=(h>=18&&h<=22)?1:(h>=9&&h<=11?.5:0);const r=rnd();return r<.15+(1-peak)*.6?0:Math.min(5,Math.ceil(r*5*Math.max(peak,.3)))});
+const lv=l=>`background:var(--r${l})`;
+const cal=()=>`<div class="hm">${days.map(l=>`<i style="${lv(l)}" title="level ${l}"></i>`).join('')}</div>`;
+const hr=()=>`<div class="hh">${hours.map(l=>`<i style="${lv(l)}"></i>`).join('')}</div>`;
+const legend=()=>`<div class="legend">Less ${[0,1,2,3,4,5].map(l=>`<i style="${lv(l)}"></i>`).join('')} More</div>`;
+const bars=()=>`<div class="bars">${[['< 1 min',0],['20-30 min',30],['30-60 min',55],['1-2 hours',100],['2-4 hours',22]].map(([n,w])=>`<div><span>${n}</span><b style="width:${w}%;opacity:${w?1:.15}"></b><span>${w?Math.round(w/2.3):0}</span></div>`).join('')}</div>`;
+const tiles=()=>`<div class="tiles"><div class="tile"><div class="k">Total playtime</div><div class="v">31.2 <small>hours</small></div></div><div class="tile"><div class="k">Sessions</div><div class="v">30</div></div><div class="tile"><div class="k">Active days</div><div class="v">21</div></div></div>`;
+const server=()=>`<div style="display:flex;gap:10px;margin-bottom:14px"><select onchange="toast('Server: '+this.value)"><option>All servers</option><option>EU1</option><option>EU2</option><option>NA1</option></select><span class="chip" style="align-self:center">1 session excluded</span></div>`;
+const login=()=>`<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px"><span class="note">IP addresses are masked. The last part of each one is hidden.</span><button class="btn" id="ipbtn" onclick="ipToggle(this)">Show full IP addresses</button></div>
+<div class="tiles"><div class="tile"><div class="k">IP addresses</div><div class="v">3</div></div><div class="tile"><div class="k">Countries</div><div class="v">0</div></div><div class="tile"><div class="k">Unknown</div><div class="v">3</div></div></div>
+<table><thead><tr><th>IP address</th><th>Country</th><th>Logins</th><th>First seen</th><th>Last seen</th></tr></thead><tbody>
+${[['34','192.0.2','2024-01-01','2024-01-23'],['2','198.51.100','2024-01-12','2024-01-15'],['1','203.0.113','2024-01-18','2024-01-18']].map(r=>`<tr><td class="ip" data-p="${r[1]}">${r[1]}.xxx</td><td><span class="chip">Unknown</span></td><td>${r[0]}</td><td>${r[2]}</td><td>${r[3]}</td></tr>`).join('')}</tbody></table>
+<div style="margin-top:14px"><button class="btn primary" onclick="toast('Would download ~12 MB city file')">Load city-level detail (~12 MB)</button> <span class="note">Nothing from your export is sent.</span></div>`;
+function ipToggle(b){const s=b.textContent.startsWith('Show');document.querySelectorAll('.ip').forEach(c=>c.textContent=c.dataset.p+(s?'.17':'.xxx'));b.textContent=s?'Hide full IP addresses':'Show full IP addresses'}
+const spend=()=>`<div class="tiles" style="grid-template-columns:1fr 1fr 1fr"><div class="tile"><div class="k">USD spent</div><div class="v">9.99</div></div><div class="tile"><div class="k">Paid orders</div><div class="v">1</div></div><div class="tile"><div class="k">Failed / new</div><div class="v">0 / 0</div></div></div><p class="note">Each currency has its own total: nothing is converted or added across currencies.</p>`;
+const vehicles=()=>`<div style="display:flex;gap:10px;margin-bottom:12px"><select><option>WoT</option></select><input class="search" placeholder="Search vehicles"></div><p class="note">WoT is not in this export.</p>`;
+const NAV=[['Playtime & logins','on'],['Vehicles',''],['Finance','off'],['Payments',''],['Account','']];
+const ident=`<div class="avatar">T</div><div><h1>Tester</h1><div class="muted">Account 123456789 · EU · created 2024-01-01</div></div>`;
+const actions=`<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="toast('Start over?')">Start over</button><button class="btn" onclick="toast('Cache cleared')">Clear cached data</button></div>`;
+const secs={play:`<div class="card wide c12"><h2>Playtime</h2><div class="sub">When and how long you played</div>${server()}${tiles()}</div>`};
+const bx=(t,c,b)=>`<div class="bx card ${c}"><h2>${t}</h2>${b}</div>`;
+const sp='▁▂▃▅▇▆▅▃▂▄▆█▇▅▃▂▃▅▇';
+function X1(){return `<div class="app t-tui x1"><div class="top"><span><b>wg-export</b> ~ Tester@EU</span><span>acct 123456789 · imported 2026-10-07</span><span>net: <b>0 req</b></span></div><div class="wr">
+${bx('playtime','c8',server()+tiles()+`<div class="spk">${sp}${sp}</div>`)}${bx('actions','c4',`<div style="display:grid;gap:10px">${actions}<div class="muted">$ <span class="cur"></span></div></div>`)}
+${bx('hours per day 2024','c8',cal()+legend())}${bx('session length','c4',bars())}${bx('weekday x hour','c12',hr()+legend())}${bx('logins --masked','c12',login())}${bx('vehicles','c6',vehicles())}${bx('payments','c6',spend())}</div></div>`}
+function X2(){return `<div class="app t-px x2"><div class="score"><span>1P TESTER</span><span>HI-SCORE 31.2 HRS</span><span>LV 21 DAYS</span><span>x30 SESSIONS</span></div><div class="wr">
+${bx('Playtime','c12',server()+tiles())}${bx('Hours per day','c8',cal()+legend())}${bx('Session length','c4',bars())}${bx('Weekday x hour','c12',hr()+legend())}${bx('Login history','c12',login())}${bx('Vehicles','c6',vehicles())}${bx('Payments','c6',spend())}<div class="c12" style="text-align:center">${actions}</div></div></div>`}
+function X3(){const sc=(n,t,b)=>`<div class="sec"><div class="lab"><span>${n}</span><h2>${t}</h2></div><div class="bd">${b}</div></div>`;
+return `<div class="app t-swiss x3"><div class="wr"><div class="hdr"><div class="big">31.2</div><div class="meta"><b>Hours played</b>Tester · Account 123456789 · EU<br>30 sessions on 21 days<br>Imported 7 Oct 2026<br><br>${actions}</div></div>
+${sc('01','Playtime',server()+tiles())}${sc('02','Hours per day',cal()+legend())}${sc('03','Weekday and hour',hr()+legend())}${sc('04','Session length',bars())}${sc('05','Login history',login())}${sc('06','Payments',spend())}</div></div>`}
+
+const R={x1:X1,x2:X2,x3:X3};
+function show(v){$('#root').innerHTML=R[v]();document.querySelectorAll('.variant-tab').forEach(t=>t.classList.toggle('active',t.dataset.v===v));if(window.after)after(v)}
+document.querySelectorAll('.variant-tab').forEach(t=>t.onclick=()=>show(t.dataset.v));
+show('x1');
+</script></body></html>

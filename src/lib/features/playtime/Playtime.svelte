@@ -441,11 +441,11 @@
   h3 {
     margin: 0;
     padding-bottom: 8px;
-    border-bottom: 1px solid #dadce0;
+    border-bottom: 1px solid var(--border);
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #08060d;
+    color: var(--ink);
   }
 
   /* Body role, state messages. Empty in every state but `loading`, where it
@@ -453,10 +453,10 @@
   .status {
     margin: 0;
     min-height: 0;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 400;
     line-height: 1.5;
-    color: #3c4043;
+    color: var(--text);
     min-width: 0;
     overflow-wrap: anywhere;
   }
@@ -478,10 +478,10 @@
 
   .body {
     margin: 0;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 400;
     line-height: 1.5;
-    color: #3c4043;
+    color: var(--text);
     min-width: 0;
     overflow-wrap: anywhere;
   }
@@ -526,7 +526,7 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #3c4043;
+    color: var(--text);
   }
 
   /* Label role, the same text treatment as the Phase 3 bar buttons. The
@@ -536,21 +536,21 @@
     max-width: 100%;
     min-width: 0;
     padding: 8px 12px;
-    border: 1px solid #80868b;
+    border: 1px solid var(--faint);
     border-radius: 6px;
-    background: #ffffff;
-    color: #3c4043;
+    background: var(--page);
+    color: var(--text);
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
   }
 
   select:hover {
-    background: #f1f3f4;
+    background: var(--hover);
   }
 
   select:focus-visible {
-    outline: 3px solid #1a73e8;
+    outline: 3px solid var(--focus);
     outline-offset: 2px;
   }
 </style>

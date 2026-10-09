@@ -14,20 +14,25 @@ import { componentPath } from '../../helpers/components.ts';
 // with each other and never with the sticky nav's z-index 1 in the page's root
 // stacking context.
 //
-// WHY IT SITS NEXT TO THE BROWSER TESTS
-// The two (stacking) tests in tests/e2e/shell/scroll-nav.spec.ts cover the two
-// tables that overlap the nav today, LoginTable and VehicleTable, by measuring
-// paint order. They cannot cover the other two:
+// WHY IT STILL HOLDS AFTER THE ANCHOR NAV WAS RETIRED
+// Phase 7 added it so the sticky nav (z-index 1) was never painted over by a
+// table's sticky cells, and two browser tests in the old nav spec measured
+// paint order for LoginTable and VehicleTable. The master-detail shell (phase
+// 8) has no bar over the content and that spec is gone, so those browser tests
+// were retired with the behaviour. The declaration stays and is still asserted,
+// because each scroller's sticky cells (header z-index 2, corner cell 3, first
+// column 1) must still be compared with each other and never with anything in
+// the page's root stacking context. It also covers the two scrollers a browser
+// test cannot reach:
 //
 //   - CountryList cannot go red: its header cells are `position: sticky` with
-//     no z-index and its scroller is unpositioned, so they paint below the nav
-//     already and there is no failing browser state to write.
+//     no z-index and its scroller is unpositioned.
 //   - CityList only renders after the opt-in city download, whose browser state
 //     needs a route-fulfilled city file (tests/e2e/logins/login-city.spec.ts).
 //
 // So the one declaration that makes all four scrollers a stacking context is
 // asserted here, and a z-index added to either list's header later is contained
-// by it rather than painted over the nav.
+// by it.
 //
 // WHY THE PATTERNS ARE COPIED RATHER THAN IMPORTED
 // `stripComments` and `ruleDeclarations` are copied from

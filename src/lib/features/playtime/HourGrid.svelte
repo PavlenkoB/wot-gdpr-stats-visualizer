@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import type { HourGridModel, HourGridKey, TooltipRequest } from './playtime-model.ts';
-  import { HOUR_GRID_LAYOUT, hoursAttribute, hourGridNavigate } from './playtime-model.ts';
+  import { hoursAttribute, hourGridNavigate } from './playtime-model.ts';
   import { HOUR_GRID_BASIS } from './playtime-shared.ts';
   import { scrollClear } from '../../core/focus-clear.ts';
   import {
@@ -21,10 +21,10 @@
    *
    * A `viewBox` is how an SVG is made to scale, and scaling is exactly what
    * this chart must not do: the axis text is set in the Caption role and must
-   * stay 14px, and the 624 x 192 geometry is what makes 24 x 24 cells fit the
-   * 640px card content width. So the svg carries fixed `width` and `height`
-   * attributes from `HOUR_GRID_LAYOUT` and nothing else. At 375px the SCROLLER
-   * moves, never the chart (UI-SPEC Phone width).
+   * stay 14px. So the svg carries fixed `width` and `height` attributes from
+   * `model.layout` and nothing else: the measured pane width (plan 08-21,
+   * G-08-3), or today's 624 x 192 below the floor, where 24 x 24 cells fit.
+   * At 375px the SCROLLER moves, never the chart (UI-SPEC Phone width).
    *
    * ## Why 168 cells whatever the data says
    *
@@ -360,8 +360,8 @@
     tabindex="-1"
     aria-label={CHART_TITLE_HOUR_GRID}
     aria-describedby={describedBy}
-    width={HOUR_GRID_LAYOUT.width}
-    height={HOUR_GRID_LAYOUT.height}
+    width={model.layout.width}
+    height={model.layout.height}
     onpointerover={onPointerOver}
     onpointerout={onPointerOut}
     onfocusin={onFocusIn}
@@ -390,8 +390,8 @@
         -->
         <text
           class="axis"
-          x={HOUR_GRID_LAYOUT.gutter - 8}
-          y={row.y + 16}
+          x={model.layout.gutter - 8}
+          y={row.y + Math.round(model.layout.rowPitch / 2) + 4}
           text-anchor="end"
           aria-hidden="true"
         >
@@ -416,8 +416,8 @@
             class="cell level-{cell.level}"
             x={cell.x}
             y={cell.y}
-            width={HOUR_GRID_LAYOUT.cell}
-            height={HOUR_GRID_LAYOUT.cell}
+            width={cell.width}
+            height={model.layout.rowPitch}
             data-testid="hour-cell"
             data-weekday={cell.weekday}
             data-hour={cell.hour}
@@ -450,16 +450,16 @@
         class="hover-ring"
         x={hoverCell.x - 1.5}
         y={hoverCell.y - 1.5}
-        width={HOUR_GRID_LAYOUT.cell + 3}
-        height={HOUR_GRID_LAYOUT.cell + 3}
+        width={hoverCell.width + 3}
+        height={model.layout.rowPitch + 3}
         aria-hidden="true"
       />
       <rect
         class="hover-ring hover-ring-inner"
         x={hoverCell.x - 3.5}
         y={hoverCell.y - 3.5}
-        width={HOUR_GRID_LAYOUT.cell + 7}
-        height={HOUR_GRID_LAYOUT.cell + 7}
+        width={hoverCell.width + 7}
+        height={model.layout.rowPitch + 7}
         aria-hidden="true"
       />
     {/if}
@@ -472,7 +472,7 @@
       svg rather than a CSS outline (which the svg clips).
 
       Two rects, because the accent alone is unreadable on the dark end of the
-      ramp (2.1:1 on level 5): a 3px #1a73e8 stroke OUTSIDE a 1px #ffffff one,
+      ramp (2.1:1 on level 5): a 3px var(--focus) stroke OUTSIDE a 1px #ffffff one,
       so there is always a light edge between the ring and the cell under it.
       Both are inset from the cell's own box, and both carry no fill and no
       pointer events, so the ring is decoration that cannot be clicked or
@@ -483,16 +483,16 @@
         class="focus-ring"
         x={activeCell.x - 1.5}
         y={activeCell.y - 1.5}
-        width={HOUR_GRID_LAYOUT.cell + 3}
-        height={HOUR_GRID_LAYOUT.cell + 3}
+        width={activeCell.width + 3}
+        height={model.layout.rowPitch + 3}
         aria-hidden="true"
       />
       <rect
         class="focus-ring focus-ring-inner"
         x={activeCell.x - 3.5}
         y={activeCell.y - 3.5}
-        width={HOUR_GRID_LAYOUT.cell + 7}
-        height={HOUR_GRID_LAYOUT.cell + 7}
+        width={activeCell.width + 7}
+        height={model.layout.rowPitch + 7}
         aria-hidden="true"
       />
     {/if}
@@ -532,7 +532,7 @@
     font-size: 14px;
     font-weight: 400;
     line-height: 1.4;
-    fill: #5f6368;
+    fill: var(--muted);
   }
 
   /*
@@ -579,7 +579,7 @@
   .focus-ring,
   .hover-ring {
     fill: none;
-    stroke: #1a73e8;
+    stroke: var(--focus);
     stroke-width: 3;
     pointer-events: none;
   }

@@ -6,30 +6,23 @@ import { contrastRatio, relativeLuminance } from '../../helpers/contrast.ts';
 import { componentPath, listComponentFiles } from '../../helpers/components.ts';
 
 // =============================================================================
-// The nav hover surface — the colour contract, and the arithmetic behind it
-// (W-03, an amendment to 03-UI-SPEC.md's Color table).
+// Colour contracts, and the arithmetic behind them
 // =============================================================================
 //
-// The Color table is the approved contract, so a value in it that no check
-// verifies is a value that can quietly be wrong. The row it got wrong was
-// "Nav hover surface": `#ffffff` on a `#f7f7fa` nav, justified by rejecting
-// the Phase 2 `#f1f3f4` as "near-invisible on that surface". Both are
-// invisible — 1.069:1 and 1.041:1 — so the rationale rejected a value and
-// then shipped an equivalent one, and the hover affordance was absent.
+// The Color tables are the approved contracts, so a value in one that no check
+// verifies is a value that can quietly be wrong. The W-03 lesson (a hover
+// surface rejected as "near-invisible" and then replaced by an equivalent one,
+// 1.069:1) is why recorded ratios are recomputed from the shipped hex here
+// rather than trusted. The anchor nav that W-03 was about is gone (phase 8,
+// D-02); the row hover, selected and muted pairs of the Day 10 neutrals are the
+// current contract, in the last block of this file.
 //
-// Two assertions, because either alone is satisfiable by a regression in
-// the other:
-//   1. the colour in DashboardNav.svelte IS the colour the spec declares,
-//      so the contract cannot be amended in one place only, and
-//   2. the shipped pair clears 1.20:1, so a future change to another
-//      near-invisible grey fails even if the spec is amended with it.
+// These tests read from disk rather than importing a token module: the colours
+// are hand-authored hex in component stylesheets and src/app.css by design (the
+// build-time CSP forbids inline styles), so there is no module for them to live
+// in and a re-exported constant would only assert that a constant equals itself.
 //
-// Both read from disk rather than importing a token module: the colours are
-// hand-authored hex in component stylesheets by design (the build-time CSP
-// forbids inline styles), so there is no module for them to live in and a
-// re-exported constant would only assert that a constant equals itself.
-//
-// The Activity data ramp (04-UI-SPEC Color) is the second such contract, and it
+// The Activity data ramp (04-UI-SPEC Color) is the first such contract, and it
 // is declared in `src/app.css` rather than in a component stylesheet for the
 // same reason: six hand-authored hex values that four components read as
 // `var(--ramp-N)` have exactly one place to be wrong in, and a ramp is a
@@ -41,43 +34,11 @@ import { componentPath, listComponentFiles } from '../../helpers/components.ts';
 // =============================================================================
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const NAV_SOURCE = readFileSync(path.join(REPO_ROOT, 'src/lib/shell/DashboardNav.svelte'), 'utf8');
-const UI_SPEC = readFileSync(
-  path.join(REPO_ROOT, '.planning/phases/03-dashboard-shell-account-identity/03-UI-SPEC.md'),
-  'utf8',
-);
 const PHASE4_UI_SPEC = readFileSync(
   path.join(REPO_ROOT, '.planning/phases/04-activity-time-dashboards/04-UI-SPEC.md'),
   'utf8',
 );
 const APP_CSS = readFileSync(path.join(REPO_ROOT, 'src/app.css'), 'utf8');
-
-/**
- * A hover has to be SEEN, not merely specified. 1.20:1 is the floor the
- * Color table's rationale is argued from: the rejected `#f1f3f4` (1.041:1)
- * and the shipped `#ffffff` (1.069:1) are both below it, the approved
- * `#dadce0` (1.284:1) is above it.
- */
-const MIN_HOVER_CONTRAST = 1.2;
-
-/** The declared value of a `| <label> | <value> | … |` row in the Color table. */
-function specTableValue(label: string): string {
-  const row = UI_SPEC.split('\n').find((line) => line.startsWith(`| ${label} |`));
-  if (row === undefined) throw new Error(`no "${label}" row in the 03-UI-SPEC Color table`);
-  const cell = row.split('|')[2] ?? '';
-  const hex = cell.match(/#[0-9a-f]{6}/i);
-  if (hex === null) throw new Error(`the "${label}" row declares no hex colour: ${row}`);
-  return hex[0].toLowerCase();
-}
-
-/** The `background:` of the first declaration block whose selector matches. */
-function cssBackground(selector: string): string {
-  const rule = NAV_SOURCE.match(new RegExp(`(?:^|\\n)\\s*${selector}\\s*\\{([^}]*)\\}`));
-  if (rule === null) throw new Error(`no "${selector}" rule in DashboardNav.svelte`);
-  const value = rule[1].match(/background:\s*(#[0-9a-f]{3,6})/i);
-  if (value === null) throw new Error(`the "${selector}" rule declares no hex background`);
-  return value[1].toLowerCase();
-}
 
 describe('contrastRatio', () => {
   test('is the WCAG maximum for black on white', () => {
@@ -119,42 +80,6 @@ describe('contrastRatio', () => {
   test('relativeLuminance spans black to white', () => {
     expect(relativeLuminance('#000000')).toBe(0);
     expect(relativeLuminance('#ffffff')).toBeCloseTo(1, 5);
-  });
-});
-
-describe('nav hover surface (W-03)', () => {
-  test('the code ships the colour the Color table declares', () => {
-    expect(cssBackground('a:hover')).toBe(specTableValue('Nav hover surface'));
-  });
-
-  test('the link-state table declares the same hover background', () => {
-    // The same colour is specified twice — once in the Color table and once
-    // in the nav's link-state table. A one-sided amendment is the drift
-    // this assertion exists to make impossible.
-    const hoverRow = UI_SPEC.split('\n').find((line) => line.startsWith('| Hover |'));
-    expect(hoverRow).toBeDefined();
-    expect(hoverRow).toContain(cssBackground('a:hover'));
-  });
-
-  test('the shipped pair clears the floor a hover has to clear', () => {
-    const surface = cssBackground('nav');
-    expect(contrastRatio(cssBackground('a:hover'), surface)).toBeGreaterThanOrEqual(
-      MIN_HOVER_CONTRAST,
-    );
-  });
-
-  test('the two colours the rationale rejects are below the floor', () => {
-    // Pins the arithmetic that amended the Color table, so the rationale
-    // cannot be re-argued from a number that was never measured.
-    const surface = cssBackground('nav');
-    expect(contrastRatio('#ffffff', surface)).toBeLessThan(MIN_HOVER_CONTRAST);
-    expect(contrastRatio('#f1f3f4', surface)).toBeLessThan(MIN_HOVER_CONTRAST);
-  });
-
-  test('the spec and the component agree on the nav surface itself', () => {
-    // The contrast above is only meaningful against the surface the
-    // component actually paints, so that surface is pinned to the spec too.
-    expect(cssBackground('nav')).toBe(specTableValue('Secondary (30%)'));
   });
 });
 
@@ -525,27 +450,63 @@ function specFrame(): FrameStep {
   return { zeroLine: hexes[0]!, hairline: hexes[1]!, onWhite: Number(ratio) };
 }
 
-/** The `stroke:` declared by the first rule whose selector matches. */
-function chartStroke(selector: string): string {
+/** The `--name: #hex;` custom property declared in src/app.css, lowercase. */
+function appCssToken(name: string): string {
+  const match = APP_CSS.match(new RegExp(`${name}\\s*:\\s*(#[0-9a-f]{3,6})\\s*;`, 'i'));
+  if (match === null) {
+    throw new Error(`src/app.css declares no ${name} token`);
+  }
+  return match[1].toLowerCase();
+}
+
+/**
+ * The raw `stroke:` value declared by the first rule whose selector matches:
+ * a hex or a `var(--name)` read.
+ */
+function chartStrokeValue(selector: string): string {
   const rule = stripCssComments(MONTHLY_BAR_CHART).match(
     new RegExp(`(?:^|\\n)\\s*${selector}\\s*\\{([^}]*)\\}`),
   );
   if (rule === null) {
     throw new Error(`no "${selector}" rule in MonthlyBarChart.svelte`);
   }
-  const value = rule[1].match(/stroke:\s*(#[0-9a-f]{3,6})/i);
+  const value = rule[1].match(/stroke:\s*(#[0-9a-f]{3,6}|var\(--[a-z-]+\))/i);
   if (value === null) {
-    throw new Error(`the "${selector}" rule declares no hex stroke`);
+    throw new Error(`the "${selector}" rule declares no hex or var() stroke`);
   }
   return value[1].toLowerCase();
+}
+
+/** The `stroke:` of a rule as a lowercase hex, resolving a `var(--name)` read. */
+function chartStroke(selector: string): string {
+  const value = chartStrokeValue(selector);
+  const token = value.match(/^var\((--[a-z-]+)\)$/);
+  return token === null ? value : appCssToken(token[1]);
 }
 
 describe('chart frame strokes (05-UI-SPEC Color)', () => {
   test('the component paints the two strokes the Color table declares', () => {
     const frame = specFrame();
 
-    expect(chartStroke('\\.zero-line')).toBe(frame.zeroLine);
-    expect(chartStroke('\\.hairline')).toBe(frame.hairline);
+    // The Phase 8 muted token supersedes the 05 zero-line hex (08-UI-SPEC Hex
+    // migrations): the zero line reads var(--muted) and resolves to that token.
+    expect(chartStrokeValue('\\.zero-line')).toBe('var(--muted)');
+    expect(chartStroke('\\.zero-line')).toBe(appCssToken('--muted'));
+    expect(contrastRatio(chartStroke('\\.zero-line'), '#ffffff')).toBeGreaterThanOrEqual(
+      MIN_FLOW_CONTRAST,
+    );
+    // quick 261009-qbo: the hairline reads var(--border) and resolves to that
+    // token, which supersedes the 05 hex the same way the zero line does. The
+    // two greys are within 4 of 255 on every channel (#dadce0 is a faint blue
+    // grey, #dcdcdc a neutral one), so the line looks the same.
+    expect(chartStrokeValue('\\.hairline')).toBe('var(--border)');
+    expect(chartStroke('\\.hairline')).toBe(appCssToken('--border'));
+    const rgb = (hex: string): number[] =>
+      [1, 3, 5].map((start) => Number.parseInt(hex.slice(start, start + 2), 16));
+    const drift = rgb(chartStroke('\\.hairline')).map((channel, index) =>
+      Math.abs(channel - rgb(frame.hairline)[index]!),
+    );
+    expect(Math.max(...drift)).toBeLessThanOrEqual(4);
   });
 
   test('the zero line clears 3:1 and matches the ratio the table records', () => {
@@ -954,5 +915,154 @@ describe('the login map ramp pairs (06-UI-SPEC Color, Map shading)', () => {
     );
     expect(section).toContain('<ChartLegend');
     expect(section).toContain('testId="map-legend"');
+  });
+});
+
+// =============================================================================
+// Day 10 neutrals (08-01)
+// =============================================================================
+//
+// Phase 8 adds a neutral chrome palette beside the data colours. The 08-UI-SPEC
+// Build Notes code block is the contract; `src/app.css` is its implementation;
+// these tests make the two agree and make the recorded ratios true rather than
+// merely stated (the W-03 lesson, again). The data colours do not move, so the
+// ramp and flow declarations are re-pinned here as a tripwire against a token
+// edit that "tidies" them.
+const PHASE8_UI_SPEC = readFileSync(
+  path.join(REPO_ROOT, '.planning/phases/08-master-detail-ui-redesign/08-UI-SPEC.md'),
+  'utf8',
+);
+
+/** The `--name: value;` lines of the first css block under "Build Notes". */
+function phase8SpecTokens(): Map<string, string> {
+  const notes = PHASE8_UI_SPEC.slice(PHASE8_UI_SPEC.indexOf('## Build Notes'));
+  const block = notes.match(/```css\n([\s\S]*?)```/);
+  if (block === null) throw new Error('no css block under Build Notes in 08-UI-SPEC.md');
+  const tokens = new Map<string, string>();
+  for (const line of (block[1] ?? '').matchAll(/(--[a-z-]+)\s*:\s*([^;]+);/g)) {
+    tokens.set(line[1] as string, (line[2] as string).trim().toLowerCase());
+  }
+  return tokens;
+}
+
+/** Every `--name: value;` declared in the `:root` rule of src/app.css. */
+function appCssRootTokens(): Map<string, string> {
+  const root = APP_CSS.match(/:root\s*\{([\s\S]*?)\n\}/);
+  if (root === null) throw new Error('no :root rule in src/app.css');
+  const body = (root[1] ?? '').replace(/\/\*[\s\S]*?\*\//g, '');
+  const tokens = new Map<string, string>();
+  for (const line of body.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)) {
+    tokens.set(line[1] as string, (line[2] as string).trim().toLowerCase());
+  }
+  return tokens;
+}
+
+describe('Day 10 neutrals (08-01)', () => {
+  const NEUTRAL_TOKENS = [
+    '--page',
+    '--list',
+    '--card',
+    '--border',
+    '--faint',
+    '--ink',
+    '--text',
+    '--muted',
+    '--sel',
+    '--hover',
+    '--chip',
+    '--track',
+    '--focus',
+    '--radius-card',
+    '--radius-control',
+  ];
+
+  test('the Build Notes block declares all fifteen tokens', () => {
+    const spec = phase8SpecTokens();
+    for (const token of NEUTRAL_TOKENS) {
+      expect(spec.has(token), `${token} missing from the 08-UI-SPEC Build Notes`).toBe(true);
+    }
+  });
+
+  test('every neutral token in :root equals the spec value', () => {
+    const spec = phase8SpecTokens();
+    const css = appCssRootTokens();
+    for (const token of NEUTRAL_TOKENS) {
+      expect(css.get(token), `${token} in src/app.css`).toBe(spec.get(token));
+    }
+  });
+
+  test('the data colours are untouched', () => {
+    const css = appCssRootTokens();
+    expect(
+      [0, 1, 2, 3, 4, 5].map((level) => css.get(`--ramp-${level}`)),
+      'the six --ramp declarations',
+    ).toEqual(['#eef0f2', '#b2dcd4', '#7cc7bc', '#43a89c', '#1f7a74', '#0d4f4c']);
+    expect(css.get('--flow-in')).toBe('#4c3fa6');
+    expect(css.get('--flow-out')).toBe('#a14a00');
+  });
+
+  test('the page reads the neutrals, not literals', () => {
+    const root = (APP_CSS.match(/:root\s*\{([\s\S]*?)\n\}/)?.[1] ?? '').replace(
+      /\/\*[\s\S]*?\*\//g,
+      '',
+    );
+    expect(root).toMatch(/(?:^|\n)\s*color:\s*var\(--text\);/);
+    expect(root).toMatch(/(?:^|\n)\s*background:\s*var\(--page\);/);
+  });
+
+  describe('recorded ratios', () => {
+    const t = (name: string): string => phase8SpecTokens().get(name) as string;
+
+    test.each([
+      { label: 'ink on page', fg: '--ink', bg: '--page', ratio: 18.88 },
+      { label: 'text on page', fg: '--text', bg: '--page', ratio: 11.37 },
+      { label: 'muted on page', fg: '--muted', bg: '--page', ratio: 6.69 },
+      { label: 'muted on list', fg: '--muted', bg: '--list', ratio: 6.13 },
+      { label: 'muted on selected', fg: '--muted', bg: '--sel', ratio: 5.07 },
+      { label: 'muted on hover', fg: '--muted', bg: '--hover', ratio: 5.66 },
+      { label: 'ink on selected', fg: '--ink', bg: '--sel', ratio: 14.3 },
+    ])('$label is $ratio:1', ({ fg, bg, ratio }) => {
+      expect(contrastRatio(appCssRootTokens().get(fg) as string, t(bg))).toBeCloseTo(ratio, 1);
+    });
+
+    test('white on ink (the primary button) is 18.88:1', () => {
+      expect(contrastRatio('#ffffff', appCssRootTokens().get('--ink') as string)).toBeCloseTo(
+        18.88,
+        1,
+      );
+    });
+
+    test('a selected row reads against a hovered one (measured 1.12)', () => {
+      const css = appCssRootTokens();
+      expect(
+        contrastRatio(css.get('--sel') as string, css.get('--hover') as string),
+      ).toBeGreaterThanOrEqual(1.1);
+    });
+
+    // quick 261009-qbo: the surfaces and borders that component stylesheets now
+    // read from these tokens instead of restating a hex.
+    test.each([
+      { label: 'text on list', fg: '--text', bg: '--list', min: 4.5 },
+      { label: 'text on hover', fg: '--text', bg: '--hover', min: 4.5 },
+      { label: 'text on selected', fg: '--text', bg: '--sel', min: 4.5 },
+      { label: 'text on chip', fg: '--text', bg: '--chip', min: 4.5 },
+      { label: 'ink on selected', fg: '--ink', bg: '--sel', min: 7 },
+      { label: 'ink on hover', fg: '--ink', bg: '--hover', min: 7 },
+      // A control boundary keeps its contrast: borders of selects, inputs,
+      // pickers and buttons read --faint, not --border.
+      { label: 'faint on list (control boundary)', fg: '--faint', bg: '--list', min: 3 },
+    ])('$label clears $min:1', ({ fg, bg, min }) => {
+      const css = appCssRootTokens();
+      expect(contrastRatio(css.get(fg) as string, css.get(bg) as string)).toBeGreaterThanOrEqual(
+        min,
+      );
+    });
+
+    test('faint on page clears the decoration-only floor of 3 (measured 3.36)', () => {
+      const css = appCssRootTokens();
+      expect(
+        contrastRatio(css.get('--faint') as string, css.get('--page') as string),
+      ).toBeGreaterThanOrEqual(3);
+    });
   });
 });

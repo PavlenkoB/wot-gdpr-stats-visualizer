@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 import {
   SYNTHETIC_ZIP_NAME,
   gotoApp,
-  importExport,
+  importAndOpen,
   openActivity,
   playtimeBlock,
 } from '../_support/helpers.ts';
@@ -78,7 +78,7 @@ const REAL_SHAPE_EXPORT = buildRealShapeExport();
 
 test('real shape: a per-game export imports to a populated Playtime block', async ({ page }) => {
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, REAL_SHAPE_EXPORT);
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, REAL_SHAPE_EXPORT, 'playtime');
 
   // The section is `ready` and the block reaches `ready`. Two different claims:
   // the card can be ready while the block is still loading the aggregate, and
@@ -188,7 +188,7 @@ test('two games: the Game selector splits every total and the login IP is nowher
   page,
 }) => {
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, buildTwoGameExport());
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, buildTwoGameExport(), 'playtime');
 
   await expect(openActivity(page)).toHaveAttribute('data-status', 'ready');
   await expect(playtimeBlock(page)).toHaveAttribute('data-state', 'ready');

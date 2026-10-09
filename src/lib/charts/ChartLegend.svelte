@@ -68,12 +68,12 @@
     gap: 8px 4px;
     margin: 0;
     min-width: 0;
-    /* Caption role (14px / 400 / 1.4, #5f6368) for the words, the swatches
+    /* Caption role (14px / 400 / 1.4, var(--muted)) for the words, the swatches
        and the note alike — the whole legend is explanatory text. */
     font-size: 14px;
     font-weight: 400;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
   }
 
   /* A swatch, not a border: the mark is the fill, and it is the ONLY thing

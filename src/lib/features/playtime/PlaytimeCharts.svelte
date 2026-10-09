@@ -2,8 +2,15 @@
   import type { PlaytimeSlice } from '../../core/types/worker-messages.ts';
   import type { TooltipRequest } from './playtime-model.ts';
   import { HOUR_GRID_BASIS } from './playtime-shared.ts';
-  import { buildCalendarModel, buildDurationRows, buildHourGridModel } from './playtime-model.ts';
   import {
+    buildCalendarModel,
+    buildDurationRows,
+    buildHourGridModel,
+    calendarLayoutFor,
+    hourGridLayoutFor,
+  } from './playtime-model.ts';
+  import {
+    ABOUT_NAME_HOUR_GRID,
     CALENDAR_BASIS_CAPTION,
     CHART_TITLE_CALENDAR,
     CHART_TITLE_DURATION,
@@ -14,6 +21,7 @@
     HOUR_GRID_START_BASIS_NOTE,
     formatHourGridLegendNote,
   } from '../../ui-copy.ts';
+  import AboutDisclosure from '../../charts/AboutDisclosure.svelte';
   import CalendarHeatmap from './CalendarHeatmap.svelte';
   import ChartLegend from '../../charts/ChartLegend.svelte';
   import ChartTooltip from '../../charts/ChartTooltip.svelte';
@@ -59,11 +67,20 @@
   const hintId = $props.id();
 
   /**
+   * The charts root's own content box, delivered by a ResizeObserver. The root is
+   * a block whose width its parent sets (never an svg), so measuring it cannot
+   * feed back. It is 0 until the first observation, which means today's geometry
+   * (plan 08-21, G-08-3); both heatmaps lay out from this one number.
+   */
+  let chartsRect = $state<DOMRectReadOnly | null | undefined>(undefined);
+  const chartsWidth = $derived(Math.floor(chartsRect?.width ?? 0));
+
+  /**
    * The grid, recomputed whenever the slice changes. A plain `$derived`: there
    * is no `$derived.raw` (only `$state.raw`), and the model is small enough —
    * 168 cells — that proxying it costs nothing measurable.
    */
-  const grid = $derived(buildHourGridModel(slice));
+  const grid = $derived(buildHourGridModel(slice, HOUR_GRID_BASIS, hourGridLayoutFor(chartsWidth)));
 
   /**
    * The calendar, recomputed on the same slice and for the same reason: one
@@ -74,7 +91,7 @@
    * `$derived`, because its cost is a function of the years drawn and never of
    * the session count (D-04's scale rule, T-04-19).
    */
-  const calendar = $derived(buildCalendarModel(slice));
+  const calendar = $derived(buildCalendarModel(slice, calendarLayoutFor(chartsWidth)));
 
   /**
    * The twelve duration rows, from the same slice and the same denominator the
@@ -120,7 +137,12 @@
   }
 </script>
 
-<div class="charts" data-testid="playtime-charts" aria-busy={updating ? 'true' : 'false'}>
+<div
+  class="charts"
+  data-testid="playtime-charts"
+  aria-busy={updating ? 'true' : 'false'}
+  bind:contentRect={chartsRect}
+>
   <!--
     The calendar, FIRST, and the reason is order rather than importance: it is
     the chart that answers "when do I play", it is the one a reader looks for
@@ -169,16 +191,19 @@
       is counted in the hour it starts would be a caption that lies. Flipping
       the constant is a one-line change and this branch is what makes it safe.
     -->
-    {#if HOUR_GRID_BASIS === 'start'}
-      <p class="caption">{HOUR_GRID_START_BASIS_NOTE}</p>
-    {/if}
-
     <!--
-      The hint is real text, not a title attribute, and the grid names it
-      through `aria-describedby` so a screen-reader user meets the key model
-      before the first cell rather than having to go looking for it.
+      The start-basis note and the keyboard hint are supplementary, so they sit
+      in the "About this hour grid" disclosure (08-06). The basis caption above
+      is requirement-bearing and stays outside it. The hint is real text, not a
+      title attribute, and the grid names it through `aria-describedby`; a
+      collapsed details keeps it in the tree, so the id still resolves.
     -->
-    <p class="caption" id={hintId}>{HOUR_GRID_KEYBOARD_HINT}</p>
+    <AboutDisclosure name={ABOUT_NAME_HOUR_GRID} testId="about-hour-grid">
+      {#if HOUR_GRID_BASIS === 'start'}
+        <p class="caption">{HOUR_GRID_START_BASIS_NOTE}</p>
+      {/if}
+      <p class="caption" id={hintId}>{HOUR_GRID_KEYBOARD_HINT}</p>
+    </AboutDisclosure>
 
     <HourGrid model={grid} describedBy={hintId} onTip={showTip} />
 
@@ -245,26 +270,26 @@
     min-width: 0;
   }
 
-  /* Chart titles are the Label role (UI-SPEC Typography), `#08060d`, so the
+  /* Chart titles are the Label role (UI-SPEC Typography), `var(--ink)`, so the
      title reads as a level of its own without introducing a fifth size. */
   h4 {
     margin: 0;
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #08060d;
+    color: var(--ink);
   }
 
   /* Caption role for every explanatory line: the timezone basis (D-01), the
      start-basis note, the keyboard hint and — via `ChartLegend` — the scale
-     note. `#5f6368` is the muted text the role table names. */
+     note. `var(--muted)` is the muted text the role table names. */
   .caption {
     margin: 0;
     min-width: 0;
     font-size: 14px;
     font-weight: 400;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
     overflow-wrap: anywhere;
   }
 </style>

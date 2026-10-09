@@ -1,8 +1,21 @@
 import { focusScrollDelta, type Rect } from '../features/playtime/playtime-model.ts';
 
 /**
- * Keep a focused heatmap cell clear of the sticky nav and the sticky year head
- * (RESEARCH Pitfall 6, 04-UI-SPEC section 5 and 6).
+ * The marker for an element that sticks over the content and must be cleared.
+ *
+ * The master-detail list pane is a column BESIDE the content, not a bar over
+ * it, so nothing sticks over the detail pane at any width and no element
+ * carries this attribute today. Any future element that does stick over
+ * content must carry `data-sticky-chrome` so the clear line follows it.
+ * Measuring the tag `nav` instead would be wrong: the list `<nav>` is a 100vh
+ * sticky column on desktop, and its bottom would scroll the page on every
+ * arrow key in a chart.
+ */
+export const STICKY_CHROME_SELECTOR = '[data-sticky-chrome]';
+
+/**
+ * Keep a focused heatmap cell clear of any sticky chrome and the sticky year
+ * head (RESEARCH Pitfall 6, 04-UI-SPEC section 5 and 6).
  *
  * ## Why this is a measured scroll and not `scroll-margin-top`
  *
@@ -39,25 +52,26 @@ import { focusScrollDelta, type Rect } from '../features/playtime/playtime-model
  * centres a cell that is off screen; it is reachable exactly when the cell is
  * on screen and under the chrome.)
  *
- * The scroll opts out of the page's `scroll-behavior: smooth`, and it has to.
+ * The scroll is instant, and it has to be.
  * The tooltip closes on scroll (UI-SPEC section 8), so a SMOOTH correction
  * would keep firing scroll events for the ~300ms the glide takes and would
  * dismiss the tooltip the focus that caused the correction had just opened —
- * a keyboard user moving a cell up under the nav would see no tooltip at all.
+ * a keyboard user moving a cell up under the head would see no tooltip at all.
  * An instant correction is one jump, one scroll event, and the caller re-opens
- * the tooltip against the cell's new position. It is also what
- * `prefers-reduced-motion: reduce` already gets today (D-29), and this chart
- * declares no motion of its own (UI-SPEC section 9), so nothing is lost.
+ * the tooltip against the cell's new position. The page declares no smooth
+ * scrolling any more and this chart declares no motion of its own (UI-SPEC
+ * section 9), so nothing is lost.
  *
- * DOM-only and deliberately tiny: two rects, one optional nav lookup, one
+ * DOM-only and deliberately tiny: two rects, one optional chrome lookup, one
  * scroll. The arithmetic is `focusScrollDelta`'s and is unit-tested there.
  */
 export function scrollClear(element: Element, headHeight: number): void {
-  // A plain tag query, not a test id: the nav is a page landmark, and a
-  // chart rendered without the dashboard's nav (an embed, a harness) must
-  // measure a zero-height one rather than throw.
-  const nav = document.querySelector('nav');
-  const navBottom = nav === null ? 0 : nav.getBoundingClientRect().bottom;
+  // A marker attribute, not the `nav` tag: the list nav is a column, not a
+  // bar over the content. With no marked element (the normal case) the bottom
+  // is 0, so the clear line is the year head plus the gap; a chart rendered
+  // anywhere else must measure a zero-height chrome rather than throw.
+  const chrome = document.querySelector(STICKY_CHROME_SELECTOR);
+  const navBottom = chrome === null ? 0 : chrome.getBoundingClientRect().bottom;
 
   const rect: Rect = element.getBoundingClientRect();
   // 0 is the caller's cue to leave the page alone, so a cell that is already

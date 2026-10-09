@@ -14,15 +14,21 @@ import {
   buildSessionsCsvFromRows,
   buildSessionsExportFromCsv,
 } from '../../fixtures/sessions-fixtures.ts';
+import { PANE_IDS, PANE_SECTION, type PaneId } from '../../../src/lib/shell/selection-state.ts';
 import {
   SYNTHETIC_ZIP_NAME,
   cityOptIn,
   countryList,
+  detailPane,
+  ensureListScreen,
   gotoApp,
+  importAndOpen,
   importExport,
   loginHistoryBlock,
   loginMap,
   loginScroller,
+  openSection,
+  playerStatsBlock,
   playtimeBlock,
   replaceExport,
   startOver,
@@ -47,6 +53,11 @@ import {
  * its own specs (`tests/e2e/shell/touch-*.spec.ts`), which assert hit sizes
  * rather than overflow. The viewport is set here with `test.use` so both
  * projects would exercise identical CSS at 375x812.
+ *
+ * The shell is two screens at 375px (the list, then one pane's detail), so the
+ * sweep walks both: the list screen, then every pane in `PANE_IDS` opened in
+ * turn. Content is only in the DOM while its pane is open (R4), so each test
+ * opens the pane that owns what it measures before it measures it.
  *
  * Why `expectPresent` exists. A sweep that measured a locator matching nothing
  * would pass silently, so a section deleted in a later phase would turn this
@@ -75,25 +86,29 @@ async function expectNoPageOverflow(page: Page, label: string): Promise<void> {
 
 /** Assert the locator matches at least one element, naming it when it does not. */
 async function expectPresent(locator: Locator, name: string): Promise<void> {
-  expect(
-    await locator.count(),
-    `${name} is not on the page, so the sweep could not measure it`,
-  ).toBeGreaterThan(0);
+  // Polled, because a block inside an open pane mounts when its worker answer
+  // lands. A surface that never appears still fails here, after the poll budget.
+  await expect
+    .poll(() => locator.count(), {
+      message: `${name} is not on the page, so the sweep could not measure it`,
+    })
+    .toBeGreaterThan(0);
 }
 
-test('padding: 16px at 375px and 24px at 481px, and neither state scrolls the page sideways', async ({
+test('padding: the detail pane has 16px at 375px and 40px at 481px, and neither state scrolls the page sideways', async ({
   page,
 }) => {
   await gotoApp(page);
 
-  const padding = await page.locator('main').evaluate((node) => {
+  // The empty first visit shows the detail screen (the drop target lives in it).
+  await expectPresent(detailPane(page), 'detail-pane');
+  const padding = await detailPane(page).evaluate((node) => {
     const style = getComputedStyle(node);
     return { left: style.paddingLeft, right: style.paddingRight };
   });
   expect(padding.left).toBe('16px');
   expect(padding.right).toBe('16px');
 
-  // The empty first-visit page: dropzone, the nav-less skeleton, the footer.
   await expectPresent(page.getByTestId('import-bar'), 'import-bar');
   await expectPresent(page.getByTestId('dropzone'), 'dropzone');
   await expectNoPageOverflow(page, 'empty first visit at 375px');
@@ -101,67 +116,103 @@ test('padding: 16px at 375px and 24px at 481px, and neither state scrolls the pa
   // The breakpoint sits EXACTLY on 480: one pixel wider and the desktop
   // padding is back. If this fails the block is matching above 480.
   await page.setViewportSize({ width: 481, height: 812 });
-  const wide = await page.locator('main').evaluate((node) => getComputedStyle(node).paddingLeft);
-  expect(wide).toBe('24px');
+  const wide = await detailPane(page).evaluate((node) => getComputedStyle(node).paddingLeft);
+  expect(wide).toBe('40px');
   await expectNoPageOverflow(page, 'empty first visit at 481px');
 
-  // Back at 375px, an imported dashboard must not scroll sideways either.
+  // Back at 375px, an imported dataset lands on the list screen and must not
+  // scroll sideways either.
   await page.setViewportSize({ width: 375, height: 812 });
   await importExport(page, SYNTHETIC_ZIP_NAME, buildSampleExport());
-  await expectPresent(page.getByTestId('dashboard-nav'), 'dashboard-nav');
-  await expectNoPageOverflow(page, 'sample export at 375px');
+  await expect(page.getByTestId('list-pane')).toBeVisible();
+  await expectNoPageOverflow(page, 'sample export at 375px, list screen');
 });
 
 // -----------------------------------------------------------------------------
 // The full dashboard
 // -----------------------------------------------------------------------------
 
-/** The five supported section ids, in the export's own folder spelling. */
-const SECTION_IDS = [
-  'activity-history',
-  'player-statistics',
-  'financial-data',
-  'payment-history',
-  'user-info',
-] as const;
+/**
+ * What each pane must show before it is measured: the section root (or Overview)
+ * and the named blocks that live inside it. A block carrying `data-state` is
+ * also waited out of `loading`, so its disclosures exist before they are opened.
+ */
+const PANE_EXPECTATIONS: Record<PaneId, { testIds: string[]; settled: string[] }> = {
+  overview: { testIds: ['overview'], settled: [] },
+  playtime: { testIds: ['dashboard-section-activity-history'], settled: ['playtime'] },
+  'login-history': {
+    testIds: ['dashboard-section-activity-history'],
+    settled: ['login-history'],
+  },
+  vehicles: {
+    testIds: ['dashboard-section-player-statistics', 'player-stats', 'vehicle-scroller'],
+    settled: ['player-stats'],
+  },
+  finance: {
+    testIds: ['dashboard-section-financial-data', 'premium-block', 'currency-block'],
+    settled: ['premium-block', 'currency-block'],
+  },
+  payments: {
+    testIds: ['dashboard-section-payment-history', 'spend-block'],
+    settled: ['spend-block'],
+  },
+  account: { testIds: ['dashboard-section-user-info'], settled: [] },
+  'not-yet-supported': { testIds: ['dashboard-section-not-yet-supported'], settled: [] },
+};
 
-test('the full dashboard: every section, every disclosure open and the confirm panel open, none scrolls the page sideways, and the header and nav sit above the fold', async ({
+test('the full dashboard: the list screen and every pane, every disclosure open and the confirm panel open, none scrolls the page sideways, and the header and list sit above the fold', async ({
   page,
 }) => {
   await gotoApp(page);
   await importExport(page, SYNTHETIC_ZIP_NAME, buildSampleExport());
 
+  // The list screen. The testable part of the UI-SPEC focal point: the identity
+  // header and the list are both fully above the fold of a 375x812 viewport.
+  await expect(page.getByTestId('list-pane')).toBeVisible();
   await expectPresent(page.getByTestId('identity-header'), 'identity-header');
-  await expectPresent(page.getByTestId('dashboard-nav'), 'dashboard-nav');
-  for (const id of SECTION_IDS) {
-    await expectPresent(page.getByTestId(`dashboard-section-${id}`), `dashboard-section-${id}`);
-  }
-  await expectPresent(page.getByTestId('player-stats'), 'player-stats');
-  await expectPresent(page.getByTestId('vehicle-scroller'), 'vehicle-scroller');
-  await expectPresent(page.getByTestId('premium-block'), 'premium-block');
-  await expectPresent(page.getByTestId('currency-block'), 'currency-block');
-  await expectPresent(page.getByTestId('spend-block'), 'spend-block');
-  await expectNoPageOverflow(page, 'the sample dashboard, every disclosure as it opens');
-
-  // The testable part of the UI-SPEC focal point: after an import the identity
-  // header and the nav are both fully above the fold of a 375x812 viewport.
+  await expectPresent(page.getByTestId('list-nav'), 'list-nav');
+  await expectNoPageOverflow(page, 'the list screen');
   await page.evaluate(() => window.scrollTo(0, 0));
-  for (const testId of ['identity-header', 'dashboard-nav']) {
+  for (const testId of ['identity-header', 'list-nav']) {
     const box = await page.getByTestId(testId).boundingBox();
     expect(box, `${testId} has a box`).not.toBeNull();
     expect(box!.y + box!.height, `${testId} ends above the 812px fold`).toBeLessThanOrEqual(812);
   }
 
-  // Every disclosure on the page, opened one at a time, measuring after each.
-  await expectPresent(page.locator('details'), 'the disclosures');
-  const closed = page.locator('details:not([open]) > summary');
-  for (let opened = 0; (await closed.count()) > 0; opened += 1) {
-    expect(opened, 'a disclosure that will not open would loop forever').toBeLessThan(40);
-    await closed.first().click();
-    await expectNoPageOverflow(page, `after opening disclosure #${opened + 1}`);
-  }
+  let disclosuresOpened = 0;
 
-  // The confirm panel, open and then cancelled.
+  // Every pane, opened in turn. Each opens its own screen, shows what it owns,
+  // and has every disclosure inside it opened one at a time, measuring after each.
+  expect([...PANE_IDS], 'the sweep covers every pane').toEqual(Object.keys(PANE_EXPECTATIONS));
+  for (const pane of PANE_IDS) {
+    await openSection(page, pane);
+    const { testIds, settled } = PANE_EXPECTATIONS[pane];
+    const section = PANE_SECTION[pane];
+    expect(testIds[0], `${pane} names its section root`).toBe(
+      section === null ? 'overview' : `dashboard-section-${section}`,
+    );
+    for (const testId of testIds) await expectPresent(page.getByTestId(testId), testId);
+    for (const testId of settled) {
+      await expect(page.getByTestId(testId)).not.toHaveAttribute('data-state', 'loading', {
+        timeout: 30_000,
+      });
+    }
+    await expectNoPageOverflow(page, `the ${pane} pane`);
+
+    const closed = detailPane(page).locator('details:not([open]) > summary');
+    for (let opened = 0; (await closed.count()) > 0; opened += 1) {
+      expect(opened, `a disclosure in ${pane} that will not open would loop forever`).toBeLessThan(
+        40,
+      );
+      await closed.first().click();
+      disclosuresOpened += 1;
+      await expectNoPageOverflow(page, `${pane}: after opening disclosure #${opened + 1}`);
+    }
+  }
+  expect(disclosuresOpened, 'the sweep opened at least one disclosure').toBeGreaterThan(0);
+
+  // The confirm panel, open and then cancelled, on the list screen.
+  await ensureListScreen(page);
   await page.getByTestId('start-over').click();
   await expectPresent(page.getByTestId('confirm-panel'), 'confirm-panel');
   await expectNoPageOverflow(page, 'the confirm panel open');
@@ -180,17 +231,21 @@ test('activity and logins: the charts, the map and the login table, then the add
   await gotoApp(page);
   // One export carries both: the hand logins export's session files feed the
   // Playtime block and the Login history block alike.
-  await importExport(page, SYNTHETIC_ZIP_NAME, buildLoginsHandExport());
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, buildLoginsHandExport(), 'playtime');
   await expect(playtimeBlock(page)).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
-  await expect(loginHistoryBlock(page)).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
 
   await expectPresent(page.getByTestId('calendar-chart'), 'calendar-chart');
   await expectPresent(page.getByTestId('hour-chart'), 'hour-chart');
   await expectPresent(page.getByTestId('duration-chart'), 'duration-chart');
+  await expectNoPageOverflow(page, 'the Playtime pane');
+
+  // The Login history block is its own pane now (R4).
+  await openSection(page, 'login-history');
+  await expect(loginHistoryBlock(page)).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
   await expectPresent(loginMap(page), 'login-map');
   await expectPresent(page.getByTestId('login-table'), 'login-table');
   await expect(cityOptIn(page)).toHaveAttribute('data-state', 'idle');
-  await expectNoPageOverflow(page, 'Playtime and Login history on screen');
+  await expectNoPageOverflow(page, 'the Login history pane');
 
   const toggle = page.getByTestId('login-mask-toggle');
   await expectPresent(toggle, 'login-mask-toggle');
@@ -245,6 +300,7 @@ test('banners and long text: a failure, a duplicate, the excluded rows, an unkno
     page,
     'hand.zip',
     buildSessionsExportFromCsv(buildSessionsCsvFromRows(HAND_ROWS)),
+    'playtime',
   );
   await expect(playtimeBlock(page)).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
   await expect(page.getByTestId('playtime-excluded')).toBeVisible({ timeout: 30_000 });
@@ -253,14 +309,18 @@ test('banners and long text: a failure, a duplicate, the excluded rows, an unkno
 
   // An unknown folder with a 60+ character unbroken name, and a very long
   // nickname: neither may widen the page.
-  await replaceExport(page, 'long-text.zip', buildLongTextExport());
+  await replaceExport(page, 'long-text.zip', buildLongTextExport(), 'not-yet-supported');
   await expect(page.getByTestId('unsupported-banner').first()).toBeVisible({ timeout: 30_000 });
   await expectPresent(page.getByTestId('unsupported-banner'), 'unsupported-banner');
   await expect(page.getByTestId('banner-folder').filter({ hasText: 'Future_category' })).toHaveText(
     LONG_UNKNOWN_FOLDER,
   );
+  await expectNoPageOverflow(page, 'the long folder name');
+
+  // The nickname lives in the list pane's identity header.
+  await ensureListScreen(page);
   await expect(page.getByTestId('identity-nickname')).toHaveText(LONG_NICKNAME);
-  await expectNoPageOverflow(page, 'the long folder name and the long nickname');
+  await expectNoPageOverflow(page, 'the long nickname');
 
   // The acknowledgement after Start over.
   await startOver(page);
@@ -293,7 +353,7 @@ test('the city opt-in at 375px in every state: idle states its size, downloading
   });
 
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, buildLoginsHandExport());
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, buildLoginsHandExport(), 'login-history');
   await expect(loginHistoryBlock(page)).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
   const optIn = cityOptIn(page);
 
@@ -351,7 +411,7 @@ test('the vehicle and login tables scroll inside their own boxes with the first 
   page,
 }) => {
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, buildLoginsHandExport());
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, buildLoginsHandExport(), 'login-history');
   await expect(loginHistoryBlock(page)).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
 
   // D-01: no reflow to cards and no hidden column. The login table still has
@@ -359,11 +419,27 @@ test('the vehicle and login tables scroll inside their own boxes with the first 
   await expectPresent(page.getByTestId('login-table'), 'login-table');
   expect(await page.locator('[data-testid^="login-sort-"]').count()).toBe(6);
 
-  const scrollers: [Locator, string, string][] = [
-    [page.getByTestId('vehicle-scroller'), '[data-testid="vehicle-row"]', 'the vehicle table'],
-    [loginScroller(page), '[data-testid="login-row"]', 'the login table'],
+  // Each table lives in its own pane (R4), so each is measured with its pane open.
+  const scrollers: [PaneId, Locator, string, string][] = [
+    [
+      'vehicles',
+      page.getByTestId('vehicle-scroller'),
+      '[data-testid="vehicle-row"]',
+      'the vehicle table',
+    ],
+    ['login-history', loginScroller(page), '[data-testid="login-row"]', 'the login table'],
   ];
-  for (const [scroller, rowSelector, name] of scrollers) {
+  for (const [pane, scroller, rowSelector, name] of scrollers) {
+    await openSection(page, pane);
+    if (pane === 'vehicles') {
+      await expect(playerStatsBlock(page)).toHaveAttribute('data-state', 'ready', {
+        timeout: 30_000,
+      });
+    } else {
+      await expect(loginHistoryBlock(page)).toHaveAttribute('data-state', 'ready', {
+        timeout: 30_000,
+      });
+    }
     await expectPresent(scroller, `${name}'s scroller`);
     await expectPresent(scroller.locator(rowSelector), `${name}'s rows`);
 

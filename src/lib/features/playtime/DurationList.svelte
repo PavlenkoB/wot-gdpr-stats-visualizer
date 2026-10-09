@@ -125,12 +125,13 @@
   }
 
   /*
-    Below 480px the row becomes two lines: label and count share the first
-    line and the bar takes a full-width line of its own. At 375px a 96px label
-    column, a 104px count column and a 16px gap leave the bar about 150px, and
-    twelve such bars in a row are twelve hard-to-compare marks. A media query
-    rather than a second set of markup: two markups would be two places for
-    the copy to diverge.
+    At phone width the row becomes two lines: label and count share the first
+    line and the bar takes a full-width line of its own (the rules are in the
+    phone block of `src/app.css`, keyed on this list's test id). At 375px a 96px
+    label column, a 104px count column and a 16px gap leave the bar about 150px,
+    and twelve such bars in a row are twelve hard-to-compare marks. A media query
+    rather than a second set of markup: two markups would be two places for the
+    copy to diverge.
   */
   .row {
     display: grid;
@@ -138,35 +139,6 @@
     align-items: center;
     gap: 16px;
     min-width: 0;
-  }
-
-  /*
-    Explicit placement in the narrow layout, not left to auto-placement.
-    The bar spans both columns, so the placement algorithm has to skip past it
-    when it reaches the count: with `grid-auto-flow: row`, the count is
-    auto-placed in the row AFTER the bar and lands on a third line, leaving the
-    `auto` column empty at zero width. Naming the three cells removes the
-    ordering question entirely — label and count share line one, the bar takes
-    line two.
-  */
-  @media (max-width: 480px) {
-    .row {
-      grid-template-columns: 1fr auto;
-      row-gap: 4px;
-    }
-
-    .label {
-      grid-area: 1 / 1;
-    }
-
-    .count {
-      grid-area: 1 / 2;
-    }
-
-    /* The bar drops below the label and count and spans them both. */
-    .bar {
-      grid-area: 2 / 1 / 3 / -1;
-    }
   }
 
   /* The bin range, and the count beside it, are both Caption role (UI-SPEC
@@ -177,7 +149,7 @@
     font-size: 14px;
     font-weight: 400;
     line-height: 1.4;
-    color: #3c4043;
+    color: var(--text);
     min-width: 0;
   }
 

@@ -1,0 +1,26 @@
+/* CHOSEN PALETTE: "Day 10, ink + teal (ramp kept)" (2026-10-07).
+   Chrome becomes neutral ink on white; the data ramp stays the app's existing teal.
+   Put the neutrals on :root in src/app.css next to the existing --ramp-0..5 (do NOT change the ramp).
+   Hex values below were checked for contrast by hand only; run the existing contrast test after wiring. */
+:root{
+  --page:#ffffff;
+  --list:#f5f5f5;        /* list pane, dashed "not in this export" panels */
+  --card:#ffffff;
+  --border:#dcdcdc;      /* hairlines */
+  --faint:#8c8c8c;      /* decoration and dashed borders ONLY, never text */
+  --ink:#111111;         /* titles, headline numbers, primary controls, links, selected-row bar */
+  --text:#3a3a3a;        /* body */
+  --muted:#5c5c5c;       /* captions, labels (about 6:1 on #f5f5f5) */
+  --primary:#111111;     /* "primary" = ink: links (underlined), selected bar, filled primary button */
+  --sel:#e0e0e0;         /* selected row; must read against hover */
+  --hover:#ececec;       /* row hover; lighter than selected */
+  --chip:#ebebeb;
+  --track:#ececec;       /* bar track */
+  --focus:#1a73e8;       /* keyboard focus ring (3px) stays blue for visibility */
+  --warn-bg:#fef7e0; --warn-text:#8a5a00;   /* existing, unchanged */
+  --error:#c5221f;                            /* existing, unchanged */
+  --radius-card:8px; --radius-control:8px;
+  --font:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  /* data ramp, ALREADY in src/app.css and kept as is:
+     --ramp-0:#eef0f2 --ramp-1:#b2dcd4 --ramp-2:#7cc7bc --ramp-3:#43a89c --ramp-4:#1f7a74 --ramp-5:#0d4f4c */
+}

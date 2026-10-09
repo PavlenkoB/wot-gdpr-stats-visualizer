@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>WG Data Export Viewer, phone detail</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+button,select{font:inherit}
+button:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #1a73e8;outline-offset:-3px}
+summary{cursor:pointer}
+</style>
+</helmet>
+<div style="width:390px;height:844px;box-sizing:border-box;display:flex;flex-direction:column;background:#ffffff;color:#3c4043;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.5;overflow:hidden">
+
+  <div style="display:grid;grid-template-columns:96px minmax(0,1fr) 96px;align-items:center;min-height:52px;padding:0 4px;background:#ffffff;border-bottom:1px solid #dadce0">
+    <button style="all:unset;box-sizing:border-box;min-height:48px;padding:0 10px;display:flex;align-items:center;gap:2px;font-size:15px;color:#1a73e8;cursor:pointer">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#1a73e8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 4l-6 6 6 6"/></svg>
+      Sections
+    </button>
+    <h1 style="margin:0;text-align:center;font-size:16px;font-weight:600;color:#08060d">Playtime</h1>
+    <span></span>
+  </div>
+
+  <div style="flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:16px">
+    <p style="margin:0;font-size:12.5px;color:#5f6368">From Activity_history · 1 file, 287 rows · 1 session row excluded</p>
+
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <label for="srv" style="font-size:13px;font-weight:600;color:#08060d">Server name</label>
+      <select id="srv" style="min-height:48px;padding:6px 12px;border:1px solid #dadce0;border-radius:8px;background:#ffffff;color:#08060d">
+        <option>All</option><option>EU1</option><option>EU2</option><option>NA1</option>
+      </select>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+      <div style="background:#f7f7fa;border:1px solid #dadce0;border-radius:8px;padding:10px 12px"><div style="font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:#5f6368">Playtime</div><div style="font-size:22px;line-height:1.25;font-weight:600;color:#08060d">412.8 <span style="font-size:12px;font-weight:400;color:#5f6368">h</span></div></div>
+      <div style="background:#f7f7fa;border:1px solid #dadce0;border-radius:8px;padding:10px 12px"><div style="font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:#5f6368">Sessions</div><div style="font-size:22px;line-height:1.25;font-weight:600;color:#08060d">286</div></div>
+      <div style="background:#f7f7fa;border:1px solid #dadce0;border-radius:8px;padding:10px 12px"><div style="font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:#5f6368">Days</div><div style="font-size:22px;line-height:1.25;font-weight:600;color:#08060d">143</div></div>
+    </div>
+
+    <section aria-labelledby="h-cal" style="border:1px solid #dadce0;border-radius:8px;padding:14px">
+      <h2 id="h-cal" style="margin:0;font-size:15px;font-weight:600;color:#08060d">Hours per day</h2>
+      <p style="margin:2px 0 10px;font-size:12.5px;color:#5f6368">2024 · 143 active days</p>
+      <div style="overflow-x:auto;padding-bottom:6px">
+        <div role="img" aria-label="Calendar heatmap of hours played per day in 2024; scrolls sideways" style="display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,14px);grid-auto-columns:14px;gap:3px;width:max-content">
+          <sc-for list="{{ calCells }}" as="c" hint-placeholder-count="12"><span style="width:14px;height:14px;border-radius:2px;background:{{ c.bg }}"></span></sc-for>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;margin-top:8px;font-size:12px;color:#5f6368">
+        Less
+        <sc-for list="{{ ramp }}" as="k" hint-placeholder-count="6"><span style="width:14px;height:14px;border-radius:2px;background:{{ k.bg }}"></span></sc-for>
+        More
+      </div>
+      <p style="margin:8px 0 0;font-size:12.5px;color:#5f6368">Shades rank your active days, so ordinary days stay distinguishable from outliers.</p>
+      <details style="margin-top:4px;font-size:12.5px;color:#5f6368">
+        <summary style="min-height:44px;display:flex;align-items:center;color:#1a73e8">About this chart</summary>
+        <p style="margin:0 0 8px">Dates are as recorded in the export. Darkest: more than 1.8 hours.</p>
+      </details>
+    </section>
+
+    <section aria-labelledby="h-len" style="border:1px solid #dadce0;border-radius:8px;padding:14px">
+      <h2 id="h-len" style="margin:0 0 10px;font-size:15px;font-weight:600;color:#08060d">Session length</h2>
+      <div style="display:grid;grid-template-columns:88px minmax(0,1fr) 64px;gap:6px 8px;align-items:center;font-size:12.5px">
+        <sc-for list="{{ bars }}" as="b" hint-placeholder-count="8">
+          <span>{{ b.label }}</span>
+          <span style="height:10px;border-radius:5px;background:#eef0f2;overflow:hidden"><span style="display:block;height:10px;border-radius:5px;background:#1f7a74;width:{{ b.width }}"></span></span>
+          <span style="text-align:right">{{ b.count }} · {{ b.pct }}</span>
+        </sc-for>
+      </div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const RAMP = ['#eef0f2', '#b2dcd4', '#7cc7bc', '#43a89c', '#1f7a74', '#0d4f4c'];
+    let seed = 11;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    const calCells = [];
+    for (let i = 0; i < 371; i++) {
+      if (i >= 366) { calCells.push({ bg: 'transparent' }); continue; }
+      const weekend = (i % 7) >= 5;
+      const active = rnd() < (weekend ? 0.55 : 0.3);
+      let lv = 0;
+      if (active) { const r = rnd(); lv = r < 0.28 ? 1 : r < 0.55 ? 2 : r < 0.78 ? 3 : r < 0.92 ? 4 : 5; }
+      calCells.push({ bg: RAMP[lv] });
+    }
+    const bins = [
+      ['Under 1 min', 3], ['1-2 min', 4], ['2-5 min', 6], ['5-10 min', 9], ['10-20 min', 24], ['20-30 min', 38],
+      ['30-60 min', 71], ['1-2 hours', 82], ['2-4 hours', 41], ['4-8 hours', 8], ['8-16 hours', 0], ['16+ hours', 0],
+    ];
+    return {
+      ramp: RAMP.map((c) => ({ bg: c })),
+      calCells,
+      bars: bins.map(([label, count]) => ({
+        label, count: String(count), pct: Math.round((count / 286) * 100) + '%',
+        width: (count / 82 * 100).toFixed(1) + '%',
+      })),
+    };
+  }
+}
+</script>
+</body>
+</html>

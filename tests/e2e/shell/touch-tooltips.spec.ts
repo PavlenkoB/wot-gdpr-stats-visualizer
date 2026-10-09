@@ -46,7 +46,7 @@ import {
   currencyBlock,
   financialSection,
   gotoApp,
-  importExport,
+  importAndOpen,
   loginHistoryBlock,
   loginMap,
   playtimeBlock,
@@ -66,10 +66,14 @@ import { formatCalendarDate } from '../../../src/lib/ui-copy.ts';
 // tests/e2e/playtime/playtime.spec.ts:50 does.
 const HAND_EXPORT = buildSessionsExportFromCsv(buildSessionsCsvFromRows(HAND_ROWS));
 
-/** The hand export imported, with the Playtime block settled on its data. */
+/**
+ * The hand export imported and the Playtime pane opened, with the Playtime block
+ * settled on its data. The charts only exist while that pane is open (R4); on the
+ * touch project `openSection` taps the list row and reaches the detail screen.
+ */
 async function openPlaytime(page: Page): Promise<void> {
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT);
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT, 'playtime');
   await expect(playtimeBlock(page)).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
 }
 
@@ -264,6 +268,15 @@ test('a scroll dismisses it SILENTLY, and clearing the region is what lets the n
   // The page scrolls, which moves the cell, which is the one dismissal the
   // UI-SPEC makes quiet: the reader moved the page, and did not ask for the
   // tooltip to go.
+  //
+  // The browser answers every scroll with a synthetic mouse move at the mouse's
+  // last position, and a mouse over a cell opens the tooltip again (a hover is a
+  // fresh open, so it is not stale). Where that last position sits is a property
+  // of the emulation, and with the pane's geometry the scrolled grid lands right
+  // under it. The mouse is parked on the page's corner first, which is not on a
+  // cell at any scroll offset, so what is asserted is the scroll dismissal and
+  // not where an unrelated mouse happens to rest.
+  await page.mouse.move(1, 1);
   await page.evaluate(() => window.scrollBy(0, 200));
   await expect(tip).toBeHidden();
   // EMPTY, not "Tooltip dismissed." and not the pin text. The clearing is the
@@ -293,10 +306,10 @@ test('a scroll dismisses it SILENTLY, and clearing the region is what lets the n
  */
 const SAMPLE_EXPORT = buildSampleExport();
 
-/** The Financial card imported, with both sub-blocks settled on their data. */
+/** The Finance pane opened, with both sub-blocks settled on their data. */
 async function openFinance(page: Page): Promise<void> {
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, SAMPLE_EXPORT);
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, SAMPLE_EXPORT, 'finance');
   await expect(premiumBlock(page)).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
   await expect(currencyBlock(page)).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
 }
@@ -457,15 +470,33 @@ async function tapPointFor(page: Page, iso: string): Promise<TapPoint> {
       map.querySelector(`[data-testid="login-country"][data-iso="${code}"]`),
       ...map.querySelectorAll(`.hit[data-iso="${code}"], .marker[data-iso="${code}"]`),
     ];
-    for (const target of targets) {
-      if (!(target instanceof Element)) continue;
-      const box = target.getBoundingClientRect();
-      // One pixel at a time while the shape is small, coarser as it grows, so
-      // a big country does not cost a thousand hit tests.
-      const step = Math.max(1, Math.floor(Math.max(box.width, box.height) / 24));
-      for (let y = box.top; y <= box.bottom; y += step) {
-        for (let x = box.left; x <= box.right; x += step) {
-          if (own(document.elementFromPoint(x, y))) return { x, y };
+    // A point that is on the country AND has the country on all four sides of
+    // it at `margin` pixels, tried with the widest margin first. A country can
+    // be a handful of pixels across (Germany is about 7 x 8 at the pane's
+    // width), and a point on its very edge is one where `elementFromPoint`
+    // answers "this country" but a real touch press, which is hit-tested
+    // separately, lands on the map behind it. Falling back to a bare edge point
+    // only when no interior point exists keeps a one-pixel country tappable.
+    for (const margin of [2, 1, 0]) {
+      for (const target of targets) {
+        if (!(target instanceof Element)) continue;
+        const box = target.getBoundingClientRect();
+        // One pixel at a time while the shape is small, coarser as it grows, so
+        // a big country does not cost a thousand hit tests.
+        const step = Math.max(1, Math.floor(Math.max(box.width, box.height) / 24));
+        for (let y = box.top; y <= box.bottom; y += step) {
+          for (let x = box.left; x <= box.right; x += step) {
+            const around: [number, number][] = [
+              [x, y],
+              [x - margin, y],
+              [x + margin, y],
+              [x, y - margin],
+              [x, y + margin],
+            ];
+            if (around.every(([px, py]) => own(document.elementFromPoint(px, py)))) {
+              return { x, y };
+            }
+          }
         }
       }
     }
@@ -480,7 +511,7 @@ test('a tap pins the map’s tooltip at the finger, a tap elsewhere MOVES it, an
 }) => {
   await expectTouchProject();
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, buildLoginsHandExport());
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, buildLoginsHandExport(), 'login-history');
   await expect(loginHistoryBlock(page)).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
 
   const tip = page.getByTestId('map-tooltip');

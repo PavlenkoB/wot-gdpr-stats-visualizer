@@ -1,6 +1,6 @@
 import '../_support/pin-locale';
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { SYNTHETIC_ZIP_NAME, gotoApp, importExport, playtimeBlock } from '../_support/helpers.ts';
+import { SYNTHETIC_ZIP_NAME, gotoApp, importAndOpen, playtimeBlock } from '../_support/helpers.ts';
 import {
   buildSessionsCsvFromRows,
   buildSessionsExportFromCsv,
@@ -24,6 +24,7 @@ import { SESSION_FIXTURE_IP } from '../../fixtures/sessions-fixtures.ts';
 import { HOUR_GRID_BASIS } from '../../../src/lib/features/playtime/playtime-shared.ts';
 import {
   CALENDAR_BASIS_CAPTION,
+  CALENDAR_KEYBOARD_HINT,
   DURATION_BIN_LABELS,
   DURATION_LIST_ARIA_LABEL,
   HOUR_GRID_BASIS_CAPTION,
@@ -38,7 +39,7 @@ import {
 // WHY A BROWSER SPEC AND NOT A UNIT TEST
 // Vitest has no DOM, and every claim below is a claim about geometry: how many
 // rects a chart drew, what `data-seconds` each one carries, where a tooltip
-// ended up relative to the viewport, whether a sticky head overlaps the nav, and
+// ended up relative to the viewport, whether a stuck head sits at the viewport top without hiding a focused cell, and
 // whether a 375px row wrapped its bar onto its own line. None of that exists
 // until a component renders, so the instrument has to be a browser. The
 // `read_first` set for this task is the components' own markup for exactly
@@ -78,10 +79,14 @@ test.use({ reducedMotion: 'reduce' });
 /** The nine hand rows as the export the app actually reads. */
 const HAND_EXPORT = buildSessionsExportFromCsv(buildSessionsCsvFromRows(HAND_ROWS));
 
-/** Import the hand fixture and wait for the three charts to exist. */
+/**
+ * Import the hand fixture, open the Playtime pane and wait for the three charts
+ * to exist. The page lands on Overview after an import (R1), so the pane is
+ * opened explicitly; at 375px `openSection` presses back first when needed (R2).
+ */
 async function withHandFixture(page: Page): Promise<void> {
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT);
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT, 'playtime');
   await expect(playtimeBlock(page)).toHaveAttribute('data-state', 'ready');
   await expect(page.getByTestId('playtime-charts')).toBeVisible();
 }
@@ -292,31 +297,42 @@ test('calendar: (sticky head) the year head is a SIBLING of the scroller and is 
   //
   // It is deliberately NOT a claim that the correction fires; that is a
   // separate test. Reaching the correction needs the cell to be ON screen and
-  // UNDER the chrome, which `focus()` will not produce on its own — the
-  // browser centres a cell that is off screen, about 355px below the top of
-  // the viewport on this fixture, far clear of a nav of 57px plus a head of
-  // 41px. tests/e2e/playtime/playtime-ui-review.spec.ts parks a cell under the stuck
+  // UNDER the head, which `focus()` will not produce on its own: the browser
+  // centres a cell that is off screen, far clear of a head of 41px.
+  // tests/e2e/playtime/playtime-ui-review.spec.ts parks a cell under the stuck
   // head by hand, presses a real key and proves the correction fires, clears
   // it, and uses the head's MEASURED height (see 04-17-SUMMARY for the
   // mutation check that hard-coding 32 makes that test fail).
   expect(nesting.head).toBeGreaterThan(32);
 
-  // And it parks UNDER the nav rather than under it: the sticky's `top` is
-  // `calc(var(--nav-offset) - 16px)`, so with the nav at its own height the
-  // head's top is never above the nav's bottom once stuck.
+  // And once stuck it sits at the very top of the viewport. The master-detail
+  // shell has no sticky chrome over the content (R6): `--nav-offset` is 16px and
+  // the head's rule subtracts 16px, so the declared `top` computes to 0px. The
+  // page (window) is the one vertical scroller, so scrolling to just past the
+  // head's resting position is what sticks it, with its block still in view.
   const stuck = await page.evaluate(() => {
     const head = document.querySelector('[data-testid="calendar-year-head-2021"]');
-    const nav = document.querySelector('nav');
-    if (head === null || nav === null) return null;
-    // The used `top` of a sticky element is the computed value, not a resolved
-    // scroll offset, and it is what the CSS declares.
+    if (head === null) return null;
+    const style = getComputedStyle(head);
+    window.scrollTo({
+      top: head.getBoundingClientRect().top + window.scrollY + 40,
+      left: 0,
+      behavior: 'instant',
+    });
     return {
-      top: getComputedStyle(head).top,
-      navBottom: Math.round(nav.getBoundingClientRect().bottom),
+      position: style.position,
+      top: style.top,
+      headTop: head.getBoundingClientRect().top,
+      blockStillInView:
+        (document.querySelector('[data-testid="calendar-year-2021"]')?.getBoundingClientRect()
+          .bottom ?? 0) > 0,
     };
   });
-  expect(stuck?.top).toBe('56px');
-  expect(stuck?.navBottom).toBeGreaterThan(0);
+  expect(stuck).not.toBeNull();
+  expect(stuck!.position).toBe('sticky');
+  expect(stuck!.top).toBe('0px');
+  expect(Math.abs(stuck!.headTop)).toBeLessThanOrEqual(1);
+  expect(stuck!.blockStillInView).toBe(true);
 });
 
 test('calendar: (hover ring) the cell under the pointer gets the focus ring outline and only that cell', async ({
@@ -555,7 +571,19 @@ test('keyboard: (calendar) one tab stop for the whole grid, arrows and Page keys
   // Tab from the control before the chart. The chart container itself is
   // `tabindex="-1"` and the svg is a grid, so the first Tab stop inside the
   // chart must be the initial day cell.
+  //
+  // The "About this calendar" disclosure (R7) sits between the selector and the
+  // grid, so its summary is the first Tab stop and the initial day is the second.
+  // The hint text is in the DOM while the disclosure is closed; it is checked
+  // with toContainText, and the cells' aria-describedby target is unchanged.
   await page.getByTestId('playtime-selector').focus();
+  await page.keyboard.press('Tab');
+  expect(
+    await page.evaluate(
+      () => document.activeElement?.closest('[data-testid="about-calendar"]') !== null,
+    ),
+  ).toBe(true);
+  await expect(page.getByTestId('about-calendar')).toContainText(CALENDAR_KEYBOARD_HINT);
   await page.keyboard.press('Tab');
   expect(await focusedDate(page)).toBe('2021-01-01');
 
@@ -823,8 +851,15 @@ test('hour grid: (hover ring) the cell under the pointer gets the focus ring out
   const focusInner = focusRings(page, 'hour-chart').nth(1);
   expect(await ringPaint(hoverOuter)).toEqual(await ringPaint(focusOuter));
   expect(await ringPaint(hoverInner)).toEqual(await ringPaint(focusInner));
-  expect(await hoverOuter.getAttribute('width')).toBe(await focusOuter.getAttribute('width'));
-  expect(await hoverInner.getAttribute('width')).toBe(await focusInner.getAttribute('width'));
+  // The hover ring is on cell 20 and the keyboard ring on cell 21. On a filled
+  // grid two neighbouring columns can differ by 1px, so parity is asserted
+  // against each ring's OWN cell (cell width + 3 and + 7), which is the same
+  // statement as equal widths on the fixed 24px layout.
+  const monday21Width = Number(await monday21.getAttribute('width'));
+  expect(Number(await hoverOuter.getAttribute('width'))).toBe(cellWidth + 3);
+  expect(Number(await hoverInner.getAttribute('width'))).toBe(cellWidth + 7);
+  expect(Number(await focusOuter.getAttribute('width'))).toBe(monday21Width + 3);
+  expect(Number(await focusInner.getAttribute('width'))).toBe(monday21Width + 7);
 
   // The rings are not cells: `cellFrom` and `cellNode` resolve cells by
   // `data-index`, so a ring must carry no data attribute, no tabindex, no role.
@@ -996,34 +1031,32 @@ for (const [width, headFits] of [
   [1280, true],
   [375, false],
 ] as const) {
-  test(`sticky head: at ${width}px the year head never overlaps the nav`, async ({ page }) => {
+  test(`sticky head: at ${width}px the stuck year head sits at the viewport top and never hides the focused cell`, async ({
+    page,
+  }) => {
     await page.setViewportSize({ width, height: 720 });
     await withHandFixture(page);
 
-    // Scroll until the 2021 head is STUCK, which is the only state where an
-    // overlap could happen — at rest the head sits below the nav by
-    // construction and a scroll of zero would prove nothing.
+    // Scroll until the 2021 head is STUCK, which is the only state where the
+    // head could hide something: at rest it sits in the flow and a scroll of
+    // zero would prove nothing.
     //
     // Scrolled to the year block's own top rather than to the document bottom.
     // 2021 is the FIRST block, so the document bottom is well past its last
     // row: the head has left with its block and is thousands of pixels above
-    // the viewport, which measures the wrong thing entirely and reads as a
-    // catastrophic overlap.
+    // the viewport, which measures the wrong thing entirely.
     const observed = await page.evaluate(() => {
       const head = document.querySelector('[data-testid="calendar-year-head-2021"]');
-      const nav = document.querySelector('nav');
-      if (head === null || nav === null) return null;
+      if (head === null) return null;
       // Just past the head's own resting position, so it has stuck but its
       // block still fills the viewport below it.
       const stuck = head.getBoundingClientRect().top + window.scrollY + 40;
       window.scrollTo({ top: stuck, left: 0, behavior: 'instant' });
       const h = head.getBoundingClientRect();
-      const n = nav.getBoundingClientRect();
       return {
         headTop: h.top,
         headBottom: h.bottom,
         headHeight: h.height,
-        navBottom: n.bottom,
         blockStillInView:
           (document.querySelector('[data-testid="calendar-year-2021"]')?.getBoundingClientRect()
             .bottom ?? 0) > 0,
@@ -1031,24 +1064,60 @@ for (const [width, headFits] of [
     });
     expect(observed).not.toBeNull();
     // A guard on the SETUP: if the head has not stuck, or its block has already
-    // scrolled away, the overlap assertion below would pass vacuously.
-    expect(observed!.headTop).toBeCloseTo(56, 0);
+    // scrolled away, the assertions below would pass vacuously. There is no nav
+    // above the content, so a stuck head sits at the viewport top (top 0px).
+    expect(observed!.headTop).toBeCloseTo(0, 0);
     expect(observed!.blockStillInView).toBe(true);
 
-    // The head does not VISIBLY overlap the nav: the sticky's `top` is
-    // `calc(var(--nav-offset) - 16px)` = 56px, and the nav measures 56.09px
-    // tall because its own content is fractional. So the head's top edge sits
-    // about 0.09px INSIDE the nav's bottom edge — a sub-pixel rounding
-    // difference, not a layout bug, and the reason this asserts a one-pixel
-    // tolerance rather than strict inequality. A tolerance of 0.5px is what
-    // this test used first, and it failed on a real browser for that reason.
-    //
-    // What matters is that no meaningful band of the head is behind the nav:
-    // its whole height minus that sliver is still visible.
-    expect(observed!.navBottom - observed!.headTop).toBeGreaterThanOrEqual(-1);
-    expect(observed!.headHeight - (observed!.headTop - 56)).toBeGreaterThan(
-      observed!.headHeight - 1,
-    );
+    // The focused cell is never hidden by the head. Focus Tuesday 2021-01-05 and
+    // park the Monday of that week (the top row of the grid) 12px below the
+    // viewport top, which is inside the head's own height at both widths, so the
+    // cell is genuinely behind the stuck head; then press ArrowUp for the real
+    // move to Monday and read where it ends up. The correction measures the head
+    // and scrolls the page UP until the cell clears it.
+    await cell(page, '2021-01-05').focus();
+    const parked = await page.evaluate(() => {
+      const monday = document.querySelector(
+        '[data-testid="calendar-cell"][data-date="2021-01-04"]',
+      );
+      const head = document.querySelector('[data-testid="calendar-year-head-2021"]');
+      if (monday === null || head === null) return null;
+      window.scrollTo({
+        top: window.scrollY + (monday.getBoundingClientRect().top - 12),
+        left: 0,
+        behavior: 'instant',
+      });
+      return {
+        cellTop: monday.getBoundingClientRect().top,
+        headTop: head.getBoundingClientRect().top,
+        headBottom: head.getBoundingClientRect().bottom,
+      };
+    });
+    expect(parked).not.toBeNull();
+    // Guards on the SETUP, so the assertion below cannot pass vacuously: the head
+    // is stuck at the top, the cell is behind it, and the cell is on screen.
+    expect(Math.abs(parked!.headTop)).toBeLessThanOrEqual(1);
+    expect(parked!.cellTop).toBeLessThan(parked!.headBottom);
+    expect(parked!.cellTop).toBeGreaterThanOrEqual(0);
+
+    await page.keyboard.press('ArrowUp');
+    await expect.poll(() => focusedDate(page)).toBe('2021-01-04');
+    const after = await page.evaluate(() => {
+      const monday = document.querySelector(
+        '[data-testid="calendar-cell"][data-date="2021-01-04"]',
+      );
+      const head = document.querySelector('[data-testid="calendar-year-head-2021"]');
+      if (monday === null || head === null) return null;
+      return {
+        cellTop: monday.getBoundingClientRect().top,
+        headBottom: head.getBoundingClientRect().bottom,
+      };
+    });
+    expect(after).not.toBeNull();
+    expect(
+      after!.cellTop,
+      `the focused cell is under the head at ${width}px`,
+    ).toBeGreaterThanOrEqual(after!.headBottom);
 
     // At 375px the head is TALLER than at 1280px, because its summary wraps
     // below the year instead of sitting beside it. This is the reason the focus
@@ -1088,7 +1157,9 @@ test('tooltip: a cell at the right edge keeps its tooltip inside the viewport', 
   expect(box).not.toBeNull();
   expect(box!.x).toBeGreaterThanOrEqual(0);
   expect(box!.x + box!.width).toBeLessThanOrEqual(size!.width);
-  expect(box!.y).toBeGreaterThanOrEqual(0);
+  // There is no sticky chrome above the content, so the vertical clearance is
+  // the top edge of the viewport: inside it, and at least 8px from it.
+  expect(box!.y).toBeGreaterThanOrEqual(8);
   expect(box!.y + box!.height).toBeLessThanOrEqual(size!.height);
 
   // And at the far LEFT, for the mirror case: a 240px-max tooltip anchored to
@@ -1174,4 +1245,12 @@ test('motion: neither chart declares a transition, and a focus correction jumps 
   });
   expect(tipMotion.transition).toBe('0s');
   expect(tipMotion.animation).toBe('none');
+
+  // And the page itself does not glide: the smooth-scroll rule was removed in
+  // plan 08-07, so the document's computed `scroll-behavior` is not 'smooth' and
+  // a focus correction (`window.scrollBy`) jumps in one frame.
+  const scrollBehavior = await page.evaluate(
+    () => getComputedStyle(document.documentElement).scrollBehavior,
+  );
+  expect(scrollBehavior).not.toBe('smooth');
 });

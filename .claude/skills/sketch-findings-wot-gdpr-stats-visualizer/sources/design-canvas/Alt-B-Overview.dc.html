@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Alternative B, overview first</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+button{font:inherit}
+.row{transition:background .12s}
+.row:hover{background:#f1f3f4}
+.card-link:hover{border-color:#1a73e8}
+button:focus-visible{outline:3px solid #1a73e8;outline-offset:-3px}
+@media (min-width:900px){.pane-list{position:sticky;top:0;height:100vh;overflow:auto}}
+</style>
+</helmet>
+<div style="display:flex;flex-wrap:wrap;min-height:100vh;background:#ffffff;color:#3c4043;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.5">
+
+<aside class="pane-list" style="flex:1 0 320px;box-sizing:border-box;background:#f7f7fa;border-right:1px solid #dadce0;display:flex;flex-direction:column;align-self:flex-start">
+  <div style="padding:20px 20px 16px;border-bottom:1px solid #dadce0">
+    <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5f6368">WG Data Export Viewer</div>
+    <h1 style="margin:6px 0 4px;font-size:22px;line-height:1.25;font-weight:600;color:#08060d">Tester</h1>
+    <div style="font-size:12.5px;color:#5f6368">Account ID 123456789 · Location code EU</div>
+    <div style="font-size:12.5px;color:#5f6368">Account created 2024-01-01 · Imported Oct 7, 2026</div>
+  </div>
+  <nav aria-label="Sections">
+    <ul style="list-style:none;margin:0;padding:0">
+      <sc-for list="{{ rows }}" as="r" hint-placeholder-count="7">
+        <li>
+          <button class="row" aria-current="{{ r.current }}" style="all:unset;box-sizing:border-box;width:100%;min-height:56px;padding:10px 20px;display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;cursor:pointer;border-bottom:1px solid #dadce0;box-shadow:{{ r.bar }};background:{{ r.bg }}">
+            <span style="font-size:14px;font-weight:600;color:{{ r.color }}">{{ r.title }}</span>
+            <span style="font-size:14px;font-weight:600;color:{{ r.color }};text-align:right">{{ r.headline }}</span>
+            <span style="grid-column:1 / -1;font-size:12.5px;color:#5f6368">{{ r.sub }}</span>
+          </button>
+        </li>
+      </sc-for>
+    </ul>
+    <button class="row" style="all:unset;box-sizing:border-box;width:100%;min-height:48px;padding:8px 20px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;border-bottom:1px solid #dadce0">
+      <span style="font-size:13px">Not yet supported</span>
+      <span style="font-size:12px;font-weight:600;background:#f1f3f4;border:1px solid #dadce0;border-radius:999px;padding:1px 9px">4 folders</span>
+    </button>
+  </nav>
+  <div style="padding:16px 20px 20px;display:flex;flex-direction:column;gap:10px;margin-top:auto">
+    <button class="row" style="all:unset;box-sizing:border-box;min-height:44px;padding:8px 14px;border:1px dashed #80868b;border-radius:8px;text-align:center;font-size:13px;background:#ffffff;cursor:pointer">Drop a new export (.zip) here, or click to choose it</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="row" style="all:unset;box-sizing:border-box;min-height:44px;padding:8px 14px;border:1px solid #dadce0;border-radius:8px;font-size:13px;color:#08060d;background:#ffffff;cursor:pointer">Start over</button>
+      <button style="all:unset;box-sizing:border-box;min-height:44px;padding:8px 14px;font-size:13px;color:#1a73e8;text-decoration:underline;cursor:pointer">Clear my cached data</button>
+    </div>
+  </div>
+</aside>
+
+<main style="flex:999 1 560px;min-width:0;box-sizing:border-box;padding:32px 40px 64px">
+<div style="max-width:1100px;display:flex;flex-direction:column;gap:20px">
+  <div>
+    <h2 style="margin:0;font-size:26px;line-height:1.25;font-weight:600;color:#08060d">Overview</h2>
+    <p style="margin:4px 0 0;font-size:13px;color:#3c4043">What your export contains. Open a section for the full charts.</p>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap" aria-label="Export status">
+    <span style="font-size:12.5px;font-weight:600;color:#08060d;background:#ffffff;border:1px solid #dadce0;border-radius:999px;padding:4px 12px">4 sections with data</span>
+    <span style="font-size:12.5px;font-weight:600;color:#08060d;background:#ffffff;border:1px solid #dadce0;border-radius:999px;padding:4px 12px">2 not in this export</span>
+    <span style="font-size:12.5px;font-weight:600;color:#08060d;background:#ffffff;border:1px solid #dadce0;border-radius:999px;padding:4px 12px">4 folders not yet supported</span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:16px">
+
+    <button class="card-link" style="all:unset;box-sizing:border-box;border:1px solid #dadce0;border-radius:8px;padding:18px;display:flex;flex-direction:column;gap:10px;cursor:pointer;background:#ffffff">
+      <span style="font-size:13px;font-weight:600;color:#5f6368">Playtime</span>
+      <span style="font-size:30px;line-height:1.2;font-weight:600;color:#08060d">412.8 <span style="font-size:14px;font-weight:400;color:#5f6368">hours</span></span>
+      <span style="font-size:12.5px;color:#5f6368">286 sessions · 143 active days</span>
+      <span aria-hidden="true" style="display:flex;align-items:flex-end;gap:3px;height:44px">
+        <sc-for list="{{ spark }}" as="s" hint-placeholder-count="12"><span style="flex:1;border-radius:2px;background:#43a89c;height:{{ s.h }}"></span></sc-for>
+      </span>
+      <span style="font-size:13px;color:#1a73e8;font-weight:600;margin-top:auto">Open Playtime →</span>
+    </button>
+
+    <button class="card-link" style="all:unset;box-sizing:border-box;border:1px solid #dadce0;border-radius:8px;padding:18px;display:flex;flex-direction:column;gap:10px;cursor:pointer;background:#ffffff">
+      <span style="font-size:13px;font-weight:600;color:#5f6368">Login history</span>
+      <span style="font-size:30px;line-height:1.2;font-weight:600;color:#08060d">3 <span style="font-size:14px;font-weight:400;color:#5f6368">IP addresses</span></span>
+      <span style="font-size:12.5px;color:#5f6368">612 logins · 0 countries matched · addresses masked</span>
+      <span aria-hidden="true" style="display:flex;gap:3px;height:12px;margin-top:6px"><span style="flex:402;background:#1f7a74;border-radius:3px"></span><span style="flex:131;background:#7cc7bc;border-radius:3px"></span><span style="flex:79;background:#b2dcd4;border-radius:3px"></span></span>
+      <span style="font-size:12px;color:#5f6368">Logins per address</span>
+      <span style="font-size:13px;color:#1a73e8;font-weight:600;margin-top:auto">Open Login history →</span>
+    </button>
+
+    <button class="card-link" style="all:unset;box-sizing:border-box;border:1px solid #dadce0;border-radius:8px;padding:18px;display:flex;flex-direction:column;gap:10px;cursor:pointer;background:#ffffff">
+      <span style="font-size:13px;font-weight:600;color:#5f6368">Payments</span>
+      <span style="font-size:30px;line-height:1.2;font-weight:600;color:#08060d">USD 29.97</span>
+      <span style="font-size:12.5px;color:#5f6368">3 paid orders · 0 failed · 0 new</span>
+      <span style="font-size:12px;color:#5f6368">Each currency has its own total; nothing is converted.</span>
+      <span style="font-size:13px;color:#1a73e8;font-weight:600;margin-top:auto">Open Payments →</span>
+    </button>
+
+    <button class="card-link" style="all:unset;box-sizing:border-box;border:1px solid #dadce0;border-radius:8px;padding:18px;display:flex;flex-direction:column;gap:10px;cursor:pointer;background:#ffffff">
+      <span style="font-size:13px;font-weight:600;color:#5f6368">Account</span>
+      <span style="font-size:30px;line-height:1.2;font-weight:600;color:#08060d">EU</span>
+      <span style="font-size:12.5px;color:#5f6368">Location code (per export) · created 2024-01-01</span>
+      <span style="font-size:13px;color:#1a73e8;font-weight:600;margin-top:auto">Open Account →</span>
+    </button>
+
+    <div style="border:1px dashed #80868b;border-radius:8px;padding:18px;display:flex;flex-direction:column;gap:6px;background:#f7f7fa">
+      <span style="font-size:13px;font-weight:600;color:#5f6368">Vehicles</span>
+      <span style="font-size:14px;color:#3c4043">WoT is not in this export.</span>
+    </div>
+    <div style="border:1px dashed #80868b;border-radius:8px;padding:18px;display:flex;flex-direction:column;gap:6px;background:#f7f7fa">
+      <span style="font-size:13px;font-weight:600;color:#5f6368">Finance</span>
+      <span style="font-size:14px;color:#3c4043">Not in this export.</span>
+    </div>
+  </div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const mh = [58, 52, 49, 41, 38, 30, 27, 29, 33, 36, 40, 44];
+    const defs = [
+      ['Overview', '', 'What your export contains', '#08060d', true],
+      ['Playtime', '412.8 h', '286 sessions · 143 active days', '#08060d', false],
+      ['Login history', '3 IPs', '612 logins · 0 countries matched', '#08060d', false],
+      ['Vehicles', '—', 'WoT is not in this export', '#5f6368', false],
+      ['Finance', '—', 'Not in this export', '#5f6368', false],
+      ['Payments', 'USD 29.97', '3 paid orders', '#08060d', false],
+      ['Account', 'EU', 'Location code and creation date', '#08060d', false],
+    ];
+    return {
+      rows: defs.map(([title, headline, sub, color, cur]) => ({
+        title, headline, sub, color,
+        current: cur ? 'true' : 'false',
+        bg: cur ? '#e8f0fe' : 'transparent',
+        bar: cur ? 'inset 3px 0 0 #1a73e8' : 'none',
+      })),
+      spark: mh.map((v) => ({ h: Math.round(v / 58 * 100) + '%' })),
+    };
+  }
+}
+</script>
+</body>
+</html>

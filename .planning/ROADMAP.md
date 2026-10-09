@@ -392,3 +392,37 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 5. Vehicle Stats & Financial Dashboards | 19/19 | Complete    | 2026-10-02 |
 | 6. Login-IP History & Offline Geolocation | 17/17 | Complete    | 2026-10-05 |
 | 7. Mobile Layout & Public Deploy | 8/8 | In Progress|  |
+
+### Phase 8: Master-detail UI redesign
+
+**Goal:** Replace the single-scroll dashboard and its anchor nav with a two-pane master-detail layout, without changing what any section computes or shows. A list of sections on the left (Overview first, then Playtime, Login history, Vehicles, Finance, Payments, Account, and a "Not yet supported" footer row; unavailable sections muted) and one section's detail on the right; Overview is the default landing view (status chips plus one summary card per section). `j`/`k` and arrow keys move the selection; on phone, list screen then detail screen with a back control. Selection is component state, never a route. Palette "Day 10, ink + teal": white page, neutral ink chrome, selected row distinct from hover, data keeps the existing teal `--ramp-*` unchanged.
+**Design source of truth:** `.claude/skills/sketch-findings-wot-gdpr-stats-visualizer/` (read `sources/design-canvas/README.md` first), hi-fi canvas https://claude.ai/artifact/XM5a7aV2p2XWze9DFi37G3, sketch `.planning/sketches/021-q2-configurator/`.
+**Settled by the design pass (2026-10-07):** phone list-then-detail with back; Activity_history split into Playtime and Login history rows; unavailable sections muted, "Not yet supported" as a footer row; long notes become a caption plus an "About this chart" disclosure; empty state is a large drop target; Overview-first landing; Day 10 palette; the app's own system font. **Still open for discuss/UI-spec:** ARIA pattern for the list, e2e spec and budget migration (specs that locate sections by scroll position), final drop-target and empty-state copy, whether to mirror the selection in `location.hash`, and whether to add the Chart | Table toggle (candidate follow-up).
+**Constraints:** zero network requests after load, no router, no new dependencies, hand-rolled charts, keep `--ramp-0..5` untouched and extend the contrast test for the new neutrals, one 480px phone block, 44px touch floor; the e2e CI budget is at its ceiling, so any added or removed specs must raise or reconcile the three limits together.
+**Requirements**: TBD
+**Depends on:** Phase 7
+**Plans:** 22/22 plans complete
+
+Plans:
+- [x] 08-01-PLAN.md — pane vocabulary and selection model (pure), shell copy, Day 10 tokens and layout rules in app.css
+- [x] 08-02-PLAN.md — two-pane shell tracer: ListPane, DetailPane, mount-only-selected panes, shared e2e helpers (openSection)
+- [x] 08-03-PLAN.md — j/k/arrows, Enter/Escape, hint, skip link; phone list screen and detail screen with back
+- [x] 08-04-PLAN.md — empty state, import region placement, identity header and import controls restyle, loading/error stability
+- [x] 08-05-PLAN.md — Overview: status chips and one summary card per section
+- [x] 08-06-PLAN.md — "About this chart" disclosures and stat-tile numerals
+- [x] 08-07-PLAN.md — retire scroll-spy and the anchor nav, --nav-offset and scrollClear, hex migration, shell guards
+- [x] 08-08-PLAN.md — e2e migration: dashboard.spec
+- [x] 08-09-PLAN.md — e2e migration: import-flow, persistent-dataset, import-failure
+- [x] 08-10-PLAN.md — e2e migration: identity-privacy, zero-network
+- [x] 08-11-PLAN.md — e2e migration: playtime, playtime-real-shape, playtime-scale
+- [x] 08-12-PLAN.md — e2e migration: playtime-charts, playtime-ui-review
+- [x] 08-13-PLAN.md — e2e migration: login-history, login-city, login-scale
+- [x] 08-14-PLAN.md — e2e migration: login-table, login-map
+- [x] 08-15-PLAN.md — e2e migration: finance
+- [x] 08-16-PLAN.md — e2e migration: spend, finance-scale
+- [x] 08-17-PLAN.md — e2e migration: vehicle-stats
+- [x] 08-18-PLAN.md — e2e migration: mobile-sweep, touch-targets, touch-tooltips, uat-criteria
+- [x] 08-19-PLAN.md — CI budget reconciliation (three limits held) and the full-suite phase gate
+- [x] 08-20-PLAN.md — gap closure G-08-3: Finance bar charts measure the pane and fill it (chart-width rule, width-aware bar-chart model, self-measuring MonthlyBarChart), Finance overflow guard and wrap declarations
+- [x] 08-21-PLAN.md — gap closure G-08-3: Playtime calendar heatmap and weekday-by-hour grid measure the pane and fill it (exact-fill column layout with no upper width bound, model.layout, ring reserve)
+- [x] 08-22-PLAN.md — gap closure G-08-3: full-suite gate with the e2e budget held at 254 of 258, UI-SPEC amendment A-1, manual-check checkpoint at 1280, 800 and 375px and a wide window

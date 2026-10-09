@@ -5,7 +5,7 @@ import {
   clearCachedDatasetFromSecondTab,
   failPlaytimeQueryFor,
   gotoApp,
-  importExport,
+  importAndOpen,
   openActivity,
   playtimeBlock,
   replaceExport,
@@ -57,7 +57,7 @@ const HAND_EXPORT = buildSessionsExportFromCsv(buildSessionsCsvFromRows(HAND_ROW
 
 test('tracer: import, totals, pick a server, announcement', async ({ page }) => {
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT);
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT, 'playtime');
 
   // The section is `ready` and the block reaches `ready`: the two are
   // different claims. The card can be ready (the export was imported) while
@@ -136,7 +136,7 @@ test('WR-1: a failed selection query clears the previous slice announcement', as
   // real ones.
   await failPlaytimeQueryFor(page, 1);
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT);
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT, 'playtime');
   await expect(playtimeBlock(page)).toHaveAttribute('data-state', 'ready');
 
   // A real, successful selection change first: this is the announcement the
@@ -164,7 +164,7 @@ test('WR-2: a dropped selection query settles on ready, not on updating forever'
   context,
 }) => {
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT);
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT, 'playtime');
   await expect(playtimeBlock(page)).toHaveAttribute('data-state', 'ready');
 
   // One real selection change applied, so `shown` and `requested` are both set
@@ -206,8 +206,8 @@ test('WR-2: a dropped selection query settles on ready, not on updating forever'
   // The notice must not have become a THIRD EXPLICIT `aria-live` region.
   // `role="alert"` already announces on its own — it is an IMPLICIT live
   // region — so the block's one explicit `aria-live` attribute must still be
-  // the only one, keeping the page-wide count of two that `dashboard.spec.ts`
-  // asserts. The role is asserted above, which is what a future edit dropping
+  // the only one inside the block (the page also has the notice slot and the
+  // chart announcement region, which are outside it). The role is asserted above, which is what a future edit dropping
   // it would break: an `[aria-live]` count cannot see that removal.
   await expect(playtimeBlock(page).locator('[aria-live]')).toHaveCount(1);
 
@@ -229,7 +229,7 @@ test('G-04-5: dropping the export again removes the cache-cleared notice', async
   context,
 }) => {
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT);
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT, 'playtime');
   await expect(playtimeBlock(page)).toHaveAttribute('data-state', 'ready');
 
   // One real selection, so `shown` and `requested` differ and the next ask can
@@ -252,7 +252,7 @@ test('G-04-5: dropping the export again removes the cache-cleared notice', async
   // worker has no dataset to compare against and cannot take the duplicate
   // path. Re-importing the identical file is exactly what the sentence tells
   // the user to do, and it has to work.
-  await replaceExport(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT);
+  await replaceExport(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT, 'playtime');
 
   await expect(playtimeBlock(page)).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
 

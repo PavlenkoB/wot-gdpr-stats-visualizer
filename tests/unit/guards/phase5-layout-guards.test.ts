@@ -95,6 +95,9 @@ function ruleDeclarations(source: string, selector: string): string {
   return pattern.exec(source)?.[1] ?? '';
 }
 
+/** The page root size in app.css (Body role); a `rem` is judged against what the page computes. */
+const ROOT_FONT_SIZE_PX = 14;
+
 describe('phase 5 layout guards (05-20)', () => {
   it('declares the Vehicle statistics controls row as a wrapping flex ROW', () => {
     const source = componentSource('PlayerStats.svelte');
@@ -128,7 +131,7 @@ describe('phase 5 layout guards (05-20)', () => {
   // WHY EVERY VALUE IS MATCHED, NOT ONLY px
   // A guard written as `/font-size:\s*(\d+)px/` passes a stylesheet that says
   // `font-size: 0.75rem` — 12px by another spelling. So the value is parsed
-  // rather than pattern-matched, `rem` is multiplied by the 16px root, and any
+  // rather than pattern-matched, `rem` is multiplied by the 14px root (ROOT_FONT_SIZE_PX), and any
   // unit this project does not use (`em`, `pt`, `%`, `vw`) FAILS with a message
   // that asks for px instead of silently passing an unread value.
   //
@@ -164,7 +167,7 @@ describe('phase 5 layout guards (05-20)', () => {
           continue;
         }
         const value = Number(size[1]);
-        const pixels = size[2] === 'rem' ? value * 16 : value;
+        const pixels = size[2] === 'rem' ? value * ROOT_FONT_SIZE_PX : value;
         if (pixels < 14) {
           offenders.push(`${where} — ${pixels}px is below the 14px floor (UI-SPEC Typography)`);
         }

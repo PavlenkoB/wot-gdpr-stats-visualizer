@@ -101,15 +101,19 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
+    max-width: 100%;
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   /* Caption role: the reason, in muted metadata weight rather than as another
      assertion in the Label weight the pill uses. */
   .explanation {
     min-width: 0;
+    overflow-wrap: anywhere;
     font-size: 14px;
     font-weight: 400;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
   }
 </style>

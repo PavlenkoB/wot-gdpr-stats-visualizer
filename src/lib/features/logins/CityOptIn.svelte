@@ -285,7 +285,7 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #3c4043;
+    color: var(--text);
   }
 
   /* Body role, state messages. */
@@ -294,10 +294,10 @@
   .error {
     margin: 0;
     min-width: 0;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 400;
     line-height: 1.5;
-    color: #3c4043;
+    color: var(--text);
     overflow-wrap: anywhere;
   }
 
@@ -308,17 +308,17 @@
     font-size: 14px;
     font-weight: 400;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
     overflow-wrap: anywhere;
   }
 
   /* Neutral-info chrome: cancelled and unavailable (06-UI-SPEC Color). */
   .info {
     padding: 8px 12px;
-    border: 1px solid #80868b;
+    border: 1px solid var(--faint);
     border-radius: 6px;
-    background: #f1f3f4;
-    color: #3c4043;
+    background: var(--list);
+    color: var(--text);
   }
 
   /* The project's destructive chrome, as the block error: a failure the user
@@ -342,7 +342,7 @@
     min-width: 0;
   }
 
-  /* A native progress, 8px tall, track #dadce0 and fill #3c4043 (06-UI-SPEC
+  /* A native progress, 8px tall, track var(--track) and fill var(--text) (06-UI-SPEC
      Color). No animation or transition is declared: the indeterminate state is
      the user agent's own. */
   progress {
@@ -352,8 +352,8 @@
     height: 8px;
     border: 0;
     border-radius: 4px;
-    background: #dadce0;
-    color: #3c4043;
+    background: var(--track);
+    color: var(--text);
     appearance: none;
     overflow: hidden;
   }
@@ -367,34 +367,34 @@
   }
 
   progress::-webkit-progress-bar {
-    background: #dadce0;
+    background: var(--track);
   }
 
   progress::-webkit-progress-value {
-    background: #3c4043;
+    background: var(--text);
   }
 
   progress::-moz-progress-bar {
-    background: #3c4043;
+    background: var(--text);
   }
 
   button {
     padding: 8px 16px;
-    border: 1px solid #80868b;
+    border: 1px solid var(--faint);
     border-radius: 6px;
-    background: #ffffff;
-    color: #3c4043;
+    background: var(--page);
+    color: var(--text);
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
   }
 
   button:hover {
-    background: #f1f3f4;
+    background: var(--hover);
   }
 
   button:focus-visible {
-    outline: 3px solid #1a73e8;
+    outline: 3px solid var(--focus);
     outline-offset: 2px;
   }
 </style>

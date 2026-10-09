@@ -210,4 +210,15 @@ describe('the block puts the notes, the pill and the cap line under the table (0
   it('shows the account note only when the account row exists', () => {
     expect(block).toContain('hasAccountRow');
   });
+
+  // Quick 261009-0qw: the note labels the pinned row, so it is read with the
+  // row. It sits between the count line and the table, and is rendered once.
+  it('puts the single account note before the table element, not under it', () => {
+    const noteAt = block.indexOf('login-account-note');
+    const tableAt = block.indexOf('<LoginTable');
+    expect(noteAt, 'the account note test id is in the block').toBeGreaterThan(-1);
+    expect(tableAt, 'the table element is in the block').toBeGreaterThan(-1);
+    expect(noteAt).toBeLessThan(tableAt);
+    expect(block.split('login-account-note')).toHaveLength(2);
+  });
 });

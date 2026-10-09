@@ -1,6 +1,6 @@
 import '../_support/pin-locale';
 import { expect, test, type Page } from '@playwright/test';
-import { SYNTHETIC_ZIP_NAME, gotoApp, importExport, playtimeBlock } from '../_support/helpers.ts';
+import { SYNTHETIC_ZIP_NAME, gotoApp, importAndOpen, playtimeBlock } from '../_support/helpers.ts';
 import { SCALE_5K_SPEC, buildSessionsExport } from '../../fixtures/sessions-fixtures.ts';
 
 // =============================================================================
@@ -40,10 +40,14 @@ test.use({ reducedMotion: 'reduce' });
  */
 const SCALE_EXPORT = buildSessionsExport(SCALE_5K_SPEC).bytes;
 
-/** Open the app, import the export, and wait for the Playtime block to settle. */
+/**
+ * Open the app, import the export, open the Playtime pane and wait for the block
+ * to settle. A viewport resize after this keeps the open pane (the click
+ * recorded the detail view), so `setWidth` below needs no re-open.
+ */
 async function withScaleFixture(page: Page): Promise<void> {
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, SCALE_EXPORT);
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, SCALE_EXPORT, 'playtime');
   await expect(playtimeBlock(page)).toHaveAttribute('data-state', 'ready');
   await expect(page.getByTestId('playtime-charts')).toBeVisible();
 }
@@ -112,6 +116,7 @@ test('G-04-UI-1: calendar weekday labels sit fully inside the gutter of every ye
           });
         return {
           width: Number(svg.getAttribute('width')),
+          scrollerWidth: scroller?.clientWidth ?? 0,
           gutter: Math.min(...xs),
           scrollerLeft,
           labels,
@@ -146,9 +151,15 @@ test('G-04-UI-1: calendar weekday labels sit fully inside the gutter of every ye
         expect(label.clientLeft).toBeGreaterThanOrEqual(year.scrollerLeft - 0.01);
       }
 
-      // The card content width the UI-SPEC fits the calendar into. 634 of 640
-      // today; a gutter change that broke the 54-column fit would show here.
-      expect(year.width).toBeLessThanOrEqual(640);
+      // The measured rule (plan 08-21, G-08-3): the svg is either today's 634px
+      // floor (and scrolls, at 375px) or exactly as wide as the scroller that
+      // measures it. A gutter change that broke the 54-column fit would show
+      // here as a width that is neither.
+      const fillsScroller = Math.abs(year.width - year.scrollerWidth) <= 1;
+      expect(
+        year.width === 634 || fillsScroller,
+        `svg ${year.width}px vs scroller ${year.scrollerWidth}px at ${width}px`,
+      ).toBe(true);
     }
   }
 });
@@ -216,15 +227,15 @@ test('G-04-UI-3: a key move into a row hidden under the sticky chrome scrolls th
     await page.locator(`[data-testid="calendar-cell"][data-date="${TUESDAY}"]`).focus();
 
     // Park the Monday of the same week under the stuck head: scroll by exactly
-    // what puts its top 12px below the nav's bottom. 12px is inside the head's
-    // own height at both widths, so the cell is genuinely behind it.
+    // what puts its top 12px below the VIEWPORT top (there is no nav above the
+    // content, so the stuck head sits at the very top). 12px is inside the
+    // head's own height at both widths, so the cell is genuinely behind it.
     const parked = await page.evaluate(
       ({ date, year }) => {
-        const nav = document.querySelector('nav');
         const cell = document.querySelector(`[data-testid="calendar-cell"][data-date="${date}"]`);
         const head = document.querySelector(`[data-testid="calendar-year-head-${year}"]`);
-        if (nav === null || cell === null || head === null) return null;
-        const target = nav.getBoundingClientRect().bottom + 12;
+        if (cell === null || head === null) return null;
+        const target = 12;
         window.scrollTo({
           top: window.scrollY + (cell.getBoundingClientRect().top - target),
           left: 0,
@@ -237,7 +248,6 @@ test('G-04-UI-3: a key move into a row hidden under the sticky chrome scrolls th
           headTop: h.top,
           headBottom: h.bottom,
           headHeight: (head as HTMLElement).offsetHeight,
-          navBottom: nav.getBoundingClientRect().bottom,
         };
       },
       { date: MONDAY, year: YEAR },
@@ -246,15 +256,15 @@ test('G-04-UI-3: a key move into a row hidden under the sticky chrome scrolls th
 
     // Guards on the SETUP, not the behaviour. Each one exists because the
     // assertion below would otherwise pass for the wrong reason:
-    //   - the head is STUCK (its top is the sticky's 56px), so it really is
+    //   - the head is STUCK (its top is the sticky's 0px), so it really is
     //     overlaying the grid rather than sitting above it by coincidence;
     //   - the cell really is BEHIND the head, so there is something to clear;
-    //   - the cell really is ON SCREEN below the nav, so the browser's own
-    //     `focus()` will not scroll it and the correction is the only thing
-    //     that can move it. This is the case 04-11 could not reach.
-    expect(Math.abs(parked!.headTop - 56)).toBeLessThanOrEqual(1);
+    //   - the cell really is ON SCREEN (top at or below the viewport top), so the
+    //     browser's own `focus()` will not scroll it and the correction is the
+    //     only thing that can move it. This is the case 04-11 could not reach.
+    expect(Math.abs(parked!.headTop)).toBeLessThanOrEqual(1);
     expect(parked!.cellTop).toBeLessThan(parked!.headBottom);
-    expect(parked!.cellTop).toBeGreaterThanOrEqual(parked!.navBottom);
+    expect(parked!.cellTop).toBeGreaterThanOrEqual(0);
     headHeights.push(parked!.headHeight);
 
     await page.keyboard.press('ArrowUp');
@@ -283,23 +293,32 @@ test('G-04-UI-3: a key move into a row hidden under the sticky chrome scrolls th
     );
     // And the page moved UP, which is the only way content can move down. With
     // the old sign the page scrolled down by the same amount and the cell
-    // ended 37px further under the nav.
+    // ended 37px further under the head.
     expect(after!.scrollY, `the page did not scroll up at ${width}px`).toBeLessThan(
       parked!.scrollY,
     );
   }
 
   // What makes the test sensitive to a hard-coded 32: the head it cleared
-  // against at 375px is TALLER than the one at 1280px, because the summary
-  // wraps. A correction that used 32 instead of the measured height clears
-  // nav + 32 + 8 and leaves the cell about 11px under a 52px head — which the
-  // assertion above catches, and which is recorded in 04-17-SUMMARY as a
-  // mutation check rather than assumed.
-  expect(headHeights[0]).toBeGreaterThan(headHeights[1]!);
+  // against is TALLER than its declared 32px minimum at both widths (4px of
+  // padding, a 1px rule and a 19.6px line make it 41px). A correction that used
+  // 32 instead of the measured height clears 32 + 8 and leaves the cell about 9px
+  // under the head, which the assertion above catches, and which is recorded in
+  // 04-17-SUMMARY as a mutation check rather than assumed.
+  //
+  // The old claim that the head is TALLER at 375px than at 1280px no longer
+  // holds: in the master-detail shell the detail pane is 343px wide at 375px (it
+  // was a 293px card), so the 2022 summary (about 328px with the year) fits on
+  // one line at both widths. The head only wraps where the pane is narrower, so
+  // the width-to-width inequality is not asserted; the measured-exceeds-declared
+  // claim is the one the correction depends on.
+  for (const height of headHeights) expect(height).toBeGreaterThan(32);
+  expect(headHeights[0]).toBeGreaterThanOrEqual(headHeights[1]!);
 
   // ---------------------------------------------------------------------
-  // The hour grid half: no year head above it, so the correction clears the
-  // NAV by 8px and nothing else.
+  // The hour grid half: no year head above it and no sticky chrome over the
+  // content, so the correction keeps the cell 8px clear of the viewport top and
+  // nothing else.
   // ---------------------------------------------------------------------
   await setWidth(page, 1280);
   await page.getByTestId('hour-chart').scrollIntoViewIfNeeded();
@@ -307,10 +326,14 @@ test('G-04-UI-3: a key move into a row hidden under the sticky chrome scrolls th
   await page.locator('[data-testid="hour-cell"][data-index="36"]').focus();
 
   const parkedHour = await page.evaluate(() => {
-    const nav = document.querySelector('nav');
     const cell = document.querySelector('[data-testid="hour-cell"][data-index="12"]');
-    if (nav === null || cell === null) return null;
-    const target = nav.getBoundingClientRect().bottom + 2;
+    if (cell === null) return null;
+    // The hour grid sits near the end of the page, so the page cannot scroll far
+    // enough to put its top row 2px from the viewport top (the old test only had
+    // to reach the nav's bottom, 58px down). Extend the scrollable height with
+    // test-only space below the content; it changes no layout above the cell.
+    document.body.style.paddingBottom = '1200px';
+    const target = 2;
     window.scrollTo({
       top: window.scrollY + (cell.getBoundingClientRect().top - target),
       left: 0,
@@ -319,28 +342,26 @@ test('G-04-UI-3: a key move into a row hidden under the sticky chrome scrolls th
     return {
       scrollY: window.scrollY,
       cellTop: cell.getBoundingClientRect().top,
-      navBottom: nav.getBoundingClientRect().bottom,
     };
   });
   expect(parkedHour).not.toBeNull();
-  expect(parkedHour!.cellTop).toBeGreaterThanOrEqual(parkedHour!.navBottom);
+  // The setup guards: the cell is on screen (the browser's own focus will not
+  // scroll it) and inside the 8px clearance line, so the correction has work to do.
+  expect(parkedHour!.cellTop).toBeGreaterThanOrEqual(0);
+  expect(parkedHour!.cellTop).toBeLessThan(7.5);
 
   await page.keyboard.press('ArrowUp');
   await expect.poll(() => activeIndex(page)).toBe('12');
 
   const afterHour = await page.evaluate(() => {
     const cell = document.querySelector('[data-testid="hour-cell"][data-index="12"]');
-    const nav = document.querySelector('nav');
-    if (cell === null || nav === null) return null;
-    return {
-      cellTop: cell.getBoundingClientRect().top,
-      navBottom: nav.getBoundingClientRect().bottom,
-    };
+    if (cell === null) return null;
+    return { cellTop: cell.getBoundingClientRect().top };
   });
   expect(afterHour).not.toBeNull();
-  // 8px of clearance, asserted at 7.5 because the nav's own height is
-  // fractional and lands a sub-pixel either way.
-  expect(afterHour!.cellTop).toBeGreaterThanOrEqual(afterHour!.navBottom + 7.5);
+  // 8px of clearance, asserted at 7.5 because the cell's own box is fractional
+  // and lands a sub-pixel either way.
+  expect(afterHour!.cellTop).toBeGreaterThanOrEqual(7.5);
 });
 
 // -----------------------------------------------------------------------------
@@ -400,6 +421,7 @@ test('G-04-UI-2: at 375px the hours tile keeps its numeral and its unit whole', 
           numberLines: lineCount(number),
           unitText: unit === null ? '' : (unit.textContent ?? '').trim(),
           unitLines: unit === null ? 0 : lineCount(unit),
+          fontSize: getComputedStyle(number).fontSize,
           scrollWidth: dd.scrollWidth,
           clientWidth: dd.clientWidth,
           height: dd.getBoundingClientRect().height,
@@ -420,6 +442,11 @@ test('G-04-UI-2: at 375px the hours tile keeps its numeral and its unit whole', 
 
     for (const tile of measured) {
       expect(tile.numberLines, `${tile.testId} numeral lines at ${width}px`).toBe(1);
+      // The UI-SPEC numeral sizes (R10): 30px on desktop, 18px at 375px. The
+      // computed value, since the claim is what the reader sees.
+      expect(tile.fontSize, `${tile.testId} numeral size at ${width}px`).toBe(
+        width === 375 ? '18px' : '30px',
+      );
       // And the dd is not a scroller holding its own overflow either: an
       // unbreakable numeral that does not fit would be clipped rather than
       // read wrong, and the page-overflow check is the outer backstop.
@@ -437,7 +464,7 @@ test('G-04-UI-2: at 375px the hours tile keeps its numeral and its unit whole', 
 
     if (width === 1280) {
       // At 1280 the pair still shares one line, and this is the assertion that
-      // says so: one 28px Display line at 1.2 measures about 33.6px, so a dd
+      // says so: one 30px Display line at 1.2 measures about 36px, so a dd
       // under 40px cannot be holding two line boxes. It is also the half that
       // passed BEFORE the fix, which is what makes the 375 half meaningful —
       // the change is a fix at one width and nothing at the other.

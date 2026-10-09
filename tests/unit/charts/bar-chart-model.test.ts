@@ -761,3 +761,197 @@ function currency(monthCount: number): chart.BarChartInput {
     months: bothWays(monthCount),
   };
 }
+
+function premiumSpan(monthCount: number): chart.BarChartInput {
+  return {
+    kind: 'premium',
+    firstMonth: 1_000,
+    lastMonth: 1_000 + monthCount - 1,
+    months: bothWays(monthCount).map((entry) => ({ ...entry, down: 0 })),
+  };
+}
+
+function handInput(): chart.BarChartInput {
+  return { kind: 'premium', firstMonth: HAND_FIRST, lastMonth: HAND_LAST, months: HAND_MONTHS };
+}
+
+describe('the measured fill layout (G-08-3)', () => {
+  const legacyGeometry = (model: chart.BarChartModel) => ({
+    width: model.width,
+    pitch: model.pitch,
+    barWidth: model.barWidth,
+    plotRight: model.plotRight,
+    xs: model.cells.map((cell) => cell.x),
+    hits: model.cells.map((cell) => cell.hitWidth),
+    labels: model.labels,
+  });
+
+  it.each([0, Number.NaN, -5, Infinity, undefined, null])(
+    'a width of %s returns exactly the no-width geometry',
+    (bad) => {
+      const base = legacyGeometry(chart.buildBarChartModel(handInput()));
+      expect(legacyGeometry(chart.buildBarChartModel(handInput(), bad))).toEqual(base);
+      expect(base.width).toBe(140);
+      expect(base.pitch).toBe(16);
+    },
+  );
+
+  it('5 months at 879: width 879, plot 815, five slots of 163, bars 32px centred', () => {
+    const model = chart.buildBarChartModel(handInput(), 879);
+    expect(model.width).toBe(879);
+    expect(model.plotRight).toBe(871);
+    expect(model.pitch).toBe(163);
+    expect(model.cells.map((cell) => cell.hitWidth)).toEqual([163, 163, 163, 163, 163]);
+    expect(model.cells[0].x).toBe(56);
+    const last = model.cells[4];
+    expect(last.x + last.hitWidth).toBe(56 + 815);
+    expect(model.scrolls).toBe(false);
+    // (163 - 32) / 2 = 65.5, floored to 65.
+    expect(model.cells[0].up?.x).toBe(56 + 65);
+    for (const cell of model.cells) {
+      if (cell.up !== null) {
+        expect(cell.up.width).toBe(32);
+      }
+    }
+    expect(model.barWidth).toBe(32);
+  });
+
+  it('12 months at 879: slots of 67 or 68, 32px bars centred in whole slots', () => {
+    const model = chart.buildBarChartModel(premiumSpan(12), 879);
+    expect(model.width).toBe(879);
+    let total = 0;
+    for (const cell of model.cells) {
+      expect([67, 68]).toContain(cell.hitWidth);
+      total += cell.hitWidth;
+      expect(cell.up?.width).toBe(32);
+      expect(cell.up?.x).toBe(cell.x + Math.floor((cell.hitWidth - 32) / 2));
+      expect([17, 18]).toContain((cell.up?.x ?? 0) - cell.x);
+    }
+    expect(total).toBe(815);
+    const first = model.labels[0];
+    expect(first.x).toBe(model.cells[0].x);
+  });
+
+  it('30 months at 343 is the no-width geometry (the fill plot 279 is below 480)', () => {
+    const base = chart.buildBarChartModel(currency(30));
+    const model = chart.buildBarChartModel(currency(30), 343);
+    expect(legacyGeometry(model)).toEqual(legacyGeometry(base));
+    expect(model.width).toBe(540);
+    expect(model.scrolls).toBe(true);
+  });
+
+  it('36 months: 640px stays the legacy 636px chart, 641px fills to 641', () => {
+    const legacy = chart.buildBarChartModel(currency(36));
+    expect(legacy.width).toBe(636);
+    const at640 = chart.buildBarChartModel(currency(36), 640);
+    expect(legacyGeometry(at640)).toEqual(legacyGeometry(legacy));
+    expect(at640.scrolls).toBe(false);
+    const at641 = chart.buildBarChartModel(currency(36), 641);
+    expect(at641.width).toBe(641);
+    expect(at641.plotRight).toBe(56 + 577);
+  });
+
+  it('144 months at 879 fills with 5 or 6px slots and labels the same months as the legacy chart', () => {
+    const legacy = chart.buildBarChartModel(currency(144));
+    const model = chart.buildBarChartModel(currency(144), 879);
+    expect(model.width).toBe(879);
+    for (const cell of model.cells) {
+      expect([5, 6]).toContain(cell.hitWidth);
+    }
+    expect(model.labels.map((label) => label.index)).toEqual(
+      legacy.labels.map((label) => label.index),
+    );
+    for (const label of model.labels) {
+      expect(label.x).toBe(model.cells[label.index].x);
+    }
+  });
+
+  it('240 months at 879 equals the legacy model (its 960px plot exceeds 815) and scrolls', () => {
+    const legacy = chart.buildBarChartModel(currency(240));
+    const model = chart.buildBarChartModel(currency(240), 879);
+    expect(legacyGeometry(model)).toEqual(legacyGeometry(legacy));
+    expect(model.width).toBe(1020);
+    expect(model.scrolls).toBe(true);
+  });
+
+  it('has no upper bound: 4000px fills to 4000 with a 3936px plot', () => {
+    const model = chart.buildBarChartModel(currency(12), 4000);
+    expect(model.width).toBe(4000);
+    expect(model.plotRight).toBe(56 + 3936);
+    expect(model.scrolls).toBe(false);
+    for (const cell of model.cells) {
+      expect(cell.hitWidth).toBe(328);
+      expect(cell.up?.width).toBe(32);
+      expect(cell.up?.x).toBe(cell.x + 148);
+    }
+  });
+
+  it('drops a right-edge label on the fill path as on the legacy path, and may now fit one it dropped', () => {
+    const legacy = chart.buildBarChartModel(premiumSpan(13));
+    expect(legacy.labels.map((label) => label.index)).toEqual([0]);
+    // 13 months at 300: label 12 sits at x 273 and needs 56 more than the svg has.
+    const narrow = chart.buildBarChartModel(premiumSpan(13), 300);
+    expect(narrow.labels.map((label) => label.index)).toEqual([0]);
+    const wide = chart.buildBarChartModel(premiumSpan(13), 879);
+    expect(wide.labels.map((label) => label.index)).toEqual([0, 12]);
+  });
+
+  it.each([1, 56, 144, 240])('keeps nodeCount within nodeBudget at %i months', (months) => {
+    for (const available of [879, 4000]) {
+      const model = chart.buildBarChartModel(currency(months), available);
+      expect(model.nodeCount, `${months} months at ${available}px`).toBeLessThanOrEqual(
+        model.nodeBudget,
+      );
+    }
+  });
+
+  it('adds no nodes at any width: the count depends on the months, never the pixels (T-08-52)', () => {
+    // At 1,572 months the legacy label stride already puts the count (4,853)
+    // above `nodeBudget` (4,756) with no width at all, so the bound is the
+    // width-independence of the count rather than the pre-existing budget.
+    for (const months of [1, 56, 144, 240, 1572]) {
+      const base = chart.buildBarChartModel(currency(months)).nodeCount;
+      for (const available of [343, 879, 4000]) {
+        const model = chart.buildBarChartModel(currency(months), available);
+        // Labels can differ at the right edge by at most a handful of pairs.
+        expect(model.nodeCount, `${months} months at ${available}px`).toBeLessThanOrEqual(base + 4);
+      }
+    }
+  });
+
+  it('keeps the very input and the data facts identical at every width', () => {
+    const input = currency(30);
+    const base = chart.buildBarChartModel(input);
+    for (const available of [undefined, 343, 720, 879, 1326, 4000]) {
+      const model = chart.buildBarChartModel(input, available);
+      expect(model.input).toBe(input);
+      expect(model.monthCount).toBe(base.monthCount);
+      expect(model.domainMax).toBe(base.domainMax);
+      expect(model.domainUp).toBe(base.domainUp);
+      expect(model.domainDown).toBe(base.domainDown);
+      expect(model.cells.map((cell) => cell.month)).toEqual(base.cells.map((cell) => cell.month));
+    }
+  });
+
+  it.each([5, 12, 100, 144])(
+    'keeps the last cell ring inside the svg at %i months, 879px',
+    (months) => {
+      const model = chart.buildBarChartModel(premiumSpan(months), 879);
+      const last = model.cells[model.cells.length - 1];
+      expect(last.x + Math.max(last.hitWidth, 8) + 3.5).toBeLessThanOrEqual(model.width);
+    },
+  );
+
+  it('a one-month chart at 879 is one slot of 815 with a 32px bar at offset 391', () => {
+    const model = chart.buildBarChartModel(premiumSpan(1), 879);
+    expect(model.cells).toHaveLength(1);
+    expect(model.cells[0].hitWidth).toBe(815);
+    expect(model.cells[0].up?.width).toBe(32);
+    expect(model.cells[0].up?.x).toBe(56 + 391);
+  });
+
+  it('720 and 1326px fill too', () => {
+    expect(chart.buildBarChartModel(premiumSpan(5), 720).width).toBe(720);
+    expect(chart.buildBarChartModel(premiumSpan(5), 1326).width).toBe(1326);
+  });
+});

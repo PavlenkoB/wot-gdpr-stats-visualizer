@@ -4,8 +4,9 @@ import {
   SYNTHETIC_ZIP_NAME,
   failLoginsQuery,
   gotoApp,
-  importExport,
+  importAndOpen,
   loginHistoryBlock,
+  openSection,
   replaceExport,
   startOver,
 } from '../_support/helpers.ts';
@@ -26,6 +27,7 @@ import {
   LOGIN_HISTORY_LOADING,
   LOGIN_HISTORY_NO_SOURCE,
   LOGIN_HISTORY_NO_USABLE,
+  LOGIN_COL_COUNTRY,
   LOGIN_MULTI_FILE_NOTE,
   LOGIN_TILE_COUNTRIES,
   LOGIN_TILE_IPS,
@@ -33,6 +35,7 @@ import {
   LOGIN_TILE_TOP_COUNTRY,
   LOGIN_TILE_TOP_IP,
   LOGIN_TILE_UNKNOWN,
+  LOGIN_UNKNOWN_COUNTRY,
   MASK_ANNOUNCE_MASKED,
   MASK_ANNOUNCE_SHOWN,
   MASK_TOGGLE_HIDE,
@@ -191,11 +194,51 @@ async function selectedText(page: Page): Promise<string> {
   });
 }
 
+/**
+ * Every attribute value, on every element of the open pane AND of the shell
+ * beside it, that contains one of the given addresses (`name=address`).
+ *
+ * The walk root used to be the block alone. Since the master-detail shell the
+ * block sits in a detail pane next to a list pane, under an identity header, and
+ * a leak in that surrounding chrome (a row `title`, an `aria-label`, a `data-*`)
+ * would be as much a disclosure as one inside the block. So the roots are the
+ * block, the detail pane, the list pane and the header, each proven present first
+ * so the walk cannot pass by visiting nothing, and each walked together with the
+ * root element's own attributes.
+ */
+async function attributeHitsAround(page: Page, addresses: readonly string[]): Promise<string[]> {
+  const roots = [
+    loginHistoryBlock(page),
+    page.getByTestId('detail-pane'),
+    page.getByTestId('list-pane'),
+    page.getByTestId('identity-header'),
+  ];
+  const hits: string[] = [];
+  for (const root of roots) {
+    await expect(root).toHaveCount(1);
+    hits.push(
+      ...(await root.evaluate((element, list) => {
+        const found: string[] = [];
+        for (const node of [element, ...element.querySelectorAll('*')]) {
+          for (const name of node.getAttributeNames()) {
+            const value = node.getAttribute(name) ?? '';
+            for (const address of list) {
+              if (value.includes(address)) found.push(`${name}=${address}`);
+            }
+          }
+        }
+        return found;
+      }, addresses)),
+    );
+  }
+  return hits;
+}
+
 test('tracer: import, a masked Most-used address, and one click that reveals it', async ({
   page,
 }) => {
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT);
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT, 'login-history');
 
   const block = loginHistoryBlock(page);
   await expect(block).toHaveAttribute('data-state', 'ready');
@@ -232,7 +275,7 @@ test('the Activity card no longer promises a dashboard, and the block is its rea
   page,
 }) => {
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT);
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT, 'login-history');
   const card = page.getByTestId('dashboard-section-activity-history');
   await expect(loginHistoryBlock(page)).toHaveAttribute('data-state', 'ready');
   // The placeholder element is gone with the component that carried it.
@@ -244,7 +287,7 @@ test('while masked, no full address exists anywhere on the page (D-07, T-06-28)'
   page,
 }) => {
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT);
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT, 'login-history');
   const block = loginHistoryBlock(page);
   await expect(block).toHaveAttribute('data-state', 'ready');
 
@@ -260,23 +303,11 @@ test('while masked, no full address exists anywhere on the page (D-07, T-06-28)'
   expect(await page.title()).toBe(titleBefore);
 
   // No ATTRIBUTE anywhere in the block carries one either: a `title`,
-  // an `aria-label`, a `data-*`. The check walks every element of the block
+  // an `aria-label`, a `data-*`. The check walks every element of the block, of
+  // the detail pane around it, of the list pane beside it and of the header,
   // rather than the innerHTML, because an attribute value is not text and
   // would not appear in the string above.
-  const attributeHits = await block.evaluate((root, addresses) => {
-    const hits: string[] = [];
-    for (const element of root.querySelectorAll('*')) {
-      for (const value of element
-        .getAttributeNames()
-        .map((name) => element.getAttribute(name) ?? '')) {
-        for (const address of addresses) {
-          if (value.includes(address)) hits.push(address);
-        }
-      }
-    }
-    return hits;
-  }, FULL_ADDRESSES);
-  expect(attributeHits).toEqual([]);
+  expect(await attributeHitsAround(page, FULL_ADDRESSES)).toEqual([]);
 
   // And the reveal really is the only way an address appears.
   await page.getByTestId('login-mask-toggle').click();
@@ -292,7 +323,7 @@ test('the six tiles show the answer key values, with the note under the counts',
   page,
 }) => {
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT);
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT, 'login-history');
   await expect(loginHistoryBlock(page)).toHaveAttribute('data-state', 'ready');
 
   // Three counts. The Account record is not a login and is not counted (D-02);
@@ -334,11 +365,61 @@ test('the six tiles show the answer key values, with the note under the counts',
   // D-01's note, because the hand fixture is TWO session files and both sets
   // of rows are counted.
   await expect(page.getByTestId('login-multi-file-note')).toHaveText(LOGIN_MULTI_FILE_NOTE);
+
+  // The Countries tile and the table agree (quick 261009-0qw). The tile counts
+  // the distinct NAMED country cells of the login rows. The pinned Account
+  // record row carries its own country (the account file's recorded value) but
+  // is never counted in a tile (Phase 6 D-02), so it is outside that set by
+  // construction. The distinct-cell comparison is valid only because the table
+  // is windowed to a few dozen rows and this fixture renders every row.
+  const cells = await page.getByTestId('login-table').evaluate((table, countryHeader) => {
+    const headers = Array.from(table.querySelectorAll('thead th'));
+    const col = headers.findIndex(
+      (th) => th.querySelector('button span')?.textContent?.trim() === countryHeader,
+    );
+    // The cell's own text, never its visually hidden span.
+    const own = (tr: Element): string => {
+      const td = tr.querySelectorAll('td')[col];
+      return Array.from(td?.childNodes ?? [])
+        .filter((n) => n.nodeType === Node.TEXT_NODE)
+        .map((n) => n.textContent ?? '')
+        .join('')
+        .trim();
+    };
+    return {
+      col,
+      login: Array.from(table.querySelectorAll('[data-testid="login-row"]')).map(own),
+      account: Array.from(table.querySelectorAll('[data-testid="login-account-row"]')).map(own),
+    };
+  }, LOGIN_COL_COUNTRY);
+  expect(cells.col, 'the Country column is found by its header').toBeGreaterThanOrEqual(0);
+  const namedLoginCountries = new Set(
+    cells.login.filter((name) => name !== '' && name !== LOGIN_UNKNOWN_COUNTRY),
+  );
+  await expect(page.getByTestId('login-tile-countries')).toHaveText(
+    formatNumber(namedLoginCountries.size),
+  );
+  // The exclusion is visible: the Account record row has a country cell, its
+  // name is not among the login rows, and counting it would be one too many.
+  expect(cells.account).toHaveLength(1);
+  const accountCountry = cells.account[0]!;
+  expect(accountCountry).not.toBe('');
+  expect(namedLoginCountries.has(accountCountry)).toBe(false);
+  expect(new Set([...namedLoginCountries, accountCountry]).size).toBe(namedLoginCountries.size + 1);
+
+  // The label that explains the pinned row sits directly above the table, so it
+  // is read with the row (it was below the fold, under the hints).
+  const note = page.getByTestId('login-account-note');
+  await expect(note).toHaveCount(1);
+  await expect(note).toBeVisible();
+  const noteBox = (await note.boundingBox())!;
+  const scrollerBox = (await page.getByTestId('login-scroller').boundingBox())!;
+  expect(noteBox.y + noteBox.height).toBeLessThanOrEqual(scrollerBox.y);
 });
 
 test('one session file raises no multi-file note (D-01)', async ({ page }) => {
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, SINGLE_FILE_EXPORT);
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, SINGLE_FILE_EXPORT, 'login-history');
   await expect(loginHistoryBlock(page)).toHaveAttribute('data-state', 'ready');
   await expect(page.getByTestId('login-tile-ips')).toHaveText(formatNumber(2));
   // The note is absent, not empty: there is nothing here to explain.
@@ -353,7 +434,7 @@ test('loading says it is calculating, and no tile is on screen', async ({ page }
   // than as a missing state, which is the worst way for this test to fail.
   await delayLoginsQueriesAfter(page, 0, 10_000);
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT);
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT, 'login-history');
 
   const block = loginHistoryBlock(page);
   await expect(block).toHaveAttribute('data-state', 'loading');
@@ -375,7 +456,7 @@ test('an Activity_history with no session or login file says exactly that (D-10)
   page,
 }) => {
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, NO_SOURCE_EXPORT);
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, NO_SOURCE_EXPORT, 'login-history');
   const block = loginHistoryBlock(page);
   await expect(block).toHaveAttribute('data-state', 'no-source');
   await expect(block).toContainText(LOGIN_HISTORY_NO_SOURCE);
@@ -389,7 +470,7 @@ test('a session file whose every address is unreadable says a different thing (D
   page,
 }) => {
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, NO_USABLE_EXPORT);
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, NO_USABLE_EXPORT, 'login-history');
   const block = loginHistoryBlock(page);
   await expect(block).toHaveAttribute('data-state', 'no-usable');
   await expect(block).toContainText(LOGIN_HISTORY_NO_USABLE);
@@ -408,7 +489,7 @@ test('a query that cannot be asked renders the fixed sentence and no retry (T-06
 }) => {
   await failLoginsQuery(page);
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT);
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT, 'login-history');
 
   const block = loginHistoryBlock(page);
   await expect(block).toHaveAttribute('data-state', 'error');
@@ -422,7 +503,9 @@ test('a query that cannot be asked renders the fixed sentence and no retry (T-06
   // dataset on screen is unchanged either way.
   await expect(page.getByTestId('login-tile-ips')).toHaveCount(0);
   await expect(page.getByTestId('login-mask-toggle')).toHaveCount(0);
-  // The other blocks are unaffected: the seam fails ONE channel.
+  // The other blocks are unaffected: the seam fails ONE channel. Only the open
+  // pane's section is in the DOM (R4), so the Playtime pane is opened to read it.
+  await openSection(page, 'playtime');
   await expect(page.getByTestId('playtime')).toHaveAttribute('data-state', 'ready');
 });
 
@@ -430,7 +513,7 @@ test('pressing the toggle keeps focus and announces the new state, with no addre
   page,
 }) => {
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT);
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT, 'login-history');
   const status = page.getByTestId('login-history-status');
   const toggle = page.getByTestId('login-mask-toggle');
   await expect(toggle).toHaveAttribute('data-masked', 'true');
@@ -459,7 +542,7 @@ test('while masked, the selection carries no address either; revealed, the tile 
   page,
 }) => {
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT);
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT, 'login-history');
   await expect(loginHistoryBlock(page)).toHaveAttribute('data-state', 'ready');
 
   // Native selection and the browser's own copy act on the DISPLAYED text, so
@@ -476,18 +559,7 @@ test('while masked, the selection carries no address either; revealed, the tile 
   // holds the string being displayed and no second copy behind a rule.
   const revealedSelection = await selectedText(page);
   expect(revealedSelection).toContain(LOGINS_IP_HOME);
-  const attributeHits = await loginHistoryBlock(page).evaluate((root, addresses) => {
-    const hits: string[] = [];
-    for (const element of root.querySelectorAll('*')) {
-      for (const name of element.getAttributeNames()) {
-        const value = element.getAttribute(name) ?? '';
-        for (const address of addresses) {
-          if (value.includes(address)) hits.push(`${name}=${address}`);
-        }
-      }
-    }
-    return hits;
-  }, FULL_ADDRESSES);
+  const attributeHits = await attributeHitsAround(page, FULL_ADDRESSES);
   // Attributes carry NO address in EITHER state — not a `title`, not a
   // `data-*`, not an `aria-label`.
   expect(attributeHits).toEqual([]);
@@ -496,7 +568,7 @@ test('while masked, the selection carries no address either; revealed, the tile 
 test('at 375px the block wraps and the page does not scroll sideways', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT);
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT, 'login-history');
   await expect(loginHistoryBlock(page)).toHaveAttribute('data-state', 'ready');
 
   const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
@@ -520,8 +592,8 @@ test('at 375px the block wraps and the page does not scroll sideways', async ({ 
   expect(boxes[2]!.y).toBeGreaterThan(boxes[0]!.y);
 
   // The fact tiles show ONE per row at this width, which is what the 200px
-  // minimum in their grid is for: three would need 632px of track and the card
-  // is 295px. Same x, rising y — the opposite shape to the counts above.
+  // minimum in their grid is for: three would need 632px of track and the detail
+  // pane is 343px. Same x, rising y — the opposite shape to the counts above.
   const factBoxes = await page
     .getByTestId('login-summary-facts')
     .locator('.tile')
@@ -549,7 +621,7 @@ test('reveal, then replace: the block is masked again and never shows the old ti
   // this dataset's answer is still in flight is the case T-06-30 is about.
   await delayLoginsQueriesAfter(page, 1, 12_000);
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT);
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT, 'login-history');
 
   const block = loginHistoryBlock(page);
   const toggle = page.getByTestId('login-mask-toggle');
@@ -558,7 +630,7 @@ test('reveal, then replace: the block is masked again and never shows the old ti
   await expect(toggle).toHaveAttribute('data-masked', 'false');
 
   // A different export: a replace, confirmed.
-  await replaceExport(page, SYNTHETIC_ZIP_NAME, SINGLE_FILE_EXPORT);
+  await replaceExport(page, SYNTHETIC_ZIP_NAME, SINGLE_FILE_EXPORT, 'login-history');
 
   // While the new answer is in flight the block is LOADING, not `ready` with
   // the previous dataset's addresses still on screen.
@@ -576,14 +648,14 @@ test('reveal, then replace: the block is masked again and never shows the old ti
 
 test('reveal, then clear, then import again: masked again (D-07)', async ({ page }) => {
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT);
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT, 'login-history');
   const toggle = page.getByTestId('login-mask-toggle');
   await expect(toggle).toHaveAttribute('data-masked', 'true');
   await toggle.click();
   await expect(toggle).toHaveAttribute('data-masked', 'false');
 
   await startOver(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT);
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT, 'login-history');
   await expect(loginHistoryBlock(page)).toHaveAttribute('data-state', 'ready');
   // The mask is not a property of the user or the session: a fresh import is
   // masked because the block never persisted anything.
@@ -594,7 +666,7 @@ test('reveal, then clear, then import again: masked again (D-07)', async ({ page
 
 test('a reload after a reveal comes back masked (D-07, T-06-29)', async ({ page }) => {
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT);
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, HAND_EXPORT, 'login-history');
   await page.getByTestId('login-mask-toggle').click();
   await expect(page.getByTestId('login-mask-toggle')).toHaveAttribute('data-masked', 'false');
 
@@ -605,6 +677,8 @@ test('a reload after a reveal comes back masked (D-07, T-06-29)', async ({ page 
   await expect(page.locator('main')).toHaveAttribute('data-worker-ready', 'true', {
     timeout: 10_000,
   });
+  // A reload lands on Overview (R1), so the pane is opened again.
+  await openSection(page, 'login-history');
   const toggle = page.getByTestId('login-mask-toggle');
   await expect(loginHistoryBlock(page)).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
   await expect(toggle).toHaveAttribute('data-masked', 'true');

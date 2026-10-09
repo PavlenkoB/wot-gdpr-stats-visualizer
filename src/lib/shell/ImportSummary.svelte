@@ -74,25 +74,26 @@
 
   /* Body role: this line is the section's primary content. */
   .summary {
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 400;
     line-height: 1.5;
-    color: #08060d;
+    color: var(--text);
   }
 
-  /* Label role, muted: metadata, not the thing the card is about. */
+  /* Label role, muted: metadata, not the thing the card is about. 400 weight,
+     because inside the provenance line it reads as part of one sentence. */
   .caption {
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 400;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
   }
 
   .banner {
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #3c4043;
+    color: var(--text);
   }
 
   /*

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>WG Data Export Viewer, no export loaded</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+button,select,input{font:inherit}
+button:focus-visible,a:focus-visible{outline:3px solid #1a73e8;outline-offset:-3px}
+.drop:hover{background:#e8f0fe;border-color:#1a73e8}
+@media (min-width:900px){.pane-list{position:sticky;top:0;height:100vh;overflow:auto}}
+</style>
+</helmet>
+<div style="display:flex;flex-wrap:wrap;min-height:100vh;background:#ffffff;color:#3c4043;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.5">
+
+<aside class="pane-list" style="flex:1 0 320px;box-sizing:border-box;background:#f7f7fa;border-right:1px solid #dadce0;display:flex;flex-direction:column;align-self:flex-start">
+  <div style="padding:20px 20px 16px;border-bottom:1px solid #dadce0">
+    <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5f6368">WG Data Export Viewer</div>
+    <h1 style="margin:6px 0 4px;font-size:22px;line-height:1.25;font-weight:600;color:#5f6368">No export loaded</h1>
+    <div style="font-size:12.5px;color:#5f6368">Drop an export to see the account details</div>
+  </div>
+  <nav aria-label="Sections">
+    <ul style="list-style:none;margin:0;padding:0">
+      <sc-for list="{{ rows }}" as="r" hint-placeholder-count="6">
+        <li style="min-height:56px;box-sizing:border-box;padding:10px 20px;border-bottom:1px solid #dadce0;display:flex;flex-direction:column;justify-content:center">
+          <span style="font-size:14px;font-weight:600;color:#5f6368">{{ r.title }}</span>
+          <span style="font-size:12.5px;color:#5f6368">Drop an export to see this section</span>
+        </li>
+      </sc-for>
+    </ul>
+  </nav>
+</aside>
+
+<main style="flex:999 1 560px;min-width:0;box-sizing:border-box;padding:32px 40px 64px;display:flex;align-items:center;justify-content:center">
+  <div style="width:100%;max-width:640px;display:flex;flex-direction:column;gap:20px">
+    <button class="drop" style="all:unset;box-sizing:border-box;width:100%;min-height:240px;border:2px dashed #80868b;border-radius:12px;background:#f7f7fa;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:32px;text-align:center;cursor:pointer">
+      <span style="font-size:18px;font-weight:600;color:#08060d">Drop your Wargaming data export (.zip) here</span>
+      <span style="font-size:14px;color:#3c4043">or click to choose it</span>
+    </button>
+    <div style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:#3c4043">
+      <div style="font-weight:600;color:#08060d">Your data stays in this tab</div>
+      <div>The export is unzipped and read in your browser. Nothing is uploaded, and the page makes no network requests after it loads.</div>
+    </div>
+  </div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      rows: [
+        { title: 'Playtime' }, { title: 'Login history' }, { title: 'Vehicles' },
+        { title: 'Finance' }, { title: 'Payments' }, { title: 'Account' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -68,6 +68,7 @@ import {
   weekdayOfDay,
 } from '../../core/civil-date';
 import type { PlaytimeSlice, PlaytimeSplit } from '../../core/types/worker-messages';
+import { CHART_RING_PAD_PX, usableChartWidth } from '../../charts/chart-width';
 import {
   DURATION_BIN_COUNT,
   HOUR_CELL_COUNT,
@@ -109,6 +110,85 @@ export const CALENDAR_LAYOUT = {
   weekdayLabelRows: [0, 2, 4],
 } as const;
 
+/**
+ * The tallest a calendar row may get when the grid fills a wide pane (plan
+ * 08-21, G-08-3): the heatmap counterpart of the bar chart's 32px bar cap. Past
+ * it the columns keep filling the width and the cells become wider than tall.
+ */
+export const CALENDAR_MAX_ROW_PITCH_PX = 24;
+
+/**
+ * The calendar's geometry for one measured pane width.
+ *
+ * Today's `CALENDAR_LAYOUT` is the floor (see `calendarLayoutFor`); a wider pane
+ * distributes the plot over the 54 week columns by `colEdges`, so the svg equals
+ * the pane width exactly and the columns differ by at most one pixel.
+ */
+export interface CalendarLayout {
+  /** Drawn cell height: the row pitch minus the 1px separator. */
+  cellHeight: number;
+  /** Distance between two weekday rows. */
+  rowPitch: number;
+  gutter: number;
+  labelPad: number;
+  band: number;
+  /** The svg width: today's 634, or the measured pane width when it fills. */
+  width: number;
+  /** `band + 7 * rowPitch`. */
+  height: number;
+  maxColumns: number;
+  weekdayLabelRows: readonly number[];
+  /** `maxColumns + 1` offsets from the gutter: column `c` spans `colEdges[c]` to `colEdges[c + 1]`. */
+  colEdges: readonly number[];
+}
+
+const CALENDAR_TODAY_PLOT = CALENDAR_LAYOUT.width - CALENDAR_LAYOUT.gutter;
+
+const CALENDAR_TODAY: CalendarLayout = {
+  cellHeight: CALENDAR_LAYOUT.cell,
+  rowPitch: CALENDAR_LAYOUT.pitch,
+  gutter: CALENDAR_LAYOUT.gutter,
+  labelPad: CALENDAR_LAYOUT.labelPad,
+  band: CALENDAR_LAYOUT.band,
+  width: CALENDAR_LAYOUT.width,
+  height: CALENDAR_LAYOUT.height,
+  maxColumns: CALENDAR_LAYOUT.maxColumns,
+  weekdayLabelRows: CALENDAR_LAYOUT.weekdayLabelRows,
+  colEdges: Array.from(
+    { length: CALENDAR_LAYOUT.maxColumns + 1 },
+    (_, c) => c * CALENDAR_LAYOUT.pitch,
+  ),
+};
+
+/**
+ * The calendar layout for a measured pane width (plan 08-21, G-08-3).
+ *
+ * Today's layout is the floor: a width that is not usable, or whose fill plot
+ * (`width - gutter - 4`) does not strictly beat today's 594px plot, returns it
+ * unchanged, so the phone keeps its scroller. Above the floor the plot is
+ * distributed over the columns with `floor(c * plot / 54)` edges, the svg is
+ * exactly the measured width, and the row pitch follows the narrowest column up
+ * to `CALENDAR_MAX_ROW_PITCH_PX`. There is no upper bound on the width; the 4px
+ * reserve keeps the 3.5px ring overhang inside the svg (T-08-56).
+ */
+export function calendarLayoutFor(measured: unknown): CalendarLayout {
+  const usable = usableChartWidth(measured);
+  if (usable === null) return CALENDAR_TODAY;
+  const plot = usable - CALENDAR_LAYOUT.gutter - CHART_RING_PAD_PX;
+  if (plot <= CALENDAR_TODAY_PLOT) return CALENDAR_TODAY;
+
+  const columns = CALENDAR_LAYOUT.maxColumns;
+  const rowPitch = Math.min(Math.floor(plot / columns), CALENDAR_MAX_ROW_PITCH_PX);
+  return {
+    ...CALENDAR_TODAY,
+    rowPitch,
+    cellHeight: rowPitch - 1,
+    width: usable,
+    height: CALENDAR_LAYOUT.band + 7 * rowPitch,
+    colEdges: Array.from({ length: columns + 1 }, (_, c) => Math.floor((c * plot) / columns)),
+  };
+}
+
 /** The weekday x hour heatmap's SVG geometry, in user units. */
 export const HOUR_GRID_LAYOUT = {
   /** Cell edge and pitch are both 24: 7 rows x 24 columns of 24px cells. */
@@ -122,6 +202,60 @@ export const HOUR_GRID_LAYOUT = {
   /** 24 + 7 * 24 = 192, for 7 weekday rows. */
   height: 192,
 } as const;
+
+/**
+ * The tallest an hour-grid row may get when the grid fills a wide pane (plan
+ * 08-21, G-08-3). Past it the columns keep filling the width.
+ */
+export const HOUR_GRID_MAX_ROW_PITCH_PX = 48;
+
+/** The weekday x hour grid's geometry for one measured pane width. */
+export interface HourGridLayout {
+  /** Distance between two weekday rows (24 today). */
+  rowPitch: number;
+  gutter: number;
+  band: number;
+  /** The svg width: today's 624, or the measured pane width when it fills. */
+  width: number;
+  /** `band + 7 * rowPitch`. */
+  height: number;
+  /** 25 offsets from the gutter: column `h` spans `colEdges[h]` to `colEdges[h + 1]`. */
+  colEdges: readonly number[];
+}
+
+const HOUR_GRID_TODAY_PLOT = HOUR_GRID_LAYOUT.width - HOUR_GRID_LAYOUT.gutter;
+
+const HOUR_GRID_TODAY: HourGridLayout = {
+  rowPitch: HOUR_GRID_LAYOUT.cell,
+  gutter: HOUR_GRID_LAYOUT.gutter,
+  band: HOUR_GRID_LAYOUT.band,
+  width: HOUR_GRID_LAYOUT.width,
+  height: HOUR_GRID_LAYOUT.height,
+  colEdges: Array.from({ length: 25 }, (_, c) => c * HOUR_GRID_LAYOUT.cell),
+};
+
+/**
+ * The hour-grid layout for a measured pane width: the same exact-fill rule as
+ * `calendarLayoutFor`, over 24 hour columns. Today's 624px layout is the floor
+ * (a fill plot of 576px or less, or no usable width); above it the svg equals
+ * the measured width, the columns differ by at most 1px and the row pitch is
+ * the narrowest column capped at `HOUR_GRID_MAX_ROW_PITCH_PX`. No upper bound.
+ */
+export function hourGridLayoutFor(measured: unknown): HourGridLayout {
+  const usable = usableChartWidth(measured);
+  if (usable === null) return HOUR_GRID_TODAY;
+  const plot = usable - HOUR_GRID_LAYOUT.gutter - CHART_RING_PAD_PX;
+  if (plot <= HOUR_GRID_TODAY_PLOT) return HOUR_GRID_TODAY;
+
+  const rowPitch = Math.min(Math.floor(plot / 24), HOUR_GRID_MAX_ROW_PITCH_PX);
+  return {
+    ...HOUR_GRID_TODAY,
+    rowPitch,
+    width: usable,
+    height: HOUR_GRID_LAYOUT.band + 7 * rowPitch,
+    colEdges: Array.from({ length: 25 }, (_, c) => Math.floor((c * plot) / 24)),
+  };
+}
 
 // =============================================================================
 // The rank scale (D-04, UI-SPEC "Scale rule")
@@ -212,10 +346,12 @@ export interface CalendarCell {
   col: number;
   /** Weekday row, 0 = Monday. */
   row: number;
-  /** `gutter + col * pitch`. */
+  /** `gutter + colEdges[col]`. */
   x: number;
-  /** `band + row * pitch`. */
+  /** `band + row * rowPitch`. */
   y: number;
+  /** The cell's drawn width: its column's width minus the 1px separator. */
+  width: number;
   /** Merged seconds attributed to this start day for the slice (D-02). */
   seconds: number;
   /** Usable sessions that started on this day, kept even at zero seconds. */
@@ -230,7 +366,7 @@ export interface MonthLabel {
   month: number;
   /** Column holding the first of that month. */
   col: number;
-  /** `gutter + col * pitch`. */
+  /** `gutter + colEdges[col]`. */
   x: number;
 }
 
@@ -281,6 +417,8 @@ export interface CalendarModel {
   legend: LegendModel;
   /** Sum of the drawn years' day counts: the `calendar-cell` node budget. */
   cellCount: number;
+  /** The layout every block was built with; the component reads all sizes from it. */
+  layout: CalendarLayout;
 }
 
 const pad2 = (value: number): string => String(value).padStart(2, '0');
@@ -339,8 +477,9 @@ function buildYearBlock(
   yearStart: number,
   totals: ReadonlyMap<number, { seconds: number; sessions: number }>,
   scale: RankScale,
+  layout: CalendarLayout,
 ): CalendarYearBlock {
-  const { gutter, pitch, band } = CALENDAR_LAYOUT;
+  const { gutter, rowPitch, band, colEdges } = layout;
   // Weeks run Monday to Sunday, so the first column starts at January 1's
   // weekday rather than at day 0.
   const jan1Weekday = weekdayOfDay(yearStart);
@@ -366,8 +505,9 @@ function buildYearBlock(
       month: civilFromDays(day).m,
       col,
       row,
-      x: gutter + col * pitch,
-      y: band + row * pitch,
+      x: gutter + colEdges[col]!,
+      y: band + row * rowPitch,
+      width: colEdges[col + 1]! - colEdges[col]! - 1,
       seconds: cellSeconds,
       sessions: cellSessions,
       level: scale.levelOf(cellSeconds),
@@ -382,7 +522,7 @@ function buildYearBlock(
   const monthLabels: MonthLabel[] = [];
   for (let m = 1; m <= 12; m += 1) {
     const col = Math.floor((daysFromCivil(year, m, 1) - yearStart + jan1Weekday) / 7);
-    monthLabels.push({ month: m, col, x: gutter + col * pitch });
+    monthLabels.push({ month: m, col, x: gutter + colEdges[col]! });
   }
 
   return {
@@ -412,7 +552,10 @@ function buildYearBlock(
  * The scale is computed ONCE across all years, so a dark day means the same
  * amount of play whether it is 2012 or 2024.
  */
-export function buildCalendarModel(slice: PlaytimeSlice): CalendarModel {
+export function buildCalendarModel(
+  slice: PlaytimeSlice,
+  layout: CalendarLayout = calendarLayoutFor(null),
+): CalendarModel {
   const totals = new Map<number, { seconds: number; sessions: number }>();
   slice.dayIndex.forEach((day, index) => {
     totals.set(day, {
@@ -435,7 +578,7 @@ export function buildCalendarModel(slice: PlaytimeSlice): CalendarModel {
   const blocks: CalendarBlock[] = [];
   for (let i = years.length - 1; i >= 0; i -= 1) {
     const year = years[i]!;
-    blocks.push(buildYearBlock(year, startOfYear(year), totals, scale));
+    blocks.push(buildYearBlock(year, startOfYear(year), totals, scale, layout));
     const older = years[i - 1];
     if (older !== undefined && year - older > 1) {
       blocks.push({ kind: 'empty', fromYear: older + 1, toYear: year - 1 });
@@ -448,6 +591,7 @@ export function buildCalendarModel(slice: PlaytimeSlice): CalendarModel {
     scale,
     legend,
     cellCount: years.reduce((total, year) => total + daysInYear(year), 0),
+    layout,
   };
 }
 
@@ -549,10 +693,12 @@ export interface HourCell {
   weekday: number;
   /** Hour of day, 0-23. */
   hour: number;
-  /** `gutter + hour * cell`. */
+  /** `gutter + colEdges[hour]`. */
   x: number;
-  /** `band + weekday * cell`. */
+  /** `band + weekday * rowPitch`. */
   y: number;
+  /** The cell's drawn width: its column's width (24 today). */
+  width: number;
   /** Merged seconds this weekday-hour cell holds, on the chosen basis. */
   seconds: number;
   /** Shade level 0-5, 0 meaning no play. */
@@ -562,14 +708,14 @@ export interface HourCell {
 /** An hour label in the top band, every third column. */
 export interface HourAxisLabel {
   hour: number;
-  /** `gutter + hour * cell + cell / 2`, centred in its own column. */
+  /** `gutter + colEdges[hour] + width / 2`, centred in its own column. */
   x: number;
 }
 
 /** A weekday label in the left gutter. */
 export interface WeekdayAxisLabel {
   weekday: number;
-  /** `band + weekday * cell`. */
+  /** `band + weekday * rowPitch`. */
   y: number;
 }
 
@@ -583,6 +729,8 @@ export interface HourGridModel {
   hourLabels: HourAxisLabel[];
   /** All seven weekdays, Monday first. */
   weekdayRows: WeekdayAxisLabel[];
+  /** The layout the cells were built with; the component reads all sizes from it. */
+  layout: HourGridLayout;
 }
 
 /**
@@ -597,8 +745,9 @@ export interface HourGridModel {
 export function buildHourGridModel(
   slice: PlaytimeSlice,
   basis: HourGridBasis = HOUR_GRID_BASIS,
+  layout: HourGridLayout = hourGridLayoutFor(null),
 ): HourGridModel {
-  const { gutter, band, cell } = HOUR_GRID_LAYOUT;
+  const { gutter, band, rowPitch, colEdges } = layout;
   const grid = basis === 'start' ? slice.hourStart : slice.hourOverlap;
   const nonZero = grid.filter((value) => value > 0);
   const scale = rankScale(nonZero);
@@ -613,8 +762,9 @@ export function buildHourGridModel(
       index,
       weekday,
       hour,
-      x: gutter + hour * cell,
-      y: band + weekday * cell,
+      x: gutter + colEdges[hour]!,
+      y: band + weekday * rowPitch,
+      width: colEdges[hour + 1]! - colEdges[hour]!,
       seconds,
       level: scale.levelOf(seconds),
     });
@@ -622,15 +772,18 @@ export function buildHourGridModel(
 
   const hourLabels: HourAxisLabel[] = [];
   for (let hour = 0; hour < 24; hour += 3) {
-    hourLabels.push({ hour, x: gutter + hour * cell + cell / 2 });
+    hourLabels.push({
+      hour,
+      x: gutter + colEdges[hour]! + (colEdges[hour + 1]! - colEdges[hour]!) / 2,
+    });
   }
 
   const weekdayRows: WeekdayAxisLabel[] = [];
   for (let weekday = 0; weekday < 7; weekday += 1) {
-    weekdayRows.push({ weekday, y: band + weekday * cell });
+    weekdayRows.push({ weekday, y: band + weekday * rowPitch });
   }
 
-  return { cells, scale, legend, hourLabels, weekdayRows };
+  return { cells, scale, legend, hourLabels, weekdayRows, layout };
 }
 
 /** The six keys the hour grid's roving focus answers (04-UI-SPEC section 6). */

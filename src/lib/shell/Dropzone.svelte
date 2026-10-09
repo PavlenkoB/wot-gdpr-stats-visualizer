@@ -137,12 +137,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 140px;
+    min-height: 240px;
     padding: 20px;
-    border: 2px dashed #888;
-    border-radius: 8px;
-    background: #f7f7fa;
-    color: #08060d;
+    border: 2px dashed var(--faint);
+    border-radius: var(--radius-card);
+    background: var(--list);
+    color: var(--ink);
     cursor: pointer;
     user-select: none;
     transition:
@@ -156,25 +156,25 @@
      dragged onto would show no sign that it is a drop target. */
   .dropzone.compact {
     justify-content: flex-start;
-    min-height: 0;
+    min-height: 44px;
     padding: 8px 12px;
     border-width: 1px;
-    border-color: #80868b;
-    border-radius: 6px;
-    background: #fff;
+    border-color: var(--faint);
+    border-radius: var(--radius-control);
+    background: transparent;
   }
 
   /* Visible focus ring when the label is tabbed to, and when focus() moves
      it there after a confirmed clear. Identical in both variants — only the
      resting chrome above differs. */
   .dropzone:focus-within {
-    outline: 3px solid #1a73e8;
+    outline: 3px solid var(--focus);
     outline-offset: 2px;
   }
 
   .dropzone.highlighted {
-    background: #e8f0fe;
-    border-color: #1a73e8;
+    background: color-mix(in srgb, var(--focus) 10%, var(--page));
+    border-color: var(--focus);
   }
 
   .dropzone.disabled {
@@ -185,14 +185,16 @@
 
   .prompt {
     text-align: center;
-    font-size: 16px;
+    font-size: 14px;
     line-height: 1.5;
   }
 
-  /* The slim bar's prompt sits on one line against a white background, so
-     it reads as Body text in a row rather than as a centred headline. */
+  /* The slim bar's prompt sits on one line against the list pane, so it reads
+     as a quiet 14px line in a row rather than as a centred headline. */
   .compact .prompt {
     text-align: left;
+    font-size: 14px;
+    color: var(--text);
   }
 
   /* Visually-hidden but still focusable (clip pattern, not display:none).

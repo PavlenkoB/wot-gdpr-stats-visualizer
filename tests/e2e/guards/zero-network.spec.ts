@@ -7,7 +7,9 @@ import {
   importExport,
   loginHistoryBlock,
   loginMap,
+  openSection,
   startOver,
+  waitForImported,
 } from '../_support/helpers.ts';
 import { SCALE_5K_SPEC, buildSessionsExport } from '../../fixtures/sessions-fixtures.ts';
 
@@ -177,6 +179,10 @@ test.describe('zero-network and CSP', () => {
       mimeType: 'application/zip',
       buffer: Buffer.from(bytes),
     });
+    // An import lands on Overview, where the playtime block is not mounted
+    // (D-01), so the pane that owns it is opened before its state is awaited.
+    await waitForImported(page);
+    await openSection(page, 'playtime');
     await expect(page.getByTestId('playtime')).toHaveAttribute('data-state', 'ready', {
       timeout: 30_000,
     });
@@ -276,15 +282,17 @@ test.describe('zero-network and CSP', () => {
       buffer: Buffer.from(sample),
     });
 
-    // Every Phase 5 block is `ready` before the first interaction, so a flow
-    // that follows cannot be measured against a page still settling.
+    // The four Phase 5 blocks live in three different panes and only the open
+    // pane is mounted (D-01), so each pane is opened in the order the flow uses
+    // it and its blocks are `ready` before the first interaction there. A
+    // remount re-asks the worker, so the wait is on the block's own state.
     const playerStats = page.getByTestId('player-stats');
     const premium = page.getByTestId('premium-block');
     const currency = page.getByTestId('currency-block');
     const spend = page.getByTestId('spend-block');
-    for (const block of [playerStats, premium, currency, spend]) {
-      await expect(block).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
-    }
+    await waitForImported(page);
+    await openSection(page, 'vehicles');
+    await expect(playerStats).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
 
     // --- 1. the battle-type selector, every value -----------------------------
     // Swept before the title, because the two are linked: the battle types are
@@ -359,6 +367,12 @@ test.describe('zero-network and CSP', () => {
     await firstToggle.setChecked(wasChecked);
     await expect(playerStats).toHaveAttribute('data-state', 'ready', { timeout: 10_000 });
 
+    // The Financial pane owns the Premium time and Virtual currency blocks.
+    await openSection(page, 'finance');
+    for (const block of [premium, currency]) {
+      await expect(block).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+    }
+
     // --- 6. the premium chart, by pointer and by keyboard --------------------
     const premiumCell = premium.getByTestId('premium-cell').first();
     await premiumCell.hover();
@@ -392,6 +406,10 @@ test.describe('zero-network and CSP', () => {
       }
     }
 
+    // The Payments pane owns the Real-money spend block.
+    await openSection(page, 'payments');
+    await expect(spend).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+
     // --- 9. a spend card's breakdown, opened ---------------------------------
     const breakdown = spend.getByTestId('spend-breakdown').first();
     await expect(breakdown).toHaveCount(1);
@@ -411,9 +429,17 @@ test.describe('zero-network and CSP', () => {
     await expect(panel).toBeVisible();
     await panel.getByTestId('confirm-commit').click();
     await expect(panel).toHaveCount(0);
-    for (const block of [playerStats, premium, currency, spend]) {
+    // A replace lands on Overview (R1), so every pane is opened again and its
+    // blocks awaited: the re-ingest must have answered all four.
+    await waitForImported(page);
+    await openSection(page, 'vehicles');
+    await expect(playerStats).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+    await openSection(page, 'finance');
+    for (const block of [premium, currency]) {
       await expect(block).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
     }
+    await openSection(page, 'payments');
+    await expect(spend).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
 
     // The same short settle the other two tests use, so a request queued by the
     // last interaction has reached the network stack before the count is read.
@@ -483,6 +509,9 @@ test.describe('zero-network and CSP', () => {
 
     const bytes = buildLoginsScaleExport(buildLoginsScaleSpec());
     await importExport(page, SYNTHETIC_ZIP_NAME, bytes);
+    // The login block, the map, the country list and the city opt-in all live
+    // in the Login history pane, which an import does not open (R1).
+    await openSection(page, 'login-history');
     const block = loginHistoryBlock(page);
     await expect(block).toHaveAttribute('data-state', 'ready', { timeout: 60_000 });
 
@@ -526,6 +555,7 @@ test.describe('zero-network and CSP', () => {
     // --- 5. clear, then import again -------------------------------------------
     await startOver(page);
     await importExport(page, SYNTHETIC_ZIP_NAME, bytes);
+    await openSection(page, 'login-history');
     await expect(block).toHaveAttribute('data-state', 'ready', { timeout: 60_000 });
 
     // The opt-in is still offered and was never pressed: it rests in `idle`

@@ -10,10 +10,11 @@ import {
 import {
   SYNTHETIC_ZIP_NAME,
   gotoApp,
-  importExport,
+  importAndOpen,
   loginHistoryBlock,
   loginScroller,
   loginTable,
+  openSection,
   startOver,
 } from '../_support/helpers.ts';
 import {
@@ -32,6 +33,7 @@ import { oracleCompare, oracleLogins } from '../../helpers/login-oracle.ts';
 import { MAX_LOGIN_IPS } from '../../../src/lib/features/logins/login-shared.ts';
 import { maskIp } from '../../../src/lib/geo/ip.ts';
 import {
+  ABOUT_NAME_LOGIN_TABLE,
   LOGIN_ACCOUNT_NOTE,
   LOGIN_ACCOUNT_TAG,
   LOGIN_HIDDEN_NOT_COUNTED,
@@ -39,6 +41,7 @@ import {
   LOGIN_UNKNOWN_COUNTRY,
   MASK_TOGGLE_SHOW,
   VEHICLE_SCROLL_HINT,
+  formatAboutThis,
   formatGames,
   formatLoginCapLine,
   formatLoginCountLine,
@@ -203,7 +206,12 @@ test.describe('the IP table on the seeded 12,000-row export', () => {
     context = await browser.newContext();
     page = await context.newPage();
     await gotoApp(page);
-    await importExport(page, SYNTHETIC_ZIP_NAME, buildScaleExportWithoutAccount(SCALE));
+    await importAndOpen(
+      page,
+      SYNTHETIC_ZIP_NAME,
+      buildScaleExportWithoutAccount(SCALE),
+      'login-history',
+    );
     await expect(loginHistoryBlock(page)).toHaveAttribute('data-state', 'ready', {
       timeout: 60_000,
     });
@@ -248,6 +256,27 @@ test.describe('the IP table on the seeded 12,000-row export', () => {
     // The three hints under the table, and no Account record note.
     await expect(loginHistoryBlock(page)).toContainText(VEHICLE_SCROLL_HINT);
     await expect(loginHistoryBlock(page)).toContainText(LOGIN_TABLE_FIND_HINT);
+
+    // quick 261009-qbo: both hints live in one "About this table" disclosure
+    // directly under the table: closed by default, a 44px summary, text
+    // unchanged, shown only after the summary is pressed.
+    const about = page.getByTestId('about-login-table');
+    await expect(about).toHaveCount(1);
+    await expect(about).not.toHaveAttribute('open', /.*/);
+    const aboutSummary = about.locator('summary');
+    await expect(aboutSummary).toHaveText(formatAboutThis(ABOUT_NAME_LOGIN_TABLE));
+    expect((await aboutSummary.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await expect(about.getByText(VEHICLE_SCROLL_HINT)).toBeHidden();
+    await expect(about.getByText(LOGIN_TABLE_FIND_HINT)).toBeHidden();
+    const scrollerBox = (await loginScroller(page).boundingBox())!;
+    expect((await about.boundingBox())!.y).toBeGreaterThanOrEqual(
+      scrollerBox.y + scrollerBox.height - 1,
+    );
+    await aboutSummary.click();
+    await expect(about.getByText(VEHICLE_SCROLL_HINT)).toBeVisible();
+    await expect(about.getByText(LOGIN_TABLE_FIND_HINT)).toBeVisible();
+    await aboutSummary.click();
+    await expect(about.getByText(LOGIN_TABLE_FIND_HINT)).toBeHidden();
 
     // Case 5: while masked, no full address exists in the DOM, in any attribute
     // inside the scroller, in the document title or in the selection over the
@@ -407,6 +436,12 @@ test.describe('the IP table on the seeded 12,000-row export', () => {
 
   test('scrolls inside its own region with sticky axes, by keyboard, and never widens the page at 375px', async () => {
     await page.setViewportSize({ width: 375, height: 812 });
+    // At phone width the list and the detail are separate screens (R2): the
+    // narrowing leaves the list screen showing and the detail unmounted, so the
+    // pane is opened again here and the scroller is measured at its mount.
+    await openSection(page, 'login-history');
+    await expect(loginHistoryBlock(page)).toHaveAttribute('data-state', 'ready');
+    await expect(loginTable(page).getByTestId('login-row').first()).toBeVisible();
     const scroller = loginScroller(page);
     const table = loginTable(page);
     await scroller.evaluate((el) => el.scrollIntoView({ block: 'center' }));
@@ -491,7 +526,7 @@ test('the Account record row is pinned, not counted, follows the mask, and shows
 }) => {
   test.setTimeout(120_000);
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, buildAccountExport());
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, buildAccountExport(), 'login-history');
   await expect(loginHistoryBlock(page)).toHaveAttribute('data-state', 'ready');
 
   const table = loginTable(page);
@@ -549,6 +584,13 @@ test('the Account record row is pinned, not counted, follows the mask, and shows
   // The note under the table says so, and only because the row exists.
   await expect(page.getByTestId('login-account-note')).toHaveText(LOGIN_ACCOUNT_NOTE);
   await expect(loginHistoryBlock(page)).toContainText(LOGIN_TABLE_FIND_HINT);
+  // Amendment A-3 still holds with the hints in a disclosure: the note is
+  // outside every details element and ends above the table's scroller.
+  const accountNote = page.getByTestId('login-account-note');
+  expect(await accountNote.evaluate((el) => el.closest('details') === null)).toBe(true);
+  const noteBox = (await accountNote.boundingBox())!;
+  const tableBox = (await loginScroller(page).boundingBox())!;
+  expect(noteBox.y + noteBox.height).toBeLessThanOrEqual(tableBox.y + 1);
 
   // Case 7: a 39-character IPv6 address wraps to at most two lines inside the
   // fixed 40px row and is never ellipsised. Sorted by address descending the
@@ -582,7 +624,12 @@ test('the Account record row is pinned, not counted, follows the mask, and shows
   // User_Info folder has no row, no group and no note, and the table's size is
   // the listed rows plus the header alone.
   await startOver(page);
-  await importExport(page, 'no-account.zip', buildLoginsCsvOnlyExportWithoutUserInfo());
+  await importAndOpen(
+    page,
+    'no-account.zip',
+    buildLoginsCsvOnlyExportWithoutUserInfo(),
+    'login-history',
+  );
   await expect(loginHistoryBlock(page)).toHaveAttribute('data-state', 'ready');
   await expect(page.getByTestId('login-tile-ips')).toHaveText(formatNumber(2));
   await expect(page.getByTestId('login-account-row-group')).toHaveCount(0);
@@ -607,7 +654,7 @@ test('past the listing cap the table lists the cap, says how many it did not lis
   expect(oracle.other.addresses).toBe(500);
 
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, buildLoginsScaleExport(spec));
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, buildLoginsScaleExport(spec), 'login-history');
   await expect(loginHistoryBlock(page)).toHaveAttribute('data-state', 'ready', {
     timeout: 120_000,
   });

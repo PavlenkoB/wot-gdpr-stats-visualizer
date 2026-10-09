@@ -23,22 +23,30 @@
 // lives next to this file runs on the plain desktop project instead
 // (`mobile-sweep.spec.ts`).
 //
-// THE NAV-OFFSET CONTRACT. The 44px floor lifts a nav link from 38.6px to 44px,
-// which on its own would make the nav about 6px taller. `--nav-offset` is one
-// number that the calendar's sticky year head, every anchor's scroll margin,
-// the scroll-spy band and the tooltip placement all read, so the nav pays for
-// its own taller links by trimming its vertical padding at phone width
-// (`DashboardNav.svelte`). The first test asserts the result: the nav still
-// fits inside the offset, and it is the same height as the desktop nav.
+// THE TWO SCREENS. At 375px the shell shows the list OR one pane's detail, so a
+// control is measured on the screen that owns it: the list rows, Start over,
+// Clear data and the confirm buttons on the list screen, the back button and
+// every disclosure and sort header inside the pane that holds it. There is no
+// nav bar any more, so nothing here asserts a nav height or `--nav-offset`; the
+// back button's 48px bar is asserted as a target, and the offset contract
+// lives in the master-detail nav spec.
 // =============================================================================
 
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 import {
   SYNTHETIC_ZIP_NAME,
   countryList,
+  currencyBlock,
+  ensureListScreen,
   gotoApp,
+  importAndOpen,
   importExport,
   loginHistoryBlock,
+  openSection,
+  playerStatsBlock,
+  playtimeBlock,
+  premiumBlock,
+  spendBlock,
 } from '../_support/helpers.ts';
 import { buildSampleExport } from '../../fixtures/export-fixtures.ts';
 import { buildLoginsHandExport } from '../../fixtures/logins-fixtures.ts';
@@ -80,30 +88,19 @@ async function expectTargets(locator: Locator, name: string): Promise<void> {
   expect(offenders, `${name}: every match must be at least ${FLOOR}x${FLOOR}px`).toEqual([]);
 }
 
-/** The document's `--nav-offset`, read as a number of CSS pixels. */
-async function navOffset(page: Page): Promise<number> {
-  const raw = await page.evaluate(() =>
-    getComputedStyle(document.documentElement).getPropertyValue('--nav-offset'),
-  );
-  const value = Number.parseFloat(raw);
-  expect(Number.isFinite(value), `--nav-offset read as "${raw}"`).toBe(true);
-  return value;
-}
-
-async function navHeight(page: Page): Promise<number> {
-  const box = await page.getByTestId('dashboard-nav').boundingBox();
-  expect(box, 'the nav has a box').not.toBeNull();
-  return (box as { height: number }).height;
-}
-
-test('the nav links and the persistent bar are 44px targets, Start over opens the confirm panel and clears nothing, and the nav still fits --nav-offset', async ({
+test('every list row, the back button, the persistent bar and the confirm buttons are 44px targets, and Start over only opens the confirm panel', async ({
   page,
 }) => {
   await expectTouchProject();
   await gotoApp(page);
   await importExport(page, SYNTHETIC_ZIP_NAME, buildSampleExport());
 
-  await expectTargets(page.locator('[data-testid^="nav-link-"]'), 'the nav links');
+  // The list screen: all eight rows, then the persistent bar's controls.
+  expect(
+    await page.locator('[data-testid^="list-row-"]').count(),
+    'the list shows all eight rows',
+  ).toBe(8);
+  await expectTargets(page.locator('[data-testid^="list-row-"]'), 'the list rows');
   await expectTargets(page.getByTestId('start-over'), 'Start over');
   await expectTargets(page.getByTestId('clear-data-control'), 'Clear data');
 
@@ -120,41 +117,18 @@ test('the nav links and the persistent bar are 44px targets, Start over opens th
   await expect(panel).toBeHidden();
   await expect(page.getByTestId('identity-nickname')).toBeVisible();
 
-  // The offset contract. The nav plus one 16px step of breathing room must
-  // still fit in `--nav-offset`, and the nav must be the height it is on a
-  // wide screen (within 1px), so that nothing which reads the offset moved.
-  const offset = await navOffset(page);
-  const phone = await navHeight(page);
-  expect(phone + 16, 'the nav plus 16px fits inside --nav-offset').toBeLessThanOrEqual(offset + 1);
+  // The detail screen's way back. The phone bar is 48px, so the button is at
+  // least the 44px floor wide and tall.
+  await openSection(page, 'vehicles');
+  const back = page.getByTestId('back-button-sections');
+  await expectTargets(back, 'the back button');
+  const backBox = await back.boundingBox();
+  expect(backBox, 'the back button has a box').not.toBeNull();
+  expect(backBox!.height, 'the back button is at least 44px high').toBeGreaterThanOrEqual(FLOOR);
 
-  // The focus ring must still sit inside the nav. The nav clips vertically
-  // (`overflow-y: hidden`) at its padding box, and the trimmed padding is only
-  // 5.5px against a ring that reaches `outline-width + outline-offset` past the
-  // link, so measure the focused link's ring against the nav's padding box.
-  const firstLink = page.locator('[data-testid^="nav-link-"]').first();
-  await page.keyboard.press('Tab');
-  await firstLink.focus();
-  const ring = await firstLink.evaluate((link) => {
-    const style = getComputedStyle(link);
-    const nav = link.closest('nav') as HTMLElement;
-    const linkBox = link.getBoundingClientRect();
-    const navBox = nav.getBoundingClientRect();
-    const reach = Number.parseFloat(style.outlineWidth) + Number.parseFloat(style.outlineOffset);
-    return {
-      reach,
-      topRoom: linkBox.top - reach - (navBox.top + nav.clientTop),
-      bottomRoom: navBox.bottom - nav.clientTop - (linkBox.bottom + reach),
-    };
-  });
-  expect(ring.reach, 'the focused link draws a ring').toBeGreaterThan(0);
-  expect(ring.topRoom, 'the ring clears the nav top edge').toBeGreaterThanOrEqual(0);
-  expect(ring.bottomRoom, 'the ring clears the nav bottom edge').toBeGreaterThanOrEqual(0);
-
-  await page.setViewportSize({ width: 1280, height: 812 });
-  const wide = await navHeight(page);
-  expect(Math.abs(phone - wide), `nav height: ${phone}px at 375 vs ${wide}px at 1280`).toBeLessThan(
-    1,
-  );
+  // Going back lands on the list with the dataset intact.
+  await ensureListScreen(page);
+  await expect(page.getByTestId('identity-nickname')).toBeVisible();
 });
 
 test('every sort header, the column picker and every disclosure summary of the dashboard are 44px targets', async ({
@@ -162,7 +136,8 @@ test('every sort header, the column picker and every disclosure summary of the d
 }) => {
   await expectTouchProject();
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, buildSampleExport());
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, buildSampleExport(), 'vehicles');
+  await expect(playerStatsBlock(page)).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
 
   await expectTargets(
     page.locator('[data-testid^="vehicle-sort-"]'),
@@ -176,13 +151,33 @@ test('every sort header, the column picker and every disclosure summary of the d
     page.getByTestId('battle-type-summary-disclosure').locator(':scope > summary'),
     'the battle-type summary disclosure',
   );
+
+  await openSection(page, 'finance');
+  await expect(premiumBlock(page)).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+  await expect(currencyBlock(page)).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
   await expectTargets(
     page.getByTestId('monthly-table-disclosure').locator(':scope > summary'),
     'every monthly-table disclosure',
   );
   await expectTargets(
+    page.locator('[data-testid^="about-"] > summary'),
+    'every about disclosure summary in the Finance pane',
+  );
+
+  await openSection(page, 'payments');
+  await expect(spendBlock(page)).not.toHaveAttribute('data-state', 'loading', {
+    timeout: 30_000,
+  });
+  await expectTargets(
     page.getByTestId('spend-breakdown').locator(':scope > summary'),
     'the spend breakdown summary',
+  );
+
+  await openSection(page, 'playtime');
+  await expect(playtimeBlock(page)).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+  await expectTargets(
+    page.locator('[data-testid^="about-"] > summary'),
+    'every about disclosure summary in the Playtime pane',
   );
 });
 
@@ -191,7 +186,7 @@ test('the login controls are 44px targets: the reveal toggle, all six sort heade
 }) => {
   await expectTouchProject();
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, buildLoginsHandExport());
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, buildLoginsHandExport(), 'login-history');
   await expect(loginHistoryBlock(page)).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
 
   await expectTargets(page.getByTestId('login-mask-toggle'), 'the reveal-addresses toggle');

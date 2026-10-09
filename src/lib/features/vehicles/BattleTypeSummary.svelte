@@ -188,7 +188,7 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #08060d;
+    color: var(--ink);
   }
 
   /* Caption role: the sentence that explains the numbering, and the two notes
@@ -200,7 +200,7 @@
     font-size: 14px;
     font-weight: 400;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
     min-width: 0;
     overflow-wrap: anywhere;
   }
@@ -214,13 +214,13 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
   }
 
   /* The accent focus ring, exactly as every other interactive element in the
      project carries it: the accent is reserved for focus. */
   summary:focus-visible {
-    outline: 3px solid #1a73e8;
+    outline: 3px solid var(--focus);
     outline-offset: 2px;
   }
 
@@ -251,7 +251,7 @@
      table's scroller both carry it: the accent is reserved for focus, and this
      region is a new member of "every interactive element". */
   .scroll-box:focus-visible {
-    outline: 3px solid #1a73e8;
+    outline: 3px solid var(--focus);
     outline-offset: 2px;
   }
 
@@ -276,9 +276,9 @@
   /* Label role, muted, on the UI-SPEC's header surface. */
   th {
     padding: 4px 8px;
-    border-bottom: 1px solid #dadce0;
-    background: #f7f7fa;
-    color: #5f6368;
+    border-bottom: 1px solid var(--border);
+    background: var(--list);
+    color: var(--muted);
     font-size: 14px;
     font-weight: 600;
     text-align: left;
@@ -293,8 +293,8 @@
      were 12px until 05-20 (G-05-10). */
   td {
     padding: 4px 8px;
-    border-bottom: 1px solid #f1f3f4;
-    color: #3c4043;
+    border-bottom: 1px solid var(--hover);
+    color: var(--text);
     font-size: 14px;
     font-weight: 400;
     text-align: right;

@@ -80,18 +80,20 @@
   data-variant={variant}
 >
   <!--
-    The live region is ALWAYS in the DOM and only its child is
-    conditional: a region created together with its content is not
-    announced, which is the whole point of having one (RESEARCH Pitfall
-    10). It carries no margin or padding of its own, so an empty slot
-    adds no gap between the bar's blocks.
+    The visible container for the transient messages, NOT a live region. This
+    import bar is torn down and rebuilt when the dataset appears or disappears
+    (it moves between the detail pane and the list pane), so a region owned by it
+    would be created together with its own text, which is not announced
+    (RESEARCH Pitfall 10, WR-01). The one live region is the notice announcer in
+    App.svelte, which never moves. The slot carries no margin or padding of its
+    own, so an empty slot adds no gap between the bar's blocks.
   -->
-  <div data-testid="notice-slot" role="status" aria-live="polite" aria-atomic="true">
+  <div data-testid="notice-slot">
     {#if notice === 'processing'}
       <!--
         The spinner and the progress line moved here from the dropzone
-        (D-26). No `role` on this element: the slot is the region, and a
-        nested one would announce the same update twice.
+        (D-26). No `role` on this element: the announcer in App.svelte is the
+        region, and a nested one would announce the same update twice.
       -->
       <p class="notice processing" data-testid="processing-status">
         <span class="spinner" data-testid="spinner" aria-hidden="true"></span>
@@ -129,20 +131,19 @@
 </section>
 
 <style>
-  /* The slim variant is a bar; the full variant has no chrome at all, so a
-     first visit does not read as a framed empty card. There is deliberately
-     no flex `gap` on this element: the children below carry their own
-     12px bottom margin, and a gap would put a second 12px under a notice
-     that already has one (or under the empty slot, which must be free). */
+  /* The slim variant lives at the foot of the list pane, which is the
+     container, so it has no border, fill or radius of its own; the pane draws
+     the rule above it. The full variant has no chrome either, so a first visit
+     does not read as a framed empty card. There is deliberately no flex `gap`
+     on this element: the children below carry their own 12px bottom margin, and
+     a gap would put a second 12px under a notice that already has one (or under
+     the empty slot, which must be free). */
   .import-bar {
     margin: 0;
   }
 
   .import-bar[data-variant='slim'] {
-    padding: 12px 16px;
-    border: 1px solid #dadce0;
-    border-radius: 6px;
-    background: #f7f7fa;
+    padding: 8px 20px;
   }
 
   /* The slot itself is transparent to layout: no margin, no padding, no
@@ -161,11 +162,11 @@
     gap: 12px;
     margin: 0 0 12px;
     padding: 12px 16px;
-    border: 1px solid #80868b;
-    border-radius: 6px;
-    background: #f1f3f4;
-    color: #3c4043;
-    font-size: 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-control);
+    background: var(--page);
+    color: var(--text);
+    font-size: 14px;
     line-height: 1.5;
   }
 
@@ -178,13 +179,14 @@
   /* CSS-only spinner, carried over from Dropzone.svelte unchanged: a 1.25em
      circular border with one quarter coloured, rotated continuously. The
      animation is disabled under prefers-reduced-motion per WCAG 2.3.3,
-     and D-29 adds nothing else. */
+     and D-29 adds nothing else. The spinner is one of the few places blue
+     survives the ink-and-grey palette. */
   .spinner {
     display: inline-block;
     width: 1.25em;
     height: 1.25em;
     border: 3px solid rgba(26, 115, 232, 0.25);
-    border-top-color: #1a73e8;
+    border-top-color: var(--focus);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
     flex: 0 0 auto;
@@ -207,8 +209,8 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 8px 16px;
-    margin: 0 0 12px;
+    gap: 4px 16px;
+    margin: 0 0 8px;
   }
 
   /* Label role: a neutral fact about when the file was parsed, never styled
@@ -216,21 +218,23 @@
      wraps and the buttons take a line of their own. */
   .imported-at {
     margin-right: auto;
-    color: #3c4043;
+    color: var(--text);
     font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
   }
 
-  /* Start over and Clear my cached data are NEUTRAL, not red (Phase 2 D-22):
-     red is reserved for the confirm panel's commit button, which is the
-     actual point of no return. */
+  /* Start over is the outlined control; Clear my cached data (below) is the
+     underlined ink link. Both are NEUTRAL, not red (Phase 2 D-22): red is
+     reserved for the confirm panel's commit button, which is the actual point
+     of no return. */
   .bar-button {
+    min-height: 44px;
     padding: 8px 16px;
-    border: 1px solid #80868b;
-    border-radius: 6px;
-    background: #fff;
-    color: #3c4043;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-control);
+    background: var(--page);
+    color: var(--ink);
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
@@ -238,11 +242,24 @@
   }
 
   .bar-button:hover {
-    background: #f1f3f4;
+    background: var(--hover);
   }
 
   .bar-button:focus-visible {
-    outline: 3px solid #1a73e8;
+    outline: 3px solid var(--focus);
     outline-offset: 2px;
+  }
+
+  /* Keyed on the test id rather than a second class, so the markup above stays
+     exactly as the specs know it. */
+  [data-testid='clear-data-control'] {
+    padding: 8px 4px;
+    border: 0;
+    background: none;
+    text-decoration: underline;
+  }
+
+  [data-testid='clear-data-control']:hover {
+    background: none;
   }
 </style>

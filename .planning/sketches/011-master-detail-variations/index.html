@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sketch 011 - Master-detail variations</title>
+<link rel="stylesheet" href="../themes/default.css">
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding-top:48px;font-family:system-ui,sans-serif}
+#variant-nav{position:fixed;top:0;left:0;right:0;z-index:9998;background:#fff;border-bottom:1px solid #e5e5e5;padding:8px 16px;display:flex;gap:8px;overflow-x:auto}
+.variant-tab{border:1px solid #ccc;background:#fff;border-radius:6px;padding:6px 12px;cursor:pointer;white-space:nowrap;transition:all .15s ease}
+.variant-tab:hover{background:#f0f0f0}.variant-tab.active{background:#111;color:#fff;border-color:#111}
+#sketch-tools{position:fixed;bottom:12px;right:12px;z-index:9999;font:12px system-ui;background:rgba(0,0,0,.7);color:#fff;padding:8px 12px;border-radius:8px;opacity:.4;transition:opacity .2s;display:flex;gap:6px;align-items:center}
+#sketch-tools:hover{opacity:1}#sketch-tools button{font:inherit;cursor:pointer}
+#frame{margin:0 auto;transition:max-width .2s}
+
+/* shared page */
+.app{background:var(--bg);color:var(--text);font-family:var(--font);min-height:calc(100vh - 48px);font-size:14px;line-height:1.5}
+.app h1,.app h2,.app h3{font-family:var(--head);margin:0}
+.muted{color:var(--muted)}
+.btn{font:inherit;border:1px solid var(--border);background:var(--surface2);color:var(--text);border-radius:8px;padding:7px 14px;cursor:pointer;transition:all .15s ease}
+.btn:hover{border-color:var(--primary);color:var(--primary)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.primary:hover{filter:brightness(1.1);color:#fff}
+select,input.search{font:inherit;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 10px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px}
+.card h2{font-size:16px;margin-bottom:2px}
+.card .sub{color:var(--muted);font-size:13px;margin-bottom:14px}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
+.tile{background:var(--surface2);border-radius:calc(var(--radius) - 2px);padding:14px 16px}
+.tile .k{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+.tile .v{font-size:30px;font-weight:var(--numw);font-family:var(--head);line-height:1.2}
+.tile .v small{font-size:13px;color:var(--muted);font-weight:400}
+.hm{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,1fr);gap:3px;margin:10px 0}
+.hm i{aspect-ratio:1;border-radius:2px;min-width:8px}
+.hh{display:grid;grid-template-columns:repeat(24,1fr);gap:3px;margin:10px 0}
+.hh i{height:16px;border-radius:2px}
+.legend{display:flex;gap:4px;align-items:center;color:var(--muted);font-size:12px}
+.legend i{width:14px;height:14px;border-radius:2px}
+.bars div{display:grid;grid-template-columns:70px 1fr 70px;gap:10px;align-items:center;font-size:12px;color:var(--muted);padding:2px 0}
+.bars b{display:block;height:10px;border-radius:5px;background:var(--r4)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;color:var(--muted);font-weight:500;font-size:12px;padding:8px 6px;border-bottom:1px solid var(--border)}
+td{padding:9px 6px;border-bottom:1px solid var(--border)}
+tr:hover td{background:var(--surface2)}
+.chip{font-size:11px;padding:2px 8px;border-radius:99px;background:var(--surface2);border:1px solid var(--border);color:var(--muted)}
+.note{font-size:12.5px;color:var(--muted);max-width:60ch}
+.stat-row{display:flex;gap:6px;align-items:baseline}
+.avatar{width:44px;height:44px;border-radius:50%;background:var(--primary);color:#fff;display:grid;place-items:center;font-weight:700;font-size:18px}
+.toast{position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:8px 16px;border-radius:8px;z-index:9999;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+
+.det h2{font-size:24px;margin-bottom:4px}.det .card{border:0;padding:0;background:none}.det>*{margin-bottom:18px}
+.off{opacity:.45}
+/* T1: three-pane dark */
+.t1x{display:grid;grid-template-columns:64px 300px 1fr;height:calc(100vh - 48px)}
+.t1x .ic{background:#0a0d14;border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 0}
+.t1x .ic .logo{width:34px;height:34px;border-radius:10px;background:var(--primary);color:#101324;display:grid;place-items:center;font-weight:900;margin-bottom:10px}
+.t1x .ic a{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;cursor:pointer;color:var(--muted);font-size:18px;transition:.15s}.t1x .ic a:hover{background:var(--surface2)}.t1x .ic a.on{background:var(--surface2);box-shadow:inset 3px 0 0 var(--primary)}
+.t1x .ls{border-right:1px solid var(--border);overflow:auto;background:var(--surface)}
+.t1x .ls .hd{padding:16px;border-bottom:1px solid var(--border);font-weight:700}.t1x .ls .hd span{display:block;font-weight:400;font-size:12px;color:var(--muted)}
+.t1x .it{padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:2px;transition:background .12s}
+.t1x .it:hover{background:var(--surface2)}.t1x .it.on{background:var(--surface2);box-shadow:inset 3px 0 0 var(--primary)}.t1x .it b{font-size:14px}.t1x .it .v{color:var(--primary);font-weight:700}.t1x .it small{grid-column:1/-1;color:var(--muted)}
+.t1x .det{overflow:auto;padding:26px 32px}
+/* T2: preview-card list + prev/next + breadcrumb */
+.t2x{display:grid;grid-template-columns:380px 1fr;height:calc(100vh - 48px)}
+.t2x .ls{background:var(--surface2);overflow:auto;padding:14px;display:grid;gap:10px;align-content:start;border-right:1px solid var(--border)}
+.t2x .pc{background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px;cursor:pointer;transition:all .15s}
+.t2x .pc:hover{border-color:var(--primary);transform:translateY(-1px)}.t2x .pc.on{border-color:var(--primary);box-shadow:0 0 0 3px #dbeafe}
+.t2x .pc .t{display:flex;justify-content:space-between;align-items:baseline}.t2x .pc .t b{font-size:14px}.t2x .pc .t span{font-size:20px;font-weight:700}
+.t2x .pc .pv{margin-top:8px;height:34px;overflow:hidden;display:flex;gap:2px;align-items:flex-end}.t2x .pc .pv i{flex:1;background:var(--r3);border-radius:2px}
+.t2x .pc .pv.hmx{display:grid;grid-template-columns:repeat(24,1fr);gap:2px;height:auto}.t2x .pc .pv.hmx i{height:8px;border-radius:1px}
+.t2x .pc small{color:var(--muted)}
+.t2x .dt{overflow:auto;padding:0}.t2x .crumb{display:flex;justify-content:space-between;align-items:center;padding:14px 30px;border-bottom:1px solid var(--border);position:sticky;top:0;background:#fff;z-index:2;font-size:13px;color:var(--muted)}
+.t2x .crumb b{color:var(--text)}.t2x .det{padding:26px 30px}
+/* T3: mobile-first stack */
+.t3x{height:calc(100vh - 48px);position:relative;overflow:hidden}
+.t3x .ls,.t3x .dt{position:absolute;inset:0;overflow:auto;transition:transform .25s ease;background:var(--bg)}
+.t3x .ls{padding:18px;max-width:640px;margin:0 auto;left:0;right:0}.t3x .dt{transform:translateX(100%);padding:0}.t3x.open .dt{transform:none}.t3x.open .ls{transform:translateX(-20%);opacity:.4}
+.t3x .who{display:flex;gap:14px;align-items:center;margin-bottom:16px}.t3x .who h1{font-size:26px}
+.t3x .grp{background:var(--surface);border-radius:14px;overflow:hidden;border:1px solid var(--border);margin-bottom:16px}
+.t3x .rw{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
+.t3x .rw:last-child{border:0}.t3x .rw:hover{background:var(--surface2)}.t3x .ico{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;color:#fff;font-size:17px}
+.t3x .rw .m{flex:1}.t3x .rw .m b{display:block}.t3x .rw .m small{color:var(--muted)}.t3x .rw .v{color:var(--muted)}.t3x .rw:after{content:"›";color:#c4c7cf;font-size:22px}
+.t3x .bar{position:sticky;top:0;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;z-index:3}
+.t3x .bar a{color:var(--primary);cursor:pointer;font-weight:600}.t3x .bar b{margin-left:auto;margin-right:auto}.t3x .det{padding:20px 18px;max-width:760px;margin:0 auto}
+@media(max-width:700px){.t1x{grid-template-columns:1fr;height:auto}.t1x .ic{flex-direction:row;padding:8px}.t1x .ls{max-height:280px}.t2x{grid-template-columns:1fr;height:auto}.t2x .ls{max-height:300px}}
+
+@media(max-width:700px){.tile .v{font-size:22px}}
+</style></head><body>
+<div id="variant-nav"><button class="variant-tab active" data-v="t1">Q2a: Three-pane dark</button><button class="variant-tab" data-v="t2">Q2b: Preview cards + prev/next</button><button class="variant-tab" data-v="t3">Q2c: Mobile-first stack</button><span style="margin-left:auto;color:#888;align-self:center;font-size:12px">Q2c: tap a row, then ‹ to go back</span></div>
+<div id="frame"><div id="root"></div></div>
+<div id="sketch-tools"><button onclick="vp('100%')">Desktop</button><button onclick="vp('768px')">Tablet</button><button onclick="vp('375px')">Phone</button></div>
+<div class="toast" id="toast"></div>
+<script>
+const $=s=>document.querySelector(s);
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');setTimeout(()=>e.classList.remove('on'),1400)}
+function vp(w){$('#frame').style.maxWidth=w}
+let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+const days=[...Array(53*7)].map((_,i)=>{const r=rnd();return i>300?0:r<.45?0:Math.min(5,1+Math.floor(r*5.5))});
+const hours=[...Array(7*24)].map((_,i)=>{const h=i%24;const peak=(h>=18&&h<=22)?1:(h>=9&&h<=11?.5:0);const r=rnd();return r<.15+(1-peak)*.6?0:Math.min(5,Math.ceil(r*5*Math.max(peak,.3)))});
+const lv=l=>`background:var(--r${l})`;
+const cal=()=>`<div class="hm">${days.map(l=>`<i style="${lv(l)}" title="level ${l}"></i>`).join('')}</div>`;
+const hr=()=>`<div class="hh">${hours.map(l=>`<i style="${lv(l)}"></i>`).join('')}</div>`;
+const legend=()=>`<div class="legend">Less ${[0,1,2,3,4,5].map(l=>`<i style="${lv(l)}"></i>`).join('')} More</div>`;
+const bars=()=>`<div class="bars">${[['< 1 min',0],['20-30 min',30],['30-60 min',55],['1-2 hours',100],['2-4 hours',22]].map(([n,w])=>`<div><span>${n}</span><b style="width:${w}%;opacity:${w?1:.15}"></b><span>${w?Math.round(w/2.3):0}</span></div>`).join('')}</div>`;
+const tiles=()=>`<div class="tiles"><div class="tile"><div class="k">Total playtime</div><div class="v">31.2 <small>hours</small></div></div><div class="tile"><div class="k">Sessions</div><div class="v">30</div></div><div class="tile"><div class="k">Active days</div><div class="v">21</div></div></div>`;
+const server=()=>`<div style="display:flex;gap:10px;margin-bottom:14px"><select onchange="toast('Server: '+this.value)"><option>All servers</option><option>EU1</option><option>EU2</option><option>NA1</option></select><span class="chip" style="align-self:center">1 session excluded</span></div>`;
+const login=()=>`<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px"><span class="note">IP addresses are masked. The last part of each one is hidden.</span><button class="btn" id="ipbtn" onclick="ipToggle(this)">Show full IP addresses</button></div>
+<div class="tiles"><div class="tile"><div class="k">IP addresses</div><div class="v">3</div></div><div class="tile"><div class="k">Countries</div><div class="v">0</div></div><div class="tile"><div class="k">Unknown</div><div class="v">3</div></div></div>
+<table><thead><tr><th>IP address</th><th>Country</th><th>Logins</th><th>First seen</th><th>Last seen</th></tr></thead><tbody>
+${[['34','192.0.2','2024-01-01','2024-01-23'],['2','198.51.100','2024-01-12','2024-01-15'],['1','203.0.113','2024-01-18','2024-01-18']].map(r=>`<tr><td class="ip" data-p="${r[1]}">${r[1]}.xxx</td><td><span class="chip">Unknown</span></td><td>${r[0]}</td><td>${r[2]}</td><td>${r[3]}</td></tr>`).join('')}</tbody></table>
+<div style="margin-top:14px"><button class="btn primary" onclick="toast('Would download ~12 MB city file')">Load city-level detail (~12 MB)</button> <span class="note">Nothing from your export is sent.</span></div>`;
+function ipToggle(b){const s=b.textContent.startsWith('Show');document.querySelectorAll('.ip').forEach(c=>c.textContent=c.dataset.p+(s?'.17':'.xxx'));b.textContent=s?'Hide full IP addresses':'Show full IP addresses'}
+const spend=()=>`<div class="tiles" style="grid-template-columns:1fr 1fr 1fr"><div class="tile"><div class="k">USD spent</div><div class="v">9.99</div></div><div class="tile"><div class="k">Paid orders</div><div class="v">1</div></div><div class="tile"><div class="k">Failed / new</div><div class="v">0 / 0</div></div></div><p class="note">Each currency has its own total: nothing is converted or added across currencies.</p>`;
+const vehicles=()=>`<div style="display:flex;gap:10px;margin-bottom:12px"><select><option>WoT</option></select><input class="search" placeholder="Search vehicles"></div><p class="note">WoT is not in this export.</p>`;
+const NAV=[['Playtime & logins','on'],['Vehicles',''],['Finance','off'],['Payments',''],['Account','']];
+const ident=`<div class="avatar">T</div><div><h1>Tester</h1><div class="muted">Account 123456789 · EU · created 2024-01-01</div></div>`;
+const actions=`<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="toast('Start over?')">Start over</button><button class="btn" onclick="toast('Cache cleared')">Clear cached data</button></div>`;
+const secs={play:`<div class="card wide c12"><h2>Playtime</h2><div class="sub">When and how long you played</div>${server()}${tiles()}</div>`};
+const SECS=[['Playtime','⏱','31.2 h','30 sessions · 21 days',()=>server()+tiles()+cal()+legend(),'#5b8def'],['Weekday & time','🕖','19:00','busiest hour',()=>hr()+legend(),'#8b6bef'],['Session length','🎯','1-2 h','typical session',()=>bars(),'#ef8b5b'],['Login history','🌍','3 IPs','37 logins',()=>login(),'#3fb08f'],['Vehicles','🛡','—','not in this export',()=>vehicles(),'#9aa0ad'],['Payments','💳','$9.99','1 paid order',()=>spend(),'#e8b43a']];
+let sel=0;
+const detHtml=()=>{const s=SECS[sel];return `<h2>${s[0]}</h2><div class="muted">${s[3]}</div><div class="card" style="margin-top:18px">${s[4]()}</div>`};
+function pick(i){sel=i;document.querySelectorAll('.pickable').forEach((r,k)=>r.classList.toggle('on',k===i));const d=$('#det');if(d)d.innerHTML=detHtml();const c=$('#cr');if(c)c.innerHTML=crumb();const x=$('.t3x');if(x){x.classList.add('open');$('#t3t').textContent=SECS[i][0]}}
+const crumb=()=>`<span>Tester / <b>${SECS[sel][0]}</b></span><span><button class="btn" onclick="pick(Math.max(0,sel-1))">← Prev</button> <button class="btn" onclick="pick(Math.min(SECS.length-1,sel+1))">Next →</button></span>`;
+function T1(){sel=0;return `<div class="app t-docsd t1x"><nav class="ic"><div class="logo">W</div>${['📊','🕑','⚙'].map((x,i)=>`<a class="${i?'':'on'}" onclick="navClick(this)">${x}</a>`).join('')}</nav>
+<div class="ls"><div class="hd">Tester<span>123456789 · EU · imported Oct 7, 2026</span></div>${SECS.map((s,i)=>`<div class="it pickable ${i?'':'on'} ${s[0]==='Vehicles'?'off':''}" onclick="pick(${i})"><b>${s[0]}</b><span class="v">${s[2]}</span><small>${s[3]}</small></div>`).join('')}<div style="padding:14px">${actions}</div></div>
+<div class="det" id="det">${detHtml()}</div></div>`}
+const prev=i=>{if(i===0)return'';return `<div class="pv">${[30,45,20,60,80,55,90,40,70,100].map(h=>`<i style="height:${h}%"></i>`).join('')}</div>`};
+function T2(){sel=0;const pvw=['<div class="pv">'+[30,45,20,60,80,55,90,40,70,100].map(h=>`<i style="height:${h}%"></i>`).join('')+'</div>','<div class="pv hmx">'+hours.slice(0,72).map(l=>`<i style="background:var(--r${l})"></i>`).join('')+'</div>','<div class="pv">'+[5,30,55,100,22].map(h=>`<i style="height:${h}%"></i>`).join('')+'</div>','<div class="pv">'+[100,6,3].map(h=>`<i style="height:${h}%"></i>`).join('')+'</div>','','<div class="pv"><i style="height:100%"></i></div>'];
+return `<div class="app t-cl t2x"><div class="ls">${SECS.map((s,i)=>`<div class="pc pickable ${i?'':'on'} ${s[0]==='Vehicles'?'off':''}" onclick="pick(${i})"><div class="t"><b>${s[0]}</b><span>${s[2]}</span></div><small>${s[3]}</small>${pvw[i]}</div>`).join('')}</div>
+<div class="dt"><div class="crumb" id="cr">${crumb()}</div><div class="det" id="det">${detHtml()}</div></div></div>`}
+function T3(){return `<div class="app t-md t3x"><div class="ls"><div class="who"><div class="avatar">T</div><div><h1>Tester</h1><div class="muted">123456789 · EU</div></div></div>
+<div class="grp">${SECS.slice(0,3).map((s,i)=>`<div class="rw pickable" onclick="pick(${i})"><span class="ico" style="background:${s[5]}">${s[1]}</span><span class="m"><b>${s[0]}</b><small>${s[3]}</small></span><span class="v">${s[2]}</span></div>`).join('')}</div>
+<div class="grp">${SECS.slice(3).map((s,j)=>{const i=j+3;return `<div class="rw pickable ${s[0]==='Vehicles'?'off':''}" onclick="pick(${i})"><span class="ico" style="background:${s[5]}">${s[1]}</span><span class="m"><b>${s[0]}</b><small>${s[3]}</small></span><span class="v">${s[2]}</span></div>`}).join('')}</div>${actions}</div>
+<div class="dt"><div class="bar"><a onclick="$('.t3x').classList.remove('open')">‹ Tester</a><b id="t3t">Playtime</b></div><div class="det" id="det">${detHtml()}</div></div></div>`}
+
+const R={t1:T1,t2:T2,t3:T3};
+function show(v){$('#root').innerHTML=R[v]();document.querySelectorAll('.variant-tab').forEach(t=>t.classList.toggle('active',t.dataset.v===v));if(window.after)after(v)}
+document.querySelectorAll('.variant-tab').forEach(t=>t.onclick=()=>show(t.dataset.v));
+show('t1');
+</script></body></html>

@@ -35,6 +35,8 @@
 
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
+import { STICKY_CHROME_SELECTOR } from '../../../src/lib/core/focus-clear';
+
 type FocusClear = typeof import('../../../src/lib/core/focus-clear');
 
 let cached: Promise<FocusClear> | null = null;
@@ -55,7 +57,7 @@ interface ScrollRequest {
   behavior: ScrollBehavior;
 }
 
-/** The gaps `focusScrollDelta` adds: the nav bottom, the head, then 8px. */
+/** The gaps `focusScrollDelta` adds: the chrome bottom, the head, then 8px. */
 const NAV_BOTTOM = 72;
 const GAP = 8;
 
@@ -85,7 +87,7 @@ function stubDom(navBottom: number | null): { scrolls: Array<ScrollRequest> } {
   });
   vi.stubGlobal('document', {
     querySelector: (selector: string) =>
-      selector === 'nav' && navBottom !== null
+      selector === STICKY_CHROME_SELECTOR && navBottom !== null
         ? { getBoundingClientRect: () => ({ bottom: navBottom }) }
         : null,
   });
@@ -96,7 +98,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('scrollClear — keep a focused cell out from under the sticky nav', () => {
+describe('scrollClear — keep a focused cell out from under the sticky chrome', () => {
   test('scrolls the page UP by exactly the shortfall, which moves the cell DOWN', async () => {
     // THE SIGN. The clear line is the nav bottom plus the 8px gap, so 72 + 8
     // = 80; a cell 36px short of it sits at 44. `focusScrollDelta` reports
@@ -136,7 +138,7 @@ describe('scrollClear — keep a focused cell out from under the sticky nav', ()
     expect(scrolls).toEqual([{ top: -36, behavior: 'instant' }]);
   });
 
-  test('treats an absent nav as a zero-height one instead of failing', async () => {
+  test('treats absent chrome as zero-height instead of failing', async () => {
     // A chart rendered without the dashboard's nav is a real state (a future
     // embed, a test harness), and a throw here would take the whole keydown
     // handler down with it.
@@ -167,5 +169,30 @@ describe('scrollClear — keep a focused cell out from under the sticky nav', ()
     scrollClear(cell(0), 0);
 
     expect(scrolls).toEqual([{ top: -(NAV_BOTTOM + GAP), behavior: 'instant' }]);
+  });
+
+  test('ignores a plain nav element, measuring only the marked chrome', async () => {
+    // The list pane's <nav> is a 100vh sticky column on desktop; measuring it
+    // would report a huge bottom and scroll the page on every arrow key. The
+    // stub below answers the tag name with a large bottom and nothing for the
+    // marker, so the clear line must be 0 + head + gap.
+    const { scrollClear } = await load();
+    const scrolls: ScrollRequest[] = [];
+    vi.stubGlobal('window', {
+      scrollBy: (options: ScrollRequest) => {
+        scrolls.push(options);
+      },
+    });
+    vi.stubGlobal('document', {
+      querySelector: (selector: string) =>
+        selector === 'nav' ? { getBoundingClientRect: () => ({ bottom: 900 }) } : null,
+    });
+
+    scrollClear(cell(400), 0);
+    expect(scrolls).toEqual([]);
+
+    // 32px head plus the 8px gap is a 40px clear line; a cell at 4 is 36 short.
+    scrollClear(cell(4), 32);
+    expect(scrolls).toEqual([{ top: -36, behavior: 'instant' }]);
   });
 });

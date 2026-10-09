@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>WG Data Export Viewer, desktop master-detail</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+button,select,input{font:inherit}
+.row{transition:background .12s}
+.row:hover{background:#f1f3f4}
+button:focus-visible,select:focus-visible,summary:focus-visible,a:focus-visible{outline:3px solid #1a73e8;outline-offset:-3px}
+.btn:hover{background:#f1f3f4}
+summary{cursor:pointer}
+@media (min-width:900px){.pane-list{position:sticky;top:0;height:100vh;overflow:auto}}
+</style>
+</helmet>
+<div style="display:flex;flex-wrap:wrap;min-height:100vh;background:#ffffff;color:#3c4043;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.5">
+
+<aside class="pane-list" style="flex:1 0 320px;box-sizing:border-box;background:#f7f7fa;border-right:1px solid #dadce0;display:flex;flex-direction:column;align-self:flex-start">
+  <div style="padding:20px 20px 16px;border-bottom:1px solid #dadce0">
+    <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5f6368">WG Data Export Viewer</div>
+    <h1 style="margin:6px 0 4px;font-size:22px;line-height:1.25;font-weight:600;color:#08060d">Tester</h1>
+    <div style="font-size:12.5px;color:#5f6368">Account ID 123456789 · Location code EU</div>
+    <div style="font-size:12.5px;color:#5f6368">Account created 2024-01-01 · Imported Oct 7, 2026</div>
+  </div>
+
+  <nav aria-label="Sections" onKeyDown="{{ keyNav }}">
+    <ul style="list-style:none;margin:0;padding:0">
+      <sc-for list="{{ rows }}" as="r" hint-placeholder-count="6">
+        <li>
+          <button class="row" onClick="{{ r.pick }}" aria-current="{{ r.current }}" style="all:unset;box-sizing:border-box;width:100%;min-height:56px;padding:10px 20px;display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;cursor:pointer;border-bottom:1px solid #dadce0;box-shadow:{{ r.bar }};background:{{ r.bg }}">
+            <span style="font-size:14px;font-weight:600;color:{{ r.titleColor }}">{{ r.title }}</span>
+            <span style="font-size:14px;font-weight:600;color:{{ r.titleColor }};text-align:right">{{ r.headline }}</span>
+            <span style="grid-column:1 / -1;font-size:12.5px;color:#5f6368">{{ r.sub }}</span>
+          </button>
+        </li>
+      </sc-for>
+    </ul>
+    <button class="row" onClick="{{ pickUnsupported }}" aria-current="{{ unsupportedCurrent }}" style="all:unset;box-sizing:border-box;width:100%;min-height:48px;padding:8px 20px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;border-bottom:1px solid #dadce0;box-shadow:{{ unsupportedBar }};background:{{ unsupportedBg }}">
+      <span style="font-size:13px;color:#3c4043">Not yet supported</span>
+      <span style="font-size:12px;font-weight:600;color:#3c4043;background:#f1f3f4;border:1px solid #dadce0;border-radius:999px;padding:1px 9px">4 folders</span>
+    </button>
+  </nav>
+
+  <div style="padding:16px 20px 20px;display:flex;flex-direction:column;gap:10px;margin-top:auto">
+    <button class="btn" style="all:unset;box-sizing:border-box;min-height:44px;padding:8px 14px;border:1px dashed #80868b;border-radius:8px;text-align:center;font-size:13px;color:#3c4043;cursor:pointer;background:#ffffff">Drop a new export (.zip) here, or click to choose it</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" style="all:unset;box-sizing:border-box;min-height:44px;padding:8px 14px;border:1px solid #dadce0;border-radius:8px;font-size:13px;color:#08060d;cursor:pointer;background:#ffffff">Start over</button>
+      <button class="btn" style="all:unset;box-sizing:border-box;min-height:44px;padding:8px 14px;font-size:13px;color:#1a73e8;cursor:pointer;border-radius:8px;text-decoration:underline">Clear my cached data</button>
+    </div>
+    <div style="font-size:12px;color:#5f6368">Move with <kbd style="border:1px solid #dadce0;border-radius:4px;padding:0 5px;background:#ffffff">j</kbd> and <kbd style="border:1px solid #dadce0;border-radius:4px;padding:0 5px;background:#ffffff">k</kbd> while the list has focus</div>
+  </div>
+</aside>
+
+<main style="flex:999 1 560px;min-width:0;box-sizing:border-box;padding:32px 40px 64px">
+<div style="max-width:1000px;display:flex;flex-direction:column;gap:20px">
+
+<!-- PLAYTIME -->
+<sc-if value="{{ showPlaytime }}" hint-placeholder-val="{{ true }}">
+  <div style="display:flex;flex-direction:column;gap:20px">
+    <div>
+      <h2 style="margin:0;font-size:26px;line-height:1.25;font-weight:600;color:#08060d">Playtime</h2>
+      <p style="margin:4px 0 0;font-size:12.5px;color:#5f6368">From Activity_history · 1 file, 287 rows · 1 session row excluded</p>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <label for="srv" style="font-size:13px;font-weight:600;color:#08060d">Server name</label>
+      <select id="srv" style="min-height:44px;padding:6px 12px;border:1px solid #dadce0;border-radius:8px;background:#ffffff;color:#08060d">
+        <option>All</option><option>EU1</option><option>EU2</option><option>NA1</option>
+      </select>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr));gap:12px">
+      <div style="background:#f7f7fa;border:1px solid #dadce0;border-radius:8px;padding:14px 16px">
+        <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5f6368">Total playtime</div>
+        <div style="font-size:30px;line-height:1.2;font-weight:600;color:#08060d">412.8 <span style="font-size:14px;font-weight:400;color:#5f6368">hours</span></div>
+      </div>
+      <div style="background:#f7f7fa;border:1px solid #dadce0;border-radius:8px;padding:14px 16px">
+        <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5f6368">Sessions</div>
+        <div style="font-size:30px;line-height:1.2;font-weight:600;color:#08060d">286</div>
+      </div>
+      <div style="background:#f7f7fa;border:1px solid #dadce0;border-radius:8px;padding:14px 16px">
+        <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5f6368">Active days</div>
+        <div style="font-size:30px;line-height:1.2;font-weight:600;color:#08060d">143</div>
+      </div>
+    </div>
+    <p style="margin:-4px 0 0;font-size:12.5px;color:#5f6368">By server: EU1 142.0 h · EU2 130.6 h · NA1 140.2 h. These can add up to more than All, because All also merges sessions that overlap across different server names.</p>
+
+    <section aria-labelledby="h-cal" style="border:1px solid #dadce0;border-radius:8px;padding:20px">
+      <h3 id="h-cal" style="margin:0;font-size:16px;font-weight:600;color:#08060d">Hours per day</h3>
+      <p style="margin:2px 0 14px;font-size:13px;color:#5f6368">2024 · 412.8 hours · 286 sessions · 143 active days</p>
+      <div style="overflow-x:auto;padding-bottom:6px">
+        <div style="display:flex;justify-content:space-between;width:901px;font-size:11.5px;color:#5f6368;margin-bottom:4px">
+          <span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span><span>Jul</span><span>Aug</span><span>Sep</span><span>Oct</span><span>Nov</span><span>Dec</span>
+        </div>
+        <div role="img" aria-label="Calendar heatmap of hours played per day in 2024" style="display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,14px);grid-auto-columns:14px;gap:3px">
+          <sc-for list="{{ calCells }}" as="c" hint-placeholder-count="12">
+            <span style="width:14px;height:14px;border-radius:2px;background:{{ c.bg }}"></span>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;margin-top:10px;font-size:12px;color:#5f6368">
+        Less
+        <sc-for list="{{ ramp }}" as="k" hint-placeholder-count="6"><span style="width:14px;height:14px;border-radius:2px;background:{{ k.bg }}"></span></sc-for>
+        More
+      </div>
+      <p style="margin:10px 0 0;font-size:12.5px;color:#5f6368">Shades rank your active days, so ordinary days stay distinguishable from outliers.</p>
+      <details style="margin-top:6px;font-size:12.5px;color:#5f6368">
+        <summary style="min-height:32px;display:flex;align-items:center;color:#1a73e8">About this chart</summary>
+        <p style="margin:4px 0">Dates are as recorded in the export. Darkest: more than 1.8 hours. Use the arrow keys to move between days.</p>
+      </details>
+    </section>
+
+    <section aria-labelledby="h-hr" style="border:1px solid #dadce0;border-radius:8px;padding:20px">
+      <h3 id="h-hr" style="margin:0;font-size:16px;font-weight:600;color:#08060d">Hours by weekday and time of day</h3>
+      <p style="margin:2px 0 14px;font-size:13px;color:#5f6368">Hours are as recorded in the export, not converted to your local time.</p>
+      <div role="img" aria-label="Heatmap of hours played by weekday and hour of day" style="display:grid;grid-template-columns:36px repeat(24,minmax(0,1fr));gap:3px;align-items:center">
+        <sc-for list="{{ hourCells }}" as="c" hint-placeholder-count="25">
+          <sc-if value="{{ c.isLabel }}" hint-placeholder-val="{{ false }}">
+            <span style="font-size:11.5px;color:#5f6368">{{ c.text }}</span>
+          </sc-if>
+          <sc-if value="{{ c.isCell }}" hint-placeholder-val="{{ true }}">
+            <span style="height:22px;border-radius:2px;background:{{ c.bg }}"></span>
+          </sc-if>
+        </sc-for>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;margin-top:10px;font-size:12px;color:#5f6368">
+        Less
+        <sc-for list="{{ ramp }}" as="k" hint-placeholder-count="6"><span style="width:14px;height:14px;border-radius:2px;background:{{ k.bg }}"></span></sc-for>
+        More
+      </div>
+      <p style="margin:10px 0 0;font-size:12.5px;color:#5f6368">Shades rank the busiest hours of the week.</p>
+      <details style="margin-top:6px;font-size:12.5px;color:#5f6368">
+        <summary style="min-height:32px;display:flex;align-items:center;color:#1a73e8">About this chart</summary>
+        <p style="margin:4px 0">Hours are likely UTC or server time. Darkest: more than 2.5 hours. Use the arrow keys to move between cells.</p>
+      </details>
+    </section>
+
+    <section aria-labelledby="h-len" style="border:1px solid #dadce0;border-radius:8px;padding:20px">
+      <h3 id="h-len" style="margin:0;font-size:16px;font-weight:600;color:#08060d">Session length</h3>
+      <p style="margin:2px 0 14px;font-size:13px;color:#5f6368">Each bar covers a longer range than the one before it, so short and long sessions are both visible.</p>
+      <div style="display:grid;grid-template-columns:96px minmax(0,1fr) 84px;gap:6px 12px;align-items:center;font-size:13px">
+        <sc-for list="{{ bars }}" as="b" hint-placeholder-count="12">
+          <span style="color:#3c4043">{{ b.label }}</span>
+          <span style="height:12px;border-radius:6px;background:#eef0f2;overflow:hidden"><span style="display:block;height:12px;border-radius:6px;background:#1f7a74;width:{{ b.width }}"></span></span>
+          <span style="text-align:right;color:#3c4043">{{ b.count }} · {{ b.pct }}</span>
+        </sc-for>
+      </div>
+    </section>
+  </div>
+</sc-if>
+
+<!-- LOGIN HISTORY -->
+<sc-if value="{{ showLogins }}" hint-placeholder-val="{{ false }}">
+  <div style="display:flex;flex-direction:column;gap:20px">
+    <div>
+      <h2 style="margin:0;font-size:26px;line-height:1.25;font-weight:600;color:#08060d">Login history</h2>
+      <p style="margin:4px 0 0;font-size:12.5px;color:#5f6368">From Activity_history · 2 files, 612 rows</p>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+      <p style="margin:0;font-size:13px;color:#5f6368">IP addresses are masked: the last part of each one is hidden.</p>
+      <button class="btn" style="all:unset;box-sizing:border-box;min-height:44px;padding:8px 16px;border:1px solid #dadce0;border-radius:8px;font-size:13px;font-weight:600;color:#08060d;cursor:pointer;background:#ffffff">Show full IP addresses</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr));gap:12px">
+      <div style="background:#f7f7fa;border:1px solid #dadce0;border-radius:8px;padding:14px 16px"><div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5f6368">IP addresses</div><div style="font-size:30px;line-height:1.2;font-weight:600;color:#08060d">3</div></div>
+      <div style="background:#f7f7fa;border:1px solid #dadce0;border-radius:8px;padding:14px 16px"><div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5f6368">Countries</div><div style="font-size:30px;line-height:1.2;font-weight:600;color:#08060d">0</div></div>
+      <div style="background:#f7f7fa;border:1px solid #dadce0;border-radius:8px;padding:14px 16px"><div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5f6368">IPs with unknown country</div><div style="font-size:30px;line-height:1.2;font-weight:600;color:#08060d">3</div></div>
+    </div>
+    <section aria-labelledby="h-ip" style="border:1px solid #dadce0;border-radius:8px;padding:20px;overflow-x:auto">
+      <h3 id="h-ip" style="margin:0 0 10px;font-size:16px;font-weight:600;color:#08060d">IP addresses</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:560px">
+        <thead><tr style="text-align:left;color:#5f6368;font-size:12px">
+          <th style="padding:8px 6px;border-bottom:1px solid #dadce0;font-weight:600">IP address</th>
+          <th style="padding:8px 6px;border-bottom:1px solid #dadce0;font-weight:600">Country</th>
+          <th style="padding:8px 6px;border-bottom:1px solid #dadce0;font-weight:600;text-align:right">Logins</th>
+          <th style="padding:8px 6px;border-bottom:1px solid #dadce0;font-weight:600">First seen</th>
+          <th style="padding:8px 6px;border-bottom:1px solid #dadce0;font-weight:600">Last seen</th>
+        </tr></thead>
+        <tbody>
+          <tr><td style="padding:10px 6px;border-bottom:1px solid #dadce0;color:#08060d">192.0.2.xxx</td><td style="padding:10px 6px;border-bottom:1px solid #dadce0">Unknown country</td><td style="padding:10px 6px;border-bottom:1px solid #dadce0;text-align:right">402</td><td style="padding:10px 6px;border-bottom:1px solid #dadce0">2024-01-03</td><td style="padding:10px 6px;border-bottom:1px solid #dadce0">2024-12-29</td></tr>
+          <tr><td style="padding:10px 6px;border-bottom:1px solid #dadce0;color:#08060d">198.51.100.xxx</td><td style="padding:10px 6px;border-bottom:1px solid #dadce0">Unknown country</td><td style="padding:10px 6px;border-bottom:1px solid #dadce0;text-align:right">131</td><td style="padding:10px 6px;border-bottom:1px solid #dadce0">2024-03-14</td><td style="padding:10px 6px;border-bottom:1px solid #dadce0">2024-11-02</td></tr>
+          <tr><td style="padding:10px 6px;color:#08060d">203.0.113.xxx</td><td style="padding:10px 6px">Unknown country</td><td style="padding:10px 6px;text-align:right">79</td><td style="padding:10px 6px">2024-05-21</td><td style="padding:10px 6px">2024-10-08</td></tr>
+        </tbody>
+      </table>
+      <p style="margin:12px 0 0;font-size:12.5px;color:#5f6368">Only the rows on screen are loaded into the page, so your browser's find cannot see the rest. Sort a column to bring other rows to the top.</p>
+    </section>
+    <section aria-labelledby="h-map" style="border:1px solid #dadce0;border-radius:8px;padding:20px">
+      <h3 id="h-map" style="margin:0 0 6px;font-size:16px;font-weight:600;color:#08060d">Logins by country</h3>
+      <p style="margin:0;font-size:13px;color:#3c4043">No login IP addresses could be matched to a country, so there is nothing to show on the map.</p>
+    </section>
+    <section aria-labelledby="h-city" style="border:1px solid #dadce0;border-radius:8px;padding:20px;background:#f7f7fa">
+      <h3 id="h-city" style="margin:0 0 6px;font-size:16px;font-weight:600;color:#08060d">City-level detail</h3>
+      <p style="margin:0 0 12px;font-size:13px;color:#3c4043;max-width:62ch">Add the city for each IP address. This downloads a database of about 12 MB from this site when you press the button, and nothing from your export is sent with the request.</p>
+      <button class="btn" style="all:unset;box-sizing:border-box;min-height:44px;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;color:#ffffff;background:#1a73e8;cursor:pointer">Load city-level detail (~12 MB)</button>
+    </section>
+  </div>
+</sc-if>
+
+<!-- VEHICLES -->
+<sc-if value="{{ showVehicles }}" hint-placeholder-val="{{ false }}">
+  <div style="display:flex;flex-direction:column;gap:20px">
+    <div>
+      <h2 style="margin:0;font-size:26px;line-height:1.25;font-weight:600;color:#08060d">Vehicles</h2>
+      <p style="margin:4px 0 0;font-size:12.5px;color:#5f6368">From Player_statistics · 4 files, 6 rows</p>
+    </div>
+    <div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap">
+      <div style="display:flex;flex-direction:column;gap:4px"><label for="gm" style="font-size:13px;font-weight:600;color:#08060d">Game</label>
+        <select id="gm" style="min-height:44px;padding:6px 12px;border:1px solid #dadce0;border-radius:8px;background:#ffffff;color:#08060d"><option>WoT (not in this export)</option></select></div>
+      <div style="display:flex;flex-direction:column;gap:4px"><label for="sv" style="font-size:13px;font-weight:600;color:#08060d">Search vehicles</label>
+        <input id="sv" style="min-height:44px;box-sizing:border-box;padding:6px 12px;border:1px solid #dadce0;border-radius:8px;background:#ffffff;color:#08060d"></div>
+    </div>
+    <div style="background:#f7f7fa;border:1px solid #dadce0;border-radius:8px;padding:14px 16px;font-size:13px">WoT is not in this export.</div>
+  </div>
+</sc-if>
+
+<!-- FINANCE -->
+<sc-if value="{{ showFinance }}" hint-placeholder-val="{{ false }}">
+  <div style="display:flex;flex-direction:column;gap:20px">
+    <div>
+      <h2 style="margin:0;font-size:26px;line-height:1.25;font-weight:600;color:#08060d">Finance</h2>
+      <p style="margin:4px 0 0;font-size:12.5px;color:#5f6368">From Financial_data</p>
+    </div>
+    <div style="background:#f7f7fa;border:1px dashed #80868b;border-radius:8px;padding:24px;font-size:14px;color:#3c4043">Not in this export. This export has no Financial_data folder, so there is nothing to chart here.</div>
+  </div>
+</sc-if>
+
+<!-- PAYMENTS -->
+<sc-if value="{{ showPayments }}" hint-placeholder-val="{{ false }}">
+  <div style="display:flex;flex-direction:column;gap:20px">
+    <div>
+      <h2 style="margin:0;font-size:26px;line-height:1.25;font-weight:600;color:#08060d">Payments</h2>
+      <p style="margin:4px 0 0;font-size:12.5px;color:#5f6368">From Payment_history · 1 file, 3 rows</p>
+    </div>
+    <p style="margin:0;font-size:13px;color:#3c4043;max-width:70ch">Only paid orders are totalled. Failed and new orders are counted separately. Each currency has its own total: nothing is converted or added across currencies.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr));gap:12px">
+      <div style="background:#f7f7fa;border:1px solid #dadce0;border-radius:8px;padding:14px 16px"><div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5f6368">USD</div><div style="font-size:30px;line-height:1.2;font-weight:600;color:#08060d">USD 29.97</div><div style="font-size:12.5px;color:#5f6368">3 paid orders</div></div>
+      <div style="background:#f7f7fa;border:1px solid #dadce0;border-radius:8px;padding:14px 16px"><div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5f6368">Failed</div><div style="font-size:30px;line-height:1.2;font-weight:600;color:#08060d">0</div></div>
+      <div style="background:#f7f7fa;border:1px solid #dadce0;border-radius:8px;padding:14px 16px"><div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5f6368">New</div><div style="font-size:30px;line-height:1.2;font-weight:600;color:#08060d">0</div></div>
+    </div>
+  </div>
+</sc-if>
+
+<!-- ACCOUNT -->
+<sc-if value="{{ showAccount }}" hint-placeholder-val="{{ false }}">
+  <div style="display:flex;flex-direction:column;gap:20px">
+    <div>
+      <h2 style="margin:0;font-size:26px;line-height:1.25;font-weight:600;color:#08060d">Account</h2>
+      <p style="margin:4px 0 0;font-size:12.5px;color:#5f6368">From User_Info · 1 file, 1 row</p>
+    </div>
+    <dl style="margin:0;display:grid;grid-template-columns:minmax(0,200px) minmax(0,1fr);gap:10px 16px;font-size:14px;max-width:560px">
+      <dt style="color:#5f6368">Account ID</dt><dd style="margin:0;color:#08060d">123456789</dd>
+      <dt style="color:#5f6368">Location code (per export)</dt><dd style="margin:0;color:#08060d">EU</dd>
+      <dt style="color:#5f6368">Account created</dt><dd style="margin:0;color:#08060d">2024-01-01</dd>
+    </dl>
+  </div>
+</sc-if>
+
+<!-- NOT YET SUPPORTED -->
+<sc-if value="{{ showUnsupported }}" hint-placeholder-val="{{ false }}">
+  <div style="display:flex;flex-direction:column;gap:20px">
+    <div>
+      <h2 style="margin:0;font-size:26px;line-height:1.25;font-weight:600;color:#08060d">Not yet supported</h2>
+      <p style="margin:4px 0 0;font-size:13px;color:#3c4043">These folders are in your export, but this viewer can't show them yet.</p>
+    </div>
+    <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;max-width:560px">
+      <li style="background:#f7f7fa;border:1px solid #dadce0;border-radius:8px;padding:12px 16px"><div style="font-weight:600;color:#08060d">Chat_history</div><div style="font-size:12.5px;color:#5f6368">1 file, 1 row</div></li>
+      <li style="background:#f7f7fa;border:1px solid #dadce0;border-radius:8px;padding:12px 16px"><div style="font-weight:600;color:#08060d">Clans</div><div style="font-size:12.5px;color:#5f6368">1 file, 1 row</div></li>
+      <li style="background:#f7f7fa;border:1px solid #dadce0;border-radius:8px;padding:12px 16px"><div style="font-weight:600;color:#08060d">Bans</div><div style="font-size:12.5px;color:#5f6368">1 file, 1 row</div></li>
+      <li style="background:#f7f7fa;border:1px solid #dadce0;border-radius:8px;padding:12px 16px"><div style="font-weight:600;color:#08060d">Device_info</div><div style="font-size:12.5px;color:#5f6368">1 file, 1 row</div></li>
+    </ul>
+  </div>
+</sc-if>
+
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#1a73e8"},"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const accent = this.props.accent ?? '#1a73e8';
+    const sel = (this.state && this.state.sel) || 'playtime';
+    const RAMP = ['#eef0f2', '#b2dcd4', '#7cc7bc', '#43a89c', '#1f7a74', '#0d4f4c'];
+    const ORDER = ['playtime', 'logins', 'vehicles', 'finance', 'payments', 'account', 'unsupported'];
+    let seed = 11;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+
+    const defs = [
+      { id: 'playtime', title: 'Playtime', headline: '412.8 h', sub: '286 sessions · 143 active days', muted: false },
+      { id: 'logins', title: 'Login history', headline: '3 IPs', sub: '612 logins · 0 countries matched', muted: false },
+      { id: 'vehicles', title: 'Vehicles', headline: '—', sub: 'WoT is not in this export', muted: true },
+      { id: 'finance', title: 'Finance', headline: '—', sub: 'Not in this export', muted: true },
+      { id: 'payments', title: 'Payments', headline: 'USD 29.97', sub: '3 paid orders', muted: false },
+      { id: 'account', title: 'Account', headline: 'EU', sub: 'Location code and creation date', muted: false },
+    ];
+    const rows = defs.map((d) => {
+      const cur = d.id === sel;
+      return {
+        title: d.title, headline: d.headline, sub: d.sub,
+        current: cur ? 'true' : 'false',
+        bg: cur ? '#e8f0fe' : 'transparent',
+        bar: cur ? 'inset 3px 0 0 ' + accent : 'none',
+        titleColor: d.muted && !cur ? '#5f6368' : '#08060d',
+        pick: () => this.setState({ sel: d.id }),
+      };
+    });
+    const uCur = sel === 'unsupported';
+
+    const calCells = [];
+    for (let i = 0; i < 371; i++) {
+      if (i >= 366) { calCells.push({ bg: 'transparent' }); continue; }
+      const weekend = (i % 7) >= 5;
+      const active = rnd() < (weekend ? 0.55 : 0.3);
+      let lv = 0;
+      if (active) { const r = rnd(); lv = r < 0.28 ? 1 : r < 0.55 ? 2 : r < 0.78 ? 3 : r < 0.92 ? 4 : 5; }
+      calCells.push({ bg: RAMP[lv] });
+    }
+
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const hourCells = [{ isLabel: true, isCell: false, text: '' }];
+    for (let h = 0; h < 24; h++) hourCells.push({ isLabel: true, isCell: false, text: h % 6 === 0 ? String(h).padStart(2, '0') : '' });
+    days.forEach((d, di) => {
+      hourCells.push({ isLabel: true, isCell: false, text: d });
+      for (let h = 0; h < 24; h++) {
+        const eve = h >= 18 && h <= 22;
+        const morn = h >= 9 && h <= 11;
+        const boost = di >= 4 ? 0.2 : 0;
+        const p = (eve ? 0.78 : morn ? 0.4 : h >= 12 && h <= 17 ? 0.28 : 0.1) + boost;
+        let lv = 0;
+        if (rnd() < p) { const r = rnd() + (eve ? 0.25 : 0); lv = r < 0.3 ? 1 : r < 0.55 ? 2 : r < 0.78 ? 3 : r < 0.93 ? 4 : 5; }
+        hourCells.push({ isLabel: false, isCell: true, bg: RAMP[lv] });
+      }
+    });
+
+    const bins = [
+      ['Under 1 min', 3], ['1-2 min', 4], ['2-5 min', 6], ['5-10 min', 9], ['10-20 min', 24], ['20-30 min', 38],
+      ['30-60 min', 71], ['1-2 hours', 82], ['2-4 hours', 41], ['4-8 hours', 8], ['8-16 hours', 0], ['16+ hours', 0],
+    ];
+    const bars = bins.map(([label, count]) => ({
+      label, count: String(count), pct: Math.round((count / 286) * 100) + '%',
+      width: (count / 82 * 100).toFixed(1) + '%',
+    }));
+
+    return {
+      rows,
+      ramp: RAMP.map((c) => ({ bg: c })),
+      calCells, hourCells, bars,
+      showPlaytime: sel === 'playtime', showLogins: sel === 'logins', showVehicles: sel === 'vehicles',
+      showFinance: sel === 'finance', showPayments: sel === 'payments', showAccount: sel === 'account',
+      showUnsupported: uCur,
+      unsupportedCurrent: uCur ? 'true' : 'false',
+      unsupportedBg: uCur ? '#e8f0fe' : 'transparent',
+      unsupportedBar: uCur ? 'inset 3px 0 0 ' + accent : 'none',
+      pickUnsupported: () => this.setState({ sel: 'unsupported' }),
+      keyNav: (e) => {
+        const k = e.key;
+        const i = ORDER.indexOf(sel);
+        if (k === 'j') { e.preventDefault(); this.setState({ sel: ORDER[Math.min(ORDER.length - 1, i + 1)] }); }
+        if (k === 'k') { e.preventDefault(); this.setState({ sel: ORDER[Math.max(0, i - 1)] }); }
+      },
+    };
+  }
+}
+</script>
+</body>
+</html>

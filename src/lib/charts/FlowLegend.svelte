@@ -70,7 +70,7 @@
     font-size: 14px;
     font-weight: 400;
     line-height: 1.4;
-    color: #5f6368;
+    color: var(--muted);
   }
 
   /* A swatch, not a border: the mark is the fill, and the fill is read from

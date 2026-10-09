@@ -6,9 +6,10 @@ import {
   SYNTHETIC_ZIP_NAME,
   cityOptIn,
   gotoApp,
-  importExport,
+  importAndOpen,
   loginHistoryBlock,
   loginTable,
+  openSection,
   replaceExport,
   startOver,
 } from '../_support/helpers.ts';
@@ -216,11 +217,20 @@ test('tracer: nothing is requested before the click, then one click fetches the 
   const requests = recordRequests(page);
   await serveFixture(page);
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, buildLoginsScaleExport(SCALE));
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, buildLoginsScaleExport(SCALE), 'login-history');
   await expect(loginHistoryBlock(page)).toHaveAttribute('data-state', 'ready', {
     timeout: 30_000,
   });
   await expect(cityOptIn(page)).toHaveAttribute('data-state', 'idle');
+
+  // quick 261009-qbo: the consent text is always on screen beside the button.
+  // It is the only statement that nothing is downloaded until the press and
+  // nothing from the export is sent (Phase 6 D-14, D-16), so it is never behind
+  // a closed disclosure.
+  const intro = page.getByTestId('city-intro');
+  await expect(intro).toBeVisible();
+  await expect(intro).toHaveText(/about [\d,]+ MB/);
+  expect(await intro.evaluate((el) => el.closest('details') === null)).toBe(true);
 
   // The page is idle: nothing further may be requested until the button is
   // pressed. The count is polled until it stops moving, then held.
@@ -442,7 +452,7 @@ test('after a click the table, the ranked list and the accuracy note are right, 
 }) => {
   await serveFixture(page);
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, buildEntriesExport(LIST_ENTRIES));
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, buildEntriesExport(LIST_ENTRIES), 'login-history');
   await expect(loginHistoryBlock(page)).toHaveAttribute('data-state', 'ready', {
     timeout: 30_000,
   });
@@ -544,6 +554,8 @@ test('after a click the table, the ranked list and the accuracy note are right, 
   expect(stored.length).toBeGreaterThan(1000);
   for (const name of cityNames) expect(stored, name).not.toContain(name);
   await page.reload();
+  // A reload lands on Overview (R1): the pane is opened again before the block is read.
+  await openSection(page, 'login-history');
   await expect(loginHistoryBlock(page)).toHaveAttribute('data-state', 'ready', {
     timeout: 30_000,
   });
@@ -579,7 +591,7 @@ test('progress, cancel and failures leave the country view alone, and a replace 
   });
 
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, buildEntriesExport(FIRST_ENTRIES));
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, buildEntriesExport(FIRST_ENTRIES), 'login-history');
   const block = loginHistoryBlock(page);
   await expect(block).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
   const untouched = await countryView(page);
@@ -587,6 +599,16 @@ test('progress, cancel and failures leave the country view alone, and a replace 
   const status = block.getByTestId('login-history-status');
 
   // Idle: the intro and the size button, and the neutral chrome of the button.
+  await expect(optIn).toHaveAttribute('data-state', 'idle');
+  await expect(page.getByTestId('city-load')).toBeVisible();
+
+  // The download is started at phone width. On a phone the list and the detail
+  // are separate screens and the detail's content is unmounted while the list
+  // screen shows (R2), so a download started at 1280px and then narrowed would
+  // lose the block that holds it; narrowing FIRST and opening the pane puts the
+  // block on the detail screen, where the later widening keeps it mounted.
+  await page.setViewportSize({ width: 375, height: 800 });
+  await openSection(page, 'login-history');
   await expect(optIn).toHaveAttribute('data-state', 'idle');
   await expect(page.getByTestId('city-load')).toBeVisible();
 
@@ -610,8 +632,8 @@ test('progress, cancel and failures leave the country view alone, and a replace 
   await expect.poll(() => requests.length).toBe(before + 1);
 
   // Phone width: the progress row stacks its text, bar and Cancel, and the page
-  // does not scroll sideways.
-  await page.setViewportSize({ width: 375, height: 800 });
+  // does not scroll sideways. The detail screen is showing (see above), so this
+  // measures the progress row itself and not the list.
   const line = await page.getByTestId('city-progress-line').boundingBox();
   const bar = await progress.boundingBox();
   const cancel = await page.getByTestId('city-cancel').boundingBox();
@@ -675,7 +697,7 @@ test('progress, cancel and failures leave the country view alone, and a replace 
   await page.getByTestId('login-sort-country').click();
   await page.getByTestId('city-load').click();
   await expect(optIn).toHaveAttribute('data-state', 'downloading');
-  await replaceExport(page, 'other-export.zip', buildEntriesExport(OTHER_ENTRIES));
+  await replaceExport(page, 'other-export.zip', buildEntriesExport(OTHER_ENTRIES), 'login-history');
   await expect(block).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
   const expectDefaults = async (): Promise<void> => {
     await expect(optIn).toHaveAttribute('data-state', 'idle');
@@ -703,7 +725,7 @@ test('progress, cancel and failures leave the country view alone, and a replace 
   await expect(page.getByTestId('login-sort-city')).toHaveCount(1);
   await block.getByTestId('login-mask-toggle').click();
   await page.getByTestId('login-sort-city').click();
-  await replaceExport(page, 'first-export.zip', buildEntriesExport(FIRST_ENTRIES));
+  await replaceExport(page, 'first-export.zip', buildEntriesExport(FIRST_ENTRIES), 'login-history');
   await expect(block).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
   await expectDefaults();
 
@@ -713,7 +735,7 @@ test('progress, cancel and failures leave the country view alone, and a replace 
   await expect(optIn).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
   await startOver(page);
   await expect(optIn).toHaveCount(0);
-  await importExport(page, SYNTHETIC_ZIP_NAME, buildEntriesExport(OTHER_ENTRIES));
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, buildEntriesExport(OTHER_ENTRIES), 'login-history');
   await expect(block).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
   await expectDefaults();
 });

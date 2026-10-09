@@ -37,7 +37,7 @@
   .table-container {
     overflow: auto;
     max-height: 320px;
-    border-top: 1px solid #dadce0;
+    border-top: 1px solid var(--border);
   }
 
   table {
@@ -62,16 +62,16 @@
   th {
     padding: 8px 12px;
     font-weight: 600;
-    color: #5f6368;
+    color: var(--muted);
     text-align: left;
-    border-bottom: 1px solid #dadce0;
+    border-bottom: 1px solid var(--border);
   }
 
   td {
     padding: 8px 12px;
     font-weight: 400;
-    color: #3c4043;
-    border-bottom: 1px solid #dadce0;
+    color: var(--text);
+    border-bottom: 1px solid var(--border);
   }
 
   .numeric {

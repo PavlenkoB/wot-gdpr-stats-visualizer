@@ -18,6 +18,7 @@ import {
   loginMap,
   loginScroller,
   loginTable,
+  openSection,
 } from '../_support/helpers.ts';
 import { buildLoginsScaleExport, buildLoginsScaleSpec } from '../../fixtures/logins-fixtures.ts';
 import { oracleCompare, oracleLogins } from '../../helpers/login-oracle.ts';
@@ -224,6 +225,9 @@ test.describe('the login history at 10,000 rows and more', () => {
     page = await context.newPage();
     await gotoApp(page);
     await importExport(page, SYNTHETIC_ZIP_NAME, buildLoginsScaleExport(SPEC));
+    // The import lands on Overview (R1). The pane is opened ONCE here: the five
+    // serial tests share this page and never navigate away or reload it.
+    await openSection(page, 'login-history');
     await expect(loginHistoryBlock(page)).toHaveAttribute('data-state', 'ready', {
       timeout: 60_000,
     });

@@ -30,7 +30,20 @@
  * from ever touching, and it is why the smaller side can be squashed but never
  * to nothing. One scale, two extents, a floor: the honesty is the scale, the
  * tidiness is the split.
+ *
+ * Width (plan 08-20, gap G-08-3). Plan 05-22's rule, "a bar is a mark and not a
+ * panel, so a short chart keeps 16px and stays narrow", still governs the
+ * NO-WIDTH path exactly: `buildBarChartModel(input)` returns the geometry it
+ * always did. When the component passes the width it MEASURED from its own
+ * scroller, the measured path overrides that rule per the user's locked G-08-3
+ * decision (the charts fill the detail pane; do not cap and left-align): the
+ * slot grows to fill the plot while the DRAWN bar is capped so a five-month
+ * chart is a column chart and not five slabs. Today's geometry stays the floor,
+ * so a chart that cannot be wider than it already is (a dense chart in a phone
+ * pane) is unchanged and keeps its horizontal scroller.
  */
+
+import { usableChartWidth } from './chart-width.ts';
 
 /** Which of the two monthly charts is being built. */
 export type BarChartKind = 'premium' | 'currency';
@@ -60,7 +73,7 @@ export interface BarCell {
   index: number;
   month: number;
   x: number;
-  /** The full pitch, so a hairline bar still has a pointer target. */
+  /** The whole slot, so a hairline bar still has a pointer target. */
   hitWidth: number;
   hasData: boolean;
   up: BarRect | null;
@@ -77,9 +90,13 @@ export interface AxisLabel {
 export interface BarChartModel {
   kind: BarChartKind;
   monthCount: number;
+  /** The narrowest slot in pixels; every slot on the legacy path. */
   pitch: number;
+  /** The narrowest drawn bar. */
   barWidth: number;
   width: number;
+  /** Where the plot (and the hairlines) end: `width - 4` legacy, `width - 8` filled. */
+  plotRight: number;
   height: number;
   /** The premium baseline; for currency it is the zero line between the sides. */
   zeroY: number;
@@ -101,8 +118,10 @@ export interface BarChartModel {
   domainDown: number;
   cells: BarCell[];
   labels: AxisLabel[];
-  /** True when the plot is wider than the column and the chart scrolls. */
+  /** True when the chart is wider than the column it was given and scrolls. */
   scrolls: boolean;
+  /** The very input this model was built from, so the component can re-lay it out at another width. */
+  input: BarChartInput;
   /** The nodes this chart puts in the DOM if the component draws one node per item. */
   nodeCount: number;
   /** The ceiling `nodeCount` is asserted against (T-05-26). */
@@ -133,6 +152,14 @@ export const BAR_LAYOUT = {
   gutterPx: 56,
   /** UI-SPEC section 6: a hairline of air so the last bar is not flush to the edge. */
   rightPadPx: 4,
+  /**
+   * The right pad of the FILL layout (plan 08-20): the ring drawn around a slot
+   * is `max(slot, 8)` wide with 3.5px of overhang each side, so on the last slot
+   * of a dense chart it reaches 7.5px past the slot and must end inside the svg.
+   */
+  fillRightPadPx: 8,
+  /** The widest bar the fill layout draws; the slot around it is wider and centred. */
+  maxBarWidthPx: 32,
   /** UI-SPEC section 6: air above the plot, where the domain label sits. */
   topPadPx: 8,
   /** UI-SPEC section 6: the band under the plot that holds the x-axis labels. */
@@ -147,8 +174,9 @@ export const BAR_LAYOUT = {
   labelWidthPx: 56,
   /**
    * UI-SPEC Spacing "Chart bar pitch", as amended by plan 05-22: the widest
-   * pitch a month can take. A bar is a mark and not a panel, so a short chart
-   * keeps 16px and stays narrow rather than filling the card.
+   * pitch a month can take on the NO-WIDTH path. A bar is a mark and not a
+   * panel, so there a short chart keeps 16px and stays narrow; the measured path
+   * (plan 08-20) lifts this cap for the slot but caps the drawn bar instead.
    */
   maxPitchPx: 16,
   /**
@@ -308,13 +336,35 @@ export function nodeBudget(monthCount: number): number {
  * zero-one-many consideration: one month is one cell and one label, not an
  * empty axis).
  */
-export function buildBarChartModel(input: BarChartInput): BarChartModel {
+export function buildBarChartModel(
+  input: BarChartInput,
+  availableWidth?: number | null,
+): BarChartModel {
   const firstMonth = input.firstMonth;
   const monthCount = Math.max(1, Math.floor(input.lastMonth - firstMonth) + 1);
-  const pitch = pitchFor(monthCount);
-  const barWidth = pitch - 1;
-  const plotWidth = monthCount * pitch;
-  const width = BAR_LAYOUT.gutterPx + plotWidth + BAR_LAYOUT.rightPadPx;
+  const legacyPitch = pitchFor(monthCount);
+  const legacyPlot = monthCount * legacyPitch;
+
+  // The measured path (plan 08-20). Only a usable width whose fill plot beats
+  // today's plot STRICTLY changes anything; every other call produces exactly
+  // today's numbers, which is what keeps the phone and the 240-month chart
+  // unchanged and the boundary continuous.
+  const usable = usableChartWidth(availableWidth);
+  const fillPlot = usable === null ? 0 : usable - BAR_LAYOUT.gutterPx - BAR_LAYOUT.fillRightPadPx;
+  const fill = usable !== null && fillPlot > legacyPlot;
+
+  const plotWidth = fill ? fillPlot : legacyPlot;
+  const rightPad = fill ? BAR_LAYOUT.fillRightPadPx : BAR_LAYOUT.rightPadPx;
+  const width = BAR_LAYOUT.gutterPx + plotWidth + rightPad;
+  const plotRight = BAR_LAYOUT.gutterPx + plotWidth;
+  // The slot edges, in whole pixels from the plot origin: the remainder is
+  // spread over the slots (none differs from another by more than 1px) so the
+  // axis ends on the plot edge exactly. On the legacy path every slot is the
+  // pitch.
+  const edge = (index: number): number =>
+    fill ? Math.floor((index * plotWidth) / monthCount) : index * legacyPitch;
+  const pitch = fill ? Math.floor(plotWidth / monthCount) : legacyPitch;
+  const barWidth = fill ? Math.min(pitch - 1, BAR_LAYOUT.maxBarWidthPx) : pitch - 1;
   const isCurrency = input.kind === 'currency';
   const plotTop = BAR_LAYOUT.topPadPx;
   const plotHeight = isCurrency ? BAR_LAYOUT.currencyPlotPx : BAR_LAYOUT.premiumPlotPx;
@@ -368,7 +418,13 @@ export function buildBarChartModel(input: BarChartInput): BarChartModel {
   let barCount = 0;
   for (let index = 0; index < monthCount; index += 1) {
     const entry = byMonth.get(index);
-    const x = BAR_LAYOUT.gutterPx + index * pitch;
+    const x = BAR_LAYOUT.gutterPx + edge(index);
+    const slot = edge(index + 1) - edge(index);
+    // The drawn bar is the slot minus a 1px gap; on the fill layout it is
+    // capped at maxBarWidthPx and centred in its slot (offset 0 when uncapped).
+    const capped = fill && slot - 1 > BAR_LAYOUT.maxBarWidthPx;
+    const drawn = capped ? BAR_LAYOUT.maxBarWidthPx : slot - 1;
+    const barX = capped ? x + Math.floor((slot - BAR_LAYOUT.maxBarWidthPx) / 2) : x;
     // Clamped to its own side's room. The rooms are rounded together, but a bar
     // rounded on its own can land a half pixel over — the 231-and-89 case, where
     // the withdrawal bar rounds to 45 in a 44px room and would cross the bottom
@@ -380,9 +436,9 @@ export function buildBarChartModel(input: BarChartInput): BarChartModel {
     // A zero-height bar is not drawn. `hasData` still reports the month, so a
     // month that granted nothing is distinguishable from a month absent.
     const up: BarRect | null =
-      upHeight > 0 ? { x, y: zeroY - upHeight, width: barWidth, height: upHeight } : null;
+      upHeight > 0 ? { x: barX, y: zeroY - upHeight, width: drawn, height: upHeight } : null;
     const down: BarRect | null =
-      downHeight > 0 ? { x, y: zeroY, width: barWidth, height: downHeight } : null;
+      downHeight > 0 ? { x: barX, y: zeroY, width: drawn, height: downHeight } : null;
     if (up !== null) {
       barCount += 1;
     }
@@ -394,7 +450,7 @@ export function buildBarChartModel(input: BarChartInput): BarChartModel {
       index,
       month: firstMonth + index,
       x,
-      hitWidth: pitch,
+      hitWidth: slot,
       hasData: entry !== undefined,
       up,
       down,
@@ -407,10 +463,13 @@ export function buildBarChartModel(input: BarChartInput): BarChartModel {
   // cases are a whole-pixel pitch apart — 8 x 12 is exactly 96 and keeps the
   // narrow stride, 7 x 12 is 84 and does not — and 24 x 4 is exactly 96, so
   // the gap holds at every pitch down to the floor.
-  const stride = LABEL_STRIDE * pitch < BAR_LAYOUT.labelMinGapPx ? WIDE_LABEL_STRIDE : LABEL_STRIDE;
+  // The stride is keyed to TODAY'S pitch on every layout, so the same months are
+  // labelled as before whatever width the chart was given.
+  const stride =
+    LABEL_STRIDE * legacyPitch < BAR_LAYOUT.labelMinGapPx ? WIDE_LABEL_STRIDE : LABEL_STRIDE;
   const labels: AxisLabel[] = [];
   for (let index = 0; index < monthCount; index += stride) {
-    const x = BAR_LAYOUT.gutterPx + index * pitch;
+    const x = BAR_LAYOUT.gutterPx + edge(index);
     // The FIRST label is the axis's origin and is never dropped, or a one-month
     // chart would have no label at all. Every later label is dropped when it
     // would run past the right edge, so the last one is never cut in half.
@@ -431,6 +490,7 @@ export function buildBarChartModel(input: BarChartInput): BarChartModel {
     pitch,
     barWidth,
     width,
+    plotRight,
     height,
     zeroY,
     plotTop,
@@ -440,7 +500,10 @@ export function buildBarChartModel(input: BarChartInput): BarChartModel {
     domainDown,
     cells,
     labels,
-    scrolls: plotWidth > BAR_LAYOUT.maxPlotWidthPx,
+    // With a width, the chart scrolls exactly when it is wider than the box it
+    // was given; without one, when its plot is wider than today's 576px column.
+    scrolls: usable === null ? plotWidth > BAR_LAYOUT.maxPlotWidthPx : width > usable,
+    input,
     nodeCount,
     nodeBudget: nodeBudget(monthCount),
   };

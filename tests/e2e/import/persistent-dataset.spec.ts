@@ -1,5 +1,5 @@
 import '../_support/pin-locale';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import {
   RENAMED_ACCOUNT_ROOT,
   SAMPLE_ACCOUNT_ROOT,
@@ -31,7 +31,14 @@ import {
   REPLACE_DATASET_LABEL,
   START_OVER_LABEL,
 } from '../../../src/lib/ui-copy.ts';
-import { dropFiles, importLine, importLines } from '../_support/helpers.ts';
+import { PANE_SECTION, type PaneId } from '../../../src/lib/shell/selection-state.ts';
+import {
+  dropFiles,
+  expectSelected,
+  importLine,
+  importLines,
+  openSection,
+} from '../_support/helpers.ts';
 
 // =============================================================================
 // 02-02 — DATA-01 close-the-loop (persistent dataset auto-load), re-pointed
@@ -68,14 +75,65 @@ function expectedSectionSummary(folder: string): string {
   return formatImportSummary(SAMPLE_FILE_COUNTS[folder]!, SAMPLE_ROW_COUNTS[folder]!);
 }
 
-/** The five supported sections in D-02 order. */
-const SUPPORTED_SECTIONS = [
-  { id: 'activity-history', folder: 'Activity_history' },
-  { id: 'player-statistics', folder: 'Player_statistics' },
-  { id: 'financial-data', folder: 'Financial_data' },
-  { id: 'payment-history', folder: 'Payment_history' },
-  { id: 'user-info', folder: 'User_Info' },
-] as const;
+/**
+ * The five supported folders, each paired with ONE pane that shows it (Playtime
+ * stands for Activity_history; Login history is a second view of the same
+ * folder and is covered by import-flow). Only the open pane's section is in the
+ * DOM, so the snapshots below open these in turn.
+ */
+const SUPPORTED_PANES = [
+  { pane: 'playtime', folder: 'Activity_history' },
+  { pane: 'vehicles', folder: 'Player_statistics' },
+  { pane: 'finance', folder: 'Financial_data' },
+  { pane: 'payments', folder: 'Payment_history' },
+  { pane: 'account', folder: 'User_Info' },
+] as const satisfies readonly { pane: PaneId; folder: string }[];
+
+/** Every pane that renders a data section (the unsupported pane is separate). */
+const DATA_PANE_IDS = [
+  'playtime',
+  'login-history',
+  'vehicles',
+  'finance',
+  'payments',
+  'account',
+] as const satisfies readonly PaneId[];
+
+/**
+ * Open each of the five folders' panes in turn and read its import line, which
+ * must be the documented file + row counts (D-05: the worker populated the row
+ * counts from a real parse, not just the file counts from classify). With one
+ * pane open the page carries exactly ONE import line.
+ */
+async function snapshotImportLines(page: Page): Promise<string[]> {
+  const lines: string[] = [];
+  for (const { pane, folder } of SUPPORTED_PANES) {
+    await openSection(page, pane);
+    const card = page.getByTestId(`dashboard-section-${PANE_SECTION[pane]}`);
+    await expect(importLine(card)).toHaveText(expectedSectionSummary(folder));
+    await expect(importLines(page)).toHaveCount(1);
+    lines.push(await importLines(page).innerText());
+  }
+  return lines;
+}
+
+/** The text of the eight always-mounted list rows, in list order. */
+async function snapshotListRows(page: Page): Promise<string[]> {
+  return page
+    .getByTestId('list-nav')
+    .locator('[data-testid^="list-row-"]')
+    .evaluateAll((nodes) =>
+      nodes.map((node) => (node.textContent ?? '').replace(/\s+/g, ' ').trim()),
+    );
+}
+
+/** The unsupported banners' text, read from the Not yet supported pane. */
+async function snapshotBanners(page: Page): Promise<string[]> {
+  await openSection(page, 'not-yet-supported');
+  const banners = page.getByTestId('unsupported-banner');
+  await expect(banners).toHaveCount(UNSUPPORTED_FOLDERS.length);
+  return banners.allInnerTexts();
+}
 
 /**
  * The unsupported folders, in the worker's order.
@@ -91,6 +149,9 @@ const SUPPORTED_SECTIONS = [
 const UNSUPPORTED_FOLDERS = SAMPLE_BADGE_ORDER.slice(
   SAMPLE_EXPECTED_COUNTS.supported,
 ) as readonly string[];
+
+/** The list always shows eight rows: Overview, six data panes, Not yet supported. */
+const PANE_COUNT = 8;
 
 /** Wait for the dataset to be displayed: the bar is slim (D-25). */
 async function expectSlimBar(page: import('@playwright/test').Page): Promise<void> {
@@ -123,27 +184,17 @@ test.describe('persistent-dataset auto-load', () => {
     ]);
     await expectSlimBar(page);
 
-    // Snapshot the section summaries and banner texts BEFORE reload —
-    // these are the values the auto-loaded dashboard must show again
-    // unchanged. We capture the rendered text of each, then compare
-    // with `toContainText` (whitespace-normalized) rather than strict
-    // equality, because `innerText()` returns rendered text with
-    // line breaks between a card's child spans under flex layout.
-    for (const section of SUPPORTED_SECTIONS) {
-      // Sanity: the section carries the documented file + row counts
-      // (D-05), proving the worker populated the row counts from a
-      // real parse — not just the file counts from classify.
-      // `importLine` reads the body a pending card renders or the caption a
-      // ready one does; Activity_history is ready since 04-02.
-      await expect(importLine(page.getByTestId(`dashboard-section-${section.id}`))).toHaveText(
-        expectedSectionSummary(section.folder),
-      );
-    }
-    const banners = page.getByTestId('unsupported-banner');
-    await expect(banners).toHaveCount(UNSUPPORTED_FOLDERS.length);
-    const bannerTextsBefore = await banners.allInnerTexts();
-    const sectionTextsBefore = await importLines(page).allInnerTexts();
-    expect(sectionTextsBefore).toHaveLength(SUPPORTED_SECTIONS.length);
+    // Snapshot the import lines, the list rows and the banner texts BEFORE
+    // reload — these are the values the auto-loaded dashboard must show again
+    // unchanged. Only the open pane's section is in the DOM, so the five
+    // folders' import lines are read by opening each pane in turn; the list
+    // rows (always on screen) and the Not yet supported banners are captured
+    // as well. Texts are compared as read (`innerText`), not re-derived.
+    const sectionTextsBefore = await snapshotImportLines(page);
+    expect(sectionTextsBefore).toHaveLength(SUPPORTED_PANES.length);
+    const rowTextsBefore = await snapshotListRows(page);
+    expect(rowTextsBefore).toHaveLength(PANE_COUNT);
+    const bannerTextsBefore = await snapshotBanners(page);
 
     // Capture the worker's reported importedAt for the timestamp check
     // (formatImportedOn uses the same value).
@@ -166,20 +217,18 @@ test.describe('persistent-dataset auto-load', () => {
     // resolved correctly. (D-07 success criterion: no upload.)
     await expectSlimBar(page);
 
+    // The selection does not survive a reload, by design: the page lands on
+    // Overview, with the same dataset behind it.
+    await expectSelected(page, 'overview');
+
     // The same counts as before reload — auto-load carries the same
-    // `categories` array the original import produced.
-    const sectionTextsAfter = await importLines(page).allInnerTexts();
+    // `categories` array the original import produced. Re-open the same panes.
+    const sectionTextsAfter = await snapshotImportLines(page);
     expect(sectionTextsAfter).toEqual(sectionTextsBefore);
-    for (const section of SUPPORTED_SECTIONS) {
-      await expect(importLine(page.getByTestId(`dashboard-section-${section.id}`))).toHaveText(
-        expectedSectionSummary(section.folder),
-      );
-    }
+    expect(await snapshotListRows(page)).toEqual(rowTextsBefore);
 
     // The banners come back in the same order with the same text.
-    const bannersAfter = page.getByTestId('unsupported-banner');
-    await expect(bannersAfter).toHaveCount(UNSUPPORTED_FOLDERS.length);
-    expect(await bannersAfter.allInnerTexts()).toEqual(bannerTextsBefore);
+    expect(await snapshotBanners(page)).toEqual(bannerTextsBefore);
 
     // The "Imported on ..." timestamp text is now derived from the
     // CACHED importedAt — verify the format directly. The date will
@@ -280,8 +329,10 @@ test.describe('persistent-dataset auto-load', () => {
     await expectSlimBar(page);
 
     // D-04: the Bans banner (the only category with skips in this
-    // fixture) carries a "1 row skipped" tag. We locate the banner by
-    // its folder name to be robust to worker ordering.
+    // fixture) carries a "1 row skipped" tag. It lives in the Not yet
+    // supported pane. We locate the banner by its folder name to be robust to
+    // worker ordering.
+    await openSection(page, 'not-yet-supported');
     const bansBanner = page
       .getByTestId('unsupported-banner')
       .filter({ has: page.getByTestId('banner-folder').getByText('Bans', { exact: true }) });
@@ -290,24 +341,30 @@ test.describe('persistent-dataset auto-load', () => {
 
     // D-09 / D-04 prohibition: a category with NO skips must NOT show
     // the skip-count tag. Every other card in the malformed fixture has
-    // skippedRowCount === 0 — verify the whole page carries exactly one
-    // tag, and that no supported section carries one.
+    // skippedRowCount === 0. Only the open pane is in the DOM, so the page
+    // carries exactly one tag in this pane, and every data pane, opened in
+    // turn, carries none (page-wide and inside its own section).
     const skippedTags = page.getByTestId('skip-tag');
     await expect(skippedTags).toHaveCount(1); // exactly one skip tag, on Bans
-    for (const section of SUPPORTED_SECTIONS) {
+    for (const pane of DATA_PANE_IDS) {
+      await openSection(page, pane);
+      await expect(skippedTags).toHaveCount(0);
       await expect(
-        page.getByTestId(`dashboard-section-${section.id}`).getByTestId('skip-tag'),
+        page.getByTestId(`dashboard-section-${PANE_SECTION[pane]}`).getByTestId('skip-tag'),
       ).toHaveCount(0);
     }
 
     // The skip count survives a reload because it is persisted in
-    // DatasetMeta.categories (D-09). Reload and verify again.
+    // DatasetMeta.categories (D-09). Reload (landing on Overview) and verify
+    // again by opening the same pane.
     await page.reload();
     await expect(page.locator('main')).toHaveAttribute('data-worker-ready', 'true', {
       timeout: 10_000,
     });
     await expectSlimBar(page);
+    await expectSelected(page, 'overview');
 
+    await openSection(page, 'not-yet-supported');
     await expect(
       page
         .getByTestId('unsupported-banner')
@@ -433,6 +490,8 @@ test.describe('persistent-dataset auto-load', () => {
     // in each. The test used to type the first two, which meant a template
     // added to that folder would have failed here as a wrong number rather
     // than as a missing expectation.
+    // The import lands on Overview (R1); open Playtime to read the section.
+    await openSection(page, 'playtime');
     const activitySummary = importLine(page.getByTestId('dashboard-section-activity-history'));
     const activityTemplates = SCALE_TEMPLATES_BY_FOLDER.get('Activity_history') ?? 0;
     const expectedActivityRows =
@@ -569,7 +628,9 @@ test.describe('persistent-dataset destructive controls', () => {
       },
     );
     // The renamed export adds one never-seen folder on top of the
-    // sample's four, so the banner count goes 4 -> 5.
+    // sample's four, so the banner count goes 4 -> 5. A replace lands on
+    // Overview (R1), so the banners are read from their own pane.
+    await openSection(page, 'not-yet-supported');
     await expect(page.getByTestId('unsupported-banner')).toHaveCount(5);
   });
 
@@ -595,6 +656,9 @@ test.describe('persistent-dataset destructive controls', () => {
     });
     await expectSlimBar(page);
 
+    // The destructive controls live in the list pane (Phase 8 D-01).
+    await expect(page.getByTestId('list-pane').getByTestId('start-over')).toBeVisible();
+
     // Click Start Over — the ConfirmPanel appears with the D-21
     // copy (NOT the D-13 copy).
     await page.getByTestId('start-over').click();
@@ -616,6 +680,10 @@ test.describe('persistent-dataset destructive controls', () => {
     await page.getByTestId('confirm-commit').click();
     await expect(page.getByTestId('cleared-ack')).toHaveText(CLEARED_ACK_MESSAGE);
     await expect(page.getByTestId('import-bar')).toHaveAttribute('data-variant', 'full');
+    // The empty state hosts the import region again, and no list-pane
+    // controls are left behind.
+    await expect(page.getByTestId('empty-state').getByTestId('dropzone')).toHaveCount(1);
+    await expect(page.getByTestId('list-pane').getByTestId('dropzone')).toHaveCount(0);
     await expect(page.getByTestId('identity-header')).toHaveAttribute('data-variant', 'skeleton');
     await expect(page.getByTestId('dropzone')).toBeVisible();
     await expect(page.getByTestId('file-input')).toBeEnabled();
@@ -663,7 +731,7 @@ test.describe('persistent-dataset destructive controls', () => {
     });
     await expectSlimBar(page);
     await expect(page.getByTestId('persistent-bar')).toBeVisible();
-    const clearControl = page.getByTestId('clear-data-control');
+    const clearControl = page.getByTestId('list-pane').getByTestId('clear-data-control');
     await expect(clearControl).toBeVisible();
     await expect(clearControl).toHaveText(CLEAR_DATA_LABEL);
 

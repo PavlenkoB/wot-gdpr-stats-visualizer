@@ -13,7 +13,7 @@ import {
   SYNTHETIC_ZIP_NAME,
   countryList,
   gotoApp,
-  importExport,
+  importAndOpen,
   loginHistoryBlock,
   loginMap,
   replaceExport,
@@ -33,6 +33,7 @@ import {
   MAP_ATTRIBUTION_LINK_TEXT,
   MAP_ATTRIBUTION_SUFFIX,
   MAP_HEADING,
+  MAP_KEYBOARD_HINT,
   MAP_NO_COUNTRIES,
   formatLoginShareLine,
   formatMapCountryLabel,
@@ -113,7 +114,7 @@ test('tracer: a real import shades the right countries at the level the scale ru
   const drawn = oracle.countries.filter((c) => DRAWABLE.has(c.cc));
 
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, buildLoginsScaleExport(spec));
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, buildLoginsScaleExport(spec), 'login-history');
   await expect(loginHistoryBlock(page)).toHaveAttribute('data-state', 'ready', {
     timeout: 30_000,
   });
@@ -423,8 +424,8 @@ test('the node count is the same at 100 and at 10,000 logins, within the bound, 
 
   for (const [index, [label, entries]] of cases.entries()) {
     const bytes = buildEntriesExport(entries);
-    if (index === 0) await importExport(page, SYNTHETIC_ZIP_NAME, bytes);
-    else await replaceExport(page, SYNTHETIC_ZIP_NAME, bytes);
+    if (index === 0) await importAndOpen(page, SYNTHETIC_ZIP_NAME, bytes, 'login-history');
+    else await replaceExport(page, SYNTHETIC_ZIP_NAME, bytes, 'login-history');
     await ready(page);
 
     const expected = expectedOf(entries);
@@ -483,7 +484,7 @@ test.describe('the map on one rendered import', () => {
     context = await browser.newContext();
     page = await context.newPage();
     await gotoApp(page);
-    await importExport(page, SYNTHETIC_ZIP_NAME, buildEntriesExport(MANY));
+    await importAndOpen(page, SYNTHETIC_ZIP_NAME, buildEntriesExport(MANY), 'login-history');
     await ready(page);
   });
 
@@ -549,9 +550,18 @@ test.describe('the map on one rendered import', () => {
     await expect(map.locator('[data-testid="login-country"][tabindex="0"]')).toHaveCount(1);
     await expect(country('FR')).toHaveAttribute('tabindex', '0');
 
-    // Tab from the table's last sort button enters the map on the leader, with
-    // the ring and the tooltip, and the tooltip sits at the centroid.
+    // Tab from the table's last sort button reaches the table's own
+    // about-login-table summary first (quick 261009-qbo: its two hints moved
+    // into a disclosure directly under the table), then the about-map
+    // disclosure's summary (it sits between the table and the map, and its
+    // collapsed content holds the keyboard hint), then enters the map on the
+    // leader, with the ring and the tooltip, and the tooltip sits at the centroid.
+    await expect(page.getByTestId('about-map')).toContainText(MAP_KEYBOARD_HINT);
     await page.getByTestId('login-sort-games').focus();
+    await page.keyboard.press('Tab');
+    await expect(page.getByTestId('about-login-table').locator('summary')).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(page.getByTestId('about-map').locator('summary')).toBeFocused();
     await page.keyboard.press('Tab');
     await expect(country('FR')).toBeFocused();
     await settled(page);
@@ -743,22 +753,22 @@ test('at 375px the frame fits the card, the page does not scroll sideways, toolt
     [IP.FR, 1],
   ];
   await gotoApp(page);
-  await importExport(page, SYNTHETIC_ZIP_NAME, buildEntriesExport(entries));
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, buildEntriesExport(entries), 'login-history');
   await ready(page);
 
   const map = loginMap(page);
   await map.scrollIntoViewIfNeeded();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
 
-  // The frame fits the card's inner width: it is not wider, and it is not a
-  // fraction of it either. That width is 309px at 375px: the viewport less the
-  // two 16px page paddings of the phone block (07-05, D-03) and the card's own
-  // 16px padding and 1px border on each side. It was 293px under the 24px
-  // desktop padding this spec was written against, so both bounds moved by the
-  // 16px the page gave back (the lower bound is the old 280 plus those 16).
+  // The frame fits the detail pane's inner width: it is not wider, and it is not
+  // a fraction of it either. That width is 343px at 375px: the viewport less the
+  // two 16px paddings of the detail screen. The map section sits directly in the
+  // pane now, with no card padding or border around it, so both bounds moved by
+  // the 34px the card used to take (309 to 343); the lower bound keeps its 13px
+  // of slack below the width (296 under 309).
   const frame = (await page.getByTestId('login-map-frame').boundingBox())!;
-  expect(frame.width).toBeLessThanOrEqual(311.5);
-  expect(frame.width).toBeGreaterThan(296);
+  expect(frame.width).toBeLessThanOrEqual(343.5);
+  expect(frame.width).toBeGreaterThan(330);
   const svgBox = (await map.boundingBox())!;
   expect(svgBox.width).toBeLessThanOrEqual(frame.width);
 
@@ -775,9 +785,13 @@ test('at 375px the frame fits the card, the page does not scroll sideways, toolt
   const tooltip = page.getByTestId('map-tooltip');
   const vh = 667;
   for (const [index, extreme] of extremes.entries()) {
-    // The topmost country is checked just under the sticky nav, where there is
-    // no room above, and the bottom-most at the foot of the viewport.
-    await placeMap(page, index === 2 ? 80 : index === 3 ? vh - svgBox.height - 8 : 200);
+    if (index === 2) {
+      // The topmost country is checked at the top of the viewport, below.
+      continue;
+    }
+    // The bottom-most is checked at the foot of the viewport, the others in the
+    // middle.
+    await placeMap(page, index === 3 ? vh - svgBox.height - 8 : 200);
     const at = await pointOver(page, extreme.iso);
     await page.mouse.move(at.x, at.y);
     await expect(tooltip, extreme.iso).toBeVisible();
@@ -789,6 +803,56 @@ test('at 375px the frame fits the card, the page does not scroll sideways, toolt
     await page.mouse.move(2, 2);
     await expect(tooltip).toBeHidden();
   }
+
+  // The top edge. Nothing is sticky above the detail content any more, so the
+  // tooltip flips below its anchor when the pointer is closer to the viewport top
+  // than the tooltip's own height plus the 8px gap plus `--nav-offset` (16px)
+  // plus the 8px gap, and stays above it otherwise. The tooltip's height is read
+  // from a first hover over the topmost country, then the map is scrolled so the
+  // pointer is 12px short of that threshold (it must flip below) and 12px past it
+  // (it must stay above, with the 24px of clearance the offset leaves).
+  const topmost = extremes[2]!;
+  // The map is near the foot of a short page, which cannot scroll far enough to
+  // lift it to the top of the viewport; room below it is added for this check and
+  // removed after.
+  await page.evaluate(() => {
+    document.body.style.paddingBottom = '1200px';
+  });
+  await placeMap(page, 200);
+  const first = await pointOver(page, topmost.iso);
+  await page.mouse.move(first.x, first.y);
+  await expect(tooltip, `${topmost.iso} measured`).toBeVisible();
+  const tipHeight = (await tooltip.boundingBox())!.height;
+  await page.mouse.move(2, 2);
+  await expect(tooltip).toBeHidden();
+
+  const threshold = tipHeight + 8 + 16 + 8;
+  for (const [label, want] of [
+    ['below', threshold - 12],
+    ['above', threshold + 12],
+  ] as const) {
+    await placeMap(page, 200 + (want - first.y));
+    const at = await pointOver(page, topmost.iso);
+    expect(Math.abs(at.y - want), `${topmost.iso} ${label}: pointer placed`).toBeLessThanOrEqual(1);
+    await page.mouse.move(at.x, at.y);
+    await expect(tooltip, `${topmost.iso} ${label}`).toBeVisible();
+    const box = (await tooltip.boundingBox())!;
+    expect(box.x, `${topmost.iso} ${label} left`).toBeGreaterThanOrEqual(8 - 0.5);
+    expect(box.y, `${topmost.iso} ${label} top`).toBeGreaterThanOrEqual(8 - 0.5);
+    expect(box.x + box.width, `${topmost.iso} ${label} right`).toBeLessThanOrEqual(375 - 8 + 0.5);
+    if (label === 'below') {
+      expect(box.y, `${topmost.iso} flips below its anchor`).toBeGreaterThanOrEqual(at.y);
+    } else {
+      expect(box.y + box.height, `${topmost.iso} stays above its anchor`).toBeLessThanOrEqual(at.y);
+      expect(box.y, `${topmost.iso} keeps the clearance`).toBeGreaterThanOrEqual(24 - 0.5);
+    }
+    await page.mouse.move(2, 2);
+    await expect(tooltip).toBeHidden();
+  }
+
+  await page.evaluate(() => {
+    document.body.style.paddingBottom = '';
+  });
 
   // The ranked list is reachable by keyboard and never widens the page.
   const list = countryList(page);
@@ -818,7 +882,7 @@ test('the summary takes the one, all-logins and many forms, the legend its singl
     [IP.DE, 3],
     [IP.UNKNOWN, 2],
   ];
-  await importExport(page, SYNTHETIC_ZIP_NAME, buildEntriesExport(one));
+  await importAndOpen(page, SYNTHETIC_ZIP_NAME, buildEntriesExport(one), 'login-history');
   await ready(page);
   await expect(summary).toHaveAttribute('data-form', 'one');
   await expect(summary).toHaveText(formatMapSummary(1, 'Germany', 3, 5, 1, 2, 'en-US'));
@@ -831,7 +895,7 @@ test('the summary takes the one, all-logins and many forms, the legend its singl
 
   // One country holding EVERY login: the all-logins form, naming its own base.
   const all: readonly Entry[] = [[IP.DE, 5]];
-  await replaceExport(page, SYNTHETIC_ZIP_NAME, buildEntriesExport(all));
+  await replaceExport(page, SYNTHETIC_ZIP_NAME, buildEntriesExport(all), 'login-history');
   await ready(page);
   await expect(summary).toHaveAttribute('data-form', 'all', { timeout: 30_000 });
   await expect(summary).toHaveText('All 5 logins with a known country came from Germany.');
@@ -843,7 +907,7 @@ test('the summary takes the one, all-logins and many forms, the legend its singl
     [IP.DE, 1],
     [IP.FR, 1],
   ];
-  await replaceExport(page, SYNTHETIC_ZIP_NAME, buildEntriesExport(single));
+  await replaceExport(page, SYNTHETIC_ZIP_NAME, buildEntriesExport(single), 'login-history');
   await ready(page);
   await expect(summary).toHaveAttribute('data-form', 'many', { timeout: 30_000 });
   await expect(summary).toHaveText(formatMapSummary(2, 'France', 1, 2, 0, 0, 'en-US'));
@@ -860,7 +924,7 @@ test('the summary takes the one, all-logins and many forms, the legend its singl
   // Every address unknown: the heading and the sentence, and none of the rest,
   // while the unknown-country tile still carries its count.
   const none: readonly Entry[] = [[IP.UNKNOWN, 3]];
-  await replaceExport(page, SYNTHETIC_ZIP_NAME, buildEntriesExport(none));
+  await replaceExport(page, SYNTHETIC_ZIP_NAME, buildEntriesExport(none), 'login-history');
   await ready(page);
   await expect(page.getByRole('heading', { name: MAP_HEADING })).toBeVisible();
   await expect(summary).toHaveText(MAP_NO_COUNTRIES, { timeout: 30_000 });

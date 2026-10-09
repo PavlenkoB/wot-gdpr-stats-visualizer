@@ -1189,3 +1189,241 @@ describe('04-10: the calendar against the independent session oracle', () => {
     expect(drawn).toBeGreaterThan(model.years.length * 364);
   });
 });
+
+// =============================================================================
+// 08-21 (G-08-3): the heatmaps fill the measured pane width.
+//
+// Numbers come from the plan's worked table and are checked by hand arithmetic:
+// the fill plot is `width - gutter - 4`, column edges are `floor(c * plot / n)`
+// and the row pitch is the narrowest column capped at 24 (calendar) or 48
+// (hour grid). Today's layout is the floor, so every pre-existing test above
+// passes unmodified with no layout argument.
+// =============================================================================
+describe('08-21: calendarLayoutFor', () => {
+  const INVALID: unknown[] = [null, undefined, 0, -5, Number.NaN, Number.POSITIVE_INFINITY, '879'];
+
+  it('returns today layout member for member for invalid input and widths at the floor', async () => {
+    const { calendarLayoutFor, CALENDAR_LAYOUT } = await load();
+    for (const input of [...INVALID, 343, 638]) {
+      const layout = calendarLayoutFor(input);
+      expect(layout.width, `width for ${String(input)}`).toBe(634);
+      expect(layout.height).toBe(97);
+      expect(layout.rowPitch).toBe(11);
+      expect(layout.cellHeight).toBe(10);
+      expect(layout.gutter).toBe(CALENDAR_LAYOUT.gutter);
+      expect(layout.labelPad).toBe(CALENDAR_LAYOUT.labelPad);
+      expect(layout.band).toBe(CALENDAR_LAYOUT.band);
+      expect(layout.maxColumns).toBe(CALENDAR_LAYOUT.maxColumns);
+      expect(layout.weekdayLabelRows).toEqual([...CALENDAR_LAYOUT.weekdayLabelRows]);
+      expect([...layout.colEdges]).toEqual(Array.from({ length: 55 }, (_, c) => 11 * c));
+    }
+  });
+
+  it('639 is the first width that fills: one 12px column and 53 of 11px', async () => {
+    const { calendarLayoutFor } = await load();
+    const layout = calendarLayoutFor(639);
+    expect(layout.width).toBe(639);
+    expect(layout.height).toBe(97);
+    expect(layout.rowPitch).toBe(11);
+    const widths = layout.colEdges.slice(1).map((edge, c) => edge - layout.colEdges[c]!);
+    expect(widths.filter((w) => w === 12)).toHaveLength(1);
+    expect(widths.filter((w) => w === 11)).toHaveLength(53);
+  });
+
+  it('fills 720, 879, 1326, 1500 and 4000px with the stated heights and no upper clamp', async () => {
+    const { calendarLayoutFor } = await load();
+    expect(calendarLayoutFor(720)).toMatchObject({ width: 720, rowPitch: 12, height: 104 });
+
+    const at879 = calendarLayoutFor(879);
+    expect(at879).toMatchObject({ width: 879, rowPitch: 15, cellHeight: 14, height: 125 });
+    expect(at879.colEdges[0]).toBe(0);
+    expect(at879.colEdges[54]).toBe(835);
+    const widths = at879.colEdges.slice(1).map((edge, c) => edge - at879.colEdges[c]!);
+    expect(widths.filter((w) => w === 16)).toHaveLength(25);
+    expect(widths.filter((w) => w === 15)).toHaveLength(29);
+
+    expect(calendarLayoutFor(1326)).toMatchObject({ rowPitch: 23, height: 181 });
+    expect(calendarLayoutFor(1500)).toMatchObject({ rowPitch: 24, height: 188 });
+    expect(calendarLayoutFor(4000)).toMatchObject({ width: 4000, rowPitch: 24 });
+  });
+});
+
+describe('08-21: buildCalendarModel with a layout', () => {
+  const slice = () =>
+    sliceWithDays(
+      [day(2020, 12, 31), day(2021, 3, 14), day(2021, 3, 15)],
+      [3600, 7200, 60],
+      [1, 2, 1],
+    );
+
+  it('defaults to today layout and keeps today geometry', async () => {
+    const { buildCalendarModel, CALENDAR_LAYOUT } = await load();
+    const model = buildCalendarModel(slice());
+    expect(model.layout.width).toBe(CALENDAR_LAYOUT.width);
+    for (const block of model.blocks) {
+      if (block.kind !== 'year') continue;
+      for (const cell of cellsOf(block.rows)) {
+        expect(cell.x).toBe(40 + cell.col * 11);
+        expect(cell.y).toBe(20 + cell.row * 11);
+        expect(cell.width).toBe(10);
+      }
+    }
+  });
+
+  it('at 879px moves geometry only: days, levels, counts and years are identical', async () => {
+    const { buildCalendarModel, calendarLayoutFor } = await load();
+    const base = buildCalendarModel(slice());
+    const layout = calendarLayoutFor(879);
+    const wide = buildCalendarModel(slice(), layout);
+
+    expect(wide.layout).toBe(layout);
+    expect(wide.cellCount).toBe(base.cellCount);
+    expect(wide.years).toEqual(base.years);
+
+    const baseCells = new Map(
+      base.blocks.flatMap((b) => (b.kind === 'year' ? cellsOf(b.rows) : [])).map((c) => [c.day, c]),
+    );
+    for (const block of wide.blocks) {
+      if (block.kind !== 'year') continue;
+      for (const cell of cellsOf(block.rows)) {
+        const before = baseCells.get(cell.day)!;
+        expect([cell.date, cell.seconds, cell.sessions, cell.level, cell.col, cell.row]).toEqual([
+          before.date,
+          before.seconds,
+          before.sessions,
+          before.level,
+          before.col,
+          before.row,
+        ]);
+        expect(cell.x).toBe(40 + layout.colEdges[cell.col]!);
+        expect(cell.y).toBe(20 + cell.row * 15);
+        expect(cell.width).toBe(layout.colEdges[cell.col + 1]! - layout.colEdges[cell.col]! - 1);
+      }
+      for (const label of block.monthLabels) {
+        expect(label.x).toBe(40 + layout.colEdges[label.col]!);
+      }
+    }
+  });
+});
+
+describe('08-21: hourGridLayoutFor', () => {
+  const INVALID: unknown[] = [null, undefined, 0, -5, Number.NaN, Number.POSITIVE_INFINITY, '879'];
+
+  it('returns today layout for invalid input and widths at the floor', async () => {
+    const { hourGridLayoutFor } = await load();
+    for (const input of [...INVALID, 343, 628]) {
+      const layout = hourGridLayoutFor(input);
+      expect(layout.width, `width for ${String(input)}`).toBe(624);
+      expect(layout.height).toBe(192);
+      expect(layout.rowPitch).toBe(24);
+      expect(layout.gutter).toBe(48);
+      expect(layout.band).toBe(24);
+      expect([...layout.colEdges]).toEqual(Array.from({ length: 25 }, (_, c) => 24 * c));
+    }
+  });
+
+  it('629 is the first width that fills: one 25px column', async () => {
+    const { hourGridLayoutFor } = await load();
+    const layout = hourGridLayoutFor(629);
+    expect(layout).toMatchObject({ width: 629, rowPitch: 24 });
+    const widths = layout.colEdges.slice(1).map((edge, c) => edge - layout.colEdges[c]!);
+    expect(widths.filter((w) => w === 25)).toHaveLength(1);
+    expect(widths.filter((w) => w === 24)).toHaveLength(23);
+  });
+
+  it('fills 720, 879, 1326 and 4000px with the stated pitches and no upper clamp', async () => {
+    const { hourGridLayoutFor } = await load();
+    expect(hourGridLayoutFor(720)).toMatchObject({ width: 720, rowPitch: 27, height: 213 });
+
+    const at879 = hourGridLayoutFor(879);
+    expect(at879).toMatchObject({ width: 879, rowPitch: 34, height: 262 });
+    const widths = at879.colEdges.slice(1).map((edge, c) => edge - at879.colEdges[c]!);
+    expect(widths.filter((w) => w === 35)).toHaveLength(11);
+    expect(widths.filter((w) => w === 34)).toHaveLength(13);
+
+    expect(hourGridLayoutFor(1326)).toMatchObject({ rowPitch: 48, height: 360 });
+    expect(hourGridLayoutFor(4000)).toMatchObject({ width: 4000, rowPitch: 48 });
+  });
+});
+
+describe('08-21: buildHourGridModel with a layout', () => {
+  const slice = () => {
+    const base = sliceWithDays([], [], []);
+    base.hourOverlap[0] = 3600;
+    base.hourOverlap[167] = 60;
+    return base;
+  };
+
+  it('defaults to today layout and keeps today geometry', async () => {
+    const { buildHourGridModel, HOUR_GRID_LAYOUT } = await load();
+    const model = buildHourGridModel(slice());
+    expect(model.layout.width).toBe(HOUR_GRID_LAYOUT.width);
+    expect(model.cells).toHaveLength(168);
+    for (const cell of model.cells) {
+      expect(cell.x).toBe(48 + cell.hour * 24);
+      expect(cell.width).toBe(24);
+    }
+  });
+
+  it('at 879px places 168 cells on the distributed columns and keeps navigation', async () => {
+    const { buildHourGridModel, hourGridLayoutFor, hourGridNavigate } = await load();
+    const layout = hourGridLayoutFor(879);
+    const model = buildHourGridModel(slice(), undefined, layout);
+    expect(model.cells).toHaveLength(168);
+
+    const last = model.cells[167]!;
+    expect(last.x).toBe(48 + layout.colEdges[23]!);
+    expect(last.y).toBe(24 + 6 * 34);
+
+    for (const label of model.hourLabels) {
+      const left = 48 + layout.colEdges[label.hour]!;
+      const right = 48 + layout.colEdges[label.hour + 1]!;
+      expect(label.x).toBe((left + right) / 2);
+    }
+
+    expect(hourGridNavigate(30, 'ArrowRight')).toBe(31);
+    expect(hourGridNavigate(167, 'End')).toBe(167);
+    expect(hourGridNavigate(0, 'ArrowUp')).toBe(0);
+  });
+});
+
+describe('08-21: the fill property over every measured width', () => {
+  it('svg equals the measured width, columns differ by at most 1px and the ring fits', async () => {
+    const { calendarLayoutFor, hourGridLayoutFor } = await load();
+
+    const check = (
+      name: string,
+      width: number,
+      layout: {
+        width: number;
+        gutter: number;
+        colEdges: readonly number[];
+      },
+      today: number,
+    ): void => {
+      if (layout.width === today) {
+        expect(width, `${name} floor only below the fill threshold`).toBeLessThanOrEqual(today + 4);
+        return;
+      }
+      const edges = layout.colEdges;
+      expect(layout.width, `${name} svg width at ${width}`).toBe(width);
+      expect(edges[0]).toBe(0);
+      expect(edges.at(-1), `${name} plot at ${width}`).toBe(width - layout.gutter - 4);
+      const widths = edges.slice(1).map((edge, c) => edge - edges[c]!);
+      for (const w of widths) expect(w).toBeGreaterThan(0);
+      expect(
+        Math.max(...widths) - Math.min(...widths),
+        `${name} spread at ${width}`,
+      ).toBeLessThanOrEqual(1);
+      // The last column's right edge plus the 3.5px ring overhang stays inside the svg.
+      expect(layout.gutter + edges.at(-1)! + 3.5, `${name} ring at ${width}`).toBeLessThanOrEqual(
+        layout.width,
+      );
+    };
+
+    for (let width = 300; width <= 4000; width += 1) {
+      check('calendar', width, calendarLayoutFor(width), 634);
+      check('hour grid', width, hourGridLayoutFor(width), 624);
+    }
+  });
+});

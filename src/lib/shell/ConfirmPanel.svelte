@@ -12,6 +12,7 @@
   let { message, confirmLabel, cancelLabel, onconfirm, oncancel }: Props = $props();
 
   let cancelButton: HTMLButtonElement | undefined = $state();
+  let commitButton: HTMLButtonElement | undefined = $state();
 
   // Focus moves to the safe answer the moment the panel appears. The panel
   // can be opened from three different places, two of which are inside the
@@ -21,6 +22,29 @@
   // done in code rather than with the element's own mount-time focus
   // attribute, which the svelte accessibility lint flags.
   onMount(() => cancelButton?.focus());
+
+  // The panel declares `aria-modal`, so it also owns the keys a dialog owns
+  // (WR-05). The handler is on the panel root ONLY (Phase 8 D-05: no window or
+  // document listener, so no key is taken from a chart or a field). Escape
+  // cancels. Tab wraps between the two buttons: forward from the last goes to
+  // the first, and Shift+Tab from the first goes to the last. Any other Tab
+  // press is left to the browser, which moves between the two buttons anyway.
+  function onKeydown(event: KeyboardEvent): void {
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    if (event.key === 'Escape' && !event.shiftKey) {
+      event.preventDefault();
+      oncancel();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    if (!event.shiftKey && document.activeElement === commitButton) {
+      event.preventDefault();
+      cancelButton?.focus();
+    } else if (event.shiftKey && document.activeElement === cancelButton) {
+      event.preventDefault();
+      commitButton?.focus();
+    }
+  }
 </script>
 
 <!--
@@ -39,10 +63,25 @@
   cached data trigger buttons themselves stay neutral grey so the
   "point of no return" is unambiguous).
 
+  Keys: Escape cancels, and Tab / Shift+Tab wrap between the two buttons, so
+  focus cannot leave the panel by keyboard while it is open. The safe button is
+  still focused first.
+
   Body copy and labels are passed in as props — never inline strings
   in this file — so all destructive-confirm copy lives in ui-copy.ts.
 -->
-<div role="alertdialog" aria-modal="true" data-testid="confirm-panel" class="confirm-panel">
+<!--
+  The panel root owns the dialog's keys but is never focused itself (focus lives
+  on its two buttons), so it needs no tabindex.
+-->
+<!-- svelte-ignore a11y_interactive_supports_focus -->
+<div
+  role="alertdialog"
+  aria-modal="true"
+  data-testid="confirm-panel"
+  class="confirm-panel"
+  onkeydown={onKeydown}
+>
   <p class="confirm-message">{message}</p>
   <div class="confirm-actions">
     <button
@@ -52,8 +91,12 @@
       bind:this={cancelButton}
       onclick={oncancel}>{cancelLabel}</button
     >
-    <button type="button" class="confirm-commit" data-testid="confirm-commit" onclick={onconfirm}
-      >{confirmLabel}</button
+    <button
+      type="button"
+      class="confirm-commit"
+      data-testid="confirm-commit"
+      bind:this={commitButton}
+      onclick={onconfirm}>{confirmLabel}</button
     >
   </div>
 </div>
@@ -78,8 +121,8 @@
     border: 1px solid #f9ab00;
     border-radius: 6px;
     background: #fef7e0;
-    color: #202124;
-    font-size: 16px;
+    color: var(--ink);
+    font-size: 14px;
     line-height: 1.5;
   }
 
@@ -96,15 +139,15 @@
   /* Neutral dismiss button (UI-SPEC "Destructive-trigger design rule"):
      the secondary button of every destructive confirm must be NEUTRAL,
      not red. Destructive color is reserved for the COMMIT button only.
-     Reuses the neutral-info palette (border #80868b, default text
-     color, hover background #f1f3f4) the duplicate-loaded banner and
-     "Imported on ..." timestamp use. */
+     Reads the declared tokens (control border var(--faint), default text
+     color, hover background var(--hover)), the neutral palette the
+     duplicate-loaded banner and "Imported on ..." timestamp use. */
   .confirm-cancel {
     padding: 8px 16px;
-    border: 1px solid #80868b;
+    border: 1px solid var(--faint);
     border-radius: 6px;
-    background: #fff;
-    color: #3c4043;
+    background: var(--page);
+    color: var(--text);
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
@@ -112,11 +155,11 @@
   }
 
   .confirm-cancel:hover {
-    background: #f1f3f4;
+    background: var(--hover);
   }
 
   .confirm-cancel:focus-visible {
-    outline: 3px solid #1a73e8;
+    outline: 3px solid var(--focus);
     outline-offset: 2px;
   }
 
@@ -143,7 +186,7 @@
   }
 
   .confirm-commit:focus-visible {
-    outline: 3px solid #1a73e8;
+    outline: 3px solid var(--focus);
     outline-offset: 2px;
   }
 </style>

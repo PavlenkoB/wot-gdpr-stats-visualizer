@@ -1,6 +1,15 @@
 import '../_support/pin-locale';
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { SYNTHETIC_ZIP_NAME, gotoApp, importExport, spendBlock } from '../_support/helpers.ts';
+import {
+  SYNTHETIC_ZIP_NAME,
+  currencyBlock,
+  gotoApp,
+  importAndOpen,
+  importExport,
+  openSection,
+  premiumBlock,
+  spendBlock,
+} from '../_support/helpers.ts';
 import {
   buildCustomExport,
   buildSampleExport,
@@ -160,6 +169,9 @@ test.describe('05-15 real-money spend: the sample export', () => {
     page = await context.newPage();
     await gotoApp(page);
     await importExport(page, SYNTHETIC_ZIP_NAME, buildSampleExport());
+    // An import lands on Overview (R1), where the spend block is not mounted:
+    // the four tests below share this page and all read the Payments pane.
+    await openSection(page, 'payments');
   });
 
   test.afterAll(async () => {
@@ -541,9 +553,46 @@ test.describe('05-15 real-money spend: the no-blended criterion and the states',
     await gotoApp(page);
     await importExport(page, SYNTHETIC_ZIP_NAME, buildSampleExport());
 
-    // STRUCTURE first, because it is the half that cannot be argued with: one
+    // EVERY PANE THAT CAN SHOW MONEY (R4). Only the open pane's section is in
+    // the DOM, so the page-wide claim "nothing anywhere is a figure across
+    // currencies" is made by looking at each of them in turn: Overview (where an
+    // import lands, and which carries the list pane's headlines), Finance (the
+    // premium and virtual-currency blocks) and Payments (the spend block). The
+    // same surface is built for each, and the same figures are refused in each.
+    //
+    // The surface is every word a reader can see (the text content and the
+    // document title) and every `title` and `aria-label` attribute on the page.
+    // A tooltip or a `title` is exactly where a "convenient" grand total would be
+    // added without touching the layout.
+    const surfaces: string[] = [];
+    const collectSurface = async (): Promise<string> => {
+      const pageText = (await page.locator('body').textContent()) ?? '';
+      const attributes = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('[title], [aria-label]'))
+          .map((el) => `${el.getAttribute('title') ?? ''} ${el.getAttribute('aria-label') ?? ''}`)
+          .join(' '),
+      );
+      return `${pageText} ${await page.title()} ${attributes}`;
+    };
+
+    await openSection(page, 'overview');
+    surfaces.push(await collectSurface());
+
+    await openSection(page, 'finance');
+    // Scan the blocks once they have answered, so the absence below is a
+    // statement about a rendered block and not about one still loading.
+    await expect(premiumBlock(page)).toHaveAttribute('data-state', 'ready');
+    await expect(currencyBlock(page)).toHaveAttribute('data-state', 'ready');
+    surfaces.push(await collectSurface());
+
+    await openSection(page, 'payments');
+    await expect(spendBlock(page)).toHaveAttribute('data-state', 'ready');
+    surfaces.push(await collectSurface());
+
+    // STRUCTURE next, because it is the half that cannot be argued with: one
     // total per card, every total inside a card, and no total anywhere else on
-    // the page. A blended figure is easiest to prove by where it ISN'T.
+    // the page. A blended figure is easiest to prove by where it ISN'T. The
+    // Payments pane is open now, so the spend block is in the DOM.
     const totals = page.getByTestId('spend-total');
     await expect(totals).toHaveCount(EXPECTED_CARDS.length);
     const orphanTotals = page.locator(
@@ -560,35 +609,26 @@ test.describe('05-15 real-money spend: the no-blended criterion and the states',
     await expect(intro).toHaveCount(1);
     expect(await intro.textContent()).toMatch(/\D/);
 
-    // Every word a reader can see, in the block and on the page: the text
-    // content, the document title, and every `title` and `aria-label`
-    // attribute inside the block. A tooltip or a `title` is exactly where a
-    // "convenient" grand total would be added without touching the layout.
     const blockText = (await spendBlock(page).textContent()) ?? '';
-    const pageText = (await page.locator('body').textContent()) ?? '';
-    const attributes = await spendBlock(page).evaluate((node) =>
-      Array.from(node.querySelectorAll('[title], [aria-label]'))
-        .map((el) => `${el.getAttribute('title') ?? ''} ${el.getAttribute('aria-label') ?? ''}`)
-        .join(' '),
-    );
-    const surface = `${blockText} ${pageText} ${await page.title()} ${attributes}`;
 
     // The five-currency sum, under both roundings, and each with a code in
-    // front of it.
-    for (const figure of [
-      BLENDED_FIGURES.exactText,
-      BLENDED_FIGURES.floatText,
-      `USD ${BLENDED_FIGURES.exactText}`,
-      `USD ${BLENDED_FIGURES.floatText}`,
-      String(BLENDED_FIGURES.exactText).replace(/,/g, ''),
-    ]) {
-      expect(surface).not.toContain(figure);
-    }
-    // …and any two cards' headlines added together, which is the subtler
-    // version of the same mistake: one card's total quietly including another's
-    // rows.
-    for (const figure of BLENDED_FIGURES.pairwise) {
-      expect(surface).not.toContain(figure);
+    // front of it, refused on every pane's surface.
+    for (const surface of surfaces) {
+      for (const figure of [
+        BLENDED_FIGURES.exactText,
+        BLENDED_FIGURES.floatText,
+        `USD ${BLENDED_FIGURES.exactText}`,
+        `USD ${BLENDED_FIGURES.floatText}`,
+        String(BLENDED_FIGURES.exactText).replace(/,/g, ''),
+      ]) {
+        expect(surface).not.toContain(figure);
+      }
+      // …and any two cards' headlines added together, which is the subtler
+      // version of the same mistake: one card's total quietly including another's
+      // rows.
+      for (const figure of BLENDED_FIGURES.pairwise) {
+        expect(surface).not.toContain(figure);
+      }
     }
 
     // The headline figures themselves ARE on the page, one per card — so the
@@ -611,10 +651,11 @@ test.describe('05-15 real-money spend: the no-blended criterion and the states',
     // exist and none of them is one I can read" and "there is nothing here"
     // are different facts.
     await gotoApp(page);
-    await importExport(
+    await importAndOpen(
       page,
       SYNTHETIC_ZIP_NAME,
       buildCustomExport({ overrides: { 'Payment_history/Orders.csv': NO_USABLE_ORDERS } }),
+      'payments',
     );
 
     const card = page.getByTestId('dashboard-section-payment-history');
@@ -639,7 +680,7 @@ test.describe('05-15 real-money spend: the no-blended criterion and the states',
     // recognisable status" would blame the export for holding no orders at
     // all — two different facts (05-12/05-13's rule, D-09's ladder).
     await gotoApp(page);
-    await importExport(page, SYNTHETIC_ZIP_NAME, buildZeroRowPaymentExport());
+    await importAndOpen(page, SYNTHETIC_ZIP_NAME, buildZeroRowPaymentExport(), 'payments');
 
     const card = page.getByTestId('dashboard-section-payment-history');
     await expect(card).toHaveAttribute('data-status', 'empty', { timeout: 30_000 });
@@ -652,7 +693,7 @@ test.describe('05-15 real-money spend: the no-blended criterion and the states',
     page,
   }) => {
     await gotoApp(page);
-    await importExport(page, SYNTHETIC_ZIP_NAME, buildSampleExport());
+    await importAndOpen(page, SYNTHETIC_ZIP_NAME, buildSampleExport(), 'payments');
     await expect(spendBlock(page)).toHaveAttribute('data-state', 'ready');
 
     // T-05-47. The canaries are in the sample's EVERY order row, so this is a
@@ -662,14 +703,27 @@ test.describe('05-15 real-money spend: the no-blended criterion and the states',
     // Searched in the page CONTENT and in every attribute, because a value can
     // reach a reader through a `title` or an `aria-label` with no text change
     // at all.
-    const content = (await page.locator('body').textContent()) ?? '';
-    const attributes = await page.evaluate(() =>
-      Array.from(document.querySelectorAll('*'))
-        .flatMap((el) => Array.from(el.attributes))
-        .map((attr) => `${attr.name}=${attr.value}`)
-        .join(' '),
-    );
-    const surface = `${content} ${attributes}`;
+    //
+    // Only the open pane is in the DOM (R4), so the surface is built in the
+    // Payments pane first, then again on Overview and with the list pane's own
+    // text read on its own: the canaries must be absent from every place a
+    // figure from this export can be shown.
+    const readSurface = async (): Promise<string> => {
+      const content = (await page.locator('body').textContent()) ?? '';
+      const attributes = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('*'))
+          .flatMap((el) => Array.from(el.attributes))
+          .map((attr) => `${attr.name}=${attr.value}`)
+          .join(' '),
+      );
+      return `${content} ${attributes}`;
+    };
+    const surfaces = [await readSurface()];
+    await openSection(page, 'overview');
+    surfaces.push(await readSurface());
+    surfaces.push((await page.getByTestId('list-pane').textContent()) ?? '');
+    await openSection(page, 'payments');
+    surfaces.push(await readSurface());
 
     // The four STRING canaries, named rather than taken from `Object.values`:
     // the fixture also carries `orderIdPattern`, a RegExp, and `toContain` on a
@@ -683,13 +737,15 @@ test.describe('05-15 real-money spend: the no-blended criterion and the states',
       FINANCE_CANARIES.aggregator,
       FINANCE_CANARIES.package,
     ]) {
-      expect(surface).not.toContain(canary);
+      for (const surface of surfaces) expect(surface).not.toContain(canary);
     }
     // The column NAMES are asserted too: a builder that resolved a column and
     // rendered its header would satisfy the canary half while still telling a
     // reader the export has a coupon column, which is the same disclosure in
     // a different costume.
-    expect(surface).not.toMatch(/ORDER_UUID|PAY_COUPON_NAME|PAY_AGGREGATOR_DESC|AA_PACKAGE_LIST/);
+    for (const surface of surfaces) {
+      expect(surface).not.toMatch(/ORDER_UUID|PAY_COUPON_NAME|PAY_AGGREGATOR_DESC|AA_PACKAGE_LIST/);
+    }
   });
 
   for (const width of [375, 720]) {
@@ -702,10 +758,11 @@ test.describe('05-15 real-money spend: the no-blended criterion and the states',
       // is present.
       await page.setViewportSize({ width, height: 900 });
       await gotoApp(page);
-      await importExport(
+      await importAndOpen(
         page,
         SYNTHETIC_ZIP_NAME,
         buildCustomExport({ overrides: { 'Payment_history/Orders.csv': LONG_TEXT_ORDERS } }),
+        'payments',
       );
       await expect(spendBlock(page)).toHaveAttribute('data-state', 'ready');
 
