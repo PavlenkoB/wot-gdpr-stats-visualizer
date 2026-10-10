@@ -295,3 +295,10 @@ None - no external service configuration required.
 
 *Phase: 01-ingest-foundation-zero-network-guard*
 *Completed: 2026-09-28*
+
+## Correction notes (gap closure 01-12, 2026-10-10)
+
+The text above is the historical record of what plan 01-01 did and was true when written; the points below are where a later phase changed the current tree on purpose. Evidence and re-run commands for each point live in `.planning/phases/01-ingest-foundation-zero-network-guard/01-SUPERSESSIONS.md`.
+
+- **CSP directive (record G2).** Claim: the build-time CSP meta carries `default-src 'self'; connect-src 'none'` (frontmatter provides near line 12, the CSP artifact at lines 100 and 107, and the deviation text at lines 241-245 that greps `connect-src 'none'` in `dist/index.html`). True now: `connect-src` is `'self'` (`vite.config.ts` line 40, asserted exactly by `tests/e2e/guards/zero-network.spec.ts` lines 95 and 118). `default-src 'self'` and the meta tag placement before the module script are unchanged. Superseded by: plan 06-11 (D-16), because the one opt-in city file is same-origin; documented in `vite.config.ts` and `AGENTS.md` line 73. Record: G2 in `01-SUPERSESSIONS.md`.
+- **Success heading (record G3).** Claim: the bare tracer renders the heading "Account: {raw ID}" / 'Account: 123456789' (lines 16, 141 and 145). True now: the root is shown as "Account ID: <root>" by `formatAccountId` (`src/lib/ui-copy.ts` lines 443-445) in `src/lib/shell/IdentityHeader.svelte` (line 112). Superseded by: Phase 3 plan 03-04 (D-23, results view retired) and plan 03-07 (IDENTITY-01, old heading helper deleted). The worker-side root detection the tracer proved is unchanged. Record: G3 in `01-SUPERSESSIONS.md`.

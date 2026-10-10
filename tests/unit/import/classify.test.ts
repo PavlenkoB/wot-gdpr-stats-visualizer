@@ -7,6 +7,7 @@ import {
   SAMPLE_EXPECTED_COUNTS,
   SAMPLE_FILE_COUNTS,
   WRAPPER_FOLDER_NAME,
+  buildAmbiguousRootExport,
   buildBackslashExport,
   buildDirectoryEntriesExport,
   buildEmptyZip,
@@ -659,5 +660,191 @@ describe('analyzeExport — priority inversion + empty-root guard (CR-01 / WR-06
       ok: false,
       reason: 'no-recognized-category',
     });
+  });
+});
+
+// =============================================================================
+// CR-01 / W-1 (plan 01-11): an ambiguous root fails closed
+// =============================================================================
+//
+// 01-07 put the rootless read first, so `123/User_Info/...` +
+// `123/Activity_history/...` beside a recognized `Clans/` was read as
+// "rootless, with `123` an unknown category" and the real account folder's
+// Account_Info was parsed under category '123' (no strip, LOGIN persisted).
+// The rootless read is only allowed to claim "there is no account folder"
+// when no unknown top-level folder holds a recognized category beneath it.
+//
+// The ambiguity read is applied ONLY where the resolved root would be ''.
+// A real account root is never examined (the residual below), because under
+// a real root an unknown folder holding a category-named subfolder is
+// ordinary nested data; plan 01-13's header-based strip protects that shape.
+// =============================================================================
+
+describe('analyzeExport — ambiguous root fails closed (CR-01 / W-1, plan 01-11)', () => {
+  test('the review repro fails with ambiguous-root, never ok with accountRoot ""', () => {
+    expect(
+      analyzeExport([
+        '123/User_Info/Account_Info.csv',
+        '123/Activity_history/a.csv',
+        'Clans/b.csv',
+      ]),
+    ).toEqual({ ok: false, reason: 'ambiguous-root' });
+  });
+
+  test('the repro fixture bytes classify exactly like the literal paths (the worker test ingests these bytes)', () => {
+    expect(analyzeExport(pathsOf(buildAmbiguousRootExport()))).toEqual({
+      ok: false,
+      reason: 'ambiguous-root',
+    });
+  });
+
+  test('transparent-wrapper strategy: an unknown folder beside the categories holding User_Info is ambiguous', () => {
+    expect(
+      analyzeExport([
+        'personal_data_export/Activity_history/a.csv',
+        'personal_data_export/123/User_Info/x.csv',
+      ]),
+    ).toEqual({ ok: false, reason: 'ambiguous-root' });
+  });
+
+  test('a recognized folder two levels beneath an unknown top-level folder is ambiguous', () => {
+    expect(
+      analyzeExport(['Activity_history/a.csv', 'Wrapper/123/User_Info/Account_Info.csv']),
+    ).toEqual({ ok: false, reason: 'ambiguous-root' });
+  });
+
+  test('boundary: a recognized folder at directory depth 4 beneath the unknown folder is examined', () => {
+    // The Activity_history sibling is what routes the archive to the rootless
+    // read; without it the single-child descent resolves it to accountRoot
+    // 'c' for the wrong reason.
+    expect(analyzeExport(['Activity_history/a.csv', 'T/a/b/c/Clans/x.csv'])).toEqual({
+      ok: false,
+      reason: 'ambiguous-root',
+    });
+  });
+
+  test('boundary: a recognized folder at directory depth 5 is not examined and the archive classifies ok', () => {
+    const outcome = analyzeExport(['Activity_history/a.csv', 'T/a/b/c/d/Clans/x.csv']);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.accountRoot).toBe('');
+    expect(outcome.result.categories).toEqual([
+      { name: 'Activity_history', status: 'supported', fileCount: 1 },
+      { name: 'T', status: 'unknown', fileCount: 1 },
+    ]);
+  });
+
+  test('a directory entry alone is enough to make the unknown folder a root candidate', () => {
+    expect(analyzeExport(['Activity_history/a.csv', 'Wrapper/123/User_Info/'])).toEqual({
+      ok: false,
+      reason: 'ambiguous-root',
+    });
+  });
+
+  test('classification is case-insensitive: a lower-case user_info beneath the unknown folder is ambiguous', () => {
+    expect(
+      analyzeExport(['Activity_history/a.csv', 'Wrapper/123/user_info/Account_Info.csv']),
+    ).toEqual({ ok: false, reason: 'ambiguous-root' });
+  });
+
+  test('RESEARCH Pitfall 1 preserved: an unknown folder with NO recognized category beneath it stays an unknown entry', () => {
+    const outcome = analyzeExport(['Activity_history/a.csv', 'Misc/x.csv']);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.accountRoot).toBe('');
+    expect(outcome.result.categories).toEqual([
+      { name: 'Activity_history', status: 'supported', fileCount: 1 },
+      { name: 'Misc', status: 'unknown', fileCount: 1 },
+    ]);
+  });
+
+  test('residual (T-01-45): a REAL account root is never examined, so an unknown folder holding User_Info beneath it is accepted', () => {
+    // Deliberately NOT rejected here. The privacy guarantee for this shape
+    // is carried by plan 01-13 (strip keyed on the header name); this pin
+    // makes the residual visible so it is not mistaken for a gap.
+    const outcome = analyzeExport([
+      '123/Activity_history/a.csv',
+      '123/Weird/User_Info/Account_Info.csv',
+    ]);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.accountRoot).toBe('123');
+    expect(outcome.result.categories).toEqual([
+      { name: 'Activity_history', status: 'supported', fileCount: 1 },
+      { name: 'Weird', status: 'unknown', fileCount: 1 },
+    ]);
+  });
+
+  test('invariant: the wrapper-around-account shape still resolves accountRoot "1234567"', () => {
+    const outcome = analyzeExport(['WrapperName/1234567/Activity_history/a.csv']);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.accountRoot).toBe('1234567');
+  });
+
+  test('invariant: the rootless shape and the transparent wrapper still resolve accountRoot ""', () => {
+    const rootless = analyzeExport(['Activity_history/a.csv', 'Payment_history/b.csv']);
+    expect(rootless.ok).toBe(true);
+    if (rootless.ok) expect(rootless.result.accountRoot).toBe('');
+
+    const wrapped = analyzeExport(['personal_data_export/Activity_history/foo.csv']);
+    expect(wrapped.ok).toBe(true);
+    if (wrapped.ok) expect(wrapped.result.accountRoot).toBe('');
+  });
+
+  test('invariant: the ambiguous-wrapper shape keeps no-recognized-category (not the new reason)', () => {
+    expect(analyzeExport(['w/x/Activity_history/a.csv', 'w/y/Payment_history/b.csv'])).toEqual({
+      ok: false,
+      reason: 'no-recognized-category',
+    });
+  });
+
+  test('invariant: the sample, wrapper and rootless fixtures and every failure fixture keep their exact outcome', () => {
+    for (const bytes of [buildSampleExport(), buildWrapperExport(), buildRootlessExport()]) {
+      expect(analyzeExport(pathsOf(bytes)).ok).toBe(true);
+    }
+    expect(analyzeExport(pathsOf(buildEmptyZip()))).toEqual({
+      ok: false,
+      reason: 'empty-archive',
+    });
+    expect(analyzeExport(pathsOf(buildMultiRootZip()))).toEqual({
+      ok: false,
+      reason: 'no-single-root',
+    });
+    expect(analyzeExport(pathsOf(buildFilesOnlyUnderRootZip()))).toEqual({
+      ok: false,
+      reason: 'no-category-folders',
+    });
+    expect(analyzeExport(pathsOf(buildNoRecognizedCategoryZip()))).toEqual({
+      ok: false,
+      reason: 'no-recognized-category',
+    });
+  });
+});
+
+describe('analyzeExport — a recognized folder with no CSV data is rejected (windows #3)', () => {
+  test('a rootless zip whose recognized folder holds only a non-CSV file fails with no-csv-data', () => {
+    expect(analyzeExport(['Payment_history/invoice.pdf'])).toEqual({
+      ok: false,
+      reason: 'no-csv-data',
+    });
+  });
+
+  test('the same shape under an account root also fails', () => {
+    expect(analyzeExport(['123/Payment_history/invoice.pdf', '123/Activity_history/'])).toEqual({
+      ok: false,
+      reason: 'no-csv-data',
+    });
+  });
+
+  test('the extension match is case-insensitive and one CSV anywhere is enough', () => {
+    expect(analyzeExport(['Payment_history/INVOICE.CSV']).ok).toBe(true);
+    expect(analyzeExport(['123/Activity_history/a.csv', '123/Payment_history/x.pdf']).ok).toBe(
+      true,
+    );
+  });
+
+  test('a real-shape export is unaffected', () => {
+    expect(analyzeExport(pathsOf(buildSampleExport())).ok).toBe(true);
   });
 });

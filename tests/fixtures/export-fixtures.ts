@@ -589,6 +589,35 @@ export function buildRootlessExport(): Uint8Array {
 }
 
 /**
+ * CR-01 / W-1 fixture (01-REVIEW.md, plan 01-11): the review's three-path
+ * repro as real zip bytes.
+ *
+ * The folder `123` is a REAL account root: it holds `User_Info` and
+ * `Activity_history`. `Clans` sits BESIDE it at the top level. The shape has
+ * two readings: "rootless, with `123` an unknown category" or "`123` is the
+ * account, and `Clans` is a stray". Before plan 01-11 the rootless read won
+ * because `Clans` is a recognized category, so `123` was filed as an unknown
+ * category, `123/User_Info/Account_Info.csv` was parsed under category
+ * `'123'` (whose name is not User_Info, so the folder-name strip never ran)
+ * and LOGIN plus the birth columns reached IndexedDB.
+ *
+ * The importer must refuse this archive rather than guess. The three file
+ * bodies are the sample's own bytes (Account_Info with the real LOGIN,
+ * BIRTH_DATE and BIRTH_DATE_SRC cells, the Sessions row, the Clan_membership
+ * row), encoded the way `sampleEntries` encodes them.
+ */
+export function buildAmbiguousRootExport(): Uint8Array {
+  const encode = (s: string): Uint8Array => new TextEncoder().encode(s);
+  return zipSync({
+    '123/User_Info/Account_Info.csv': encode(
+      CRLF + ACCOUNT_INFO_HEADER + CRLF + ACCOUNT_INFO_ROW + CRLF,
+    ),
+    '123/Activity_history/a.csv': encode(SESSIONS_HEADER + CR + SESSIONS_ROW + CR),
+    'Clans/b.csv': encode(CRLF + CLAN_MEMBERSHIP_HEADER + CRLF + CLAN_MEMBERSHIP_ROW + CRLF),
+  });
+}
+
+/**
  * Plain UTF-8 English sentence — not a zip at all.
  */
 export function buildNotAZipBytes(): Uint8Array {
@@ -1285,4 +1314,147 @@ export function buildLongTextExport(): Uint8Array {
       [`${LONG_UNKNOWN_FOLDER}/Synthetic.csv`]: renderCsv('PART_ID;VALUE', [['1', 'synthetic']]),
     },
   });
+}
+
+/**
+ * The overflow cell of the ragged control row in `buildMisfiledAccountInfoExport()`.
+ * The row's header declares two columns and the row carries three cells, so
+ * PapaParse files this value under `__parsed_extra`. A row with no deny-listed
+ * header must keep that bucket (plan 01-13, T-01-49): the value is how a test
+ * tells "the strip was narrowed to the header" from "every row is sanitised".
+ */
+export const RAGGED_OVERFLOW_MARKER = 'CANARY-RAGGED-OVERFLOW-CELL';
+
+/**
+ * CR-01 layer 2 fixture (01-REVIEW.md, plan 01-13): the sample plus three
+ * copies of the real `Account_Info.csv` filed where the folder-name strip does
+ * not look, and one ragged control file.
+ *
+ * Each extra file is a shape classification STILL ACCEPTS, so the guarantee
+ * that LOGIN / BIRTH_DATE / BIRTH_DATE_SRC never rest in IndexedDB has to hold
+ * without depending on the folder name:
+ *
+ *   - `UserInfo/Account_Info.csv`: a renamed folder (an unknown category);
+ *   - `Weird/User_Info/Account_Info.csv`: a nest under an unknown folder inside
+ *     a real account root (category `Weird`, source file
+ *     `User_Info/Account_Info.csv`);
+ *   - `Activity_history/Account_Info.csv`: a supported category that is not
+ *     `User_Info`.
+ *
+ * Each copy is byte-for-byte the sample's Account_Info (same leading and
+ * trailing CRLF), so its LOGIN, BIRTH_DATE and BIRTH_DATE_SRC cells hold the
+ * fixture's synthetic values and IP holds `SAMPLE_IP`.
+ *
+ * `Misc/Ragged.csv` is the control: header `ID;NAME`, one row of three cells
+ * whose third is `RAGGED_OVERFLOW_MARKER`. It has no deny-listed header, so it
+ * must come out of the import exactly as before, overflow bucket included.
+ */
+export function buildMisfiledAccountInfoExport(): Uint8Array {
+  const accountInfo = CRLF + ACCOUNT_INFO_HEADER + CRLF + ACCOUNT_INFO_ROW + CRLF;
+  return buildCustomExport({
+    overrides: {
+      'UserInfo/Account_Info.csv': accountInfo,
+      'Weird/User_Info/Account_Info.csv': accountInfo,
+      'Activity_history/Account_Info.csv': accountInfo,
+      'Misc/Ragged.csv': renderCsv('ID;NAME', [['1', 'Ragged Row', RAGGED_OVERFLOW_MARKER]]),
+    },
+  });
+}
+
+/**
+ * CR-01 layer 2 fixture, the beyond-bound shape (plan 01-13): a ROOTLESS
+ * archive whose `User_Info` sits deeper than plan 01-11's ambiguity rule looks.
+ *
+ *   Activity_history/Sessions.csv
+ *   Wrapper/a/b/c/d/User_Info/Account_Info.csv
+ *
+ * Depth arithmetic, so a change to `MAX_WRAPPER_DEPTH` in classify.ts makes the
+ * reason for this shape discoverable: the ambiguity rule drops the file name
+ * and the first segment (`Wrapper`) and examines at most `MAX_WRAPPER_DEPTH`
+ * (4) directory segments beneath it, here `a/b/c/d`. `User_Info` is the FIFTH
+ * directory level, one past the bound, so the rule never sees it and layer 1
+ * accepts the archive: `Wrapper` becomes an unknown category and the account
+ * file is parsed under a category whose name is not `User_Info`. Only the
+ * header-keyed strip keeps LOGIN and the birth columns out of IndexedDB.
+ *
+ * Both bodies are the sample's own bytes (the Sessions header and row, the
+ * Account_Info with its real LOGIN, BIRTH_DATE and BIRTH_DATE_SRC cells),
+ * encoded the way `sampleEntries` encodes them. If `MAX_WRAPPER_DEPTH` grows,
+ * deepen the nest here so it stays one level past the bound.
+ */
+export function buildBeyondBoundNestExport(): Uint8Array {
+  const encode = (s: string): Uint8Array => new TextEncoder().encode(s);
+  return zipSync({
+    'Activity_history/Sessions.csv': encode(SESSIONS_HEADER + CR + SESSIONS_ROW + CR),
+    'Wrapper/a/b/c/d/User_Info/Account_Info.csv': encode(
+      CRLF + ACCOUNT_INFO_HEADER + CRLF + ACCOUNT_INFO_ROW + CRLF,
+    ),
+  });
+}
+
+/**
+ * WR-03 fixture (01-REVIEW.md, plan 01-14): the sample archive in which ONE
+ * entry, `Activity_history/Sessions.csv`, claims an uncompressed size the
+ * central directory does not back with bytes.
+ *
+ * ## Why this is safe to build and to ingest
+ *
+ * The entry is STORED (compression method 0, `level: 0`). fflate returns a
+ * stored entry as a slice of the archive and never allocates from the declared
+ * size, so the red state of the test that uses this archive (a worker that has
+ * no cap) allocates nothing: it simply accepts the entry and finishes. Only a
+ * DEFLATED entry would make fflate call `new Uint8Array(originalSize)`, which
+ * is exactly the allocation the cap in `inflate-bounds.ts` exists to refuse.
+ *
+ * ## What is patched
+ *
+ * The central directory file header (PKZIP APPNOTE 4.3.12, the offsets fflate
+ * itself reads): signature `PK\x01\x02` at 0, compression method u16 LE at 10,
+ * uncompressed size u32 LE at 24, file-name length u16 LE at 28, name at 46.
+ * `claimedBytes` is a plain number so this fixture imports nothing from `src`;
+ * the caller passes `MAX_ENTRY_BYTES + 1` or whatever it wants to claim.
+ *
+ * Every lookup fails LOUDLY, like `buildInflateTrapExport`: a fixture that
+ * silently patched nothing would turn the test using it into a no-op.
+ */
+export function buildOversizedEntryExport(claimedBytes: number): Uint8Array {
+  if (!Number.isInteger(claimedBytes) || claimedBytes < 0 || claimedBytes > 0xffffffff) {
+    throw new Error(`oversized entry: claimedBytes must be a u32, got ${claimedBytes}`);
+  }
+  const target = `${SAMPLE_ACCOUNT_ROOT}/Activity_history/Sessions.csv`;
+  const entries: Record<string, Uint8Array | [Uint8Array, { level: 0 }]> = {};
+  for (const [name, bytes] of Object.entries(sampleEntries(SAMPLE_ACCOUNT_ROOT))) {
+    entries[name] = name === target ? [bytes, { level: 0 }] : bytes;
+  }
+  if (!(target in entries)) {
+    throw new Error('oversized entry: the sample no longer contains Activity_history/Sessions.csv');
+  }
+  const zip = zipSync(entries);
+
+  const view = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
+  const decoder = new TextDecoder('utf-8');
+  let patchedAt = -1;
+  for (let i = 0; i + 46 <= zip.length; i++) {
+    if (zip[i] !== 0x50 || zip[i + 1] !== 0x4b || zip[i + 2] !== 0x01 || zip[i + 3] !== 0x02) {
+      continue;
+    }
+    const nameLen = view.getUint16(i + 28, true);
+    if (i + 46 + nameLen > zip.length) continue;
+    const name = decoder.decode(zip.subarray(i + 46, i + 46 + nameLen));
+    if (name !== target) continue;
+    const method = view.getUint16(i + 10, true);
+    if (method !== 0) {
+      throw new Error(`oversized entry: expected stored entry (method 0), got ${method}`);
+    }
+    view.setUint32(i + 24, claimedBytes, true);
+    patchedAt = i;
+    break;
+  }
+  if (patchedAt < 0) {
+    throw new Error('oversized entry: no central directory header found for the target entry');
+  }
+  if (view.getUint32(patchedAt + 24, true) !== claimedBytes) {
+    throw new Error('oversized entry: the patched uncompressed size did not read back');
+  }
+  return zip;
 }

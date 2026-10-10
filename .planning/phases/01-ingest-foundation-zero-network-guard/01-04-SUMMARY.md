@@ -360,3 +360,9 @@ The plan's task-3 (j) used `addEventListener` body-listener with a Promise wrapp
 *Phase: 1-Ingest Foundation & Zero-Network Guard*
 *Plan: 04 of phase 01*
 *Completed: 2026-09-28*
+
+## Correction notes (gap closure 01-12, 2026-10-10)
+
+The text above is the historical record of what plan 01-04 did and was true when written; the points below are where a later phase changed the current tree on purpose. Evidence and re-run commands live in `.planning/phases/01-ingest-foundation-zero-network-guard/01-SUPERSESSIONS.md`.
+
+- **Account heading and done block (record G3).** Claim: the "'Account:' heading preserved" and "'Account: 123456789' heading preserved" statements, "the processing paragraph and done block (account heading + summary line + category list) are untouched", and "renders `Account: 123456789` in <2 s" after recovery (lines 22, 165, 205 and 308). True now: the heading is "Account ID: <root>" (`formatAccountId`, `src/lib/ui-copy.ts` lines 443-445, rendered by `src/lib/shell/IdentityHeader.svelte` line 112). The summary line and the flat category list no longer exist: `ResultsView.svelte` and `CategoryBadge.svelte` were retired by plan 03-04 (D-23), and `formatSummary` / `formatAccountHeading` were deleted by plan 03-07 (IDENTITY-01). Per-category status now renders in the dashboard sections with a `data-status` attribute (`src/lib/shell/DashboardSection.svelte` line 85), and unsupported folders in `UnsupportedBlock.svelte`. The failure-path behaviour this plan delivered (single generic banner, pre-check, recovery after a failure) is unchanged. Record: G3 in `01-SUPERSESSIONS.md`.

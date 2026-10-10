@@ -296,3 +296,9 @@ None - no external service configuration required. CI secrets (if any are needed
 
 *Phase: 01-ingest-foundation-zero-network-guard*
 *Completed: 2026-09-28*
+
+## Correction notes (gap closure 01-12, 2026-10-10)
+
+The text above is the historical record of what plan 01-02 did and was true when written; the points below are where a later phase changed the current tree on purpose. Evidence and re-run commands live in `.planning/phases/01-ingest-foundation-zero-network-guard/01-SUPERSESSIONS.md`.
+
+- **CI trigger (record G5).** Claim: "CI workflow on every push/PR", "bare triggers", "no trigger filters: every push to every branch and every PR runs the full set" (lines 17, 59, 72, 132, 169, 174, 224 and 290). True now: `.github/workflows/ci.yml` lines 10-13 are `on: push: branches: [main]` plus a bare `pull_request:`. A push to a non-main branch no longer triggers CI by itself; every pull request from any branch still runs the full gates (lint, typecheck, Vitest, Playwright including the zero-network spec). Superseded by: a later edit to the workflow whose header comment (lines 3-9) records the trade-off against double-running the same commit for `push` and `pull_request: synchronize`. ROADMAP success criterion 4 still reads "on every push"; that wording is the user's to change. Record: G5 in `01-SUPERSESSIONS.md`.

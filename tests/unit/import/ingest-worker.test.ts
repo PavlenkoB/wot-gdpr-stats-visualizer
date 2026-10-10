@@ -15,12 +15,15 @@ import {
   SAMPLE_REGION,
   LONG_NICKNAME,
   LONG_UNKNOWN_FOLDER,
+  RAGGED_OVERFLOW_MARKER,
   SAMPLE_ROW_COUNTS,
   VARIANT_CREATED_AT,
   VARIANT_NICKNAME,
   VARIANT_OVERFLOW_CANARY,
   VARIANT_REGION,
   buildAccountInfoVariantExport,
+  buildAmbiguousRootExport,
+  buildBeyondBoundNestExport,
   buildCaseVariantFoldersExport,
   buildEmptyAccountInfoExport,
   buildLargeExport,
@@ -30,6 +33,8 @@ import {
   buildMultiRowAccountInfoExport,
   buildOnlySupportedExport,
   buildLongTextExport,
+  buildMisfiledAccountInfoExport,
+  buildOversizedEntryExport,
   buildCustomExport,
   buildSampleExport,
   buildZeroRowPaymentExport,
@@ -72,6 +77,7 @@ import type {
   WorkerScopeLike,
 } from '../../../src/lib/core/types/worker-messages.ts';
 import type { DatasetRow } from '../../../src/lib/worker/db.ts';
+import { MAX_ENTRY_BYTES } from '../../../src/lib/worker/inflate-bounds.ts';
 
 /** The two worker replies the client bridge routes; both existed at RED. */
 type PlaytimeResponse = Extract<IngestResponse, { type: 'playtime-result' | 'playtime-error' }>;
@@ -2426,4 +2432,269 @@ describe('04-12 scale tracer: a 60,000-session export through the real worker', 
     },
     SCALE_TEST_TIMEOUT_MS,
   );
+});
+
+// =============================================================================
+// 01-11 -- CR-01 / W-1: an ambiguous root fails closed through the real worker
+// =============================================================================
+//
+// 01-REVIEW.md CR-01: `123/User_Info/Account_Info.csv`,
+// `123/Activity_history/a.csv` and `Clans/b.csv` used to classify ok with
+// `accountRoot: ''` and the real account folder `123` filed as an unknown
+// category. The worker then parsed `123/User_Info/Account_Info.csv` under
+// category '123', the folder-name strip never ran, and LOGIN plus the birth
+// columns were written to IndexedDB. The importer must refuse the archive
+// instead (T-01-42): an `error` response, nothing persisted, no email.
+// =============================================================================
+
+describe('01-11 — CR-01: an ambiguous root fails closed through the real worker', () => {
+  let postSpy: ReturnType<typeof vi.fn>;
+  let savedSelf: unknown;
+
+  beforeEach(async () => {
+    savedSelf = (globalThis as unknown as { self?: unknown }).self;
+    vi.resetModules();
+    await deleteActiveDatabase();
+    postSpy = vi.fn();
+    (globalThis as unknown as { self: WorkerScopeLike }).self = {
+      postMessage: postSpy as unknown as (message: IngestResponse) => void,
+      onmessage: null,
+    };
+  });
+
+  afterAll(async () => {
+    await deleteActiveDatabase();
+    if ('self' in globalThis) {
+      (globalThis as unknown as { self?: unknown }).self = savedSelf;
+    }
+  });
+
+  test('(a) the review repro posts "error", persists nothing and leaves no email in IndexedDB', async () => {
+    const terminal = await ingestWith(postSpy, buildAmbiguousRootExport(), 'ambiguous-root.zip');
+    expect(terminal.type).toBe('error');
+
+    const { db } = await importWorkerDb();
+    expect(await db.rows.count()).toBe(0);
+    expect(await db.meta.get('active')).toBeUndefined();
+
+    const dump = JSON.stringify({
+      rows: await db.rows.toArray(),
+      meta: await db.meta.toArray(),
+    });
+    expect(dump).not.toContain(SAMPLE_LOGIN_DOMAIN);
+  });
+});
+
+// =============================================================================
+// 01-13 -- CR-01 layer 2: the strip is keyed on the header, not the folder
+// =============================================================================
+//
+// 01-REVIEW.md CR-01 fix layer 2. Plan 01-11 closed the reproduced
+// classification path; this describe pins the guarantee independent of
+// classification being right. The folder a CSV is filed under is
+// attacker-controlled, and a User_Info-shaped file filed under any category
+// name that classification still accepts must lose LOGIN, BIRTH_DATE and
+// BIRTH_DATE_SRC before it is written (03-CONTEXT D-18, widened by this plan
+// from "User_Info only" to "any row carrying the header"; T-01-48).
+// =============================================================================
+
+describe('01-13 — CR-01 layer 2: the strip is keyed on the header, not the folder', () => {
+  let postSpy: ReturnType<typeof vi.fn>;
+  let savedSelf: unknown;
+
+  beforeEach(async () => {
+    savedSelf = (globalThis as unknown as { self?: unknown }).self;
+    vi.resetModules();
+    await deleteActiveDatabase();
+    postSpy = vi.fn();
+    (globalThis as unknown as { self: WorkerScopeLike }).self = {
+      postMessage: postSpy as unknown as (message: IngestResponse) => void,
+      onmessage: null,
+    };
+  });
+
+  afterAll(async () => {
+    await deleteActiveDatabase();
+    if ('self' in globalThis) {
+      (globalThis as unknown as { self?: unknown }).self = savedSelf;
+    }
+  });
+
+  test('(a) Account_Info files filed under UserInfo, Weird/User_Info and Activity_history persist without LOGIN or birth columns', async () => {
+    const terminal = await ingestWith(
+      postSpy,
+      buildMisfiledAccountInfoExport(),
+      'misfiled-account-info.zip',
+    );
+    // Classification accepts the shape: UserInfo, Weird and Misc are unknown
+    // categories under the real account root, so the export is not refused.
+    expect(terminal.type).toBe('done');
+
+    const { db } = await importWorkerDb();
+    const all = await db.rows.toArray();
+    const misfiled = {
+      renamedFolder: all.filter((r) => r.category === 'UserInfo'),
+      nestedUnderUnknown: all.filter(
+        (r) => r.category === 'Weird' && r.sourceFile === 'User_Info/Account_Info.csv',
+      ),
+      supportedNotUserInfo: all.filter(
+        (r) => r.category === 'Activity_history' && r.sourceFile === 'Account_Info.csv',
+      ),
+    };
+
+    // Non-vacuity: every misfiled shape produced rows, so the key scan below
+    // has something to scan.
+    expect(misfiled.renamedFolder.length).toBeGreaterThan(0);
+    expect(misfiled.nestedUnderUnknown.length).toBeGreaterThan(0);
+    expect(misfiled.supportedNotUserInfo.length).toBeGreaterThan(0);
+
+    const misfiledRows = Object.values(misfiled).flat();
+    for (const row of misfiledRows) {
+      for (const key of Object.keys(row.data)) {
+        expect(SENSITIVE_KEY.test(key.trim().toUpperCase()), `key ${key}`).toBe(false);
+        expect(key).not.toBe('__parsed_extra');
+      }
+    }
+
+    const dump = JSON.stringify({ rows: all, meta: await db.meta.toArray() });
+    expect(dump).not.toContain(SAMPLE_LOGIN_DOMAIN);
+    expect(dump).not.toContain(SAMPLE_BIRTH_DATE);
+
+    // The strip narrows three columns only: IP is still stored.
+    expect(misfiled.renamedFolder[0]!.data['IP']).toBe(SAMPLE_IP);
+    expect(misfiled.nestedUnderUnknown[0]!.data['IP']).toBe(SAMPLE_IP);
+    expect(misfiled.supportedNotUserInfo[0]!.data['IP']).toBe(SAMPLE_IP);
+  });
+
+  test('(b) a rootless archive whose User_Info sits beyond the 01-11 depth bound persists without LOGIN or birth columns', async () => {
+    const terminal = await ingestWith(
+      postSpy,
+      buildBeyondBoundNestExport(),
+      'beyond-bound-nest.zip',
+    );
+    // Layer 1 deliberately accepts this shape (the nest is one level past
+    // MAX_WRAPPER_DEPTH), so reaching 'done' documents that only the
+    // header-keyed strip stands between the file and IndexedDB.
+    expect(terminal.type).toBe('done');
+
+    const { db } = await importWorkerDb();
+    const all = await db.rows.toArray();
+    const nested = all.filter((r) => r.category === 'Wrapper');
+    // Non-vacuity: the account file was parsed under the unknown category.
+    expect(nested.length).toBeGreaterThan(0);
+
+    for (const row of nested) {
+      for (const key of Object.keys(row.data)) {
+        expect(SENSITIVE_KEY.test(key.trim().toUpperCase()), `key ${key}`).toBe(false);
+      }
+    }
+    expect(nested[0]!.data['IP']).toBe(SAMPLE_IP);
+
+    const dump = JSON.stringify({ rows: all, meta: await db.meta.toArray() });
+    expect(dump).not.toContain(SAMPLE_LOGIN_DOMAIN);
+    expect(dump).not.toContain(SAMPLE_BIRTH_DATE);
+  });
+
+  test('(c) controls: LOGIN_DT survives, a row with no deny-listed header keeps its overflow bucket, real User_Info is stripped as before', async () => {
+    const terminal = await ingestWith(
+      postSpy,
+      buildMisfiledAccountInfoExport(),
+      'misfiled-controls.zip',
+    );
+    expect(terminal.type).toBe('done');
+    if (terminal.type !== 'done') return;
+
+    // The identity pick still reads only the real User_Info rows: the three
+    // misfiled copies must not change what the header shows.
+    expect(terminal.result.identity).toEqual(EXPECTED_SAMPLE_IDENTITY);
+
+    const { db } = await importWorkerDb();
+    const all = await db.rows.toArray();
+
+    // A header only LIKE the deny-list is not touched: LOGIN_DT is the login
+    // time column and `_\d+` needs digits.
+    const logins = all.filter(
+      (r) => r.category === 'Activity_history' && r.sourceFile === 'Logins.csv',
+    );
+    expect(logins.length).toBeGreaterThan(0);
+    for (const row of logins) expect(Object.keys(row.data)).toContain('LOGIN_DT');
+
+    // No deny-listed header, outside User_Info: stored exactly as before,
+    // overflow bucket included (T-01-49). Sanitising every row would drop it.
+    const ragged = all.filter((r) => r.category === 'Misc' && r.sourceFile === 'Ragged.csv');
+    expect(ragged.length).toBeGreaterThan(0);
+    for (const row of ragged) {
+      expect((row.data as Record<string, unknown>)['__parsed_extra']).toEqual([
+        RAGGED_OVERFLOW_MARKER,
+      ]);
+    }
+
+    // The sample's real User_Info rows are stripped exactly as before.
+    const realUserInfo = all.filter((r) => r.category === 'User_Info');
+    expect(realUserInfo.length).toBeGreaterThan(0);
+    for (const row of realUserInfo) {
+      for (const key of Object.keys(row.data)) {
+        expect(SENSITIVE_KEY.test(key.trim().toUpperCase()), `key ${key}`).toBe(false);
+        expect(key).not.toBe('__parsed_extra');
+      }
+    }
+  });
+});
+
+// =============================================================================
+// 01-14 -- WR-03: an over-declared entry is rejected before it is inflated
+// =============================================================================
+//
+// 01-REVIEW.md WR-03 / 01-VERIFICATION.md W-2. `unzipSync` in handleIngest used
+// to inflate every entry that resolved to a category CSV with no size check, so
+// a small archive whose central directory declares a huge uncompressed size
+// could force a very large allocation in the worker. The cap is enforced in the
+// filter, which fflate calls BEFORE it allocates for an entry (T-01-52).
+//
+// The archive here is not large: one STORED entry whose central-directory
+// uncompressed-size field is patched. A worker with no cap accepts it (a stored
+// entry never allocates from the declared size), so this test is red against
+// the old worker without ever allocating anything.
+// =============================================================================
+
+describe('01-14 — WR-03: an over-declared entry is rejected before it is inflated', () => {
+  let postSpy: ReturnType<typeof vi.fn>;
+  let savedSelf: unknown;
+
+  beforeEach(async () => {
+    savedSelf = (globalThis as unknown as { self?: unknown }).self;
+    vi.resetModules();
+    await deleteActiveDatabase();
+    postSpy = vi.fn();
+    (globalThis as unknown as { self: WorkerScopeLike }).self = {
+      postMessage: postSpy as unknown as (message: IngestResponse) => void,
+      onmessage: null,
+    };
+  });
+
+  afterAll(async () => {
+    await deleteActiveDatabase();
+    if ('self' in globalThis) {
+      (globalThis as unknown as { self?: unknown }).self = savedSelf;
+    }
+  });
+
+  test('(a) an entry declaring more than MAX_ENTRY_BYTES posts "error" with a fixed detail and persists nothing', async () => {
+    const terminal = await ingestWith(
+      postSpy,
+      buildOversizedEntryExport(MAX_ENTRY_BYTES + 1),
+      'oversized-entry.zip',
+    );
+    expect(terminal.type).toBe('error');
+    if (terminal.type !== 'error') return;
+
+    // The fixed phrase, and nothing the archive chose: the detail crosses the
+    // worker boundary (T-01-53, 01-UAT test 17).
+    expect(terminal.detail).toContain('entry too large');
+    expect(terminal.detail).not.toContain('Sessions.csv');
+
+    const { db } = await importWorkerDb();
+    expect(await db.rows.count()).toBe(0);
+    expect(await db.meta.get('active')).toBeUndefined();
+  });
 });

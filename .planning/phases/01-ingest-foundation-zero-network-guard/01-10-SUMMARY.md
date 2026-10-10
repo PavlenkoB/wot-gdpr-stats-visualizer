@@ -189,3 +189,10 @@ All commands run from the repo root at `a497e39..81187d4`:
 ---
 *Phase: 01-ingest-foundation-zero-network-guard*
 *Completed: 2026-09-30*
+
+## Correction notes (gap closure 01-12, 2026-10-10)
+
+The text above is the historical record of what plan 01-10 did and was true when written; the points below are where a later phase changed the current tree on purpose. Evidence and re-run commands live in `.planning/phases/01-ingest-foundation-zero-network-guard/01-SUPERSESSIONS.md`.
+
+- **CSP grep counts (record G2).** Claim: "The built artifact still carries exactly one `default-src 'self'` and one `connect-src 'none'`", with `grep -c "connect-src 'none'" dist/index.html` = `1` in the frontmatter verification reference and in the verification table (lines 82, 117 and 173). These are historical measurements. True now: the directive is `connect-src 'self'` (`vite.config.ts` line 40), changed by plan 06-11 (D-16) for the one opt-in same-origin city file. `default-src 'self'` is unchanged. This plan's own claim, that it changed no source-of-truth file, was correct when written. Record: G2 in `01-SUPERSESSIONS.md`.
+- **The `check` row (record G6).** Claim: "`pnpm run check` exit 0 (`tsc -b`, no output)" (line 176), and the `provides` entry that names the `tsc -b` project-reference graph behind `pnpm run check` (line 9). True now: `package.json` line 11 runs `tsc -b && svelte-check --tsconfig ./tsconfig.app.json --threshold warning`, added by Phase 6 commit `50f9f5c` because `tsc -b` does not type-check `.svelte` files. It still exits 0. Record: G6 in `01-SUPERSESSIONS.md`.

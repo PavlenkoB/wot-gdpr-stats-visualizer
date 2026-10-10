@@ -96,7 +96,7 @@ export type SectionStatus = 'not-loaded' | 'no-export' | 'empty' | 'pending' | '
  * A parameter rather than a hard-coded check, so a phase can pass its own
  * set and so a test can exercise `ready` without shipping a dashboard.
  *
- * Two ids, and each was added by the plan that gave its section a body rather
+ * Four ids, and each was added by the plan that gave its section a body rather
  * than by the plan that gave the section its card:
  *
  *   `activity-history` — Phase 4, plan 04-02, which shipped the playtime

@@ -19,8 +19,12 @@ import { unzipSync } from 'fflate';
  * "never inflate" invariant harder to verify.
  *
  * The filter always returns `false`, so fflate never inflates an entry
- * even if it has the bytes in memory — a zip-bomb is bounded by the
- * archive's central directory, not by its largest claimed file size.
+ * even if it has the bytes in memory: this ENUMERATION step allocates nothing
+ * from an entry's declared size. It says nothing about the step that does
+ * inflate. The entries the importer selects are inflated later by
+ * `handleIngest`, and that inflation is bounded separately by
+ * `createInflateFilter` in `inflate-bounds.ts` (declared-size caps per entry
+ * and in total; WR-03).
  */
 export function listEntryPaths(bytes: Uint8Array): string[] {
   const names: string[] = [];

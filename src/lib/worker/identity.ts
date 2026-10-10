@@ -79,6 +79,33 @@ function normalizeKey(key: string): string {
 }
 
 /**
+ * Does this row carry a header the D-18 deny-list names? (CR-01 layer 2,
+ * plan 01-13)
+ *
+ * Why the strip is keyed on the HEADER and not only on the folder: the folder
+ * a CSV is filed under is attacker-controlled, and classification can be wrong
+ * (a renamed folder, a nest under an unknown folder, a misfiled copy, a shape
+ * the classifier misreads). A strip that ran only for `isUserInfoCategory`
+ * would let LOGIN / BIRTH_DATE / BIRTH_DATE_SRC rest in IndexedDB for any such
+ * file. 03-CONTEXT D-18 names the three COLUMNS, so the enforcement point
+ * tests the thing D-18 names: a row that carries one of those headers is
+ * sanitised wherever it was filed.
+ *
+ * Own enumerable keys only, through the same `normalizeKey` and the same
+ * `DROPPED_COLUMN` the strip uses, so the trigger and the strip can never
+ * disagree about what counts as a sensitive header. It does not treat the
+ * overflow key alone as a trigger (a row with no deny-listed header keeps its
+ * bucket: Phase 2 stores everything outside D-18's three columns) and it
+ * never reads a value.
+ */
+export function hasSensitiveColumn(data: UserInfoRow): boolean {
+  for (const key of Object.keys(data)) {
+    if (DROPPED_COLUMN.test(normalizeKey(key))) return true;
+  }
+  return false;
+}
+
+/**
  * D-18: return a NEW row with LOGIN / BIRTH_DATE / BIRTH_DATE_SRC and the
  * overflow bucket removed. Every other column — IP, city, country, NAME,
  * ID — is kept, because D-18 narrows User_Info for those three columns

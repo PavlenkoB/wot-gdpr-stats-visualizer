@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import {
   extractAccountRecord,
   extractIdentity,
+  hasSensitiveColumn,
   isUserInfoCategory,
   sanitizeUserInfoRow,
 } from '../../../src/lib/worker/identity.ts';
@@ -431,5 +432,72 @@ describe('extractAccountRecord — text bounds and the sanitised pool', () => {
 
   test('a row with no ID column at all still yields the first row, not a throw', () => {
     expect(extractAccountRecord([{ CITY: 'Nowhere' }], '123456789')?.city).toBe('Nowhere');
+  });
+});
+
+// =============================================================================
+// hasSensitiveColumn — the header-name trigger (CR-01 layer 2, plan 01-13)
+// =============================================================================
+//
+// The strip is keyed on the column NAME a row carries, not on the folder it
+// was filed under. These cases pin the trigger against the same normalisation
+// the strip uses (trim + upper-case + the `_N` duplicate suffix), and pin the
+// near-misses that must NOT trigger: the login time column LOGIN_DT, and a row
+// whose only unusual key is the overflow bucket.
+// =============================================================================
+
+describe('hasSensitiveColumn — the header-name trigger (CR-01 layer 2, plan 01-13)', () => {
+  test.each([
+    'LOGIN',
+    'login',
+    ' LOGIN',
+    'LOGIN ',
+    'LogIn',
+    'BIRTH_DATE',
+    'BIRTH_DATE ',
+    ' birth_date',
+    'BIRTH_DATE_SRC',
+    'birth_date_src ',
+    'LOGIN_1',
+    'BIRTH_DATE_2',
+    'BIRTH_DATE_SRC_3',
+  ])('is true for a row carrying the header %j', (header) => {
+    expect(hasSensitiveColumn({ ID: '1', [header]: 'x' })).toBe(true);
+  });
+
+  test.each(['LOGIN_DT', 'LOGIN_ID', 'LOGINS', 'BIRTH', 'IP', 'NAME', 'SESSION_START'])(
+    'is false for a row whose only header is the near-miss %j',
+    (header) => {
+      expect(hasSensitiveColumn({ [header]: 'x' })).toBe(false);
+    },
+  );
+
+  test('is false for an empty row', () => {
+    expect(hasSensitiveColumn({})).toBe(false);
+  });
+
+  test('is false for a row whose only unusual key is the overflow bucket', () => {
+    const row = { ID: '1', __parsed_extra: ['a@b.invalid'] } as unknown as Row;
+    expect(hasSensitiveColumn(row)).toBe(false);
+  });
+
+  test('is false for a row whose deny-listed name exists only on its prototype', () => {
+    const row = Object.create({ LOGIN: 'inherited' }) as Row;
+    row['ID'] = '1';
+    expect(row['LOGIN']).toBe('inherited');
+    expect(hasSensitiveColumn(row)).toBe(false);
+  });
+
+  test('agrees with the strip: a row is flagged exactly when the strip would remove a column', () => {
+    const rows: Row[] = [
+      { ID: '1', LOGIN: 'x' },
+      { ID: '1', ' birth_date ': 'x' },
+      { ID: '1', LOGIN_DT: 'x' },
+      { ID: '1', NAME: 'x' },
+    ];
+    for (const row of rows) {
+      const stripped = Object.keys(sanitizeUserInfoRow(row)).length;
+      expect(hasSensitiveColumn(row)).toBe(stripped < Object.keys(row).length);
+    }
   });
 });

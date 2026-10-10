@@ -221,3 +221,10 @@ All commands run from the repo root after the final commit:
 ---
 *Phase: 01-ingest-foundation-zero-network-guard*
 *Completed: 2026-09-30*
+
+## Correction notes (gap closure 01-12, 2026-10-10)
+
+The text above is the historical record of what plan 01-09 did and was true when written; the points below are where a later phase changed the current tree on purpose. Evidence and re-run commands live in `.planning/phases/01-ingest-foundation-zero-network-guard/01-SUPERSESSIONS.md`.
+
+- **The `check` script (record G6).** Claim: "`check` is a single `tsc -b`", "WR-04: pnpm run check is a single `tsc -b`", "`pnpm run check` is now `tsc -b`", `"check": "tsc -b"` in the file-change list, and the verification row `"check": "tsc -b",` (lines 12, 63-67, 117, 134 and 205). True now: `package.json` line 11 is `"check": "tsc -b && svelte-check --tsconfig ./tsconfig.app.json --threshold warning"`. Superseded by: Phase 6 commit `50f9f5c`, which added the svelte-check pass because `tsc -b` does not type-check `.svelte` files (the coverage reduction this summary itself flagged at line 190). `pnpm run check` still exits 0. Record: G6 in `01-SUPERSESSIONS.md`.
+- **CSP figures (record G2).** Claim: the built `dist/index.html` is byte-identical to the pre-change build with exactly one `connect-src 'none'`, and the e2e reference `tests/e2e/zero-network.spec.ts#served HTML carries the CSP meta tag with default-src and connect-src none` (lines 56, 59, 91, 116 and 201). These are historical measurements of the build as it stood on 2026-09-30. True now: the directive is `connect-src 'self'` (`vite.config.ts` line 40) since plan 06-11, and the spec lives at `tests/e2e/guards/zero-network.spec.ts` with the title "served HTML carries the CSP meta tag with connect-src exactly 'self' and every other directive unchanged" (line 95). `default-src 'self'` and the absence of `&#39;` are unchanged. Record: G2 in `01-SUPERSESSIONS.md`.

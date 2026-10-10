@@ -35,7 +35,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. The drop target is disabled while a file is processing. Every upload in a session goes through the same single Worker instance over the typed message contract, and the page stays responsive during unzip.
   4. CI runs lint, typecheck, Vitest, and Playwright on every push. A Playwright test loads the app, drops the sample export, and fails the build if any network request occurs after initial page load, including the worker script fetch. The served HTML includes a CSP meta tag as defense-in-depth.
 
-**Plans:** 10/10 plans complete
+**Plans:** 15/15 plans complete
 Plans:
 **Wave 1**
 
@@ -67,6 +67,14 @@ Plans:
 - [x] 01-08-PLAN.md — Worker robustness: WR-01 mark worker broken on idle `onerror` so a later submit does not hang on the busy floor (Wave 2)
 - [x] 01-09-PLAN.md — Build/CI hygiene: WR-02 fold `unescapeQuotes` into `cspMeta` + WR-04 `tsc -b` + IN-01 `verbatimModuleSyntax` + IN-02 drop `checkJs` + IN-05 annotate `svelte.config.js` (Wave 2, parallel with 01-08)
 - [x] 01-10-PLAN.md — Docs: IN-03 document the driver `--no-sandbox` flag + IN-04 README note that the zero-network assertion covers build/preview, not dev (Wave 3)
+
+**Gap closure (re-verification 2026-10-10)** *(CR-01 / W-1 from 01-REVIEW.md and 01-VERIFICATION.md, WR-03 / W-2, and the six superseded must-have groups G1-G6)*
+
+- [x] 01-11-PLAN.md — CR-01 layer 1: an ambiguous rootless / transparent-wrapper read fails closed (`ambiguous-root`), proven end to end through the real worker (Wave 1)
+- [x] 01-12-PLAN.md — G1-G6: supersession record, unsigned override block, append-only corrections to the stale executed summaries; doc-only, no behaviour change (Wave 1)
+- [x] 01-13-PLAN.md — CR-01 layer 2: LOGIN / BIRTH_DATE / BIRTH_DATE_SRC strip keyed on the header name, not the folder name (Wave 2)
+- [x] 01-14-PLAN.md — WR-03: declared-size caps before inflating selected CSV entries (Wave 3)
+- [x] 01-15-PLAN.md — Close-out: full regression gate, review-finding triage, real-export human checks, override sign-off decision (Wave 4)
 
 **UI hint**: yes
 
@@ -385,7 +393,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Ingest Foundation & Zero-Network Guard | 6/6 | Complete    | 2026-09-28 |
+| 1. Ingest Foundation & Zero-Network Guard | 15/15 | Complete    | 2026-10-10 |
 | 2. Defensive Parsing & Persistent Dataset | 4/4 | Complete    | 2026-09-29 |
 | 3. Dashboard Shell & Account Identity | 7/7 | Complete    | 2026-09-29 |
 | 4. Activity Time Dashboards | 18/18 | In Progress|  |

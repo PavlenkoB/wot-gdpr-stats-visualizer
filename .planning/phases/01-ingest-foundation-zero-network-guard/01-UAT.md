@@ -3,11 +3,10 @@ status: complete
 phase: 01-ingest-foundation-zero-network-guard
 source: [01-01-SUMMARY.md, 01-02-SUMMARY.md, 01-03-SUMMARY.md, 01-04-SUMMARY.md, 01-05-SUMMARY.md]
 started: 2026-09-28T06:35:04Z
-updated: 2026-09-30T00:00:00Z
+updated: 2026-10-10T06:42:36.651Z
 ---
 
 ## Current Test
-<!-- OVERWRITE each test - shows where we are -->
 
 [testing complete]
 
@@ -220,10 +219,25 @@ expected: Importing a REAL Wargaming data export (kept outside the repo, gitigno
 result: pass
 reported: "User confirmed — real export completed the full flow: account heading, categorized results view with badges, and Start over control all rendered correctly."
 
+### 43. Gap closure: canonical real-export drop (plans 01-11, 01-13)
+expected: |
+  Build and serve (`pnpm run build && pnpm run preview`, open the printed URL, usually http://localhost:4173). Drop the real export zip exactly as downloaded (kept OUTSIDE the repo). Header shows "Account ID: 1234567". Category tally against current categories.ts: 5 supported / 2 known-deferred / 8 unknown if the export has a Financial_data folder, else 4 / 2 / 9 (15 folders either way). In devtools > Application > IndexedDB > wg-export-viewer, a User_Info row has no LOGIN, BIRTH_DATE or BIRTH_DATE_SRC keys.
+result: pass
+
+### 44. Gap closure: wrapped re-zip still classifies (plan 01-11)
+expected: |
+  Unzip the export outside the repo, put the account folder inside ONE new folder (any name), zip that folder, drop it. Same account folder name and same tally as test 43; no generic failure banner.
+result: pass
+
+### 45. Gap closure: flattened re-zip still classifies (plan 01-11)
+expected: |
+  Zip the category folders themselves at the top level of a new zip (no account folder above them), drop it. Same categories and tally as test 43; header does NOT show a category or wrapper name as the account id (account root is empty); no generic failure banner. Afterwards `git status` shows no untracked zip, csv or account folder.
+result: pass
+
 ## Summary
 
-total: 42
-passed: 42
+total: 45
+passed: 45
 issues: 0  # G-01-20 resolved by 01-06
 pending: 0
 skipped: 0

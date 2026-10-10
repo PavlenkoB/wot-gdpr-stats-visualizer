@@ -39,7 +39,7 @@ key-files:
     - .gitignore
 
 key-decisions:
-  - "Bounded the wrapper-descent retry at MAX_WRAPPER_DEPTH = 4 (a small constant) instead of allowing unbounded recursion, so a maliciously deep chain of single-child folders cannot force unbounded work per import (T-01-18)"
+  - "Bounded the wrapper-descent retry at MAX_WRAPPER_DEPTH = 4 (a small constant) instead of allowing unbounded recursion, so a maliciously deep chain of single-child folders cannot force unbounded work per import (T-01-32)"
   - "Ambigous wrappers (a root with TWO distinct unrecognized children) intentionally do NOT trigger the descent retry — counts.size must be exactly 1 to descend — so the fix never silently guesses between two equally plausible nested candidates (must_haves truth 4)"
   - "categoryFoldersUnder is now a one-line delegate to a new private foldersAt(prefix, paths) helper instead of a duplicated body. Its exported signature and direct unit-test behavior are unchanged (must_haves truth 7)"
 
@@ -121,7 +121,7 @@ coverage:
         status: pass
     human_judgment: false
   - id: D8
-    description: "The retry that walks past a wrapper folder is bounded by MAX_WRAPPER_DEPTH = 4, so a maliciously deep chain of single-child folders cannot force unbounded work per import (T-01-18)"
+    description: "The retry that walks past a wrapper folder is bounded by MAX_WRAPPER_DEPTH = 4, so a maliciously deep chain of single-child folders cannot force unbounded work per import (T-01-32)"
     verification:
       - kind: other
         ref: "grep -q 'MAX_WRAPPER_DEPTH' src/lib/worker/classify.ts"
@@ -171,7 +171,7 @@ This plan produced three atomic commits (TDD test + feat + chore):
 
 ## Decisions Made
 
-- **Bounded retry depth (MAX_WRAPPER_DEPTH = 4).** Real exports need at most one extra wrapper level; 4 leaves a small headroom for unusual but legitimate nesting chains (e.g. a user re-zipped into "Downloads" then into "Personal") without allowing unbounded work. A maliciously deep chain of single-child folders cannot force unbounded work per import — addresses T-01-18.
+- **Bounded retry depth (MAX_WRAPPER_DEPTH = 4).** Real exports need at most one extra wrapper level; 4 leaves a small headroom for unusual but legitimate nesting chains (e.g. a user re-zipped into "Downloads" then into "Personal") without allowing unbounded work. A maliciously deep chain of single-child folders cannot force unbounded work per import — addresses T-01-32.
 - **Single-child gate for descent.** The retry descends only when `counts.size === 1` (the sole child is one folder, not multiple). An ambiguous wrapper with two distinct unrecognized children does NOT trigger the descent, so the fix never silently guesses between two equally plausible nested candidates. Verified by the ambiguous-wrapper negative test.
 - **`categoryFoldersUnder` delegates to a private `foldersAt`.** Rather than maintaining two near-duplicate bodies, the public function is now a one-line `return foldersAt(root + '/', paths)`. This is a pure refactor of its internals — its exported signature and its direct unit-test behavior are unchanged.
 - **Resolution-then-fallback `analyzeExport` shape.** A private `resolveAccountRootAndCategories(prepared)` is called first; when it returns non-null, the success path builds entries and sorts exactly as before. When it returns null, the original four-reason fallback chain runs verbatim, so every pre-existing failure fixture keeps its exact pre-fix reason. This keeps the named-reason mapping as a single self-contained linear pipeline rather than scattering the logic.

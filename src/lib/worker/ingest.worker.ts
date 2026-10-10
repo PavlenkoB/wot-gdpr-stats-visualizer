@@ -12,11 +12,13 @@ import type {
 import { analyzeExport, resolveCsvFileCategory, sortCategoryEntries } from './classify.ts';
 import { CATEGORY_STATUS_ORDER, classifyFolder } from './categories.ts';
 import { listEntryPaths } from './zip-paths.ts';
+import { createInflateFilter } from './inflate-bounds.ts';
 import { digestFile } from './hash.ts';
 import { parseCsvFile } from './csv-parse.ts';
 import {
   extractAccountRecord,
   extractIdentity,
+  hasSensitiveColumn,
   isUserInfoCategory,
   sanitizeUserInfoRow,
 } from './identity.ts';
@@ -727,10 +729,15 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
     // Per-category parse loop (D-01: every category, every status;
     // D-11: per-category progress; IMPORT-01: all in the worker).
     const recognized = new Set(outcome.result.categories.map((c) => c.name));
+    // WR-03 / T-01-52: the entries this selects are the ones fflate inflates,
+    // and it allocates from the DECLARED size first. The filter therefore
+    // enforces the declared-size caps (inflate-bounds.ts) and a rejected archive
+    // lands in the single catch below like any other failure (D-04, D-05, D-07).
+    // One filter per import: its running total must not outlive the archive.
     const inflated = unzipSync(bytes, {
-      filter(info) {
-        return resolveCsvFileCategory(info.name, outcome.result.accountRoot, recognized) !== null;
-      },
+      filter: createInflateFilter(
+        (name) => resolveCsvFileCategory(name, outcome.result.accountRoot, recognized) !== null,
+      ),
     });
 
     const allRows: DatasetRow[] = [];
@@ -792,6 +799,14 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
       // Case-insensitive on purpose: a `user_info` folder classifies as the
       // same supported category and would otherwise skip the strip
       // entirely (D-18, identity.ts isUserInfoCategory).
+      //
+      // This flag is NOT the strip guarantee (CR-01 layer 2). The header test
+      // at the row choke point below is: it sanitises any row that carries a
+      // deny-listed column wherever the file was filed. The folder test now
+      // decides only two things: the always-sanitise family (the overflow
+      // bucket goes too, even for a row with no deny-listed header) and which
+      // rows may feed the identity pick and the Account record, so a misfiled
+      // copy never changes what the header shows.
       const userInfo = isUserInfoCategory(entry.name);
 
       let rowCount = 0;
@@ -852,11 +867,20 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
         }
         for (let r = 0; r < parsed.rows.length; r++) {
           // THE single choke point every row passes through. Dropping the
-          // three sensitive User_Info columns here — rather than at the
-          // Dexie write — is what makes the guarantee airtight: a row that
-          // is never pushed cannot be persisted, and the raw parsed object
-          // stays inside this loop.
-          const data = userInfo ? sanitizeUserInfoRow(parsed.rows[r]!.data) : parsed.rows[r]!.data;
+          // three sensitive columns here — rather than at the Dexie write —
+          // is what makes the guarantee airtight: a row that is never pushed
+          // cannot be persisted, and the raw parsed object stays inside this
+          // loop.
+          //
+          // The guarantee is keyed on the HEADER (CR-01 layer 2, D-18 widened
+          // by plan 01-13): a row is sanitised when its folder is in the
+          // User_Info family OR it carries a LOGIN / BIRTH_DATE /
+          // BIRTH_DATE_SRC header, because the folder a file is filed under is
+          // attacker-controlled and classification can be wrong. A row with
+          // neither is stored untouched, `__parsed_extra` included (Phase 2
+          // stores everything outside the three columns).
+          const raw = parsed.rows[r]!.data;
+          const data = userInfo || hasSensitiveColumn(raw) ? sanitizeUserInfoRow(raw) : raw;
           allRows.push({
             category: entry.name,
             sourceFile: resolved.sourceFile,

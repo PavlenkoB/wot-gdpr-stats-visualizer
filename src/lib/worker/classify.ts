@@ -17,7 +17,7 @@ import { CATEGORY_STATUS_ORDER, classifyFolder } from './categories.ts';
  *      `desktop.ini`)
  *   3. Single-root detection with a directory-entry guarantee
  *   4. Per-category file counts (directory entries register 0)
- *   5. The reasoned outcome: a `ClassifyResult` OR one of four named
+ *   5. The reasoned outcome: a `ClassifyResult` OR one of five named
  *      reasons an archive is NOT a recognizable Wargaming export.
  *
  * Nothing here touches the DOM, a worker, or fflate — every function is
@@ -29,7 +29,12 @@ import { CATEGORY_STATUS_ORDER, classifyFolder } from './categories.ts';
 // -----------------------------------------------------------------------------
 
 export type UnrecognizedReason =
-  'empty-archive' | 'no-single-root' | 'no-category-folders' | 'no-recognized-category';
+  | 'empty-archive'
+  | 'no-single-root'
+  | 'no-category-folders'
+  | 'no-recognized-category'
+  | 'ambiguous-root'
+  | 'no-csv-data';
 
 export type AnalyzeOutcome =
   { ok: true; result: ClassifyResult } | { ok: false; reason: UnrecognizedReason };
@@ -197,9 +202,54 @@ function hasRecognizedCategory(counts: Map<string, number>): boolean {
  * but legitimate nesting chains (e.g. a user unzipped then re-zipped
  * inside a "Downloads" folder and then inside a "Personal" folder).
  * A maliciously deep chain of single-child folders cannot force
- * unbounded work per import (T-01-18).
+ * unbounded work per import (T-01-32).
  */
 const MAX_WRAPPER_DEPTH = 4;
+
+/**
+ * Internal: does an UNKNOWN category-level folder beneath `prefix` itself
+ * hold a recognized category? (CR-01 / W-1, plan 01-11, threat T-01-42.)
+ *
+ * `prefix` is `''` for the top level, or a `<folder>/` prefix. For every
+ * prepared path under it, the first segment is the category-level folder.
+ * That folder is "itself a root" when:
+ *
+ *   - `classifyFolder(name)` is `'unknown'` (a recognized folder is never a
+ *     root candidate), AND
+ *   - within the first `MAX_WRAPPER_DEPTH` DIRECTORY segments beneath it
+ *     (the filename, or the empty tail of a directory entry, is dropped
+ *     first) some segment classifies as recognized.
+ *
+ * A real account folder looks exactly like this
+ * (`123/User_Info/Account_Info.csv`), so a recognized sibling beside it
+ * cannot be told apart from "an unknown folder that happens to hold
+ * category-named data". The resolver therefore refuses to guess.
+ *
+ * One linear pass over the already-prepared path list (T-01-43): each path
+ * is split once and examined to at most `MAX_WRAPPER_DEPTH` segments, so
+ * the cost does not grow with the number of distinct unknown folders.
+ */
+function unknownFolderHoldsRecognized(prefix: string, prepared: readonly string[]): boolean {
+  for (const p of prepared) {
+    if (prefix !== '' && !p.startsWith(prefix)) continue;
+    const rest = prefix === '' ? p : p.slice(prefix.length);
+    if (!rest) continue;
+    const segments = rest.split('/');
+    // segments[0] is the category-level folder; it must be a directory, so
+    // there has to be at least one more segment (a filename or the empty
+    // tail of a directory entry). `foldersAt` skips the same shape.
+    if (segments.length < 2) continue;
+    const name = segments[0]!;
+    if (!name || classifyFolder(name) !== 'unknown') continue;
+    // Drop the name and the filename (or the empty tail of "dir/"), then
+    // look at no more than MAX_WRAPPER_DEPTH directory levels.
+    const dirs = segments.slice(1, -1).slice(0, MAX_WRAPPER_DEPTH);
+    for (const dir of dirs) {
+      if (dir && classifyFolder(dir) !== 'unknown') return true;
+    }
+  }
+  return false;
+}
 
 /**
  * The folder name Wargaming puts at the top of the export it hands out
@@ -231,13 +281,30 @@ function isTransparentWrapper(name: string): boolean {
 }
 
 /**
+ * The three outcomes of `resolveAccountRootAndCategories` (01-11):
+ *
+ *   - `resolved`  — a root (possibly `''`) and its category counts.
+ *   - `ambiguous` — a rootless reading was possible, but an unknown
+ *                   top-level folder holds a recognized category beneath it,
+ *                   so the importer will not guess which folder is the
+ *                   account. `analyzeExport` maps this straight to
+ *                   `'ambiguous-root'`.
+ *   - `null`      — no shape matched; `analyzeExport` names the failure
+ *                   through its legacy detectRoot / categoryFoldersUnder
+ *                   chain.
+ */
+type RootResolution =
+  { kind: 'resolved'; root: string; counts: Map<string, number> } | { kind: 'ambiguous' } | null;
+
+/**
  * Internal: depth-tolerant root + category resolution (G-01-20, 01-07).
  *
  * Walks the prepared entry list looking for a real account-ID folder
  * with at least one recognized Wargaming category under it. Returns
- * `{ root, counts }` on success (with `root` being the innermost
- * folder name, never a wrapper prefix) or `null` when no shape
- * matches. Two complementary strategies, tried in this order:
+ * a `resolved` outcome (with `root` being the innermost folder name,
+ * never a wrapper prefix), an `ambiguous` marker (01-11, CR-01 / W-1) or
+ * `null` when no shape matches. Two complementary strategies, tried in
+ * this order:
  *
  *   1. Rootless read (01-07, WR-06). Read the top-level segments
  *      directly, before any named-reason chain can run. When the
@@ -248,6 +315,16 @@ function isTransparentWrapper(name: string): boolean {
  *      folder away. Running it FIRST removes the WR-06 reachability gap:
  *      a wrapper retry that exhausts can no longer pre-empt the rootless
  *      read, so a rootless re-zip is never mis-routed to a named reason.
+ *      Fail-closed condition (CR-01 / W-1, 01-11, T-01-42): the rootless
+ *      claim "there is no account folder" is falsified when an UNKNOWN
+ *      top-level folder holds a recognized category within
+ *      `MAX_WRAPPER_DEPTH` directory levels beneath it
+ *      (`123/User_Info/...` + `123/Activity_history/...` beside `Clans/`).
+ *      That folder looks exactly like a real account root, so the importer
+ *      does not guess between the two readings and reports `ambiguous`. An
+ *      unknown folder with NO recognized category beneath it
+ *      (`Misc/x.csv`) is ordinary data and stays an `unknown` entry
+ *      (RESEARCH Pitfall 1).
  *
  *   2. detectRoot-style wrapper retry. When detectRoot() finds a
  *      single top-level folder whose only child is itself unrecognized,
@@ -269,13 +346,17 @@ function isTransparentWrapper(name: string): boolean {
  * never starts classifying it. Failure paths still surface as named
  * `UnrecognizedReason`s via analyzeExport's fallback chain.
  */
-function resolveAccountRootAndCategories(
-  prepared: string[],
-): { root: string; counts: Map<string, number> } | null {
+function resolveAccountRootAndCategories(prepared: string[]): RootResolution {
   // Strategy 1: rootless read, before anything else (WR-06).
   const counts0 = foldersAt('', prepared);
   if (hasRecognizedCategory(counts0)) {
-    return { root: '', counts: counts0 };
+    // CR-01 / W-1 (T-01-42): a recognized sibling does not prove there is
+    // no account folder. When an unknown top-level folder itself holds a
+    // recognized category beneath it, that folder may be the real account
+    // root, and filing it as an "unknown category" would let its
+    // User_Info bypass the folder-name strip. Fail closed.
+    if (unknownFolderHoldsRecognized('', prepared)) return { kind: 'ambiguous' };
+    return { kind: 'resolved', root: '', counts: counts0 };
   }
 
   // Strategy 2: wrapper-descent retry.
@@ -298,7 +379,19 @@ function resolveAccountRootAndCategories(
       // CR-01: a Wargaming export-wrapper folder is not an account id —
       // when the categories hang directly off it, the account-root layer
       // is gone and the honest answer is `''`, not the wrapper name.
-      return { root: isTransparentWrapper(displayRoot) ? '' : displayRoot, counts };
+      if (isTransparentWrapper(displayRoot)) {
+        // The reported root would be '': the same "there is no account
+        // folder" claim as Strategy 1, so the same falsifier applies
+        // (01-11). Examined beneath the FULL settled prefix. A real
+        // (non-transparent) root is never examined: there an unknown
+        // folder holding a category-named subfolder is ordinary nested
+        // data (T-01-45; plan 01-13 protects the strip).
+        if (unknownFolderHoldsRecognized(`${fullRoot}/`, prepared)) {
+          return { kind: 'ambiguous' };
+        }
+        return { kind: 'resolved', root: '', counts };
+      }
+      return { kind: 'resolved', root: displayRoot, counts };
     }
     // No recognized category found at any depth we tried. Fall through
     // to the existing reason-classification chain in analyzeExport
@@ -377,6 +470,11 @@ export function sortCategoryEntries(entries: readonly CategoryEntry[]): Category
  *                            folder) to fail, so a future export in
  *                            which every folder is renamed would be
  *                            rejected — reversible (one predicate).
+ *   ambiguous-root         — a rootless reading was possible, but an unknown
+ *                            top-level folder holds a recognized category
+ *                            beneath it (CR-01 / W-1, 01-11), so the
+ *                            importer will not guess which folder is the
+ *                            account. Fail closed: nothing is parsed.
  *
  * Unknown folders alongside at least one recognized folder ALWAYS
  * stay in the result as `unknown` entries (RESEARCH Pitfall 1).
@@ -386,7 +484,10 @@ export function sortCategoryEntries(entries: readonly CategoryEntry[]): Category
  * folders at the top level now classifies correctly, while every
  * pre-existing failure fixture keeps its exact reason. See
  * resolveAccountRootAndCategories() for the bounded retry + top-level
- * fallback that powers this.
+ * fallback that powers this, and for its three outcomes (resolved,
+ * ambiguous, no shape matched). `ambiguous` is mapped straight to
+ * `ambiguous-root`; `null` falls through to the legacy naming chain, which
+ * keeps every pre-existing failure fixture's exact reason.
  *
  * Ordering is owned by `sortCategoryEntries` below — status group, then
  * lower-case code-unit order, then raw name — which the replay path in
@@ -397,7 +498,19 @@ export function analyzeExport(paths: string[]): AnalyzeOutcome {
   if (prepared.length === 0) return { ok: false, reason: 'empty-archive' };
 
   const resolved = resolveAccountRootAndCategories(prepared);
+  // 01-11: an ambiguous root is named directly, before the legacy chain
+  // below, so the reason is truthful for every shape that can raise it
+  // (the transparent-wrapper case would otherwise be mislabelled).
+  if (resolved !== null && resolved.kind === 'ambiguous') {
+    return { ok: false, reason: 'ambiguous-root' };
+  }
   if (resolved !== null) {
+    // A recognized folder name is not an export: Phase 2 parses CSVs only, so
+    // an archive with none would "import" successfully and show nothing
+    // (windows #3). Fail closed with a named reason instead.
+    if (!prepared.some((p) => p.toLowerCase().endsWith('.csv'))) {
+      return { ok: false, reason: 'no-csv-data' };
+    }
     const { root, counts } = resolved;
     const entries: CategoryEntry[] = [];
     const statusCounts: Record<CategoryStatus, number> = {
