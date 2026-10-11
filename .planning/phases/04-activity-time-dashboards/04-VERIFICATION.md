@@ -1,124 +1,79 @@
 ---
 phase: 04-activity-time-dashboards
-verified: 2026-10-02T21:12:00Z
-supersedes_verified: 2026-10-02T22:29:00Z  # the prior pass stamped local time (+04:00) as Z; the true UTC instant is about 18:29Z (commit f1dc6e8)
-status: passed
-score: 5/5 roadmap success criteria verified
-covered_files:
-  - .planning/phases/04-activity-time-dashboards/04-01-PLAN.md
-  - .planning/phases/04-activity-time-dashboards/04-01-SUMMARY.md
-  - .planning/phases/04-activity-time-dashboards/04-02-PLAN.md
-  - .planning/phases/04-activity-time-dashboards/04-02-SUMMARY.md
-  - .planning/phases/04-activity-time-dashboards/04-03-PLAN.md
-  - .planning/phases/04-activity-time-dashboards/04-03-SUMMARY.md
-  - .planning/phases/04-activity-time-dashboards/04-04-PLAN.md
-  - .planning/phases/04-activity-time-dashboards/04-04-SUMMARY.md
-  - .planning/phases/04-activity-time-dashboards/04-05-PLAN.md
-  - .planning/phases/04-activity-time-dashboards/04-05-SUMMARY.md
-  - .planning/phases/04-activity-time-dashboards/04-06-PLAN.md
-  - .planning/phases/04-activity-time-dashboards/04-06-SUMMARY.md
-  - .planning/phases/04-activity-time-dashboards/04-07-PLAN.md
-  - .planning/phases/04-activity-time-dashboards/04-07-SUMMARY.md
-  - .planning/phases/04-activity-time-dashboards/04-08-PLAN.md
-  - .planning/phases/04-activity-time-dashboards/04-08-SUMMARY.md
-  - .planning/phases/04-activity-time-dashboards/04-09-PLAN.md
-  - .planning/phases/04-activity-time-dashboards/04-09-SUMMARY.md
-  - .planning/phases/04-activity-time-dashboards/04-10-PLAN.md
-  - .planning/phases/04-activity-time-dashboards/04-10-SUMMARY.md
-  - .planning/phases/04-activity-time-dashboards/04-11-PLAN.md
-  - .planning/phases/04-activity-time-dashboards/04-11-SUMMARY.md
-  - .planning/phases/04-activity-time-dashboards/04-12-PLAN.md
-  - .planning/phases/04-activity-time-dashboards/04-12-SUMMARY.md
-  - .planning/phases/04-activity-time-dashboards/04-13-PLAN.md
-  - .planning/phases/04-activity-time-dashboards/04-13-SUMMARY.md
-  - .planning/phases/04-activity-time-dashboards/04-14-PLAN.md
-  - .planning/phases/04-activity-time-dashboards/04-14-SUMMARY.md
-  - .planning/phases/04-activity-time-dashboards/04-15-PLAN.md
-  - .planning/phases/04-activity-time-dashboards/04-15-SUMMARY.md
-  - .planning/phases/04-activity-time-dashboards/04-16-PLAN.md
-  - .planning/phases/04-activity-time-dashboards/04-16-SUMMARY.md
-  - .planning/phases/04-activity-time-dashboards/04-17-18-GAPCLOSURE-REVIEW.md
-  - .planning/phases/04-activity-time-dashboards/04-17-PLAN.md
-  - .planning/phases/04-activity-time-dashboards/04-17-SUMMARY.md
-  - .planning/phases/04-activity-time-dashboards/04-18-PLAN.md
-  - .planning/phases/04-activity-time-dashboards/04-18-SUMMARY.md
-  - .planning/phases/04-activity-time-dashboards/04-UAT.md
-  - .planning/phases/04-activity-time-dashboards/04-UI-REVIEW.md
-  - .planning/phases/04-activity-time-dashboards/04-UI-SPEC.md
-  - .planning/quick/261001-2qr-add-hover-outline-to-calendar-heatmap-ce/261001-2qr-PLAN.md
-  - .planning/quick/261001-2qr-add-hover-outline-to-calendar-heatmap-ce/261001-2qr-SUMMARY.md
-  - .planning/quick/261001-36p-add-pointer-hover-outline-to-weekday-x-h/261001-36p-PLAN.md
-  - .planning/quick/261001-36p-add-pointer-hover-outline-to-weekday-x-h/261001-36p-SUMMARY.md
-  - src/lib/components/CalendarHeatmap.svelte
-  - src/lib/components/ChartLegend.svelte
-  - src/lib/components/DurationList.svelte
-  - src/lib/components/HourGrid.svelte
-  - src/lib/components/MonthlyBarChart.svelte
-  - src/lib/components/Playtime.svelte
-  - src/lib/components/PlaytimeCharts.svelte
-  - src/lib/components/PlaytimeSummary.svelte
-  - src/lib/focus-clear.ts
-  - src/lib/playtime-client.ts
-  - src/lib/playtime-model.ts
-  - src/lib/playtime-shared.ts
-  - src/lib/playtime-state.ts
-  - src/lib/ui-copy.ts
-  - src/lib/worker/db.ts
-  - src/lib/worker/ingest.worker.ts
-  - src/lib/worker/playtime.ts
-  - tests/e2e/playtime-charts.spec.ts
-  - tests/e2e/playtime-real-shape.spec.ts
-  - tests/e2e/playtime-scale.spec.ts
-  - tests/e2e/playtime-ui-review.spec.ts
-  - tests/fixtures/export-fixtures.ts
-  - tests/fixtures/pinned-zip.ts
-  - tests/fixtures/playtime-real-shape-fixture.ts
-  - tests/fixtures/sessions-fixtures.ts
-  - tests/unit/contrast.test.ts
-  - tests/unit/focus-clear.test.ts
-  - tests/unit/playtime-charts.test.ts
-  - tests/unit/playtime-model.test.ts
-  - tests/unit/playtime-scale.test.ts
-  - tests/unit/sample-export-shape.test.ts
-  - vitest.config.ts
-covered_digest: "v2:sha256:c08eddeffe103759eaade86180e99826908b65c9b862d81f300604e2e173b09a"
+verified: 2026-10-11T12:47:57Z
+status: human_needed
+score: 5/5 roadmap success criteria verified in code and gates; 0 failed; 2 superseded 04-17 gap-closure claims accepted as overrides; HOUR_GRID_BASIS decided as 'overlap' by owner 2026-10-11; 7 human verification items remain
+covered_files: [".planning/phases/04-activity-time-dashboards/04-01-PLAN.md", ".planning/phases/04-activity-time-dashboards/04-01-SUMMARY.md", ".planning/phases/04-activity-time-dashboards/04-02-PLAN.md", ".planning/phases/04-activity-time-dashboards/04-02-SUMMARY.md", ".planning/phases/04-activity-time-dashboards/04-03-PLAN.md", ".planning/phases/04-activity-time-dashboards/04-03-SUMMARY.md", ".planning/phases/04-activity-time-dashboards/04-04-PLAN.md", ".planning/phases/04-activity-time-dashboards/04-04-SUMMARY.md", ".planning/phases/04-activity-time-dashboards/04-05-PLAN.md", ".planning/phases/04-activity-time-dashboards/04-05-SUMMARY.md", ".planning/phases/04-activity-time-dashboards/04-06-PLAN.md", ".planning/phases/04-activity-time-dashboards/04-06-SUMMARY.md", ".planning/phases/04-activity-time-dashboards/04-07-PLAN.md", ".planning/phases/04-activity-time-dashboards/04-07-SUMMARY.md", ".planning/phases/04-activity-time-dashboards/04-08-PLAN.md", ".planning/phases/04-activity-time-dashboards/04-08-SUMMARY.md", ".planning/phases/04-activity-time-dashboards/04-09-PLAN.md", ".planning/phases/04-activity-time-dashboards/04-09-SUMMARY.md", ".planning/phases/04-activity-time-dashboards/04-10-PLAN.md", ".planning/phases/04-activity-time-dashboards/04-10-SUMMARY.md", ".planning/phases/04-activity-time-dashboards/04-11-PLAN.md", ".planning/phases/04-activity-time-dashboards/04-11-SUMMARY.md", ".planning/phases/04-activity-time-dashboards/04-12-PLAN.md", ".planning/phases/04-activity-time-dashboards/04-12-SUMMARY.md", ".planning/phases/04-activity-time-dashboards/04-13-PLAN.md", ".planning/phases/04-activity-time-dashboards/04-13-SUMMARY.md", ".planning/phases/04-activity-time-dashboards/04-14-PLAN.md", ".planning/phases/04-activity-time-dashboards/04-14-SUMMARY.md", ".planning/phases/04-activity-time-dashboards/04-15-PLAN.md", ".planning/phases/04-activity-time-dashboards/04-15-SUMMARY.md", ".planning/phases/04-activity-time-dashboards/04-16-PLAN.md", ".planning/phases/04-activity-time-dashboards/04-16-SUMMARY.md", ".planning/phases/04-activity-time-dashboards/04-17-PLAN.md", ".planning/phases/04-activity-time-dashboards/04-17-SUMMARY.md", ".planning/phases/04-activity-time-dashboards/04-18-PLAN.md", ".planning/phases/04-activity-time-dashboards/04-18-SUMMARY.md", ".planning/phases/04-activity-time-dashboards/04-UAT.md", "src/lib/charts/ChartLegend.svelte", "src/lib/charts/MonthlyBarChart.svelte", "src/lib/charts/chart-width.ts", "src/lib/core/focus-clear.ts", "src/lib/features/playtime/CalendarHeatmap.svelte", "src/lib/features/playtime/DurationList.svelte", "src/lib/features/playtime/HourGrid.svelte", "src/lib/features/playtime/Playtime.svelte", "src/lib/features/playtime/PlaytimeCharts.svelte", "src/lib/features/playtime/PlaytimeSummary.svelte", "src/lib/features/playtime/playtime-aggregate.ts", "src/lib/features/playtime/playtime-client.ts", "src/lib/features/playtime/playtime-model.ts", "src/lib/features/playtime/playtime-shared.ts", "src/lib/features/playtime/playtime-state.ts", "src/lib/shell/Dashboard.svelte", "src/lib/shell/selection-state.ts", "src/lib/ui-copy.ts", "src/lib/worker/db.ts", "src/lib/worker/ingest.worker.ts", "tests/e2e/playtime/playtime-charts.spec.ts", "tests/e2e/playtime/playtime-real-shape.spec.ts", "tests/e2e/playtime/playtime-scale.spec.ts", "tests/e2e/playtime/playtime-ui-review.spec.ts", "tests/e2e/playtime/playtime.spec.ts", "tests/unit/charts/chart-width.test.ts", "tests/unit/charts/contrast.test.ts", "tests/unit/core/focus-clear.test.ts", "tests/unit/playtime/playtime-charts.test.ts", "tests/unit/playtime/playtime-client.test.ts", "tests/unit/playtime/playtime-model.test.ts", "tests/unit/playtime/playtime-scale.test.ts", "tests/unit/playtime/playtime.test.ts"]
+covered_digest: "v3:sha256:5d1d3e0dcb044f3dfa20e498bb9ccb2f548bb4b9efe3193aaaed232cf4ea9792"
 behavior_unverified: 0
-overrides_applied: 0
+overrides_applied: 2
+overrides:
+  - must_have: "54-column calendar fits the 640px card (634px fixed width, 6px spare) (04-17 truth)"
+    reason: "Superseded by Phase 8 plans 08-20 and 08-21: chart width is now measured and the calendar layout comes from calendarLayoutFor(chartsWidth) (PlaytimeCharts.svelte:94), with CALENDAR_LAYOUT.width = 634 as the floor. The 640px card is no longer the constraint; the 54-column no-clip property still holds at the floor."
+    accepted_by: "Bohdan_Pavlenko"
+    accepted_at: "2026-10-11T13:52:49Z"
+  - must_have: "Focus correction clears the sticky nav (04-17 truth)"
+    reason: "Superseded by Phase 8 plans 08-01, 08-02, 08-03, 08-07 and later (08-12, 08-14, 08-15, 08-17, 08-18): the sticky anchor nav was removed, STICKY_CHROME_SELECTOR matches nothing so navBottom = 0 (core/focus-clear.ts), and the clear line is the measured year head only."
+    accepted_by: "Bohdan_Pavlenko"
+    accepted_at: "2026-10-11T13:52:49Z"
 re_verification:
   previous_status: passed
   previous_score: "5/5 roadmap criteria"
+  previous_verified: 2026-10-02T21:12:00Z
+  reason: "Covered tree changed after the last verifier run. Phase 8 (plans 08-01..08-22, commit 5ab3af2) moved every Phase 4 module out of src/lib/components/ and src/lib/*.ts into src/lib/features/playtime/, src/lib/charts/ and src/lib/core/, removed the sticky anchor nav, and made chart width measured. 04-UAT.md listed six unresolved entries at verification time; one (G-04-HOUR-GRID-BASIS) was decided 'overlap' by the owner on 2026-10-11, five remain."
   gaps_closed: []
   gaps_remaining: []
   regressions: []
+  owner_decisions:
+    - "2026-10-11 (Bohdan_Pavlenko, answered in chat): HOUR_GRID_BASIS = 'overlap'. Keeps current behaviour; HOUR_GRID_BASIS_CAPTION already says so. Resolves human item 'Decide HOUR_GRID_BASIS' and UAT gap G-04-HOUR-GRID-BASIS as DECIDED: overlap. No code change."
+  superseded_by_phase_8:
+    - "04-17 truth: 54-column calendar fits the 640px card (634px fixed width). Now the floor of a measured width (08-20, 08-21). Accepted as override 2026-10-11."
+    - "04-17 truth: focus correction clears the sticky nav. The nav is gone and the clear line is the year head only (08-01, 08-02, 08-03 and later plans per their SUMMARY files). Accepted as override 2026-10-11."
+human_verification:
+  - test: "Open a real or realistic export, select the Playtime section in the Phase 8 master-detail layout, and confirm the populated block: three summary tiles, calendar, hour grid, duration bins, split selector, excluded count."
+    expected: "All blocks populated. The calendar and hour grid fill the detail pane. Nothing reads the old single-scroll layout."
+    why_human: "UAT test 1 passed before Phase 8 moved the block into the detail pane. Only a person can confirm the populated state in the new layout."
+    partial_evidence: "2026-10-11 walkthrough (Bohdan_Pavlenko approved): synthetic export, Playtime pane at 1280x800, 1280x600 and 375x812 rendered with no page-level horizontal scroll and 0 loose overflow elements (265 past the right edge on phone, all inside scroll containers). Layout fill only; populated tile/calendar/hour-grid/bins content was not checked on a real export. NOT resolved."
+  - test: "Confirm one real SESSION_START/STARTED_AT cell appears verbatim in its calendar day tooltip, with the hours and session count."
+    expected: "The tooltip date, hours and sessions match the source row. No wall-clock time is shown."
+    why_human: "UAT test 2 passed pre-Phase 8, and the real per-game header now uses STARTED_AT. Matching a real row needs a person."
+  - test: "Check calendar shading across a decade-long export: ordinary days are distinguishable, and the outlier day is darkest."
+    expected: "Perceptual contrast holds at the new measured width."
+    why_human: "UAT test 3 (perceptual) passed pre-Phase 8. Colour perception is not testable by grep or by the contrast unit tests."
+  - test: "At 375px, use PageUp/PageDown and the arrow keys on the calendar. Confirm the focused cell stays visible and clear of the sticky year head."
+    expected: "The cell is not hidden under the year head. The tooltip stays open across the correction."
+    why_human: "UAT test 4 was recorded against the nav that Phase 8 removed. Keyboard scrolling in the new layout needs a person to confirm."
+  - test: "Open the app in two tabs. Clear the cache in tab 2, then change the region selector in tab 1."
+    expected: "Tab 1 shows the 'cleared in another tab' notice (Playtime.svelte:114) and a way back to import. It does not sit on 'Updating charts...'."
+    why_human: "UAT test 5 passed pre-Phase 8. The notice and recovery path are part of the new section UI."
+  - test: "Walk the 04-UI-REVIEW.md priorities (15 of 24 were reported as issues in UAT test 6) against the Phase 8 layout at 375px and 1280px."
+    expected: "Weekday labels visible, tile numerals not broken, legend note on its own line, year head offset correct for the new layout."
+    why_human: "UAT test 6 was recorded pre-Phase 8. Phase 8 changed the layout these findings were measured on."
+    partial_evidence: "2026-10-11 walkthrough (Bohdan_Pavlenko approved) covered 375px and 1280px layout containment for the Playtime pane (no page-level horizontal scroll, 0 loose overflow elements, 0 console errors). It did not walk the specific UI-REVIEW priorities (weekday labels, tile numerals, legend note, year head offset). NOT resolved."
+  - test: "Resolve or accept the five unresolved UAT entries: G-04-TDD-EVIDENCE, G-04-CI-TIME-LIMITS, G-04-IMPORT-FLOW-FLAKE, G-04-REVIEW-INFO-FINDINGS, G-04-SCRATCH-CONFIG."
+    expected: "Each entry is closed by a person, or explicitly accepted as a known limitation. Nothing is marked resolved by the verifier."
+    why_human: "Each is recorded as failed or open in 04-UAT.md. Resolution is a human decision."
 ---
 
 # Phase 4: Activity Time Dashboards - Verification Report
 
 **Phase Goal:** User can see how much and when they played: lifetime totals, a year-by-year calendar, a weekly rhythm, and typical session lengths. The charts hold up on a decade-long account.
-**Verified:** 2026-10-02T21:12:00Z (01:12 on 2026-10-03 local, UTC+04:00), post gap-closure plans 04-17 and 04-18 and post UAT 60/60
-**Status:** passed
-**Re-verification:** Yes. The prior report (2026-10-02, `passed`) went stale after the covered tree changed (the UAT file was re-run to 60/60 and the Phase 5 tree moved on). This pass re-ran every gate against the current HEAD (`93a604e`) and re-read the code the gap closures touched.
-**Branch:** `gsd/phase-05-vehicle-stats-financial-dashboards`
+**Verified:** 2026-10-11T12:47:57Z
+**Status:** human_needed
+**Re-verification:** Yes. The 2026-10-02 `passed` report is stale: the covered source moved under Phase 8 and the UAT file gained open entries. This pass re-derived every truth from the current tree. It did not copy the old verdict.
 
 ## Evidence basis
 
-Every gate below was run by this verifier, sequentially, with nothing on port 4173 beforehand (`lsof -ti:4173` printed nothing before the e2e run). SUMMARY.md claims were used only as pointers; each was re-derived from source.
-
-| Command | Exit | Result |
+| Gate or check | Result | Notes |
 |---|---|---|
-| `pnpm run check` (`tsc -b`) | 0 | clean, no output |
-| `pnpm run lint` (`prettier --check . && eslint .`) | 0 | "All matched files use Prettier code style!", eslint silent |
-| `pnpm run test:unit` (`vitest run`) | 0 | **47 files, 1405/1405 tests**, 5.43s |
-| `pnpm run build` (`vite build`) | 0 | built; worker bundle 154.58 kB, main JS 158.03 kB, CSS 30.65 kB |
-| `pnpm run test:e2e` (`playwright test`, full suite, chromium) | 0 | **198 passed (54.4s)**, 0 failed, 0 flaky. `playwright test --list` reports `Total: 198 tests in 17 files` |
-| `gsd-tools query verification.fingerprint` | 0 | `v2:sha256:c08eddef...b09a` over 76 covered files (see frontmatter) |
+| Orchestrator unit gate (`g-unit.log`) | `UNIT_EXIT=0`, 87 files, 2794 passed | Final exit line present. Regression evidence only. |
+| Orchestrator check gate (`g-check.log`) | `CHECK_EXIT=0`, 306 files, 0 errors, 0 warnings | Final exit line present. Regression evidence only. |
+| Orchestrator e2e gate (`g-e2e.log`) | `E2E_EXIT=0`, 254 passed, 0 failed | Final exit line present. 33 log lines cover `tests/e2e/playtime/`, all passing, including `playtime-scale.spec.ts` (60,000 sessions). Regression evidence only. |
+| Named unit run by this verifier | `pnpm exec vitest run` over 9 files: `playtime-model`, `playtime-charts`, `playtime-scale`, `playtime`, `playtime-client`, `focus-clear`, `contrast`, `chart-width`, `ingest-worker` | 9 files, 449 tests, all passed (exit 0). Log: `scratchpad/v4-named.log`. |
+| Fingerprint | `gsd-tools query verification.fingerprint`, 76 covered files | Values copied verbatim into the frontmatter. |
+| Playwright / full suite | Not run by this verifier, per instruction | Gate results above are the evidence. |
 
-Notes on those results:
-
-- The 1405 / 198 totals are higher than the 1358 / 191 in the prior pass because Phase 5 plans 05-20..05-22 landed in between (7 new e2e tests, 47 unit files). None of them touches a Phase 4 contract, and all pass.
-- `tests/e2e/finance.spec.ts:1568`, which the prior pass recorded as a ~83%-fail tooltip-hover race owned by Phase 5, **passed** in this full run. It is still unfixed in the test file, so treat it as intermittent, not as resolved. It is Phase 5's, not Phase 4's.
-- The working tree was clean of tracked changes before and after. The one untracked entry (`.planning/ui-reviews/04-20261002-synth/`) was already present before this run and was neither opened nor touched.
-- No real export, no `tests/fixtures/private/`, and no real figure was opened or reproduced here.
+Mismatch: the prior report cited branch `gsd/phase-05-...` and HEAD `93a604e`. Neither is in the current history (HEAD is `ecf3440`). That report's evidence is void for this pass.
 
 ## Goal Achievement
 
@@ -126,111 +81,129 @@ Notes on those results:
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | A summary shows total hours played, total sessions, and active days derived from Activity_history | VERIFIED | `PlaytimeSummary.svelte` renders the three tiles from the slice; `tests/e2e/playtime-scale.spec.ts` (in the 198-pass run) asserts the rendered values equal the fixture's closed-form answer key. UAT test 1 (human, real export) confirms the populated block. Gap-closure 04-18 changed only the tile's CSS (`flex-wrap: wrap`, `overflow-wrap: normal`, unit `white-space: nowrap`, `PlaytimeSummary.svelte:228-249`); the `dl` grid is unchanged at `repeat(auto-fit, minmax(128px, 1fr))` (`:187`). |
-| 2 | Year-by-year calendar heatmap shows per-day activity; colour scale keeps ordinary days distinguishable (not linear min-max) | VERIFIED | `rankScale` is the nearest-rank percentile scale in `playtime-model.ts`; the heavy-tail and ramp-contrast guards (`playtime-model.test.ts`, `contrast.test.ts`) are inside the 1405-pass run. Perceptual half: UAT test 3 (human) PASS. Calendar geometry after 04-17: `CALENDAR_LAYOUT` is `cell 10, pitch 11, gutter 40, labelPad 4, width 634` (`playtime-model.ts:77-97`), and the weekday label is drawn at `x = gutter - labelPad = 36` (`CalendarHeatmap.svelte:509`). |
-| 3 | Day-of-week x hour-of-day heatmap with the timezone basis explicitly labeled | VERIFIED | `PlaytimeCharts.svelte` renders `HOUR_GRID_BASIS_CAPTION`; 168 cells from `buildHourGridModel`. Legend note layout after 04-18: `ChartLegend.svelte` row `gap: 8px 4px` (`:68`), note `flex-basis: 100%` (`:113`); pinned by e2e `playtime-ui-review.spec.ts:460` (passed). |
-| 4 | Session-duration distribution shows typical session lengths | VERIFIED | `DurationList.svelte` renders 12 bins; scale e2e asserts bin counts sum to the Sessions tile. Unchanged by 04-17/04-18. |
-| 5 | With a 50k+ session / 10-15 year fixture every chart renders without freezing; SVG node count scales with buckets | VERIFIED | `playtime-scale.spec.ts` passed in the full run (60,000-session preset, node counts follow buckets, no long task). 04-17/04-18 added no DOM nodes (CSS, constants and one scroll-sign change only). |
+| 1 | Summary shows total hours, total sessions, active days derived from Activity_history | VERIFIED | `src/lib/features/playtime/PlaytimeSummary.svelte` renders `data-testid="playtime-total-hours"` (line 100), `playtime-total-sessions` (107), and `playtime-active-days` (111) from `slice.dayIndex.length`. Unit tests in the named run pass. Phase 8 mounts the block from `Dashboard.svelte:274-275` (`active === 'playtime'`). Layout check is in human items. |
+| 2 | Year-by-year calendar heatmap shows per-day activity, with a non-linear colour scale | VERIFIED | `rankScale` (`playtime-model.ts:287`) is the nearest-rank percentile scale, not min-max. Rendered by `CalendarHeatmap` (mounted at `PlaytimeCharts.svelte:172`) with one `<rect>` per day, which is per-bucket. Heavy-tail and contrast guards pass in the named run. Perceptual half is a human item. |
+| 3 | Day-of-week x hour-of-day heatmap, timezone basis labelled | VERIFIED | `HourGrid` mounted at `PlaytimeCharts.svelte:208`, 168 cells from `buildHourGridModel` (`playtime-model.ts:745`). Caption `HOUR_GRID_BASIS_CAPTION` (`ui-copy.ts:805-806`) says the hours are "as recorded in the export (likely UTC or server time), not converted to your local time". `HOUR_GRID_BASIS` is `'overlap'`, decided by the owner on 2026-10-11 (see Warnings). |
+| 4 | Session-duration distribution shows typical lengths | VERIFIED | `DurationList` mounted at `PlaytimeCharts.svelte:235`. `DURATION_BIN_COUNT = 12` (`playtime-shared.ts:64`), `buildDurationRows` (`playtime-model.ts:851`). Named unit tests pass. |
+| 5 | 50k+ session / 10-15 year fixture renders without freezing; SVG node count scales with buckets | VERIFIED | `tests/unit/playtime/playtime-scale.test.ts` passes in the named run. E2E `playtime-scale.spec.ts` (60,000-session preset, node counts follow buckets, 12x sessions gives the same DOM) passed in `g-e2e.log`. No per-session SVG node exists: the only `{#each}` loops over data are per day (`CalendarHeatmap.svelte:559-561`), per hour cell (`HourGrid.svelte:401`), and per 12 bins (`DurationList.svelte:71`). This meets the AGENTS.md per-bucket rule. |
 
-**Score: 5/5.** No truth is behavior-unverified: the two behavior-dependent invariants this closure added (focus correction direction, tile wrap) each have a passing browser test that measures the behavior, not just the symbol (see below).
+**Score: 5/5 roadmap criteria verified in code and gates. 0 FAILED. No behavior-unverified truths.**
 
-### Gap-closure truths re-derived from source (04-17, 04-18)
+### Requirements coverage
+
+| Requirement | Source plans | Status | Evidence |
+|---|---|---|---|
+| ACTIVITY-01 (totals, sessions, active days) | 04-01, 04-02, 04-03, 04-04, 04-06, 04-08 and others | SATISFIED | Truth 1 above. REQUIREMENTS.md marks it Complete. |
+| ACTIVITY-02 (calendar heatmap, per-day) | 04-05, 04-06, 04-10 and others | SATISFIED | Truth 2 above. |
+| ACTIVITY-03 (day x hour heatmap, per-bucket) | 04-05, 04-09, 04-11 and others | SATISFIED | Truth 3 above. |
+| ACTIVITY-04 (session-duration distribution) | 04-05, 04-09, 04-13 and others | SATISFIED | Truth 4 above. |
+
+No orphaned requirements: the Phase 4 rows in REQUIREMENTS.md are exactly these four IDs, and each appears in a PLAN `requirements:` field.
+
+### Gap-closure truths (04-17, 04-18) re-derived from current source
 
 | Truth | Status | Evidence |
 |---|---|---|
-| Weekday labels fit the calendar gutter at 1280px and 375px | VERIFIED | Room is `gutter - labelPad = 36px` against a widest label of about 29px, so the label's left edge is near x = 7. Source: `playtime-model.ts:83,93`. Browser guard `playtime-ui-review.spec.ts:68` measures real `getBoundingClientRect()` for every year at both widths: passed. |
-| 54-column fit is preserved | VERIFIED | Recomputed from the shipped constants: `40 + 54 x 11 = 634`, the declared `width`; 634 is inside the 640px card content width with **6px to spare**. |
-| Focus correction scrolls the page up (cell moves down, out from under sticky chrome) | VERIFIED | `focusScrollDelta` returns `Math.min(0, rect.top - requiredTop)` (`playtime-model.ts:~906`), never positive; `scrollClear` passes it through unchanged: `window.scrollBy({ top: delta, behavior: 'instant' })` (`focus-clear.ts:66`). No `-delta` remains. Behavioral evidence: e2e `playtime-ui-review.spec.ts:202` (cell clears the sticky head at 375px) and `tests/unit/focus-clear.test.ts` passed. |
-| Sticky year-head height is measured, not a 32px literal | VERIFIED | `headHeightFor` returns `head.offsetHeight` (`CalendarHeatmap.svelte:383-388`) and is the argument at `:355`. |
-| Shared helper still serves Phase 5 | VERIFIED | `scrollClear` has exactly three consumers: `CalendarHeatmap.svelte:355`, `HourGrid.svelte:278`, `MonthlyBarChart.svelte:144` (Phase 5, passes `0`). The full 198-test e2e run, which includes `finance.spec.ts`, passed. `MonthlyBarChart.svelte` is added to `covered_files` for that reason. |
-| Tile numeral and unit never break mid-word at 375px | VERIFIED | e2e `playtime-ui-review.spec.ts:364` (Range-measured line counts) passed; the `dd` rule no longer declares `overflow-wrap: anywhere` (remaining `anywhere` occurrences are at `:274`, `:284`, `:326`, the untrusted-text cells and notes). |
-| Legend note is on its own line, 8px under the swatch row | VERIFIED | `ChartLegend.svelte:68,113`; e2e `:460` passed (both legends, both widths). |
+| Weekday labels fit the calendar gutter at 1280px and 375px | VERIFIED | `CALENDAR_LAYOUT` keeps `gutter: 40`, `labelPad: 4` (`playtime-model.ts:84-97`). The browser guard in `playtime-ui-review.spec.ts` passed in `g-e2e.log`. |
+| 54-column calendar fits the 640px card (634px fixed width, 6px spare) | PASSED (override), superseded by Phase 8 (08-20, 08-21) | Phase 8 made chart width measured: `calendarLayoutFor(chartsWidth)` (`PlaytimeCharts.svelte:94`), with `CALENDAR_LAYOUT.width = 634` now the floor. The 640px card is no longer the constraint. The underlying 54-column no-clip property still holds at the floor. Accepted as an override by Bohdan_Pavlenko on 2026-10-11T13:52:49Z. |
+| Focus correction scrolls the page up (cell moves down, out from under chrome) | VERIFIED (sign) | `focusScrollDelta` returns `Math.min(0, rect.top - requiredTop)` (`playtime-model.ts:1065`). `scrollClear` passes it through unchanged to `window.scrollBy` (`core/focus-clear.ts`). Behavioural tests: `tests/unit/core/focus-clear.test.ts` (named run, passed) and `playtime-ui-review.spec.ts` (gate, passed). |
+| Focus correction clears the sticky nav | PASSED (override), superseded by Phase 8 | Phase 8 removed the sticky anchor nav. `STICKY_CHROME_SELECTOR` now matches nothing, so `navBottom = 0` (`core/focus-clear.ts`). `CalendarHeatmap.svelte:485-486` and `app.css:44` record "no sticky chrome over the content". The year-head clearance is still measured. Plan ids touching sticky/nav in their SUMMARY files: 08-01, 08-02, 08-03, 08-07, 08-12, 08-14, 08-15, 08-17, 08-18. Accepted as an override by Bohdan_Pavlenko on 2026-10-11T13:52:49Z. |
+| Sticky year head height is measured, not a 32px literal | VERIFIED | `headHeightFor` returns `head.offsetHeight` (`CalendarHeatmap.svelte:394-399`) and is passed to `scrollClear`. |
+| Tile numeral and unit never break mid-word at 375px | VERIFIED | `PlaytimeSummary.svelte`: `overflow-wrap: normal` on the value (line 238), `white-space: nowrap` on the unit (line 249). The `overflow-wrap: anywhere` occurrences left (274, 284, 326) are on untrusted-text cells. The e2e tile check passed in the gate. |
+| Legend note on its own line, 8px under the swatch row | VERIFIED | `src/lib/charts/ChartLegend.svelte:68` (`gap: 8px 4px`) and `:113` (`flex-basis: 100%`). Moved from `src/lib/components/`. |
 
-Mutation evidence (revert the fix, watch the guard fail) for each of these is recorded in the prior pass's report, which this file replaces: see `git show f1dc6e8:.planning/phases/04-activity-time-dashboards/04-VERIFICATION.md` (its MUST-HAVES and TEST INTEGRITY sections, mutations M1-M6) and in `04-17-18-GAPCLOSURE-REVIEW.md`. That prior report also holds the IP-never-rendered evidence (three independent lines), summarized in Anti-Patterns below and re-checked by grep in this pass. I did not repeat the mutations in this pass; I re-confirmed the fixes are still present in source and that the guards pass against them.
+### Phase 8 supersession (per instruction, no new overrides)
 
-### Corrections to the prior report
+The prior report carried `overrides_applied: 0`. On 2026-10-11T13:52:49Z the repo owner (Bohdan_Pavlenko) accepted both superseded 04-17 claims as overrides (frontmatter `overrides:`). Both rows above are PASSED (override).
 
-The prior report's gap-closure table and its 54-column paragraph contained wrong numbers. They did not change any verdict, but they must not be carried forward:
+## Required artifacts (current paths)
 
-- It stated `labelPad: 11` and a label drawn at `x = 29`. The source says `labelPad: 4`, so the label's right edge is at `x = 36` (`playtime-model.ts:93`, `CalendarHeatmap.svelte:509`; `04-17-SUMMARY.md` and UI-SPEC A-1 agree with the source).
-- It stated "1px to spare" and wrote the arithmetic as `40 + 10 x 54`. The pitch is 11, so the fit is `40 + 54 x 11 = 634` inside 640, with **6px** to spare.
-- It reported the e2e total as 191 and unit total as 1358; the current totals are 198 and 1405 (Phase 5 growth).
+The prior report's `covered_files` used paths that no longer exist. Current locations, all present:
 
-### Required Artifacts
-
-| Artifact | Status | Details |
+| Former path | Current path | Status |
 |---|---|---|
-| `src/lib/playtime-model.ts` | VERIFIED | Substantive (`rankScale`, calendar/hour-grid/duration models, `CALENDAR_LAYOUT`, `focusScrollDelta`); consumed by the components and worker. |
-| `src/lib/focus-clear.ts` | VERIFIED | Wired from 3 components; correct sign (see above). |
-| `src/lib/components/CalendarHeatmap.svelte`, `HourGrid.svelte`, `PlaytimeSummary.svelte`, `ChartLegend.svelte`, `PlaytimeCharts.svelte`, `DurationList.svelte`, `Playtime.svelte` | VERIFIED | Rendered, wired top-down; data flows from the worker aggregate (`playtime-scale.spec.ts` asserts rendered values equal the closed-form key). |
-| `src/lib/worker/playtime.ts`, `db.ts`, `ingest.worker.ts`, `playtime-shared.ts`, `playtime-state.ts`, `playtime-client.ts` | VERIFIED | Unchanged since the 2026-10-01 pass; covered by unit and e2e suites that passed. |
-| `tests/e2e/playtime-ui-review.spec.ts` (4 tests), `tests/unit/focus-clear.test.ts`, `tests/unit/playtime-charts.test.ts`, `tests/unit/playtime-model.test.ts`, `tests/unit/contrast.test.ts`, `tests/fixtures/pinned-zip.ts`, `vitest.config.ts` | VERIFIED | All four ui-review tests are listed by `playwright test --list` and passed. The fixture builders `export-fixtures.ts`, `sessions-fixtures.ts` and `playtime-real-shape-fixture.ts`, changed by the flake-fix commits (`f512f56`, `0d937f6`, `1c6dad6`) to route through `pinned-zip.ts`, are now in `covered_files`; every Phase 4 browser test builds its archive through them. |
+| `src/lib/components/CalendarHeatmap.svelte` | `src/lib/features/playtime/CalendarHeatmap.svelte` | VERIFIED, mounted |
+| `src/lib/components/ChartLegend.svelte` | `src/lib/charts/ChartLegend.svelte` | VERIFIED, used |
+| `src/lib/components/DurationList.svelte` | `src/lib/features/playtime/DurationList.svelte` | VERIFIED, mounted |
+| `src/lib/components/HourGrid.svelte` | `src/lib/features/playtime/HourGrid.svelte` | VERIFIED, mounted |
+| `src/lib/components/MonthlyBarChart.svelte` | `src/lib/charts/MonthlyBarChart.svelte` | VERIFIED (Phase 5 consumer of `scrollClear`) |
+| `src/lib/components/Playtime.svelte`, `PlaytimeCharts.svelte`, `PlaytimeSummary.svelte` | `src/lib/features/playtime/` | VERIFIED, mounted via `Dashboard.svelte:275` |
+| `src/lib/focus-clear.ts` | `src/lib/core/focus-clear.ts` | VERIFIED |
+| `src/lib/playtime-client.ts`, `playtime-model.ts`, `playtime-shared.ts`, `playtime-state.ts` | `src/lib/features/playtime/` | VERIFIED |
+| `src/lib/worker/playtime.ts` | `src/lib/features/playtime/playtime-aggregate.ts` | VERIFIED. `ingest.worker.ts:32` imports `buildPlaytimeFromSources` from it. |
+| `src/lib/ui-copy.ts`, `worker/db.ts`, `worker/ingest.worker.ts` | unchanged | VERIFIED |
 
-### Key Links
+Real-export fix (UAT G-04-1, resolved in plans 04-14/04-15): `playtime-aggregate.ts` accepts `{GAME}_Game_Sessions.csv` (game from the file name, basename matched). `STARTED_AT`/`FINISHED_AT` are aliases for `SESSION_START`/`SESSION_END` (lines 315-324). The `.xlsx` duplicate is ignored. This is present in source.
 
-| From | To | Status |
+## Key link verification
+
+| From | To | Via | Status |
+|---|---|---|---|
+| `Dashboard.svelte` | `features/playtime/Playtime.svelte` | import + `active === 'playtime'` (lines 20, 267-275) | WIRED |
+| `Playtime.svelte` | `PlaytimeCharts.svelte` | mounted from the block | WIRED |
+| `PlaytimeCharts.svelte` | `CalendarHeatmap`, `HourGrid`, `DurationList` | imports at lines 25, 28, 29 and render at 172, 208, 235 | WIRED |
+| Charts | worker aggregate | `playtime-query` to `ingest.worker.ts:116` / `handlePlaytimeQuery` (line 176) | WIRED |
+| `scrollClear` | `CalendarHeatmap`, `HourGrid`, `MonthlyBarChart` | three call sites | WIRED |
+
+## Anti-patterns and debt markers
+
+- Debt-marker gate: no `TBD`, `FIXME` or `XXX` in the Phase 4 source or tests. No `TODO`, `HACK` or `placeholder` in `features/playtime/` or `charts/`. Gate passes.
+- Stub check: no empty-return or hardcoded-empty data on any rendered Phase 4 path. Summary tiles, calendar, hour grid and bins all derive from the worker slice.
+- Scratch file: `playwright.scratch.config.ts` is absent from the repo root and `git status` is clean. UAT G-04-SCRATCH-CONFIG still records it as failed. Not marked resolved here.
+
+## Warnings (not blocking)
+
+1. **Superseded 04-17 claims** (two sub-items above). Accepted as overrides on 2026-10-11; no longer open.
+2. **HOUR_GRID_BASIS decided: `'overlap'` (owner decision 2026-10-11, Bohdan_Pavlenko, answered in chat).** `playtime-shared.ts:41` is `'overlap'` and stays. Both bases are stored. No code change. `HOUR_GRID_BASIS_CAPTION` already describes the overlap basis. `HOUR_GRID_START_BASIS_NOTE` stays inert in the collapsed disclosure, so the Phase 8 review concern (moving it out under `'start'`) does not apply. No longer open.
+3. **UAT file is internally inconsistent.** Frontmatter says `status: complete`, and the summary block says `passed: 60, issues: 0, pending: 0`. But the Gaps section has five entries that are not resolved (table below) plus G-04-HOUR-GRID-BASIS, now decided by the owner (its `status:` field in the UAT file is unchanged). The file was last updated 2026-10-02, before Phase 8 (`5ab3af2`). Its six human UAT passes were recorded against the pre-Phase 8 layout.
+4. **UAT auto-passes** (54 entries) are derived from SUMMARY.md and are not behavioural evidence. They were not counted in this verdict.
+
+## Unresolved UAT items (read from 04-UAT.md, not marked resolved; five remain)
+
+| Gap ID | Recorded status | Summary |
 |---|---|---|
-| `CalendarHeatmap.svelte:355` | `scrollClear(node, headHeightFor(node))` -> `focusScrollDelta` -> `window.scrollBy` | WIRED |
-| `CalendarHeatmap.svelte:509` | `CALENDAR_LAYOUT.gutter - CALENDAR_LAYOUT.labelPad` | WIRED |
-| `MonthlyBarChart.svelte:144` | `scrollClear(node, 0)` (Phase 5 shared consumer) | WIRED |
-| `Playtime.svelte` | `PlaytimeSummary` / `PlaytimeCharts` via the ready slice | WIRED |
+| G-04-TDD-EVIDENCE | failed | `check tdd-red-evidence` parses node:test TAP and cannot read vitest 5 output. The git log shows the RED commits. |
+| G-04-CI-TIME-LIMITS | failed | CI time limits (15/17/25 min) not validated against a real CI run. Local suite is about 41s. |
+| G-04-IMPORT-FLOW-FLAKE | failed | `tests/e2e/import/import-flow.spec.ts:102` matches a hand-typed five-string pattern and misses a sixth form. Pre-existing, not Phase 4. |
+| G-04-REVIEW-INFO-FINDINGS | open | 04-REVIEW.md info findings IN-1..IN-5 acknowledged or resolved. Out of scope for `critical_warning` fix scope. |
+| G-04-SCRATCH-CONFIG | failed (file now absent) | UAT says `playwright.scratch.config.ts` should be deleted. It is not in the tree now. Left for a human to close. |
 
-### Data-Flow Trace (Level 4)
+Decided (not in the table above): G-04-HOUR-GRID-BASIS, DECIDED: overlap, by owner Bohdan_Pavlenko on 2026-10-11 (see Warnings 2). Recorded here as an owner decision, not a verifier resolution.
 
-| Artifact | Data variable | Source | Real data | Status |
-|---|---|---|---|---|
-| `PlaytimeSummary.svelte` | tile values | worker aggregate over Sessions files | yes (scale e2e compares against the closed-form key) | FLOWING |
-| `CalendarHeatmap.svelte` | day cells | `buildCalendarModel` over the stored `dayIndex/daySeconds` | yes (cell counts asserted by scale spec) | FLOWING |
-| `HourGrid.svelte`, `DurationList.svelte` | 168 cells / 12 bins | stored `hourOverlap` / `bins` | yes (bin sum equals Sessions tile) | FLOWING |
+Deferred follow-ups recorded in UAT (informational, not verified here): (a) hover outline on the calendar cell under the pointer (quick tasks 261001-2qr and 261001-36p exist; not checked against the Phase 8 layout), (b) reword test 2 expected text to forbid wall-clock time.
 
-### Requirements Coverage
+Resolved UAT gaps (recorded as resolved; re-checked against source above, not re-marked): G-04-1 (real-export Game_Sessions support, verified in source), G-04-5 (cleared-in-another-tab notice, `Playtime.svelte:114`), G-04-UI-1, G-04-UI-2, G-04-UI-3 (see the 04-17/04-18 table above).
 
-| Requirement | Status | Evidence |
-|---|---|---|
-| ACTIVITY-01 (totals summary) | SATISFIED | Truth 1 |
-| ACTIVITY-02 (calendar heatmap, per-day aggregation) | SATISFIED | Truths 2 and 5 |
-| ACTIVITY-03 (day x hour heatmap, per-bucket) | SATISFIED | Truth 3 |
-| ACTIVITY-04 (session-duration distribution) | SATISFIED | Truth 4 |
+## Human Verification Required
 
-`REQUIREMENTS.md` marks ACTIVITY-01..04 `[x]` and `Complete` for Phase 4. ACTIVITY-05..07 belong to Phase 6; none is orphaned here. (The re-verification request named ACTIVITY-01..03; the ROADMAP and the plans claim 01..04, so all four were checked.)
+The `human_verification` frontmatter lists seven items (the HOUR_GRID_BASIS item was decided on 2026-10-11 and removed). Summary:
+1. Populated Playtime block in the Phase 8 detail pane (UAT 1, pre-Phase 8).
+2. Real session cell verbatim in its calendar tooltip (UAT 2, pre-Phase 8).
+3. Calendar shading perception on a decade-long export (UAT 3).
+4. 375px keyboard focus and year-head clearance in the new layout (UAT 4).
+5. Second-tab cache clear and the notice (UAT 5).
+6. UI-REVIEW findings re-walked on the Phase 8 layout (UAT 6).
+7. Disposition of the five unresolved UAT entries.
 
-### Anti-Patterns
+### Visual walkthrough note (2026-10-11, partial coverage, nothing resolved)
 
-- `TBD` / `FIXME` / `XXX` in the phase's changed source and test files: none (grep over `focus-clear.ts`, the four components, `playtime-model.ts`, `playtime-ui-review.spec.ts`, `focus-clear.test.ts`; also none in the prior sweep over `src/`).
-- Network APIs (`fetch(`, `XMLHttpRequest`, `sendBeacon`, `WebSocket`, `EventSource`) in `src/`: none. The zero-network e2e spec passed in the full run.
-- No dependency change: `git diff 349ec8f..HEAD -- package.json pnpm-lock.yaml index.html` is empty.
-- No IP column reference in `src/` outside comments (grep for `ip_address`, `ipaddress`, `'IP'`, `"IP"` returned nothing).
-- No stubs: every changed component renders from real data; no hardcoded-empty props on the production path.
+Visual walkthrough accepted 2026-10-11 (accepted_by Bohdan_Pavlenko, approved in chat as "approved"): an agent drove the built app (preview build, headless Chromium) with a synthetic export (sessions, logins, all four player-stats titles, premium, currency, orders) at 1280x800, 1280x600 and 375x812 across all 8 panes. No page-level horizontal scroll at any size; elements past the right edge on phone (Playtime 265, Login history 40, Vehicles 42, Finance 65) all sit inside intentional scroll containers (0 loose); j/k moved Overview -> Playtime -> Overview on desktop at both heights; phone list -> detail with the Sections back control works on every pane; 0 console/page errors; 4 requests after load (page, JS, CSS, worker), 0 beyond baseline. Relevance to this phase: Playtime pane at all three sizes had no page-level horizontal scroll and no loose overflow (265 elements past the right edge on phone, all inside scroll containers).
 
-### Probe Execution
+- Partially informs item 1 (populated block in the detail pane) and item 6 (UI-REVIEW priorities at 375px and 1280px): layout containment only. Both stay open.
+- Does NOT cover item 4: PageUp/PageDown and arrow keys on the calendar were not exercised, so focus-clear at 375px is unconfirmed.
+- Does NOT cover items 2, 3 (real session cell, decade-long shading, synthetic data only), 5 (two-tab cache clear) or 7 (UAT entries). The former item 7, the HOUR_GRID_BASIS decision, was made by the owner on 2026-10-11 and is closed.
 
-None declared; no `scripts/*/tests/probe-*.sh` exists. Not applicable.
+## Gaps Summary
 
-### Human Verification
+No FAILED truth and no blocker. The phase goal (totals, calendar, weekday-hour rhythm, duration distribution, decade-scale rendering) is present in the current code, wired into the Phase 8 shell, and backed by passing unit and e2e gates.
 
-No items remain open. The earlier human checks were satisfied by `04-UAT.md` (`status: complete`, 60 total: 6 human + 54 auto-passed, 60 passed, 0 issues, 0 pending). Specifically:
+Status is `human_needed`, not `passed`, for two reasons:
+- The six human UAT passes predate the Phase 8 redesign, and the layout they tested no longer exists.
+- Five UAT entries remain unresolved (HOUR_GRID_BASIS was decided 'overlap' by the owner on 2026-10-11). The two 04-17 claims superseded by Phase 8 were accepted as overrides on 2026-10-11 and are no longer open.
 
-- UAT test 6 (UI review findings) was `issue` and is now `pass`. Its note records a headless drive of the rebuilt app with a real export kept outside the repo: weekday labels unclipped in every year grid at 1280 and 375, tile numeral on one line with the unit stacked below at 375, no page overflow. I read the note; I did not re-perform that drive and did not see the export. It is corroborated by the four passing `playtime-ui-review` browser tests, which measure the same properties on the synthetic fixture.
-- UAT tests 1 and 5 (real export, cache-cleared notice) were human PASS on a real export in the earlier passes and are unaffected by CSS/constant changes.
-
-## Open, non-blocking items (not Phase 4 goal gaps)
-
-1. `finance.spec.ts:1568` (Phase 5 tooltip-hover race) is still intermittent by the Phase 5 owner's own record; it passed this run.
-2. `vitest.config.ts` `testTimeout: 20_000` masks CPU starvation rather than removing it; the full unit suite here ran in 5.4s, well inside it.
-3. `04-17-SUMMARY.md` and `04-18-SUMMARY.md` quote point-in-time totals (1352/1356 unit, 189/191 e2e); the totals above are current. The 6px-to-spare figure in 04-17-SUMMARY is correct; only the prior verification report's 1px was wrong.
-4. Two UAT follow-ups were deferred in `04-UAT.md` (2026-09-30): the calendar-cell hover outline, which has since shipped as quick tasks 261001-2qr and 261001-36p and is pinned by passing e2e; and rewording test 2's expected text (the calendar tooltip never shows a wall-clock time), which remains deferred. Neither bears on a success criterion.
-
-## Honest limits
-
-- Visual quality beyond measured geometry was not judged by this pass; the human evidence is UAT, which I read but did not repeat.
-- Everything ran in Chromium (the project's only configured browser); WebKit and Firefox are not exercised.
-- I did not re-run the mutation tests of the prior pass; I re-confirmed source state and that guards pass.
-
-## Verdict
-
-All five ROADMAP success criteria and ACTIVITY-01..04 are verified against the current tree with fresh gate runs (check, lint, 1405 unit, build, 198 e2e, all exit 0). The three UI-review gaps closed by 04-17/04-18 are present in source and held by passing browser tests, UAT is 60/60, and no human item remains. Status `passed`.
+No `gaps:` list is emitted, because nothing is FAILED. Nothing in the UAT was marked resolved by the verifier.
 
 ---
 
-_Verified: 2026-10-02T21:12:00Z_
+_Verified: 2026-10-11T12:47:57Z_
 _Verifier: Claude (gsd-verifier)_

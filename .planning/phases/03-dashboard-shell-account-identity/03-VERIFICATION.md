@@ -1,12 +1,11 @@
 ---
 phase: 03-dashboard-shell-account-identity
-verified: 2026-09-29T17:15:18Z
-status: passed
-score: 69/69 plan-03 must-have truths verified · 4/4 ROADMAP success criteria met · 3/3 requirement IDs satisfied (DATA-03, DATA-04, IDENTITY-01)
+verified: 2026-10-11T15:08:53Z
+status: human_needed
+score: 69/69 plan-03 must-have truths verified or override (10 superseded by Phase 8 and accepted as overrides; G4 closed in round 2) · 4/4 ROADMAP success criteria verified · 3/3 requirement IDs satisfied (DATA-03, DATA-04, IDENTITY-01) · 9/11 prohibitions verified, 2 flagged unverified-prohibition (judgment tier, human decision pending)
 covered_files:
-  - .planning/REQUIREMENTS.md
-  - .planning/ROADMAP.md
-  - .planning/STATE.md
+  - .claude/skills/run-data-export-viewer/SKILL.md
+  - .claude/skills/run-data-export-viewer/driver.mjs
   - .planning/phases/03-dashboard-shell-account-identity/03-01-PLAN.md
   - .planning/phases/03-dashboard-shell-account-identity/03-01-SUMMARY.md
   - .planning/phases/03-dashboard-shell-account-identity/03-02-PLAN.md
@@ -21,341 +20,311 @@ covered_files:
   - .planning/phases/03-dashboard-shell-account-identity/03-06-SUMMARY.md
   - .planning/phases/03-dashboard-shell-account-identity/03-07-PLAN.md
   - .planning/phases/03-dashboard-shell-account-identity/03-07-SUMMARY.md
-  - .planning/phases/03-dashboard-shell-account-identity/03-CONTEXT.md
-  - .planning/phases/03-dashboard-shell-account-identity/03-UI-REVIEW.md
-  - .planning/phases/03-dashboard-shell-account-identity/03-UI-SPEC.md
-  - .planning/phases/03-dashboard-shell-account-identity/03-VALIDATION.md
   - src/App.svelte
   - src/app.css
-  - src/lib/components/ConfirmPanel.svelte
-  - src/lib/components/Dashboard.svelte
-  - src/lib/components/DashboardNav.svelte
-  - src/lib/components/DashboardSection.svelte
-  - src/lib/components/Dropzone.svelte
-  - src/lib/components/IdentityHeader.svelte
-  - src/lib/components/ImportBar.svelte
-  - src/lib/components/UnsupportedBlock.svelte
-  - src/lib/dashboard-status.ts
-  - src/lib/scroll-spy.ts
-  - src/lib/types/worker-messages.ts
+  - src/lib/core/types/worker-messages.ts
+  - src/lib/import/ingest-client.ts
+  - src/lib/import/precheck.ts
+  - src/lib/import/worker-client.svelte.ts
+  - src/lib/shell/ConfirmPanel.svelte
+  - src/lib/shell/Dashboard.svelte
+  - src/lib/shell/DashboardSection.svelte
+  - src/lib/shell/DetailPane.svelte
+  - src/lib/shell/Dropzone.svelte
+  - src/lib/shell/IdentityHeader.svelte
+  - src/lib/shell/ImportBar.svelte
+  - src/lib/shell/ListPane.svelte
+  - src/lib/shell/Overview.svelte
+  - src/lib/shell/UnsupportedBlock.svelte
+  - src/lib/shell/dashboard-status.ts
+  - src/lib/shell/overview-model.ts
+  - src/lib/shell/selection-state.ts
   - src/lib/ui-copy.ts
-  - src/lib/worker-client.svelte.ts
-  - src/lib/worker/categories.ts
   - src/lib/worker/db.ts
   - src/lib/worker/identity.ts
   - src/lib/worker/ingest.worker.ts
-  - tests/e2e/dashboard.spec.ts
-  - tests/e2e/identity-privacy.spec.ts
-  - tests/e2e/import-failure.spec.ts
-  - tests/e2e/import-flow.spec.ts
-  - tests/e2e/persistent-dataset.spec.ts
-  - tests/e2e/scroll-nav.spec.ts
-  - tests/e2e/zero-network.spec.ts
+  - tests/e2e/import/import-failure.spec.ts
+  - tests/e2e/import/import-flow.spec.ts
+  - tests/e2e/import/persistent-dataset.spec.ts
+  - tests/e2e/shell/dashboard.spec.ts
+  - tests/e2e/shell/identity-privacy.spec.ts
+  - tests/e2e/shell/master-detail-nav.spec.ts
   - tests/fixtures/export-fixtures.ts
-  - tests/helpers/contrast.ts
-  - tests/unit/contrast.test.ts
-  - tests/unit/dashboard-status.test.ts
-  - tests/unit/db.test.ts
-  - tests/unit/identity.test.ts
-  - tests/unit/ingest-client.test.ts
-  - tests/unit/ingest-worker.test.ts
-  - tests/unit/scroll-spy.test.ts
-  - tests/unit/ui-copy.test.ts
-covered_digest: "v1:sha256:8ea89bdc1cb9f3a421a3fe4a7bd3f938ba814546d4577a103a272e462d5fe17d"
+  - tests/unit/import/db.test.ts
+  - tests/unit/import/ingest-client.test.ts
+  - tests/unit/import/ingest-worker.test.ts
+  - tests/unit/shell/dashboard-status.test.ts
+  - tests/unit/shell/identity.test.ts
+  - tests/unit/shell/ui-copy.test.ts
+covered_digest: "v3:sha256:b1fb25ebe53020bed823be378e78c0033845dffa22c8c40ef869a5c1a71552ab"
 behavior_unverified: 0
-overrides_applied: 0
+overrides_applied: 10
+overrides:
+  - must_have: "03-02 truth 8: scroll-spy pure rule drives aria-current"
+    reason: "Superseded by Phase 8 plans 08-02 and 08-07 (D-02): the anchor nav, scroll-spy.ts and the smooth anchor-scroll rule were deliberately retired; src/lib/shell/scroll-spy.ts and DashboardNav.svelte are deleted and src/app.css has no scroll-behavior rule. The negative half still holds (no hashchange listener, no location.hash write)."
+    accepted_by: "Bohdan_Pavlenko"
+    accepted_at: "2026-10-11T13:52:49Z"
+  - must_have: "03-05 truth 3: exactly one aria-current=location driven by scroll-spy"
+    reason: "Superseded by Phase 8 plans 08-02 and 08-07 (D-02): the anchor nav, scroll-spy.ts and the smooth anchor-scroll rule were deliberately retired; src/lib/shell/scroll-spy.ts and DashboardNav.svelte are deleted and src/app.css has no scroll-behavior rule. The negative half still holds (no hashchange listener, no location.hash write)."
+    accepted_by: "Bohdan_Pavlenko"
+    accepted_at: "2026-10-11T13:52:49Z"
+  - must_have: "03-05 truth 4: smooth anchor scroll under reduced-motion only"
+    reason: "Superseded by Phase 8 plans 08-02 and 08-07 (D-02): the anchor nav, scroll-spy.ts and the smooth anchor-scroll rule were deliberately retired; src/lib/shell/scroll-spy.ts and DashboardNav.svelte are deleted and src/app.css has no scroll-behavior rule. The negative half still holds (no hashchange listener, no location.hash write)."
+    accepted_by: "Bohdan_Pavlenko"
+    accepted_at: "2026-10-11T13:52:49Z"
+  - must_have: "03-02 truth 6: five fixed nav links with muted reason"
+    reason: "Superseded by Phase 8 plans 08-02, 08-03 and 08-07: the five-link sticky anchor nav is replaced by the eight-row ListPane (src/lib/shell/ListPane.svelte, rows from PANE_IDS in selection-state.ts) with visible row-summary status text, and the phone list screen (08-03) replaces the 375px nav scroll."
+    accepted_by: "Bohdan_Pavlenko"
+    accepted_at: "2026-10-11T13:52:49Z"
+  - must_have: "03-05 truth 1: five native #hash sticky nav"
+    reason: "Superseded by Phase 8 plans 08-02, 08-03 and 08-07: the five-link sticky anchor nav is replaced by the eight-row ListPane (src/lib/shell/ListPane.svelte, rows from PANE_IDS in selection-state.ts) with visible row-summary status text, and the phone list screen (08-03) replaces the 375px nav scroll."
+    accepted_by: "Bohdan_Pavlenko"
+    accepted_at: "2026-10-11T13:52:49Z"
+  - must_have: "03-05 truth 2: muted links with visually hidden accessible-name suffix"
+    reason: "Superseded by Phase 8 plans 08-02, 08-03 and 08-07: the five-link sticky anchor nav is replaced by the eight-row ListPane (src/lib/shell/ListPane.svelte, rows from PANE_IDS in selection-state.ts) with visible row-summary status text, and the phone list screen (08-03) replaces the 375px nav scroll."
+    accepted_by: "Bohdan_Pavlenko"
+    accepted_at: "2026-10-11T13:52:49Z"
+  - must_have: "03-05 truth 5: nav never wraps, scrolls inside itself at 375px"
+    reason: "Superseded by Phase 8 plans 08-02, 08-03 and 08-07: the five-link sticky anchor nav is replaced by the eight-row ListPane (src/lib/shell/ListPane.svelte, rows from PANE_IDS in selection-state.ts) with visible row-summary status text, and the phone list screen (08-03) replaces the 375px nav scroll."
+    accepted_by: "Bohdan_Pavlenko"
+    accepted_at: "2026-10-11T13:52:49Z"
+  - must_have: "03-05 truth 7: nav order from NAV_ORDER constant"
+    reason: "Superseded by Phase 8 plans 08-02, 08-03 and 08-07: the five-link sticky anchor nav is replaced by the eight-row ListPane (src/lib/shell/ListPane.svelte, rows from PANE_IDS in selection-state.ts) with visible row-summary status text, and the phone list screen (08-03) replaces the 375px nav scroll."
+    accepted_by: "Bohdan_Pavlenko"
+    accepted_at: "2026-10-11T13:52:49Z"
+  - must_have: "03-04 truth 3: first visit shows all four section cards and the Not yet supported block greyed on the page"
+    reason: "Superseded by Phase 8 plans 08-02 and 08-04: first visit now shows muted list rows beside a centred empty-state drop target in the detail pane (src/lib/shell/Dashboard.svelte); the single-scroll first-visit page with greyed cards and top-of-page dropzone no longer exists. The status text is still rendered in the list rows."
+    accepted_by: "Bohdan_Pavlenko"
+    accepted_at: "2026-10-11T13:52:49Z"
+  - must_have: "03-06 truth 1: first visit full dropzone at the top with skeleton below (single-scroll placement)"
+    reason: "Superseded by Phase 8 plans 08-02 and 08-04: first visit now shows muted list rows beside a centred empty-state drop target in the detail pane (src/lib/shell/Dashboard.svelte); the single-scroll first-visit page with greyed cards and top-of-page dropzone no longer exists. The status text is still rendered in the list rows."
+    accepted_by: "Bohdan_Pavlenko"
+    accepted_at: "2026-10-11T13:52:49Z"
 re_verification:
-  previous_status: passed
-  previous_score: 69/69 must-have truths · 4/4 success criteria · 3/3 requirement IDs
-  trigger: "Fail-closed covered_files fingerprint mismatch — content drift under the declared cover, not a re-run of the audit."
-  gaps_closed: []
+  previous_status: gaps_found
+  previous_score: 68/69 (G4 open, earlier pass the same day)
+  trigger: "Covered source changed after the last verifier run: Phase 8 master-detail redesign (08-02, 08-03, 08-04, 08-07) moved or retired the Phase 3 UI files (src/lib/components/* -> src/lib/shell/*, DashboardNav.svelte and scroll-spy.ts deleted); Phase 1/2 worker changes (header-keyed strip, bounded inflate) and the worker-client relocation to src/lib/import/."
+  gaps_closed:
+    - "G4 (03-07 truth 5): SKILL.md step 4 and driver.mjs now describe and drive the master-detail layout (list-pane rows counted, Not yet supported opened for its banners, Login history selected before its wait). Closed by commit c67c729; re-checked from the files in round 2."
   gaps_remaining: []
-  regressions: []
-  rechecked:
-    - "W-02: compact dropzone accessible name now derives from its own prompt; the FULL variant keeps its intended name"
-    - "S-1: a parsed-but-partial User_Info row renders the 'Unknown' placeholder in the DOM for the first time"
-    - "W-03: nav hover #ffffff -> #dadce0; 03-05 scroll-spy and the nav e2e assumptions re-run unaffected"
+  regressions:
+    - "03-02 truth 6 (five fixed nav links) and 03-05 truths 1-5 and 7 (sticky anchor nav, scroll-spy, hash links, smooth anchor scroll, nav wrap, NAV_ORDER): superseded by Phase 8 (08-02, 08-03, 08-07). Accepted as overrides 2026-10-11."
+    - "03-02 truth 8 (scroll-spy pure rule): superseded by Phase 8 (08-07 deleted scroll-spy.ts and its test). Accepted as override 2026-10-11."
+    - "03-04 truth 3 (first-visit greyed section cards on the page) and 03-06 truth 1 (full dropzone above the skeleton): superseded by Phase 8 (08-02, 08-04). Accepted as overrides 2026-10-11."
+    - "03-07 truth 5 (skill driver and SKILL.md describe the real dashboard): stale in the earlier pass; fixed by c67c729 and no longer a regression."
   fingerprint_change:
-    files_added: 7
-    files_removed: 0
-    reason: "The previous digest was canonical and correct when written at b31ea4e; it went stale from content drift under the cover. Seven files that this re-verification newly reads as evidence, or that the fixes created/amended, are now covered."
+    reason: "Stale covered_digest from the 2026-09-29 run; source moved under the cover. Covered set now lists the files that carry each Phase 3 truth at their Phase 8 locations, plus the Phase 3 tests that still exist. Round 2: digest regenerated after driver.mjs and SKILL.md changed under the G4 fix (c67c729); SKILL.md added to the covered set."
 gaps: []
-findings_not_gating:
-  - "ConfirmPanel declares aria-modal=\"true\" but renders inline with no backdrop, no z-index and no focus trap; background content stays reachable. Real a11y defect, pre-existing from Phase 2, outside every Phase 3 success criterion. Recorded in STATE.md:81, escalated, not silently fixed. Non-blocking."
-  - "persistent-dataset (a) proof shape changed: the return visit is now proven by the co-rendered file input's empty FileList (toHaveJSProperty('files.length', 0)) rather than by the dropzone being absent. The old argument is now the opposite of the D-13 contract. The new proof is stronger (it observes the actual mechanism) and loses no coverage. Recorded in STATE.md:94."
-  - "Two cross-browser assertions (rootMargin percentage behaviour in Firefox/Safari; the 3px current-underline and focus-ring not being clipped at 375px) are declared backstops in 03-05 and remain manual. The suite is Chromium-only, so these are unverified by automation, as their own plan declares."
-  - "W-02 left one stale sentence in the approved contract: 03-UI-SPEC.md:209 still reads 'Element, data-testid=\"dropzone\" and aria-label are unchanged', which is now false for the compact variant. W-03 amended the spec in both places it named the nav hover; W-02 amended none. The sentence's operative clause (one dropzone in the DOM) still holds — ImportBar.svelte:126 is the only <Dropzone> render site — so no must-have or success criterion is affected, but the contract text is not self-consistent with the code."
-  - "03-05-PLAN.md:149 (the task narrative) still specifies 'hover background #ffffff'. It is a historical instruction record, not a must-have (no 03-05 truth names the hover colour), so the 69/69 score is unaffected — but it is a third place that named the value and was left unamended, alongside the two in the spec that W-03 did amend."
-  - "03-VALIDATION.md:32-33 still declares the pre-fix baseline '14 test files, 316 tests' / '7 spec files, 83 tests'. The shipped suites are now 15 files / 330 unit and 86 e2e. A stale number in a validation-strategy document, not a product or test defect."
-  - "Pre-existing, unchanged by W-02: the FULL-size dropzone's accessible name ('Wargaming data export dropzone') does not contain its visible prompt text, so WCAG 2.5.3 Label-in-Name is only partially met for that variant. W-02 resolved exactly this problem for the compact variant and left the full variant's behaviour as it was. Recorded, not fixed — it is Phase 1/2 behaviour and outside every Phase 3 success criterion."
+deferred: []
+advisory: []
+behavior_unverified_items: []
+coincidental_reliance_items: []
+unverified_prohibitions:
+  - statement: "03-04 prohibition: Phase 3 must not assert anything about a specific game title inside Player_statistics (per-title absence is Phase 5)."
+    verification: judgment
+    status: "unverified-prohibition — human review recommended"
+    note: "No Phase 3 assertion about a game title was found in the current Player_statistics/Vehicles code; the judgment is non-authoritative."
+  - statement: "03-07 prohibition: rewritten tests must not weaken or drop an assertion locked by an earlier phase."
+    verification: judgment
+    status: "unverified-prohibition — human review recommended"
+    note: "Phase 8 (08-02, 08-08) replaced tests/e2e/shell/scroll-nav.spec.ts (17 tests) with master-detail-nav.spec.ts (smaller). The ported coverage (muted names, long text, phone names) is present; the retired scroll-spy and sticky-nav assertions were removed with the feature. Non-authoritative LLM-judge verdict."
+human_verification:
+  - test: "Decide the judgment-tier prohibition 03-04: no assertion about a specific game title inside Player_statistics (per-title absence is Phase 5)."
+    expected: "Owner confirms no Phase 3 game-title assertion exists in the Player_statistics/Vehicles code and specs, or records a finding."
+    why_human: "Judgment-tier prohibition; the LLM-judge verdict is non-authoritative and cannot be settled by grep."
+  - test: "Decide the judgment-tier prohibition 03-07: rewritten tests must not weaken or drop an assertion locked by an earlier phase."
+    expected: "Owner confirms the Phase 8 replacement of scroll-nav.spec.ts (17 tests) by master-detail-nav.spec.ts kept every non-retired assertion, or names any dropped ones."
+    why_human: "The retired scroll-spy and sticky-nav assertions went with their feature; whether that counts as weakening an earlier-locked assertion is a judgment call."
+  - test: "Confirm the copy drift W-2 and W-3 is the intended contract: region label 'Location code (per export)' (not 'Region (per export)') and the User_Info note 'Account details are shown under your nickname in the section list' (not '...in the header above')."
+    expected: "Owner accepts the amended strings, or the PLAN text is updated to match the code."
+    why_human: "Product copy decision; the code and the PLAN disagree on wording, and only the owner can say which one is the contract."
 ---
 
-
-# Phase 3 Verification Report
+# Phase 3 Verification Report (re-verification)
 
 **Phase Goal:** After an import, or on a return visit, the user lands on a single-page dashboard that shows whose account it is. Every category is represented honestly, whether it is present, missing, or not yet supported.
+**Verified:** 2026-10-11T15:08:53Z
+**Status:** human_needed (no open gaps; two judgment-tier prohibitions and two copy-drift confirmations need a human decision; ten Phase 8 supersessions accepted as overrides)
+**Re-verification:** Yes. Round 1 (earlier 2026-10-11 pass) left G4 open. Round 2 closes G4 from the files after commit `c67c729`. The 2026-09-29 PASSED verdict was stale (covered source moved under it), so it was re-derived from the current tree.
 
-**Verified:** 2026-09-29T16:05:00Z (original audit, against commit `e7a77af` — the phase's last code-bearing commit, `docs(03): add phase review`) · **re-verified 2026-09-29T17:15:18Z** on branch `gsd/phase-03-dashboard-shell-account-identity`, tree at `402b546`.
+## Method
 
-**Status: PASSED.** 4/4 ROADMAP success criteria met. 3/3 requirement IDs satisfied. 69/69 plan-03 must-have truths verified. Gate on the re-verified tree: lint 0, svelte-check 0 errors/0 warnings, 330/330 unit tests across 15 files, 86/86 e2e tests, build succeeds. (The original audit measured 316/316 and 83/83 on the pre-fix tree; the delta is the three fixes' own tests.)
+Every verdict below was re-derived from the current code, not copied from the earlier report. Evidence sources:
 
-**Method note.** This verification ran against the working tree and its suites, not against the SUMMARY files. Where a summary asserted a privacy guarantee, the guarantee was re-derived from source and then attacked with a mutation test (see SC1).
+- Source read: `src/lib/worker/identity.ts`, `src/lib/worker/db.ts`, `src/lib/worker/ingest.worker.ts` (row choke point at line 883, `writeDataset` at 958, `resultFromMeta` at 688), `src/lib/import/worker-client.svelte.ts` (guard order in `submitFiles`, `#handle`, `cancelPending`), `src/App.svelte`, `src/lib/shell/*` (Dashboard, ListPane, IdentityHeader, DashboardSection, UnsupportedBlock, ImportBar, Dropzone, ConfirmPanel, dashboard-status.ts, selection-state.ts), `src/lib/ui-copy.ts`.
+- Named unit tests run by this verifier (`pnpm exec vitest run`): `tests/unit/import/ingest-client.test.ts`, `tests/unit/import/ingest-worker.test.ts`, `tests/unit/import/db.test.ts`, `tests/unit/shell/identity.test.ts`, `tests/unit/shell/dashboard-status.test.ts`, `tests/unit/shell/ui-copy.test.ts`. Result: 6 files, 474 tests, all passed.
+- Orchestrator gate logs (final exit lines present, cited as regression evidence only):
+  - `g-unit.log`: 87 files, 2794 tests passed, `UNIT_EXIT=0`.
+  - `g-check.log`: `tsc -b` and `svelte-check`, 306 files, 0 errors, 0 warnings, `CHECK_EXIT=0`.
+  - `g-e2e.log`: 254 tests passed, 0 failed, including identity-privacy, dashboard, import-flow, persistent-dataset, import-failure and master-detail-nav. `E2E_EXIT=0`.
+- Lint run by this verifier: `pnpm lint` (prettier --check and eslint), exit 0. Written to the scratchpad as `p3-lint.log`.
+- Round 2 (G4 closure, this pass): `node --check .claude/skills/run-data-export-viewer/driver.mjs` exit 0. Read `SKILL.md` (step 4, lines 65-72) and `driver.mjs` (lines 156-168, 206-207). Every selector the driver waits on or clicks was located in source: `list-row-{id}` (ListPane.svelte:152, one button per `PANE_IDS` entry, 8 ids in selection-state.ts), `list-row-not-yet-supported`, `list-row-playtime`, `list-row-login-history`, `unsupported-banner` (UnsupportedBlock.svelte:64), `playtime` (Playtime.svelte:294), `login-history` (LoginHistory.svelte:317), `confirm-commit` (ConfirmPanel.svelte:97), `start-over` (ImportBar.svelte:119). Dashboard.svelte mounts each pane only when `active` selects it, and the `not-yet-supported` pane falls through to `UnsupportedBlock`, so the driver's click-then-wait order matches the DOM. Playwright and the full suite were NOT re-run this round. The orchestrator-reported end-to-end run (list rows 8, banners 4, login history ready, start-over confirmed, 0 requests after load) is cited as orchestrator evidence, not as a verifier run.
 
-**Re-verification method note (2026-09-29T17:15:18Z).** The second pass is narrow by design. It does not re-audit the phase: the success criteria, the 69 plan must-haves and the three requirement IDs were already verified and none of the three fixes reaches them. It asks two questions only — did the fixes break, weaken or contradict anything already verified (§6), and is the fingerprint accurate again (§7) — and re-runs only the four targeted checks those questions need (§6.4).
+Phase 8 plan attribution used below: 08-02 (master-detail shell and Dashboard composition, list pane, scroll-nav spec deleted), 08-03 (keyboard, focus, phone two-screen layout), 08-04 (empty state, single import region, identity header restyle), 08-05 (Overview, status chips), 08-07 (DashboardNav.svelte, scroll-spy.ts and smooth anchor-scroll rule deleted).
 
----
+## Goal Achievement
 
-## 1. The Privacy Criterion (SC1) — the load-bearing claim
+### Observable Truths (ROADMAP success criteria)
 
-This was the designated high-attention item. Three independent lines of evidence were collected: structure, data, and a live mutation.
-
-### 1a. Structure: is the strip a real choke point?
-
-**Yes — structurally true, and there is no second write path.**
-
-| Claim | Evidence |
-|---|---|
-| The strip happens *before* the row array is built, not at the write | `ingest.worker.ts:199` — `sanitizeUserInfoRow(...)` is applied to the User_Info row at the single point where rows are pushed into `allRows`; the write is a separate, later call |
-| Exactly one write to the rows store exists in the entire source tree | `db.ts:132` is the sole `db.rows.bulkPut(...)`; `db.ts:129` wraps `clear → bulkPut → meta.put` in one `db.transaction('rw', ...)`. Every other persistence call in `src/` is `clear()` or `meta.delete` |
-| `writeDataset` has exactly one caller | `grep -rn "writeDataset" src/` returns the definition (`db.ts:121`), its own doc comments, and a single call site (`ingest.worker.ts:229`) |
-| No second Dexie connection exists | `db.ts:108` — `export const db = new AppDb()` is the only `new AppDb()`; the class's own doc comment states it is "Imported ONLY by `ingest.worker.ts`", and the import grep confirms `ingest.worker.ts:17` is the sole importer |
-| No raw IndexedDB access escapes the worker | Repo-wide grep for `indexedDB` / `open(` across `src/` returns no main-thread database handle; `db` is not exported to any UI module |
-| The identity is built only from sanitised rows | `ingest.worker.ts` feeds `extractIdentity` the already-sanitised rows; `identity.ts:134-147` returns exactly `{nickname, region, createdAt}` — a three-field object with no field that could carry an email |
-
-**Verdict on the design claim:** the choke point is real. A future maintainer cannot write a User_Info row to IndexedDB without passing through `sanitizeUserInfoRow`, because the only row-array construction feeds the only bulkPut.
-
-### 1b. Data: does the strip actually bind on real fixtures?
-
-A throwaway Node script (in `/tmp`, never in the repo) imported the *real* `sanitizeUserInfoRow` and `parseCsvFile` and ran them over all three Phase 3 fixtures — the sample export, the hostile header-variant export (lowercase/padded/duplicate-suffixed headers, missing REGION, an overflow cell) and the case-variant-folder export (including a duplicate LOGIN column).
-
-Result for every `User_Info` row in every fixture: the **un-stripped** `row.data` contains `example.invalid`; the **stripped** form does not, carries no `LOGIN` key, and carries no PapaParse overflow bucket. The strip is load-bearing on the real shapes, including the adversarial ones.
-
-### 1c. Mutation: would `identity-privacy.spec.ts` actually go red?
-
-A passing test proves nothing if it cannot fail. Two checks:
-
-1. **Data-level:** the probe above establishes the e2e needle (`example.invalid`, `"LOGIN"`) is present in the un-stripped data and absent in the shipped data. The spec's assertion is therefore reachable.
-2. **Behavioural:** the source tree was copied to `/tmp/vrfy03/mutant1` and `sanitizeUserInfoRow` was neutered to `return { ...data }` — a faithful simulation of "the choke point forgets to strip". The suite was re-run against the mutated copy.
-
-**Result: 5 of 5 privacy tests failed**, each on the at-rest IndexedDB assertion:
-
-```
-Expected substring: not "example.invalid"
-Received string: ...\"LOGIN\":\"synthetic.player@example.invalid\"...
-  at expectNoSensitiveData (…) identity-privacy.spec.ts:209
-```
-
-The mutation landed at the *durable-storage* layer, not merely the DOM layer. This is the correct and strongest place for the spec to bite, because the whole point of the design is that the email never rests on disk — a DOM-only assertion would have been the weaker test.
-
-**Conclusion:** `tests/e2e/identity-privacy.spec.ts` is **not vacuous**. It fails, loudly and at the right layer, on exactly the regression it exists to catch. On the unmutated tree it passes 5/5.
-
-**Residual risk (disclosed, not a gap):** the spec covers DOM text, `outerHTML` (so all `title`/`aria-label` attributes), the accessibility snapshot, the console and the IndexedDB rows, and asserts `document.title` is unchanged. No code path in `src/` sets `document.title` — the only title is the static `index.html` `<title>WG Data Export Viewer</title>` — so the title is structurally immune rather than merely asserted. Grep for `fetch(`/`XMLHttpRequest` in `src/` returns nothing, so there is no exfiltration channel to leak the email even if it were in memory.
-
----
-
-## 2. ROADMAP Success Criteria
-
-### SC1 — Identity header with nickname, region, created date; email nowhere in page, tooltips or title
-
-**MET.** `IdentityHeader.svelte` renders nickname as the display-role title, raw region under "Region (per export)", and the created date date-only via `formatCreatedDate` (which shows the date portion as written, with no `Date` parsing and no timezone conversion). The email is absent by the three-part argument in §1. The nickname appears exactly once in the DOM, asserted by the spec.
-
-### SC2 — Every detected category with no dashboard is listed with the same banner; none hidden, dropped, or crashing
-
-**MET, and structurally un-droppable.** `classifyFolder` (`categories.ts`) is a total function over three tiers with a safe default: any folder not in `SUPPORTED` or `KNOWN_DEFERRED` returns `'unknown'`. There is no blocklist and no early return that discards a name, so "silently dropped" is not a reachable state. `UnsupportedBlock.svelte` renders every non-supported entry from one list with one template and no per-tier field, reusing the shared `DashboardSection` shell so it owns the fifth anchor id like any other section. Identity of styling across tiers is asserted by a nine-property `getComputedStyle` comparison over banners carrying different `data-status` values, and the block's stylesheet contains no `data-status` selector at all.
-
-### SC3 — A supported category missing from the export still shows its section, empty or greyed
-
-**MET, with the absent/empty distinction intact.** `dashboard-status.ts` derives every state from the same pure functions the nav reads, so a card and its nav link cannot disagree. `Dashboard.svelte` iterates the fixed `SECTIONS` constant — the order is the code's, never the result's — so an absent category cannot remove its card. Wording is distinct per state: "Not in this export" (absent) vs "This export contains no rows for {Category}" (present but zero rows) vs "Drop an export to see this section" (no export at all). Each is separately covered by a named e2e test, and the underlying 03-02 prohibition that the two must not be conflated is unit-tested.
-
-### SC4 — Processing, ready, duplicate and error states from worker messages; return visit opens straight to the dashboard
-
-**MET.** The `IngestClient.result` re-typing to "last known cached dataset" is what makes the matrix honest: the dashboard stays on screen through a replace-in-flight, a duplicate, and a failed import, so the old data is never blanked by a transient state. The return visit is driven by the on-load cache check, and `App.svelte` renders *only* the spinner block during `checking-cache`, so a returning user never sees a flash of the empty skeleton. No re-upload is proven by the co-rendered file input's empty `FileList`.
-
----
-
-## 3. Requirement Coverage
-
-| ID | Status | Evidence |
-|---|---|---|
-| **DATA-03** | SATISFIED | 3-way classification is total with an `unknown` default (`categories.ts`); all three tiers render the identical "detected but not yet supported" banner from one list (`UnsupportedBlock.svelte`); nothing hidden or dropped; no crash path — a folder with a parse error gets a skip tag and survives reload, asserted in `dashboard.spec.ts` `(skip)`. |
-| **DATA-04** | SATISFIED | Sections come from a fixed constant, not the result, so a missing category keeps its card greyed with "Not in this export"; present-but-empty keeps distinct wording; the nav does not convey the state by colour alone — the status is also in each link's accessible name and weight change, asserted by exact accessible-name assertions and `aria-current="location"` on the active link. |
-| **IDENTITY-01** | SATISFIED | Header shows nickname, region, created date from `User_Info`; the `LOGIN` email is omitted from display and, per §1, never persisted at all. Defense in depth: a v2 Dexie upgrader discards any v1 cache that still holds the raw email, with an explicit in-code rule that a future `version(3)` must keep the `version(2)` block. |
-
-No requirement ID in `REQUIREMENTS.md` maps to Phase 3 and is unsatisfied, and no phase-3 requirement ID is missing from the roadmap mapping.
-
----
-
-## 4. Key Risks Checked (Disproved or Confirmed)
-
-- **"There may be a second write path that could forget the strip."** — Disproved. One `bulkPut`, one `writeDataset` caller, one Dexie connection, one importer, strip upstream of row construction.
-- **"The privacy spec may pass vacuously."** — Disproved by mutation. 5/5 fail when the strip is removed.
-- **"Absence of evidence vs evidence of absence."** The email's absence is backed by both a positive control and a negative one: the specs assert the *IP* column is still stored, so a dump that was empty or mis-read would fail the control rather than silently pass the privacy check.
-- **"A new tier could be silently dropped in future."** — Structurally prevented: the classifier defaults to `unknown`, so a new folder is listed rather than ignored.
-- **Dependency on `graphify-out/`** — That directory contains a stale reference to the deleted `formatSummary`/`formatAccountHeading`, but it is a generated planning artifact, not product source. It does not affect the build, the type-check or any test.
-
-## 5. Findings Not Gating (see frontmatter)
-
-Three items are recorded honestly rather than inflated into phase failures. The `aria-modal` defect is real and is an accessibility bug — background content remains reachable while a destructive panel is open, and a discarded drop is surfaced only as a `console.error`. It is pre-existing Phase 2 behaviour, is outside all four Phase 3 success criteria, and 03-CONTEXT directs that the confirm flow be driven unchanged in this phase, so fixing it here would have been scope creep; it is escalated in STATE.md for an explicit decision. The persistent-dataset proof-shape change is a legitimate strengthening. The two Chromium-only backstops are declared as manual in their own plan.
-
-**No gap blocks phase closure.**
-
----
-
-## 6. Re-verification after the three post-phase fixes (2026-09-29T17:15:18Z)
-
-The original audit above stands. This section records what was re-checked after three
-small fixes landed, and it is deliberately narrow: the phase had already passed 4/4
-success criteria, 69/69 plan must-haves and 3/3 requirement IDs, so the question was
-never "does the phase work" but "did these three changes break, weaken or contradict
-anything already verified".
-
-### 6.0 What the fixes could and could not touch
-
-The privacy criterion (§1) is the load-bearing claim of this phase, and the three
-fixes do not reach it. Diffed against their trees, `ca40e76`, `c0433cb` and `06c803d`
-touch exactly: `Dropzone.svelte`, `ui-copy.ts`, `DashboardNav.svelte`,
-`dashboard.spec.ts`, `ui-copy.test.ts`, `export-fixtures.ts`, `03-UI-SPEC.md`, and the
-new `tests/helpers/contrast.ts` + `tests/unit/contrast.test.ts`. **Not one** of them is
-in the privacy chain — `db.ts`, `identity.ts`, `ingest.worker.ts` and
-`identity-privacy.spec.ts` are untouched, and the new S-1 fixture builder is not
-referenced by the privacy spec. The §1 argument (one `bulkPut`, one `writeDataset`
-caller, one Dexie connection, strip upstream of row construction) and the §1c mutation
-result therefore still hold as written; the 5/5-fails-on-mutation evidence was not
-re-run because nothing it depends on moved.
-
-### 6.1 W-02 — the compact dropzone's accessible name (the focused risk)
-
-**Risk as posed:** `aria-label` REPLACES an element's content as its accessible name,
-so changing how the name is derived could silence a prompt, or regress the full-size
-variant. Confirmed both directions.
-
-| Question | Answer | Evidence |
-|---|---|---|
-| Does the FULL variant still get its intended name? | Yes, unchanged | `Dropzone.svelte:117` is `aria-label={compact ? undefined : DROPZONE_ARIA_LABEL}`; there is exactly one `<Dropzone>` render site (`ImportBar.svelte:126`, `compact={variant === 'slim'}`), so `compact === false` on first visit and the label is applied |
-| Is the FULL variant's name really the intended one at runtime? | Yes | e2e `(accessible-name)` asserts `toHaveAccessibleName(DROPZONE_ARIA_LABEL)` before any import, against the built app |
-| Does the compact variant now announce its prompt? | Yes | same e2e, after the import flips `import-bar` to `data-variant="slim"`: `not.toHaveAttribute('aria-label', /./)` AND `toHaveAccessibleName(COMPACT_DROPZONE_PROMPT)` — an exact-match assertion, so the visually-hidden file input contributes nothing and the name is the prompt and nothing else |
-| Is any screen-reader guarantee regressed? | No | The only a11y-tree assertion in the suite (`identity-privacy.spec.ts:180`, `body.ariaSnapshot()`) is a *negative* one — `not.toContain(EMAIL_DOMAIN)` / `not.toContain(SAMPLE_BIRTH_DATE)` — so a changed dropzone name cannot affect it. The compact name is strictly more informative than the label it replaces: it is the only statement of the replace-on-drop affordance (D-25), and the enclosing `<section aria-label="Import">` still supplies the landmark context the generic label gave |
-| Do the two names stay distinct? | Yes, and it is pinned | `ui-copy.test.ts` asserts `DROPZONE_ARIA_LABEL` differs from both prompts, so the variants can never collapse into one indistinguishable name |
-
-No must-have is affected. 03-06's relevant truth is "The dropzone is one element in
-both variants; while busy it keeps its prompt, is aria-disabled and aria-busy and its
-file input is disabled" — still true, and 03-06's task *narrative* (line 164, "the
-label keeps … its `aria-label`") is the one line of planning text W-02 deviates from.
-The deviation is a strict a11y improvement and is recorded in the findings.
-
-### 6.2 S-1 — `valueOrUnknown()` exercised in the DOM (the last validation seam)
-
-**Claim:** `valueOrUnknown()` had no DOM coverage anywhere in the project, because the
-only fixture that produced an absent `User_Info` took the `fallback` variant, which
-never renders the three-field card. **Confirmed, and now closed.**
-
-- `IdentityHeader.svelte:41-45` derives `variant` from `result.identity` alone, so a
-  parsed row with blank cells is `loaded` (not `fallback`, not `skeleton`) and reaches
-  `valueOrUnknown` through the real component — the fixture exercises the production
-  path, not a test-only one.
-- e2e `(partial-row)` passes and asserts the whole distinction: `data-variant="loaded"`,
-  `fallback` and `skeleton` explicitly absent, `identity-nickname` and
-  `identity-region` both exactly `"Unknown"`, and `identity-created` still the real
-  date — so "Unknown" is proven to be a *per-field* answer, not a whole-card fallback.
-- e2e `(partial-row-nickname)` is the mirror case: blank nickname alone keeps
-  `identity-region` populated, which is what rules out a regression that blanks the
-  entire row.
-
-Both tests were re-run for this re-verification and pass against the built app.
-
-### 6.3 W-03 — nav hover `#ffffff` → `#dadce0` (the second focused risk)
-
-**The arithmetic was re-derived independently, not taken from the commit message.**
-WCAG relative luminance of `#dadce0` = 0.71459, of `#f7f7fa` = 0.93196, so the ratio is
-**(0.98196 / 0.76459) = 1.284:1**; `#ffffff` on the same surface is 1.069:1 and the
-Phase 2 `#f1f3f4` is 1.041:1. The spec's amended numbers and the shipped values agree
-with an independent calculation, and the rejected value really was as imperceptible as
-the fix claims — the original rationale rejected `#f1f3f4` and then shipped something
-within 0.03 of it.
-
-**Risk as posed:** a nav styling change could disturb the 03-05 scroll-spy or the nav
-e2e assumptions. It does not.
-
-| Dependency | Why the hover cannot affect it | Evidence |
-|---|---|---|
-| 03-05's scroll-spy | Pure state, not paint: `activeId` is set from `pickActiveSection`/`isAtPageBottom` and written as `aria-current="location"`; the stylesheet has no `:hover` selector in the spy's path and the observer never reads a computed style of a link | All 12 `scroll-nav.spec.ts` tests re-run green, including the band-mirror, sticky, anchors and reduced-motion cases |
-| Nav accessible names | The visible title plus a visually-hidden suffix; W-03 changed a background declaration only | `(muted-names)` × 4 re-run green |
-| 375px / 720px no-page-overflow | A background colour contributes no box size | `(phone-375)`, `(long-text)` × 2 re-run green |
-| The "current" underline | `a[aria-current='location']` still wins on `border-bottom-color` and weight; `a:hover` declares only `background`, so the two cannot collide | Style block inspected; `a` carries `border-bottom: 3px solid transparent`, and W-03's comment's claim that the links have no border of their own is accurate about the *hover* state (the reserved underline is transparent) |
-
-**The new contract test is not vacuous.** `tests/unit/contrast.test.ts` reads the
-component and the spec off disk and asserts both directions, so a one-sided amendment
-fails: the spec's `| Nav hover surface |` row must carry the colour the component
-ships, the `| Hover |` link-state row must carry the same one, the pair must clear
-1.20:1, and both rejected colours must fall below that floor. The lookups fail loudly
-rather than silently if a row disappears (`throw` on a missing row/rule), and the
-selector regexes match unique blocks — `nav {` and `a:hover {` each occur exactly once
-in the stylesheet, so the "first match wins" behaviour cannot read the wrong rule.
-The helper itself is unit-tested against the WCAG maximum (21:1 for black on white),
-order independence, the 3-digit form, and rejects anything that is not `#rgb`/`#rrggbb`
-so a typo cannot parse as black and pass silently.
-
-### 6.4 Targeted re-runs performed for this re-verification
-
-| Check | Command | Result |
-|---|---|---|
-| W-02 accessible name, both variants | `playwright test tests/e2e/dashboard.spec.ts -g "accessible-name"` | 1/1 pass against the built app |
-| S-1 partial rows, both cases | `playwright test tests/e2e/dashboard.spec.ts -g "partial-row"` | 2/2 pass |
-| W-03 vs. 03-05 scroll-spy and nav assumptions | `playwright test tests/e2e/scroll-nav.spec.ts` (whole file) + the phone-width case in `dashboard.spec.ts` | 13/13 pass (single invocation: 17 tests, 17 passed) |
-| W-02 copy contract, W-03 contrast contract | `vitest run tests/unit/contrast.test.ts tests/unit/ui-copy.test.ts` | 51/51 pass across 2 files |
-
-The full phase gate was not re-run end to end: it is already confirmed green on this
-tree (build ok, lint clean, svelte-check 0 errors, unit 330/330 across 15 files, e2e
-86/86), and the four targeted runs above are the only evidence any re-verified claim
-needed.
-
-### 6.5 Residual risk (disclosed, not a gap)
-
-The nav hover now *is* a visible step on a mouse, but hover is not a keyboard or
-touch affordance and was never the only one: the nav's states are carried by
-`aria-current`, a weight change, a text-colour change and a hidden suffix, none of
-which depend on `:hover`. The 1.284:1 is below the 3:1 that WCAG 1.4.11 asks of a
-non-text UI boundary, and the value is a background, not a boundary — the spec's own
-argument is about the state being *perceptible*, and the amber-free grey was chosen so
-it cannot be mistaken for the selected state. Stated rather than quietly widened.
-
-## 7. Fingerprint provenance — and a correction to why the status went stale
-
-The `covered_digest` in this frontmatter is `v1:sha256:8ea89bdc…`, computed with the
-canonical `computeCoveredDigest(projectRoot, coveredFiles)` from
-`$HOME/.claude/gsd-core/bin/lib/verification.cjs` over the 57-file `covered_files`
-list declared above, and cross-checked through a second code path
-(`gsd-tools query verification.fingerprint`, same value). It is not hand-written.
-
-**The briefing's explanation of the staleness was wrong, and the difference matters.**
-The previous value `v1:sha256:01a667cd…` was *not* a hand-written or mis-computed
-one. Reconstructing the tree and recomputing shows it was exactly right when it was
-written:
-
-| Covered set | Tree | Computed digest | Matches the value declared at the time? |
+| # | Success criterion | Status | Evidence |
 |---|---|---|---|
-| the list in `b31ea4e` | `b31ea4e` | `v1:sha256:01a667cd…` | **yes** |
-| the same list | `3b975f9` (last commit *before* the three fixes) | `v1:sha256:daf7cc93…` | no — already stale |
-| the same list | current tree `402b546` | `v1:sha256:ddf928ee…` | no |
+| SC1 | Identity header shows nickname, region, account-created date; LOGIN appears nowhere in page, tooltips or title | VERIFIED | `IdentityHeader.svelte` renders `identity-nickname`, region and `formatCreatedDate` (date-only). Header lives in `ListPane.svelte`. LOGIN is stripped at the single row push (`ingest.worker.ts:883`) before `allRows` and before `writeDataset` (`:958`). `index.html` title is static "WG Data Export Viewer". `identity-privacy.spec.ts` (DOM, aria snapshot, IndexedDB) passed in g-e2e. |
+| SC2 | Every non-supported category is listed with the same "detected but not yet supported" banner; none hidden or crashing | VERIFIED (WARNING) | `UnsupportedBlock.svelte` renders one `unsupported-banner` per entry from one list, same template and no tier branch. The block is the `not-yet-supported` pane, so banners are visible when that row is selected (list row shows folder count). Relocation by Phase 8 08-02; see WARNING W-1. |
+| SC3 | A supported category missing from the export still shows its section, greyed | VERIFIED | `sectionStatus` returns `no-export` (`dashboard-status.ts`); muted list row and detail `DashboardSection` with "Not in this export" (`formatSectionStatus`). `dashboard.spec.ts` (absent) passed. |
+| SC4 | Processing, ready, duplicate and error states driven by worker messages; return visit opens to dashboard without re-upload | VERIFIED | `worker-client.svelte.ts` `#handle` covers `cache-status`, `done`, `duplicate`, `error`, `cleared`; `App.svelte` derives the notice from `state`. `persistent-dataset.spec.ts` (a) return visit and `dashboard.spec.ts` (return-visit) passed in g-e2e. |
 
-So the fingerprint was canonical and correct, and it went stale from ordinary content
-drift under the cover *before* any of the three fixes landed. Diffing the cover between
-`b31ea4e` and `3b975f9` names the drift exactly: **`.planning/REQUIREMENTS.md` and
-`.planning/ROADMAP.md`**, and nothing else. The three fixes then moved six more covered
-files on top of that.
+**Score (SC):** 4/4 verified (SC2 carries WARNING W-1).
 
-Two things follow. First, the fail-closed check did its job — it caught real drift
-rather than rubber-stamping a stale report, and it did not need a wrong value to do it.
-Second, the lesson the earlier report drew about itself was inverted: a passing
-fingerprint is only as current as the last time anyone recomputed it, and nothing in the
-phase's own workflow re-derived it after the requirement/roadmap edits. That is a
-process observation, not a defect in the phase.
+### Must-have truths (69 from plan frontmatter)
 
-**Cover changes made in this refresh: +7 files, 0 removed.** All seven are inputs this
-re-verification actually read, or files the fixes created/amended — `03-UI-SPEC.md`
-(amended by W-03 *and* read at test time by `contrast.test.ts`, so its bytes change
-test outcomes), `03-UI-REVIEW.md` and `03-VALIDATION.md` (the review that produced
-W-02/S-1/W-03, and the validation strategy), `03-CONTEXT.md` (cited by §5's
-`aria-modal` finding), `.planning/STATE.md` (records the three carry-overs as closed),
-and the new `tests/helpers/contrast.ts` + `tests/unit/contrast.test.ts`. The original
-50 are unchanged; none of them became irrelevant.
+Numbering follows the order of the `must_haves.truths` list in each PLAN. "Superseded" means the literal must-have describes a Phase 3 mechanism that Phase 8 retired or replaced; these were accepted by the repo owner (Bohdan_Pavlenko, 2026-10-11T13:52:49Z) and are PASSED (override).
+
+**03-01 (8/8 verified).** 1 identity exact object: VERIFIED (named test "(identity) the done result carries exactly..."). 2 no LOGIN/BIRTH keys persisted, IP kept: VERIFIED (test "(no-leak)"; choke point). 3 strip covers user_info folder, padded/lowercase/duplicate headers, overflow: VERIFIED (named tests "padded, lower-case...", "a user_info folder...", "User_Info and user_info side by side"). 4 check-cache and duplicate replay identity from meta: VERIFIED (test "(replay)"; `resultFromMeta` is the one builder). 5 Phase 2 (v1) database wiped, v2 survives reopen: VERIFIED (db.test "03-01 - Dexie v2 upgrade discards a Phase 2 cache" and "upgrader runs once"; `db.ts` `version(2).upgrade` clears rows and meta). 6 row choice by account root else row 1: VERIFIED (`extractIdentity` uses `rows.find` on ID, else `rows[0]`; identity.test; e2e multi-row). 7 zero rows and header-only file give null: VERIFIED (ingest-worker tests). 8 first match in file order on ties: VERIFIED (`rows.find` returns the first match).
+
+**03-02 (9/11 verified, 2 PASSED (override)).** 1 one derivation module feeds nav, sections and block: VERIFIED (`Dashboard.svelte` sectionStatus/sectionCounts; `paneEntries` in `selection-state.ts` built on `navEntries`). 2 status ladder: VERIFIED (dashboard-status.test). 3 case-insensitive summed folder matching: VERIFIED (case-sum e2e; dashboard-status.test). 4 section order from the explicit SECTIONS constant: VERIFIED (SECTIONS in D-02 order plus financial-data inserted by Phase 5). 5 unsupported list from the worker order, no tier field: VERIFIED. 6 five fixed nav links with muted reason: PASSED (override; Phase 8 08-02; was G2). 7 all copy and formatters in ui-copy.ts with exact-string tests: VERIFIED (ui-copy.test). 8 scroll-spy pure rule: PASSED (override; Phase 8 08-07; was G1). 9 adjacency case-merge: VERIFIED. 10 empty and null edges: VERIFIED. 11 ordering by constants: VERIFIED.
+
+**03-03 (9/9 verified).** 1 displayed result kept through replace, failed replace and pre-check failure: VERIFIED (`result` is only nulled by reset, cleared, cache-status null; tests at "confirming a replace moves to processing but KEEPS", "a worker error mid-replace...STILL KEEPS"). 2 failed replace needs no re-check because the write is one Dexie transaction: VERIFIED (`writeDataset` is one `db.transaction`; e2e "(failed-replace)" passed). 3 drop on a displayed dataset always goes through confirm: VERIFIED (guard keyed on `result !== null`; tests for duplicate and error states). 4 drop while confirm-pending ignored: VERIFIED (test "a drop while a confirm is already pending is ignored"). 5 pre-check before replace guard: VERIFIED (tests "the pre-check runs BEFORE the replace guard"). 6 cache-check error lands on idle, result null, console.error: VERIFIED (test "an error for the check-cache jobId lands on idle"). 7 error during clear confirm-pending keeps result: VERIFIED (test "an error for the clear jobId..."). 8 cancel from duplicate or error returns to done with notice cleared: VERIFIED (tests "cancelling a replace confirm opened from..."). 9 first import with no cache keeps result null: VERIFIED (test "a first import with no cache keeps result null..."). Behavior-dependent truths 1, 4, 6, 7, 8 are covered by named passing tests, so they are VERIFIED, not PRESENT_BEHAVIOR_UNVERIFIED.
+
+**03-04 (13/14 verified, 1 PASSED (override)).** 1 header after import (Display title, "As of export", region, date-only created, Account ID line): VERIFIED with WARNING W-2 (region label now "Location code (per export)", amended after UAT G-05-7; the raw REGION string is still shown). 2 present section counts, skip tag only when skipped, note: VERIFIED with WARNING W-3 (User_Info note text now "Account details are shown under your nickname in the section list"). 3 first-visit: all four sections and block greyed on the page: PASSED (override; Phase 8 08-02, 08-04; was G3). 4 absent section greyed "Not in this export": VERIFIED (dashboard.spec absent). 5 zero rows distinct wording: VERIFIED (dashboard.spec empty). 6 Unknown per slot; fallback to account ID; "Unknown account" for rootless: VERIFIED (dashboard.spec fallback, partial-row, rootless; `formatIdentityFallbackTitle`). 7 one banner per non-supported folder, identical pattern, no tier styling: VERIFIED (dashboard.spec banners-sample, banners-renamed; visible under the Not yet supported row). 8 zero unsupported gives greyed "none detected" block: VERIFIED (dashboard.spec none). 9 email and birth date nowhere: VERIFIED (identity-privacy, aria snapshot, outerHTML, IndexedDB). 10 nickname exactly once, as header text: VERIFIED (only `identity-nickname` renders it; `IdentityHeader` has no title/aria nickname). 11 sections always expanded, retired badge list, summary line, account heading and results wrapper gone: VERIFIED (dashboard.spec "(retired)"; formatters deleted per ui-copy.ts:198). 12 adjacency: VERIFIED (case-sum, case-variants). 13 edge null, zero, one: VERIFIED (skeleton and banner e2e). 14 D-02 relative order Activity, Player, Payment, User_Info, Not yet supported: VERIFIED (relative order kept; Financial_data inserted by Phase 5 and Overview prepended by Phase 8).
+
+**03-05 (1/7 verified, 6 PASSED (override)).** 1 five native #hash sticky nav: PASSED (override; 08-02, 08-07; was G2). 2 muted links with visually hidden accessible-name suffix: PASSED (override; was G2; status is shown as visible row text instead). 3 exactly one aria-current="location" driven by scroll-spy: PASSED (override; 08-07; was G1). The selected row carries aria-current="true" from selection state. 4 smooth scroll under reduced-motion only, no click-scroll, no hashchange, nothing restored from hash: PASSED (override) for the smooth rule (08-07, was G1). The negative half holds: no hashchange listener and no `location.hash` write in src (ListPane comment and `skip` handler). 5 nav never wraps, scrolls inside itself at 375px, focus brings it into view: PASSED (override; 08-03 list screen; was G2). 6 long unbroken nickname (70) and folder name (60+) wrap at 375px and 720px with no horizontal scroll: VERIFIED (master-detail-nav "(long-text)" covers every pane at 375px and 720px; dashboard.spec identity 70-char test; IdentityHeader and banners use overflow-wrap). 7 nav order from NAV_ORDER constant: PASSED (override; rows follow PANE_IDS; was G2).
+
+**03-06 (12/13 verified, 1 PASSED (override)).** 1 first visit: full dropzone at the top, skeleton below; after import the same element becomes the slim bar with "Imported on", compact drop, Start over and Clear my cache: PASSED (override) for placement (08-04; was G3). The single element and the full to slim variants are VERIFIED (ImportBar `data-variant`, one `<Dropzone>`, `persistent-bar`, `imported-at`). 2 one always-present live-region notice slot in the bar, zero height when empty: VERIFIED with WARNING W-4. The live region is the App.svelte `notice-announcer` (the WR-01 fix from Phase 3 itself); the bar's `notice-slot` is a plain div. e2e "(single-live-region)" passed. 3 cached dashboard stays visible during replace, duplicate and error: VERIFIED (e2e "(replace-in-flight)", "(duplicate)"). 4 failed replace keeps old dashboard and stored dataset, including after reload: VERIFIED (e2e "(failed-replace)"). 5 failure with no cache: banner above the full dropzone, skeleton stays, next drop works: VERIFIED (e2e "(first-error)"). 6 on-load check renders only the spinner block: VERIFIED (App.svelte `checking-cache` branch; e2e "(cache-check-window)"). 7 one dropzone for both variants; busy keeps prompt, aria-disabled and aria-busy, file input disabled; spinner in notice slot: VERIFIED (Dropzone.svelte lines 117-119; ImportBar renders one `<Dropzone>`). 8 focus management (dismiss focuses cancel on mount; return to trigger; clear to dropzone): VERIFIED (ConfirmPanel `onMount`; App `onCancelConfirm`/`onConfirmPending`; e2e "confirm panel and focus"). 9 Start over and Clear share one panel, identical copy, panel inside the bar: VERIFIED (App `confirmCopy`; e2e "(shared-copy)"). 10 duplicate notice rendered for the first time: VERIFIED (ImportBar `duplicate-notice`; e2e "(duplicate)"). 11 spinner keeps reduced-motion handling, no other animation: VERIFIED (`prefers-reduced-motion` in ImportBar.svelte and App.svelte). 12 window-level drop guard kept: VERIFIED (App `onWindowDragOver`/`onWindowDrop`; e2e "(stray-drop)"). 13 edge with no export: zero-height slot, no persistent bar, first drop without confirm: VERIFIED (e2e "(full-variant)").
+
+**03-07 (7/7 verified).** 1 Phase 1 and 2 e2e specs assert the new markup and pass; no test, source or driver references a retired hook: VERIFIED (g-e2e 254/0; grep for scroll-nav, DashboardNav, scroll-spy, results-view, account-heading, summary-line, category-badge finds only guard assertions and comments). Stale comment noted: `src/App.svelte:279` still says "scroll-spy observes". 2 Start over is confirm-then-clear: VERIFIED (e2e "(e) start over now requires confirmation"). 3 earlier guarantees kept (zero network, one worker, no native dialogs, generic failure copy, no auto-dismiss): VERIFIED (zero-network and persistent-dataset "(g)" passed in g-e2e). 4 retired summary and account-heading formatters removed: VERIFIED (ui-copy.ts:198 records their deletion; no importer found). 5 skill driver and SKILL.md describe the real dashboard: VERIFIED (round 2; was G4). SKILL.md step 4 now describes the list pane and the detail pane that mounts only the selected section; driver.mjs counts `list-row-*` rows, opens "Not yet supported" for its banners, selects Login history before waiting for its block, and passes `node --check`. Every selector it uses exists in source (see Method). 6 full phase gate (lint, type-check, unit, e2e): VERIFIED (lint exit 0 run by this verifier; tsc and svelte-check 0 errors in g-check; 2794 unit in g-unit; 254 e2e in g-e2e). 7 edge zero, one, many skip tags and banners through malformed-rows and renamed-root fixtures: VERIFIED (e2e persistent-dataset "(a-skip)", dashboard "(skip)", import-flow "(b)" renamed root).
+
+**Tally:** 59 verified, 10 PASSED (override), 0 open gaps out of 69. Score 69/69.
+
+### Prohibitions (plan `must_haves.prohibitions`, 11)
+
+| Plan | Prohibition (short) | Tier | Result |
+|---|---|---|---|
+| 03-01 | LOGIN, BIRTH_DATE, BIRTH_DATE_SRC never persisted; identity never from unsanitised row | test | VERIFIED (choke point, no-leak test, identity-privacy e2e) |
+| 03-02 | Missing folder never shown as present-but-empty, and the reverse | test | VERIFIED (sectionStatus ladder; absent and empty e2e) |
+| 03-03 | Drop on displayed dataset never reaches worker without confirmation | test | VERIFIED (named guard tests) |
+| 03-04 | Nickname only as header text (not title, attributes, tooltip, nav, console) | test | VERIFIED (static title; identity-privacy) |
+| 03-04 | Identity header does not present nickname or region as permanent or verified; no time on caption | test | VERIFIED ("As of export" caption; date-only created) |
+| 03-04 | Unsupported folder never hidden, merged, tier-styled, or colour-only | test | VERIFIED (UnsupportedBlock single template) |
+| 03-04 | No assertion about a specific game title inside Player_statistics | judgment | unverified-prohibition, human review recommended (non-authoritative) |
+| 03-05 | Nav does not convey missing or empty by colour alone | test | VERIFIED (status text in visible row summary and weight change on muted rows) |
+| 03-06 | Drop while displayed never ingested without confirm; cancel leaves dashboard and dataset untouched | test | VERIFIED (named tests and e2e "(replace-in-flight)", "(failed-replace)") |
+| 03-06 | Drop outside dropzone never navigates the browser | test | VERIFIED (window guards; e2e "(stray-drop)") |
+| 03-07 | Rewritten tests do not weaken earlier-locked assertions | judgment | unverified-prohibition, human review recommended (non-authoritative) |
+
+## Required Artifacts (current location)
+
+Phase 8 relocated most Phase 3 files. Presence and wiring were checked at the new paths.
+
+| Phase 3 path | Current path | Status |
+|---|---|---|
+| src/lib/worker/identity.ts | same | VERIFIED (exists, substantive, imported by ingest.worker.ts) |
+| src/lib/types/worker-messages.ts | src/lib/core/types/worker-messages.ts | VERIFIED (relocated) |
+| src/lib/worker/db.ts | same | VERIFIED (version(2) upgrade, identity on meta) |
+| src/lib/worker/ingest.worker.ts | same | VERIFIED (strip at push; resultFromMeta) |
+| src/lib/dashboard-status.ts | src/lib/shell/dashboard-status.ts | VERIFIED (relocated) |
+| src/lib/scroll-spy.ts | deleted | PASSED (override; 08-07) |
+| src/lib/worker-client.svelte.ts | src/lib/import/worker-client.svelte.ts | VERIFIED (relocated; imported by App via ingest-client.ts) |
+| src/lib/components/IdentityHeader.svelte | src/lib/shell/IdentityHeader.svelte | VERIFIED (relocated, rendered in ListPane) |
+| src/lib/components/DashboardSection.svelte | src/lib/shell/DashboardSection.svelte | VERIFIED (relocated; one root element per status) |
+| src/lib/components/UnsupportedBlock.svelte | src/lib/shell/UnsupportedBlock.svelte | VERIFIED (relocated) |
+| src/lib/components/Dashboard.svelte | src/lib/shell/Dashboard.svelte | VERIFIED (rewritten as master-detail shell; calls sectionStatus) |
+| src/lib/components/DashboardNav.svelte | deleted | PASSED (override; 08-07) |
+| src/lib/components/ImportBar.svelte | src/lib/shell/ImportBar.svelte | VERIFIED (relocated; single Dropzone) |
+| src/lib/components/Dropzone.svelte | src/lib/shell/Dropzone.svelte | VERIFIED (compact variant, aria-busy/disabled) |
+| src/lib/components/ConfirmPanel.svelte | src/lib/shell/ConfirmPanel.svelte | VERIFIED (onMount focus) |
+| src/lib/ui-copy.ts | same | VERIFIED |
+| tests/e2e/shell/identity-privacy.spec.ts | same | VERIFIED (passed in g-e2e) |
+| tests/e2e/shell/scroll-nav.spec.ts | deleted, replaced by master-detail-nav.spec.ts | PASSED (override; 08-02) |
+
+## Key Link Verification
+
+| From | To | Via | Status | Details |
+|---|---|---|---|---|
+| ingest.worker.ts | identity.ts | sanitizeUserInfoRow at the one allRows push | WIRED | line 883 |
+| ingest.worker.ts | db.ts | writeDataset receives identity | WIRED | line 958 |
+| ingest.worker.ts | cache-status and duplicate | resultFromMeta | WIRED | lines 632, 715 |
+| db.ts | v1 caches | version(2).upgrade clears rows and meta | WIRED | db.ts:199-207 |
+| ui-copy.ts | dashboard-status.ts | type-only NavMutedReason / NavId import | WIRED | ui-copy.ts:1 |
+| App.svelte | Dashboard | `<Dashboard result={ingestClient.result} {importRegion}>` | WIRED | App.svelte:334 |
+| Dashboard.svelte | dashboard-status.ts | sectionStatus, sectionCounts per section | WIRED | Dashboard.svelte sectionProps |
+| IdentityHeader.svelte | ui-copy.ts | formatCreatedDate, formatAccountId, formatIdentityFallbackTitle | WIRED | imports present |
+| UnsupportedBlock.svelte | DashboardSection.svelte | shared section shell | WIRED | UnsupportedBlock template |
+| App.svelte | ImportBar.svelte | variant from `ingestClient.result !== null`, notice from state | WIRED | App.svelte:295 |
+| ImportBar.svelte | Dropzone.svelte | one instance, compact when slim, disabled when busy | WIRED | ImportBar.svelte:128 |
+| App.svelte | worker-client | requestStartOver, requestClearData, confirmPending, cancelPending | WIRED | App handlers |
+| DashboardNav.svelte | dashboard-status.ts navEntries | planned key link | PASSED (override) | file deleted (08-07) |
+| DashboardNav.svelte | scroll-spy.ts | planned key link | PASSED (override) | file deleted (08-07) |
+
+## Data-Flow Trace (Level 4)
+
+| Artifact | Data | Source | Produces Real Data | Status |
+|---|---|---|---|---|
+| IdentityHeader | identity | `meta.identity` via `resultFromMeta` or `done` result | yes (Dexie meta / worker parse) | FLOWING |
+| DashboardSection counts | counts | `sectionCounts(folder, result)` over categories from worker | yes | FLOWING |
+| UnsupportedBlock banners | entries | `unsupportedEntries(result)` | yes | FLOWING |
+| ListPane rows | paneEntries | `paneEntries(result)` | yes | FLOWING |
+
+## Behavioral Spot-Checks
+
+| Behavior | Command | Result | Status |
+| -------- | ------- | ------ | ------ |
+| Named Phase 3 unit files | `pnpm exec vitest run` on six files | 474/474 passed | PASS (round 1) |
+| Lint | `pnpm lint` | exit 0 | PASS (round 1) |
+| Type check and svelte-check | from g-check.log | 0 errors, 0 warnings | PASS (orchestrator log) |
+| Full unit suite | from g-unit.log | 2794/2794 | PASS (orchestrator log) |
+| Playwright suite | from g-e2e.log | 254 passed, 0 failed | PASS (orchestrator log) |
+| Driver syntax (G4 closure) | `node --check .claude/skills/run-data-export-viewer/driver.mjs` | exit 0 | PASS (round 2) |
+| Driver end to end (G4 closure) | orchestrator run on fresh preview | list rows 8, banners 4, login history ready, start-over confirmed, 0 requests after load | PASS (orchestrator-reported; not re-run by verifier) |
+
+## Requirements Coverage
+
+| Requirement | Source Plans | Description | Status | Evidence |
+|-------------|-------------|-------------|--------|----------|
+| DATA-03 | 03-02, 03-04, 03-07 | 3-way classification, every non-supported folder shown with the same banner | SATISFIED | UnsupportedBlock banners (one template); classify and banner e2e |
+| DATA-04 | 03-02, 03-04, 03-05, 03-06, 03-07 | Absent category greyed, not removed | SATISFIED | sectionStatus `no-export`; muted rows; "Not in this export" e2e |
+| IDENTITY-01 | 03-01, 03-03, 03-04, 03-06, 03-07 | Identity header (nickname, region, created), LOGIN omitted | SATISFIED | identity strip at write time; header render; identity-privacy e2e |
+
+Orphaned requirements: none. REQUIREMENTS.md maps exactly DATA-03, DATA-04 and IDENTITY-01 to Phase 3, and all three appear in plan frontmatter.
+
+## Anti-Patterns
+
+| File | Line | Pattern | Severity | Impact |
+|------|------|---------|----------|--------|
+| src/App.svelte | 279 | comment says "scroll-spy observes" (retired) | Info | Stale comment only |
+| .claude/skills/run-data-export-viewer/SKILL.md | step 4 | previously described the single-scroll page (G4) | Resolved (c67c729) | Master-detail wording re-checked in round 2 |
+| .claude/skills/run-data-export-viewer/driver.mjs | 156-168 | previously logged the section count of the selected pane only (G4) | Resolved (c67c729) | Driver now counts list rows and opens Not yet supported |
+| .claude/skills/run-data-export-viewer/driver.mjs | 9 | header comment says "section cards" | Info | Cosmetic wording; not gating |
+| src/lib/shell/ImportBar.svelte | notice-slot | visually labelled slot, not the live region (live region is App `notice-announcer`) | Info | Intent kept (single live region); see W-4 |
+
+No TBD, FIXME or XXX markers were found in the Phase 3 files. No stubs or hollow props were found on the rendered paths.
+
+## Warnings (non-gating)
+
+- **W-1 (SC2 discoverability):** the unsupported banners are inside the "Not yet supported" pane, not on the main page. The list row shows the folder count. Literal SC2 text ("listed") still holds once the row is selected. Phase 8 08-02 moved them deliberately.
+- **W-2 (copy drift):** the region label is "Location code (per export)" (IDENTITY_REGION_LABEL), not "Region (per export)". Amended after UAT G-05-7 (comment in IdentityHeader.svelte). Semantics unchanged: the raw REGION string.
+- **W-3 (copy drift):** the User_Info note reads "Account details are shown under your nickname in the section list", not "...in the header above".
+- **W-4 (live-region location):** the single polite region moved from the import bar into App.svelte (`notice-announcer`) as the Phase 3 WR-01 fix. Test "(single-live-region)" enforces one region.
+- **W-5 (dead copy):** SECTION_NOTE_PENDING ("Dashboard coming in a later update") is no longer reachable for the four built sections (BUILT_DASHBOARDS). It only applies to a pending section, which the account section handles with its own note.
+
+## Human Verification and Decisions Needed
+
+1. **Judgment prohibition 03-04 (game title in Player_statistics).** Non-authoritative LLM-judge verdict; owner to confirm.
+2. **Judgment prohibition 03-07 (earlier-locked assertions).** Non-authoritative verdict on the Phase 8 scroll-nav to master-detail-nav replacement; owner to confirm.
+3. **Copy amendments (W-2, W-3).** Confirm the amended strings are the intended contract, or update the PLAN text.
+
+## Gaps Summary
+
+Phase 3's goal (after an import or on return, a dashboard shows whose account it is and represents every category honestly) is achieved in the current code. All four ROADMAP success criteria, the identity privacy guarantee, the three requirements and the worker-side must-haves pass. Ten must-have truths describe Phase 3 layout and navigation mechanisms that Phase 8 retired by design (scroll-spy, anchor nav, single-scroll first visit). The repo owner (Bohdan_Pavlenko) accepted them on 2026-10-11T13:52:49Z; they are recorded as signed overrides.
+
+Round 2 closed the last open gap. G4 (03-07 truth 5, stale skill documentation) is fixed by commit `c67c729`: SKILL.md step 4 and the driver describe and drive the master-detail layout, and every driver selector exists in source. No gaps remain, so the status is `human_needed`, not `passed`: two judgment-tier prohibitions and the W-2/W-3 copy confirmations still need a human decision, and this verifier does not resolve them.
+
+Gap groups (for the record):
+- G1 (accepted): scroll-spy and anchor-scroll rule retired (08-02, 08-07): 03-02 #8, 03-05 #3, #4.
+- G2 (accepted): five-link sticky hash nav replaced by eight-row list pane (08-02, 08-03, 08-07): 03-02 #6, 03-05 #1, #2, #5, #7.
+- G3 (accepted): single-scroll first-visit page replaced by two-pane layout (08-02, 08-04): 03-04 #3, 03-06 #1.
+- G4 (CLOSED in round 2 by c67c729): skill documentation described the retired page: 03-07 #5.
+
+---
+
+_Verified: 2026-10-11T15:08:53Z_
+_Verifier: Claude (gsd-verifier)_

@@ -65,8 +65,11 @@ The driver:
    documentation addresses, so the Login history block reaches `ready`.
 4. Captures the processing paragraph (the spinner + per-stage text, in
    the import bar's notice slot), then the dashboard: the identity
-   header (nickname + `Account ID: …`), one card per supported section
-   with its counts, and one banner per unsupported folder.
+   header (nickname + `Account ID: …`) and the master-detail layout: a list
+   pane with one row per section (plus the "Not yet supported" row), and a
+   detail pane that mounts only the selected section. The driver counts the
+   list rows, opens "Not yet supported" to count one banner per unsupported
+   folder, then selects Playtime again.
 5. Waits for the Playtime block to reach `data-state="ready"`, logs the
    three tile texts, the selector's option count and the calendar-cell,
    hour-cell and duration-bin counts, then screenshots it. TILE TEXT AND

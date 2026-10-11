@@ -153,11 +153,18 @@ try {
 await page.getByTestId('identity-nickname').waitFor({ state: 'visible', timeout: 30_000 });
 const nickname = await page.getByTestId('identity-nickname').innerText();
 const accountId = await page.getByTestId('identity-account-id').innerText();
-const sectionCount = await page.locator('[data-testid^="dashboard-section-"]').count();
+// Master-detail (Phase 8): the list pane always shows one row per section, but
+// only the SELECTED section is mounted in the detail pane. So the section
+// count is the list-row count, and the unsupported banners exist only while the
+// "Not yet supported" pane is open.
+const sectionCount = await page.locator('[data-testid^="list-row-"]').count();
+await page.getByTestId('list-row-not-yet-supported').click();
+await page.getByTestId('unsupported-banner').first().waitFor({ state: 'visible', timeout: 5_000 }).catch(() => {});
 const bannerCount = await page.getByTestId('unsupported-banner').count();
+await page.getByTestId('list-row-playtime').click();
 console.log(`  nickname: "${nickname}"`);
 console.log(`  account id: "${accountId}"`);
-console.log(`  sections: ${sectionCount}, unsupported banners: ${bannerCount}`);
+console.log(`  list rows: ${sectionCount}, unsupported banners: ${bannerCount}`);
 await page.screenshot({ path: logShot('03-dashboard'), fullPage: true });
 
 // Playtime block. The demo data is 30 usable sessions over 21 days in three
@@ -195,6 +202,8 @@ await page.screenshot({ path: logShot('03b-playtime'), fullPage: true });
 // TEXT, STATE AND COUNTS ONLY. Never an address and never a table cell: the
 // Most-used tile is masked by default and this driver never presses the reveal
 // control, so even its text carries no full address.
+// Master-detail: the block is only mounted while its pane is selected.
+await page.getByTestId('list-row-login-history').click();
 const loginBlock = page.getByTestId('login-history');
 try {
   await page
