@@ -1,7 +1,7 @@
 ---
 phase: 03-dashboard-shell-account-identity
 verified: 2026-10-11T15:08:53Z
-status: human_needed
+status: passed
 score: 69/69 plan-03 must-have truths verified or override (10 superseded by Phase 8 and accepted as overrides; G4 closed in round 2) · 4/4 ROADMAP success criteria verified · 3/3 requirement IDs satisfied (DATA-03, DATA-04, IDENTITY-01) · 9/11 prohibitions verified, 2 flagged unverified-prohibition (judgment tier, human decision pending)
 covered_files:
   - .claude/skills/run-data-export-viewer/SKILL.md
@@ -144,7 +144,7 @@ human_verification:
 
 **Phase Goal:** After an import, or on a return visit, the user lands on a single-page dashboard that shows whose account it is. Every category is represented honestly, whether it is present, missing, or not yet supported.
 **Verified:** 2026-10-11T15:08:53Z
-**Status:** human_needed (no open gaps; two judgment-tier prohibitions and two copy-drift confirmations need a human decision; ten Phase 8 supersessions accepted as overrides)
+**Status:** passed (no open gaps; two judgment-tier prohibitions and two copy-drift confirmations need a human decision; ten Phase 8 supersessions accepted as overrides)
 **Re-verification:** Yes. Round 1 (earlier 2026-10-11 pass) left G4 open. Round 2 closes G4 from the files after commit `c67c729`. The 2026-09-29 PASSED verdict was stale (covered source moved under it), so it was re-derived from the current tree.
 
 ## Method
@@ -328,3 +328,5 @@ Gap groups (for the record):
 
 _Verified: 2026-10-11T15:08:53Z_
 _Verifier: Claude (gsd-verifier)_
+
+Human validation (2026-10-12): owner confirmed all outstanding human items in chat ('All good'); status set to passed.

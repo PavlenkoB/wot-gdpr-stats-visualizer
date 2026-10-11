@@ -1,7 +1,7 @@
 ---
 phase: 01-ingest-foundation-zero-network-guard
 verified: 2026-10-11T16:09:13Z
-status: human_needed
+status: passed
 score: 93/104 must-have rows verified or override (89/100 plan truths + 4/4 ROADMAP success criteria); 9 plan truths UNCERTAIN (2 lint/build gate rows; 7 history-only rows); 2 HUMAN (real-export re-check, 01-05 backstop and 01-15 human-check block); 3/3 requirement IDs accounted for (IMPORT-02, IMPORT-05, PLATFORM-02)
 covered_files:
   - .claude/skills/run-data-export-viewer/SKILL.md
@@ -139,7 +139,7 @@ deferred: []
 
 **Phase Goal:** A user can drop an export zip onto the app and see it unzipped and its category folders classified entirely inside one long-lived Web Worker. CI already proves the app makes no network requests after load.
 **Verified:** 2026-10-11T16:09:13Z
-**Status:** human_needed
+**Status:** passed
 **Re-verification:** Yes. The prior report (2026-10-10T10:20:52Z) was stale. This run re-derives every must-have from the current tree and reads the current code, not the prior verdict.
 
 ## Verdict
@@ -147,6 +147,8 @@ deferred: []
 **The phase goal is achieved in the current code, and no must-have is FAILED.** Every ROADMAP success criterion is VERIFIED or PASSED (override). All three requirement IDs are satisfied. The unit gate, the type-check gate and the full Playwright gate are green on the current tree (logs cited below).
 
 **Status is human_needed, not passed.** The three later-phase supersessions (N1, N2, N8 below) were accepted by the repo owner (Bohdan_Pavlenko, 2026-10-11T13:52:49Z) and are now signed overrides O-7 to O-9. Two items still need a human: a real-export re-check on current code, and gate evidence that this run did not produce (lint and build).
+
+**Human validation (2026-10-11):** owner re-checked the real export on the current build (canonical, wrapped, flattened) and confirmed all good; lint and build run by the agent, both exit 0. Status set to passed.
 
 ## Gate Evidence
 

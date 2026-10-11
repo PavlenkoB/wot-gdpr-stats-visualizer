@@ -1,7 +1,7 @@
 ---
 phase: 06-login-ip-history-offline-geolocation
 verified: 2026-10-11T12:56:00Z
-status: human_needed
+status: passed
 score: 12/13 must-haves verified or accepted (truth 12 accepted as session-only known limitation by owner 2026-10-11; 1 present-behavior-unverified)
 behavior_unverified: 1
 overrides_applied: 1
@@ -49,7 +49,7 @@ human_verification:
 
 **Phase Goal:** User can see where their account was accessed from through a masked login-IP history and a country-level world map, with optional city-level detail. Only offline geo data is used, never a live API.
 **Verified:** 2026-10-11T12:56:00Z
-**Status:** human_needed
+**Status:** passed
 **Re-verification:** Yes. Previous report (2026-10-05) was passed 11/11 against code before the folder refactor, the Phase 7 deploy and the Phase 8 redesign. This run re-derived every truth from the current code and did not rely on the old verdict.
 
 ## Goal Achievement
@@ -201,3 +201,5 @@ Changes from the 2026-10-05 report: the score is now 11/13 because the truth set
 
 _Verified: 2026-10-11T12:56:00Z_
 _Verifier: Claude (gsd-verifier)_
+
+Human validation (2026-10-12): owner confirmed all outstanding human items in chat ('All good'); status set to passed.

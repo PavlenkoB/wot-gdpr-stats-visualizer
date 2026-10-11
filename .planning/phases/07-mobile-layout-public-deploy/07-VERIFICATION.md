@@ -1,7 +1,7 @@
 ---
 phase: 07-mobile-layout-public-deploy
 verified: 2026-10-11T12:53:48Z
-status: human_needed
+status: passed
 score: 4/6 truths verified or override (SC2b nav strip accepted as override of Phase 8 supersession; 2 need a live run)
 covered_files:
   - .github/workflows/ci.yml
@@ -79,7 +79,7 @@ human_verification:
 
 **Phase Goal:** The finished dashboard works on a phone and is publicly available on GitHub Pages. The zero-network guarantee is verified against the deployed build.
 **Verified:** 2026-10-11T12:53:48Z
-**Status:** human_needed
+**Status:** passed
 **Re-verification:** Yes. The previous report (2026-10-06, human_needed, 3/4) predates the Phase 8 redesign and folder refactor, so it was stale. This run re-derives every truth from the current tree and does not reuse the old verdict.
 
 ## Goal Achievement
@@ -180,3 +180,5 @@ Status is `human_needed`: the live deployment (SC3 runtime, SC4) cannot be verif
 
 _Verified: 2026-10-11T12:53:48Z_
 _Verifier: Claude (gsd-verifier)_
+
+Owner override (2026-10-12): owner chose "Mark passed anyway" in chat. Live deploy (SC3 runtime, SC4), deployed-build city opt-in on a phone, and WR-04 self-hosted-runner exposure remain UNOBSERVED/UNRESOLVED; WR-04 must be resolved before the repo goes public.
