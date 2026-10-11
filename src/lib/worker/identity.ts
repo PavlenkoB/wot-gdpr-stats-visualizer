@@ -23,7 +23,14 @@ import { MAX_ACCOUNT_TEXT_LENGTH, type AccountRecord } from '../features/logins/
  *      trim header names (`' LOGIN'` stays padded), does not upper-case
  *      them, and renames a duplicated column to `LOGIN_1`. A strip that
  *      tested `key === 'LOGIN'` would pass all three shapes and leak the
- *      email. So every key goes through `trim().toUpperCase()` first.
+ *      email. So every key goes through ONE normaliser: NFKC, trim,
+ *      upper-case, then a bounded Cyrillic / Greek / Turkish-I confusable
+ *      fold (02-06, W-1). NFKC alone resolves fullwidth letters; the fold
+ *      resolves the capitals UTS #39 lists as ASCII twins. No Cyrillic or
+ *      Greek capital is a twin of L or R, and G only via U+050C, so a
+ *      native-script column name (the Cyrillic words for name or password)
+ *      is neither stripped nor withheld: a fold-triggered match needs a key
+ *      that already carries a real ASCII L or R.
  *
  *   2. DROP PAPA'S OVERFLOW BUCKET. When a row carries more cells than the
  *      header declares, the extras land in a `__parsed_extra` array whose
@@ -71,11 +78,92 @@ export function isUserInfoCategory(name: string): boolean {
 }
 
 /**
- * Normalise a header key for comparison: trim the padding PapaParse
- * preserves and upper-case the casing an export may vary.
+ * Anything outside ASCII. Written as a Unicode property escape because a
+ * literal control-range class trips `no-control-regex`.
+ */
+const NON_ASCII = /\P{ASCII}/u;
+
+/**
+ * Letters, marks and numbers of any script plus the ASCII word characters. A
+ * key is split on runs of everything ELSE, so a non-ASCII letter stays inside
+ * its token (the resemblance rule needs the token whole).
+ */
+const RESEMBLANCE_SEPARATOR = /[^A-Z0-9_\p{L}\p{M}\p{N}]+/u;
+
+/**
+ * Default_Ignorable_Code_Point: zero-width space and joiners, soft hyphen,
+ * variation selectors and the like. Global flag, so it is used ONLY through
+ * `replace` — `.test` on a global regex keeps `lastIndex` between calls.
+ */
+const DEFAULT_IGNORABLE = /\p{Default_Ignorable_Code_Point}/gu;
+
+/** The names the D-18 deny-list is about, spelled out for the resemblance walk. */
+const DENIED_NAMES = ['LOGIN', 'BIRTH_DATE', 'BIRTH_DATE_SRC'] as const;
+
+/**
+ * Bounded confusable fold: upper-case code point -> the ASCII capital it is a
+ * twin of, taken from Unicode UTS #39 confusables.txt v18.0.0 (2026-08-06)
+ * when plan 02-06 was written. Nothing is fetched at run time.
+ *
+ * Deliberately NOT in the table: lower-case-only lookalikes whose capital is
+ * not a twin (Cyrillic ghe looks like r, but its capital U+0413 does not look
+ * like R and folding it would corrupt ordinary Russian words), soft sign,
+ * Greek sigma and the Coptic capitals (historic; the resemblance rule in
+ * `hasGluedSensitiveColumn` catches them). Built from numeric code points, not
+ * from literal lookalike characters in the source.
+ */
+const FOLD: ReadonlyMap<string, string> = new Map(
+  Object.entries({
+    A: [0x0391, 0x0410],
+    B: [0x0392, 0x0412],
+    C: [0x03f9, 0x0421],
+    D: [0x0500],
+    E: [0x0395, 0x0415],
+    G: [0x050c],
+    H: [0x0397, 0x041d, 0x04ba],
+    I: [0x0399, 0x0406, 0x04c0, 0x0130],
+    N: [0x039d],
+    O: [0x039f, 0x041e],
+    S: [0x0405],
+    T: [0x03a4, 0x0422],
+  }).flatMap(([ascii, codePoints]) =>
+    codePoints.map((cp) => [String.fromCodePoint(cp), ascii] as const),
+  ),
+);
+
+/**
+ * NFKC, trim, upper-case: the key BEFORE the confusable fold. The resemblance
+ * rule reads this form on purpose: the fold replaces an unknown by a certain
+ * letter, and the letters that are ambiguous between a capital I and a
+ * lower-case l (U+0399, U+0406, U+04C0, U+04CF) would otherwise hide the L of
+ * a lower-case `login` behind a confident `I`.
+ *
+ * A key of printable ASCII (every real header) costs exactly what it cost
+ * before: NFKC is the identity on ASCII, so the fast path returns the old
+ * `trim().toUpperCase()` unchanged.
+ */
+function prefoldKey(key: string): string {
+  if (!NON_ASCII.test(key)) return key.trim().toUpperCase();
+  return key.normalize('NFKC').trim().toUpperCase();
+}
+
+/**
+ * Normalise a header key for comparison: the {@link prefoldKey} form followed
+ * by the bounded confusable fold, applied after upper-casing so lower-case
+ * lookalikes fold through their capitals. This is the ONE normaliser the strip,
+ * the glued/disguised check and the identity pick share, so the withhold
+ * trigger and the strip can never disagree about what a sensitive header is.
+ *
+ * Invisible characters are deliberately NOT removed here: a key with a
+ * zero-width space after `LOGIN` must stay a key the strip does not match, so
+ * that `hasGluedSensitiveColumn` withholds the file (02-05 behaviour).
  */
 function normalizeKey(key: string): string {
-  return key.trim().toUpperCase();
+  const pre = prefoldKey(key);
+  if (!NON_ASCII.test(pre)) return pre;
+  let out = '';
+  for (const ch of pre) out += FOLD.get(ch) ?? ch;
+  return out;
 }
 
 /**
@@ -101,6 +189,123 @@ function normalizeKey(key: string): string {
 export function hasSensitiveColumn(data: UserInfoRow): boolean {
   for (const key of Object.keys(data)) {
     if (DROPPED_COLUMN.test(normalizeKey(key))) return true;
+  }
+  return false;
+}
+
+/** Does any token of `text`, split on runs outside A-Z, 0-9 and `_`, match the deny-list? */
+function hasDeniedToken(text: string): boolean {
+  for (const token of text.split(/[^A-Z0-9_]+/)) {
+    if (token !== '' && DROPPED_COLUMN.test(token)) return true;
+  }
+  return false;
+}
+
+/**
+ * Can `candidate` be read as one of the deny-listed names when every non-ASCII
+ * code point is taken as an UNKNOWN that stands for zero or one character and
+ * every ASCII character must match the name in order?
+ *
+ * A walk over the set of target positions reached so far, held as a bit mask
+ * (the longest name is 14 characters, so a position and the end fit in 15
+ * bits): linear in the candidate length times at most three names. No RegExp is
+ * ever built from key text, so a hostile key cannot cost more than that.
+ */
+function resemblesDeniedName(candidate: string): boolean {
+  for (const target of DENIED_NAMES) {
+    const full = (1 << (target.length + 1)) - 1;
+    let reached = 1; // position 0
+    for (const ch of candidate) {
+      if (ch.codePointAt(0)! < 0x80) {
+        let next = 0;
+        for (let p = 0; p < target.length; p++) {
+          if ((reached & (1 << p)) !== 0 && target[p] === ch) next |= 1 << (p + 1);
+        }
+        reached = next;
+      } else {
+        reached = (reached | (reached << 1)) & full;
+      }
+      if (reached === 0) break;
+    }
+    if ((reached & (1 << target.length)) !== 0) return true;
+  }
+  return false;
+}
+
+/**
+ * Does any header key HIDE a deny-listed column name, inside a longer key or
+ * behind letters the fold cannot resolve? (CR-03 of 02-05, widened by W-1 of
+ * 02-06.)
+ *
+ * Why this exists: `hasSensitiveColumn` / `sanitizeUserInfoRow` are anchored on
+ * the WHOLE normalised key, so they only hold when the parser split the header
+ * correctly AND the key is spelled in a way the normaliser can resolve. A
+ * header whose delimiter was misjudged (`LOGIN;BIRTH_DATE` read as one
+ * comma-less cell), a quoted header cell, or a key that mixes ASCII letters
+ * with a letter the fold cannot resolve arrives as a single key that the
+ * anchored pattern does not match, and the values under it would rest in
+ * IndexedDB unredacted. The parser calls this on the parsed keys and withholds
+ * the whole file when it is true, which makes the guarantee a property of the
+ * KEYS and not of any delimiter heuristic.
+ *
+ * It shares `normalizeKey` and `DROPPED_COLUMN` with the strip, so the trigger
+ * and the strip can never disagree about what a sensitive header is.
+ *
+ * Policy:
+ *   - The predicate is ADDITIVE. The 02-05 rule runs unchanged on the trim and
+ *     upper-case of the RAW key (before NFKC, because NFKC can turn a
+ *     separator into a word character) and is OR-ed with the later rules, so
+ *     nothing 02-05 withheld is released.
+ *   - A key the fold resolves to an exact name (fullwidth, Cyrillic or Greek
+ *     lookalikes, the Turkish dotted I) is SKIPPED: the strip removes it like
+ *     the ASCII name.
+ *   - A key that becomes a glued pair only after folding, or whose name is
+ *     exposed by removing invisible characters, withholds the file.
+ *   - A key that still mixes an ASCII anchor letter with unresolved non-ASCII
+ *     letters and can be read as a deny-listed name withholds the file. This
+ *     reads the PRE-fold form, so an I/l-ambiguous letter (U+0399, U+0406,
+ *     U+04C0, U+04CF) standing for the L of a lower-case `login` is still
+ *     caught, while the same letters standing for the I of LOGIN already ended
+ *     at the exact-name check.
+ *   - `LOGIN_DT` (the real Logins.csv column), `USER_LOGIN`, `LOGIN_NAME` and
+ *     `BIRTH_DATE_1` style names are NOT flagged: underscore is a word
+ *     character, so they stay one token and the anchored pattern rejects them.
+ *   - A key written ENTIRELY in a script outside the fold table (Cherokee,
+ *     Latin small capitals) and translated names (the Cyrillic word for
+ *     login) are neither stripped nor withheld: an accepted residual
+ *     (02-06 T-02-22, the same class as T-03-03; a deny-list matches names,
+ *     not meanings).
+ *
+ * It never reads a cell value and never throws.
+ */
+export function hasGluedSensitiveColumn(keys: readonly string[]): boolean {
+  for (const key of keys) {
+    // 02-05 rule, verbatim, on the raw key.
+    const raw = key.trim().toUpperCase();
+    if (!DROPPED_COLUMN.test(raw) && hasDeniedToken(raw)) return true;
+
+    // An exact name after the fold is removed by the strip, not withheld.
+    const folded = normalizeKey(key);
+    if (DROPPED_COLUMN.test(folded)) continue;
+
+    // Glued only after folding.
+    if (hasDeniedToken(folded)) return true;
+
+    // Printable-ASCII keys have nothing more to hide.
+    if (!NON_ASCII.test(key)) continue;
+
+    // An invisible character inside the name hides it.
+    const visible = folded.replace(DEFAULT_IGNORABLE, '');
+    if (visible !== folded && DROPPED_COLUMN.test(visible)) return true;
+
+    // Resemblance, on the PRE-fold form with invisible characters removed.
+    const pre = prefoldKey(key).replace(DEFAULT_IGNORABLE, '');
+    for (const token of pre.split(RESEMBLANCE_SEPARATOR)) {
+      if (token === '' || !NON_ASCII.test(token) || !/[A-Z]/.test(token)) continue;
+      if (resemblesDeniedName(token)) return true;
+      const stripped = token.replace(/_\p{Nd}+$/u, '');
+      if (stripped !== token && resemblesDeniedName(stripped)) return true;
+    }
   }
   return false;
 }

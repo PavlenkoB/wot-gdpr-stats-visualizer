@@ -90,7 +90,7 @@ Plans:
   3. Re-dropping the identical zip is reported as already loaded and skipped before any unzip or parse work starts. Dropping a different zip fully replaces the previous dataset, leaving no rows from the old export.
   4. A clearly visible "Clear my cached data" control deletes all cached export data. After clearing and reloading, the app is back in its empty upload state and IndexedDB holds no export rows.
 
-**Plans:** 4/4 plans complete
+**Plans:** 6/6 plans complete
 Plans:
 **Wave 1**
 
@@ -107,6 +107,11 @@ Plans:
 **Gap closure** *(verifier G-02-20, filed after Wave 3)*
 
 - [x] 02-04-PLAN.md — Replace-on-drop render sites: co-render `<Dropzone>` in `'done'`/`'duplicate'` branches, keep `<ResultsView>` mounted during replace-confirm
+
+**Gap closure**
+
+- [x] 02-05-PLAN.md — CR-01..03 parser fixes: header-driven delimiter, fail-closed glued-PII header, exact blank-record mapping, quarantine-and-recover
+- [x] 02-06-PLAN.md — W-1/W-2 hardening: shared NFKC-plus-fold header-key normaliser with fail-closed lookalike withhold, terminator-aware splitting of mixed CRLF/CR/LF files
 
 **UI hint**: yes
 
@@ -394,7 +399,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Ingest Foundation & Zero-Network Guard | 15/15 | Complete    | 2026-10-10 |
-| 2. Defensive Parsing & Persistent Dataset | 4/4 | Complete    | 2026-09-29 |
+| 2. Defensive Parsing & Persistent Dataset | 6/6 | Complete    | 2026-10-11 |
 | 3. Dashboard Shell & Account Identity | 7/7 | Complete    | 2026-09-29 |
 | 4. Activity Time Dashboards | 18/18 | In Progress|  |
 | 5. Vehicle Stats & Financial Dashboards | 19/19 | Complete    | 2026-10-02 |

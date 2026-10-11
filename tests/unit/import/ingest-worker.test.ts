@@ -10,11 +10,14 @@ import {
   SAMPLE_CREATED_AT,
   SAMPLE_CREATED_DATE,
   SAMPLE_IP,
+  SAMPLE_LOGIN,
   SAMPLE_LOGIN_DOMAIN,
   SAMPLE_NICKNAME,
   SAMPLE_REGION,
   LONG_NICKNAME,
   LONG_UNKNOWN_FOLDER,
+  MALFORMED_ROW_EXPECTED_ROW_COUNT,
+  MALFORMED_ROW_EXPECTED_SKIPPED_COUNT,
   RAGGED_OVERFLOW_MARKER,
   SAMPLE_ROW_COUNTS,
   VARIANT_CREATED_AT,
@@ -28,6 +31,7 @@ import {
   buildEmptyAccountInfoExport,
   buildLargeExport,
   buildLowercaseUserInfoFolderExport,
+  buildMalformedRowsExport,
   buildMissingPaymentHistoryExport,
   buildMissingUserInfoExport,
   buildMultiRowAccountInfoExport,
@@ -2696,5 +2700,353 @@ describe('01-14 — WR-03: an over-declared entry is rejected before it is infla
     const { db } = await importWorkerDb();
     expect(await db.rows.count()).toBe(0);
     expect(await db.meta.get('active')).toBeUndefined();
+  });
+});
+
+// =============================================================================
+// 02-05 Task 1 (tracer) -- CR-03: a ragged row must not let LOGIN;BIRTH_DATE
+// content past the header-keyed strip
+// =============================================================================
+//
+// 02-REVIEW.md CR-03. PapaParse sniffed the delimiter from the body, so one
+// short row in a two-column file flipped it to a comma and glued every line
+// under the single key `LOGIN;BIRTH_DATE`, which the anchored D-18 deny-list
+// does not match. The email then rested in IndexedDB.
+//
+// FIXTURE SHAPE (load-bearing): the file starts DIRECTLY with the header, no
+// leading CRLF and no blank line, and the short row is the ninth record, inside
+// PapaParse's ten-record sniffing window. A CRLF-wrapped file would be sniffed
+// correctly and this test would pass against the unfixed parser.
+// =============================================================================
+
+describe('02-05 -- CR-03: a ragged LOGIN;BIRTH_DATE file persists no sensitive value', () => {
+  let postSpy: ReturnType<typeof vi.fn>;
+  let savedSelf: unknown;
+
+  beforeEach(async () => {
+    savedSelf = (globalThis as unknown as { self?: unknown }).self;
+    vi.resetModules();
+    await deleteActiveDatabase();
+    postSpy = vi.fn();
+    (globalThis as unknown as { self: WorkerScopeLike }).self = {
+      postMessage: postSpy as unknown as (message: IngestResponse) => void,
+      onmessage: null,
+    };
+  });
+
+  afterAll(async () => {
+    await deleteActiveDatabase();
+    if ('self' in globalThis) {
+      (globalThis as unknown as { self?: unknown }).self = savedSelf;
+    }
+  });
+
+  /** Header, seven sensitive rows, one short row: nine records, CRLF, no blanks. */
+  function raggedSensitiveCsv(): string {
+    const lines = ['LOGIN;BIRTH_DATE'];
+    for (let i = 0; i < 7; i++) lines.push(`${SAMPLE_LOGIN};${SAMPLE_BIRTH_DATE}`);
+    lines.push('99');
+    return lines.join('\r\n') + '\r\n';
+  }
+
+  test('a User_Info file and a misfiled copy both persist without the email or the birth date', async () => {
+    const csv = raggedSensitiveCsv();
+    const bytes = buildCustomExport({
+      overrides: {
+        'User_Info/Account_Info.csv': csv,
+        'Weird/Contacts.csv': csv,
+      },
+    });
+    const terminal = await ingestWith(postSpy, bytes, 'ragged-sensitive.zip');
+    expect(terminal.type).toBe('done');
+
+    const { db } = await importWorkerDb();
+    const all = await db.rows.toArray();
+
+    // Non-vacuity: both files produced rows, so the scans below have something
+    // to scan.
+    expect(all.filter((r) => r.category === 'User_Info').length).toBeGreaterThan(0);
+    expect(all.filter((r) => r.category === 'Weird').length).toBeGreaterThan(0);
+
+    const dump = JSON.stringify({ rows: all, meta: await db.meta.toArray() });
+    expect(dump).not.toContain(SAMPLE_LOGIN_DOMAIN);
+    expect(dump).not.toContain(SAMPLE_BIRTH_DATE);
+
+    for (const row of all) {
+      for (const key of Object.keys(row.data)) {
+        expect(key, `row key ${key}`).not.toContain(';');
+        expect(SENSITIVE_KEY.test(key.trim().toUpperCase()), `key ${key}`).toBe(false);
+      }
+    }
+  });
+});
+
+// =============================================================================
+// 02-05 Task 2 -- CR-01 / CR-02: the restored real-shape malformed fixture
+// =============================================================================
+//
+// `buildMalformedRowsExport` was bent in 02-02 (no leading CRLF, the malformed
+// row LAST) to dodge the CR-02 index shift. It is restored to the real export
+// shape: a leading CRLF, a blank line between every record, and the malformed
+// record BETWEEN valid ones. The parser is what is fixed.
+// =============================================================================
+
+describe('02-05 -- CR-01/CR-02: the real-shape malformed Bans file through the real worker', () => {
+  let postSpy: ReturnType<typeof vi.fn>;
+  let savedSelf: unknown;
+
+  beforeEach(async () => {
+    savedSelf = (globalThis as unknown as { self?: unknown }).self;
+    vi.resetModules();
+    await deleteActiveDatabase();
+    postSpy = vi.fn();
+    (globalThis as unknown as { self: WorkerScopeLike }).self = {
+      postMessage: postSpy as unknown as (message: IngestResponse) => void,
+      onmessage: null,
+    };
+  });
+
+  afterAll(async () => {
+    await deleteActiveDatabase();
+    if ('self' in globalThis) {
+      (globalThis as unknown as { self?: unknown }).self = savedSelf;
+    }
+  });
+
+  test('Bans keeps its three valid rows and counts exactly one skip; no other category skips', async () => {
+    const terminal = await ingestWith(postSpy, buildMalformedRowsExport(), 'malformed.zip');
+    expect(terminal.type).toBe('done');
+    if (terminal.type !== 'done') return;
+
+    const bans = terminal.result.categories.find((c) => c.name === 'Bans');
+    expect(bans, 'Bans category present').toBeDefined();
+    expect(bans!.rowCount).toBe(MALFORMED_ROW_EXPECTED_ROW_COUNT);
+    expect(bans!.skippedRowCount).toBe(MALFORMED_ROW_EXPECTED_SKIPPED_COUNT);
+
+    for (const entry of terminal.result.categories) {
+      if (entry.name === 'Bans') continue;
+      expect(entry.skippedRowCount ?? 0, `category ${entry.name} skippedRowCount`).toBe(0);
+    }
+
+    // The three surviving rows are the valid ones, in source order.
+    const { db } = await importWorkerDb();
+    const rows = (await db.rows.toArray()).filter((r) => r.category === 'Bans');
+    expect(rows.map((r) => r.data['BAN_REASON'])).toEqual([
+      'reason_alpha',
+      'reason_beta',
+      'reason_gamma',
+    ]);
+  });
+});
+
+// =============================================================================
+// 02-06 Task 1 (tracer) -- W-1: a lookalike LOGIN / BIRTH_DATE header must not
+// let the e-mail or the birth date reach IndexedDB
+// =============================================================================
+//
+// 02-VERIFICATION.md W-1. `normalizeKey` was trim plus upper-case, so a header
+// spelled with fullwidth letters or a Cyrillic / Greek lookalike matched neither
+// the header-keyed D-18 strip nor the 02-05 glued withhold. The existing
+// ASCII-only SENSITIVE_KEY scan proves nothing for such a key, so the guards
+// here are value dumps plus EXACT key lists.
+//
+// Every Unicode string is written with \u escapes so the code point in use is
+// visible in review.
+// =============================================================================
+
+describe('02-06 -- W-1: a lookalike LOGIN / BIRTH_DATE header persists no sensitive value', () => {
+  let postSpy: ReturnType<typeof vi.fn>;
+  let savedSelf: unknown;
+
+  beforeEach(async () => {
+    savedSelf = (globalThis as unknown as { self?: unknown }).self;
+    vi.resetModules();
+    await deleteActiveDatabase();
+    postSpy = vi.fn();
+    (globalThis as unknown as { self: WorkerScopeLike }).self = {
+      postMessage: postSpy as unknown as (message: IngestResponse) => void,
+      onmessage: null,
+    };
+  });
+
+  afterAll(async () => {
+    await deleteActiveDatabase();
+    if ('self' in globalThis) {
+      (globalThis as unknown as { self?: unknown }).self = savedSelf;
+    }
+  });
+
+  /** `ID;<login>;<birth>;NAME` plus eight rows, CRLF, no blank line. */
+  function lookalikeCsv(loginKey: string, birthKey: string): string {
+    const lines = [`ID;${loginKey};${birthKey};NAME`];
+    for (let i = 0; i < 8; i++) {
+      lines.push(`${i};${SAMPLE_LOGIN};${SAMPLE_BIRTH_DATE};n${i}`);
+    }
+    return lines.join('\r\n') + '\r\n';
+  }
+
+  const STRIPPED: ReadonlyArray<{ label: string; login: string; birth: string }> = [
+    { label: 'Cyrillic O in LOGIN', login: 'L\u041EGIN', birth: 'BIRTH_DATE' },
+    {
+      label: 'fullwidth LOGIN and BIRTH_DATE',
+      login: '\uFF2C\uFF2F\uFF27\uFF29\uFF2E',
+      birth: '\uFF22\uFF29\uFF32\uFF34\uFF28_\uFF24\uFF21\uFF34\uFF25',
+    },
+    {
+      label: 'Greek Omicron and Nu in LOGIN, Greek Alpha and Epsilon in BIRTH_DATE',
+      login: 'L\u039FGI\u039D',
+      birth: 'BIRTH_D\u0391T\u0395',
+    },
+  ];
+
+  for (const c of STRIPPED) {
+    test(`stripped: ${c.label} -- User_Info and a misfiled folder persist exactly [ID, NAME]`, async () => {
+      const csv = lookalikeCsv(c.login, c.birth);
+      const bytes = buildCustomExport({
+        overrides: { 'User_Info/Account_Info.csv': csv, 'Weird/Contacts.csv': csv },
+      });
+      const terminal = await ingestWith(postSpy, bytes, 'lookalike.zip');
+      expect(terminal.type).toBe('done');
+
+      const { db } = await importWorkerDb();
+      const all = await db.rows.toArray();
+      for (const category of ['User_Info', 'Weird']) {
+        const persisted = all.filter((r) => r.category === category);
+        expect(persisted, `${category} rows`).toHaveLength(8);
+        for (const row of persisted) {
+          expect(Object.keys(row.data), `${category} key list`).toEqual(['ID', 'NAME']);
+        }
+      }
+
+      const dump = JSON.stringify({ rows: all, meta: await db.meta.toArray() });
+      expect(dump).not.toContain(SAMPLE_LOGIN_DOMAIN);
+      expect(dump).not.toContain(SAMPLE_BIRTH_DATE);
+    });
+  }
+
+  const WITHHELD: ReadonlyArray<{ label: string; login: string }> = [
+    { label: 'Armenian Oh inside LOGIN', login: 'L\u0555GIN' },
+    { label: 'zero-width space inside LOGIN', login: 'LO\u200BGIN' },
+  ];
+
+  for (const c of WITHHELD) {
+    test(`withheld: ${c.label} -- the category reports 0 rows and 8 skipped, nothing persists`, async () => {
+      const csv = lookalikeCsv(c.login, 'BIRTH_DATE');
+      const bytes = buildCustomExport({
+        overrides: { 'User_Info/Account_Info.csv': csv, 'Weird/Contacts.csv': csv },
+      });
+      const terminal = await ingestWith(postSpy, bytes, 'lookalike-withheld.zip');
+      expect(terminal.type).toBe('done');
+      if (terminal.type !== 'done') return;
+
+      const weird = terminal.result.categories.find((entry) => entry.name === 'Weird');
+      expect(weird, 'Weird category present').toBeDefined();
+      expect(weird!.rowCount).toBe(0);
+      expect(weird!.skippedRowCount).toBe(8);
+
+      const { db } = await importWorkerDb();
+      const all = await db.rows.toArray();
+      expect(all.filter((r) => r.category === 'Weird')).toHaveLength(0);
+      const dump = JSON.stringify({ rows: all, meta: await db.meta.toArray() });
+      expect(dump).not.toContain(SAMPLE_LOGIN_DOMAIN);
+      expect(dump).not.toContain(SAMPLE_BIRTH_DATE);
+    });
+  }
+});
+
+// =============================================================================
+// 02-06 Task 2 -- W-2: a file that mixes CRLF, bare CR and LF through the real
+// worker
+// =============================================================================
+//
+// 02-VERIFICATION.md W-2. Before the change the Bans file below imported two
+// rows (the others were glued into neighbouring cells) with skippedRowCount 0.
+// =============================================================================
+
+describe('02-06 -- W-2: mixed terminators through the real worker', () => {
+  let postSpy: ReturnType<typeof vi.fn>;
+  let savedSelf: unknown;
+
+  beforeEach(async () => {
+    savedSelf = (globalThis as unknown as { self?: unknown }).self;
+    vi.resetModules();
+    await deleteActiveDatabase();
+    postSpy = vi.fn();
+    (globalThis as unknown as { self: WorkerScopeLike }).self = {
+      postMessage: postSpy as unknown as (message: IngestResponse) => void,
+      onmessage: null,
+    };
+  });
+
+  afterAll(async () => {
+    await deleteActiveDatabase();
+    if ('self' in globalThis) {
+      (globalThis as unknown as { self?: unknown }).self = savedSelf;
+    }
+  });
+
+  const BANS_HEADER = 'BAN_DT;BAN_REASON;BAN_EXPIRES_AT';
+  const record = (n: number): string => `2020-0${n}-01 00:00:00;reason_${n};2020-0${n}-08 00:00:00`;
+
+  async function ingestBans(text: string) {
+    const bytes = buildCustomExport({ overrides: { 'Bans/Bans.csv': text } });
+    const terminal = await ingestWith(postSpy, bytes, 'mixed-terminators.zip');
+    expect(terminal.type).toBe('done');
+    if (terminal.type !== 'done') throw new Error('not done');
+    const bans = terminal.result.categories.find((c) => c.name === 'Bans');
+    expect(bans, 'Bans category present').toBeDefined();
+    const { db } = await importWorkerDb();
+    const rows = (await db.rows.toArray()).filter((r) => r.category === 'Bans');
+    return { bans: bans!, rows };
+  }
+
+  test('CRLF, LF, CR, CRLF, LF: every record is its own row, values hold no line break', async () => {
+    const text =
+      BANS_HEADER +
+      '\r\n' +
+      record(1) +
+      '\n' +
+      record(2) +
+      '\r' +
+      record(3) +
+      '\r\n' +
+      record(4) +
+      '\n';
+    const { bans, rows } = await ingestBans(text);
+
+    expect(bans.rowCount).toBe(4);
+    expect(bans.skippedRowCount).toBe(0);
+    expect(rows.map((r) => r.data['BAN_REASON'])).toEqual([
+      'reason_1',
+      'reason_2',
+      'reason_3',
+      'reason_4',
+    ]);
+    for (const row of rows) {
+      expect(Object.keys(row.data)).toEqual(['BAN_DT', 'BAN_REASON', 'BAN_EXPIRES_AT']);
+      for (const value of Object.values(row.data)) {
+        expect(String(value)).not.toMatch(/[\r\n]/);
+      }
+    }
+  });
+
+  test('a stray-quote record between mixed terminators costs exactly one row and counts one skip', async () => {
+    const stray = '2020-02-01 00:00:00;"unterminated;2020-02-08';
+    const text =
+      BANS_HEADER +
+      '\r\n' +
+      record(1) +
+      '\n' +
+      stray +
+      '\r\n' +
+      record(3) +
+      '\r' +
+      record(4) +
+      '\r\n';
+    const { bans, rows } = await ingestBans(text);
+
+    expect(bans.rowCount).toBe(3);
+    expect(bans.skippedRowCount).toBe(1);
+    expect(rows.map((r) => r.data['BAN_REASON'])).toEqual(['reason_1', 'reason_3', 'reason_4']);
   });
 });

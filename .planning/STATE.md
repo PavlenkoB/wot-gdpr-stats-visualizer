@@ -3,17 +3,17 @@ gsd_state_version: "1.0"
 current_phase: 07
 current_phase_name: Mobile Layout & Public Deploy
 current_plan: Not started
-status: "Phase 8 shipped — PR #11; Phase 01 gap closure shipped — PR #12 (draft)"
-stopped_at: "Phase 01 gap closure complete (verification passed, UAT 45/45); Phases 2-8 already shipped"
-last_updated: "2026-10-10T10:03:46.217Z"
-last_activity: 2026-10-10
-last_activity_desc: "Phase 01 gap closure complete (CR-01, WR-03); no phase transition"
-state_head: 2e441193b13ab3f8408accd36d5760bcd728e1d9
+status: planning
+stopped_at: Phase 02 complete, ready to plan Phase 07
+last_updated: "2026-10-11T08:14:10.021Z"
+last_activity: 2026-10-11
+last_activity_desc: Phase 02 complete, transitioned to Phase 07
+state_head: da0b6d256d751f20bf190565e1a275b0616644d1
 progress:
   total_phases: 8
   completed_phases: 5
-  total_plans: 113
-  completed_plans: 113
+  total_plans: 115
+  completed_plans: 115
   percent: 71
 last_session_stopped_at: Completed 06-07-PLAN.md
 last_session_resume_file: None
@@ -36,8 +36,8 @@ Phase: 07 — Mobile Layout & Public Deploy
 Plan: 4 of 22
 Current Plan: Not started
 Total Plans in Phase: 22
-Status: Phase 8 shipped — PR #11; Phase 01 gap closure shipped — PR #12 (draft)
-Last activity: 2026-10-10 — Phase 01 gap closure complete
+Status: Ready to plan
+Last activity: 2026-10-11 — Phase 02 complete, transitioned to Phase 07
 Previous activity (07-02): 2026-10-05 — 07-02 executed: deploying is a deliberate manual dispatch that cannot ship an commit CI has not verified. `.github/workflows/deploy.yml` is a NEW file triggered ONLY by `workflow_dispatch` with no inputs, and `ci.yml` is not edited by this plan at all (D-09 amends SC3: push to main runs CI; publishing is a separate, deliberate act). Its first job refuses any ref but `refs/heads/main` AND any commit without a successful `ci.yml` PUSH run on main for that exact `head_sha` — the push filter is load-bearing, because a pull-request run of `ci.yml` carries the PR's head commit rather than the commit that landed on main, so accepting any successful run would let an unmerged branch look verified. Every job runs on `ubuntu-latest`, never self-hosted; top-level permissions are empty and `pages: write` + `id-token: write` appear ONLY on the deploy job, beside the `github-pages` environment. No run block interpolates a `${{ }}` expression — every value a script needs arrives through `env` — and no dispatch input exists to inject. **The build job's ORDER is the whole point**, and it is asserted rather than documented: resolve the DB-IP month, restore the city cache by that month, generate the real dataset only on a cache miss, build, read this build's hashed entry script out of `dist/index.html`, install Chromium, run the pre-deploy gate, and only then upload `dist` and nothing else. The month comes from `scripts/geo/resolve-dbip-month.ts`, which calls the DOWNLOAD's own `resolveDbipUrl` rather than re-deriving the month, because a cache key is what a restore is asked for and the key must not be able to disagree with the file (run for real: `2026-10`). The cache declares no prefix-fallback list, and only this main-only workflow writes it. The post-deploy smoke is its OWN least-privilege job, not a step in `deploy`, because a step could only be reported while a job fails the run — and the run's red state IS the report. It first waits boundedly until the live HTML contains this build's hashed entry script, so a stale copy of an older deploy cannot produce a false green, then runs the shared `deployed-build.spec.ts` through `playwright.live.config.ts`, which differs from the gate config in exactly one thing: its `baseURL`. **The transferable finding: a workflow nobody can run before merge is still a unit-testable artifact, and the mutations found three things review would not have.** Reading the `on:` block with a fixed-arity regex reported a `push` trigger as ABSENT, because `push:` brings `branches:` and `workflow_dispatch:` brings `inputs:`, both indented deeper — indentation delimits a YAML block, not arity. A rule keyed on a variable's NAME misses the fault it exists to catch when that fault is pasting an expression into a command, because the edit removes the name from the line, so the smoke rules key on the output EXPRESSION instead. And `-le 999999` satisfies "has an upper bound" while being a hang, so the wait bound is capped at 100 attempts. A fourth is about assertion shape: one fault can legitimately trip several rules, so the mutation assertions come in two forms — `rejects` (only this rule fires) and `namesRule` (this rule is among those that fire) — and demanding exactly one problem would have pushed a future edit toward weakening a rule to make a count come out right. 57 guard tests, 46 of them mutations of the real file; no YAML library and no dependency. The live config was proven for real against a locally served build (5 tests green at `http://localhost:4173/wot-gdpr-stats-visualizer/`) and the wait script's grep was run against that page with a real entry name. The unit suite is 2483 green across 80 files; `pnpm run check` and `pnpm run lint` clean; `ci.yml`, `playwright.config.ts`, `ci-budget.test.ts`, `package.json` and `pnpm-lock.yaml` all untouched, and **no e2e budget limit moved** (still 239 tests / 23 files, E = 1243 s). PLATFORM-03 stays Pending: 07-06 also declares it, and the shared-ID gate holds it until that plan finishes. The first real dispatch cannot happen before merge — it is 07-06's checklist item.
 Previous activity (07-03): 2026-10-05 — 07-03 executed: the shared chart tooltip now has a touch behaviour, and the mechanism is general over any anchor so 07-04 is three more `data-tooltip-surface` attributes and the same five assertions. `chromium-mobile` is Desktop Chrome at 375x812 with `isMobile` + `hasTouch` — **not** a Playwright device descriptor, because one of those carries a WebKit default browser, WebKit is not installed in CI, and this project is Chrome-first — and the `touch-` filename prefix is the whole routing contract (`testMatch` on the touch project, `testIgnore` on `chromium`), so every spec still runs exactly once and a misfiled touch spec cannot pass on a mouse-capable browser. The tap opens the tooltip on PRESS, not on over: a tap fires over, down, up and out in that order, and the out half was closing what the over half had opened, so both pointer handlers now return immediately for a touch pointer and the press resolves the cell itself (an inline arrow had no way to read `pointerType`, so the press became a named function and the Phase 4 source-contract test moved from an inline-arrow regex to the file's own `handler()` extraction to assert the same two facts). The two decisions are pure functions in `src/lib/charts/tooltip-pin.ts` because no component here can be rendered in a unit test, and they are the only two decisions there are — 29 cases cover all eight rows of `touchTapAction` and all seven of `pinOutcome`, plus the wiring contracts. **The finding worth carrying into 07-04: a touch-origin flag must be cleared by INPUT, never by a state change.** One tap is TWO transitions, not one — the press opens the tooltip, and because every cell is focusable the engine's own focus handling opens it again against the same cell — so a flag consumed by the first transition made the second read as a MOUSE open and the tooltip un-pinned itself inside the gesture that pinned it. Tap-again did nothing and the silent scroll dismissal never cleared the live region, and both were found by the plan's own specs rather than by judgement. Relatedly, a silent dismissal announces the **empty string**, a third outcome and not a weaker `null`: a live region still holding "Tooltip pinned." will not announce that text a second time, so a scroll that said nothing at all would make every later pin silent. The three document listeners are on `svelte:document` with capture-suffixed attributes — capture is required, not preferred, because a tap on a pinned anchor has to stop before the chart's own delegated press handler reopens what it just closed, and by the bubble phase that decision is already made. The announcement region is page-level, not per-block: the three tooltip owners sit in three sections, and a region inside any one of them would break the Playtime block's own contract of exactly one `aria-live` inside itself; the page-wide count is 5 after an import and 1 before one. **The e2e budget is at its ceiling: no limit moved, and 239 listed tests is the LAST count 27 min covers** (240 projects a 1622.4 s floor against a 1620 s `globalTimeout`), so 07-04 must raise all three limits together. `playwright test --list` counts BOTH projects, which is why five new touch specs are five new listed tests and the desktop project lost nothing. The unit suite is 2426 green across 79 files; the full browser suite is 239 green in 1.5 min; `pnpm run check` and `pnpm run lint` clean; no dependency added and `ui-copy.ts` untouched.
 Previous activity (07-01): Phase 07 plan 01 executed — the Pages subpath base and the pre-deploy gate.
@@ -51,7 +51,7 @@ Progress: [███████░░░] 71% (5 of 7 phases complete)
 
 **Velocity:**
 
-- Total plans completed: 100
+- Total plans completed: 102
 - Average duration: -
 - Total execution time: 0.0 hours
 
@@ -60,7 +60,7 @@ Progress: [███████░░░] 71% (5 of 7 phases complete)
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01 | 15 | - | - |
-| 02 | 4 | - | - |
+| 02 | 6 | - | - |
 | 03 | 7 | - | - |
 | 4 | 16 | - | - |
 | 05 | 19 | - | - |
@@ -147,6 +147,8 @@ Progress: [███████░░░] 71% (5 of 7 phases complete)
 | Phase 08 P19 | 20 min | 2 tasks | 2 files |
 | Phase 08 P20 | 45m | 3 tasks | 11 files |
 | Phase 08 P21 | 25m | 3 tasks | 9 files |
+| Phase 02 P05 | 6 min | 3 tasks | 5 files |
+| Phase 02 P06 | 8 min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -391,6 +393,8 @@ CI budget at 07-03: no limit moved. `playwright test --list` counts BOTH project
 - [Phase 08]: 08-19: never run the unit suite concurrently with Playwright; webserver-teardown.test.ts SIGKILLs port 4173
 - [Phase 08]: [08-20] Chart fill layout applies only when the measured plot is strictly greater than today's plot; slots in whole pixels, bars capped at 32px and centred, 8px right pad, no upper width bound, label stride keyed to today's pitch
 - [Phase 08]: 08-21: heatmaps fill only when plot beats today's (calendar 594, hour grid 576); row pitch capped 24/48, columns always fill the pane; no upper width bound
+- [Phase 02]: 02-05: parseCsvFile picks the delimiter from the header line only and withholds (counted, fail closed) any file whose keys hide LOGIN/BIRTH_DATE inside a longer key; blank records stay in the parse so error.row maps to data[row-1]; a stray quote quarantines one physical line and the remainder is re-parsed, bounded by MAX_QUARANTINED_RECORDS with the remainder counted — A guarantee must be a property of the parsed keys, not of a sniffing heuristic; counts must equal what was actually lost (D-03, D-04, D-18)
+- [Phase 02]: 02-06: header keys go through ONE normaliser (NFKC, trim, upper-case, bounded UTS #39 fold) shared by the strip, the glued check and the identity pick; hasGluedSensitiveColumn only ADDS withholds (02-05 raw-key split kept verbatim) and reads the pre-fold form so an I/l-ambiguous letter cannot hide the L of a lower-case login; a mixed-terminator file is canonicalised to LF and parsed with newline LF, uniform files untouched — A privacy guarantee must not depend on how a header is spelled; counts must equal what was actually lost (D-03, D-04, D-18)
 
 ### Pending Todos
 
@@ -483,6 +487,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-08T14:53:42.022Z
-Stopped at: Phase 01 gap closure complete; Phases 2-8 already shipped
+Last session: 2026-10-11T06:49:08.276Z
+Stopped at: Phase 02 complete, ready to plan Phase 07
 Resume file: None

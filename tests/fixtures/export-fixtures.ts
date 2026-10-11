@@ -789,9 +789,17 @@ export function buildMojibakeExport(): Uint8Array {
  * `Bans/Bans.csv` carries THREE valid rows + ONE row with an
  * unbalanced quote character in the BAN_REASON field (missing its
  * closing quote). The unbalanced quote triggers a 'Quotes'-type
- * PapaParse error tied to that row — the worker routes the error
- * through `parseCsvFile`'s skip path, the row is dropped from
- * `rows`, and `skippedRowCount` for the Bans category becomes 1.
+ * PapaParse error tied to that row; `parseCsvFile` quarantines the
+ * physical line that holds the opening quote, re-parses the remainder
+ * so the rows after it are recovered, and `skippedRowCount` for the
+ * Bans category becomes 1.
+ *
+ * The file has the REAL export shape (a leading CRLF, then a blank line
+ * between every record, written by `renderCsv`) and the malformed record
+ * sits BETWEEN valid records: valid, malformed, valid, valid. That is the
+ * layout that exposed CR-01 and CR-02 in 02-REVIEW.md (the unbalanced quote
+ * swallowed the rows after it, and the blank lines shifted the row index),
+ * so it is kept in this shape on purpose and the parser is what is fixed.
  *
  * The fixture is intentionally minimal (1 row skipped, 3 rows
  * surviving) so the unit test can assert exact counts rather than
@@ -803,39 +811,15 @@ export const MALFORMED_ROW_EXPECTED_SKIPPED_COUNT = 1;
 export const MALFORMED_ROW_EXPECTED_ROW_COUNT = 3;
 
 export function buildMalformedRowsExport(): Uint8Array {
-  const encode = (s: string): Uint8Array => new TextEncoder().encode(s);
-  const CRLF = '\r\n';
-
-  // Three well-formed rows + one row whose BAN_REASON field is
-  // `"unterminated` (no closing quote). The unterminated quote is
-  // the LAST row so PapaParse does not merge subsequent lines into
-  // it — its row boundary is preserved and the Quotes error is
-  // reported against that row's 1-based data index.
-  const validBansRow1 = ['2020-09-01 00:00:00', 'reason_alpha', '2020-09-08 00:00:00'].join(';');
-  const validBansRow2 = ['2020-09-02 00:00:00', 'reason_beta', '2020-09-09 00:00:00'].join(';');
-  const validBansRow3 = ['2020-09-03 00:00:00', 'reason_gamma', '2020-09-10 00:00:00'].join(';');
-  const malformedBansRow = ['2020-09-04 00:00:00', '"unterminated', '2020-09-11 00:00:00'].join(
-    ';',
-  );
-
   const entries = sampleEntries(SAMPLE_ACCOUNT_ROOT);
-  // No leading CRLF: PapaParse's `error.row` includes every line
-  // (including empty lines) when computing the row index, so a
-  // leading blank shifts the mapping by 1 and breaks the off-by-one
-  // fix in csv-parse.ts. The malformed-row fixture must start
-  // directly with the header for the skip to land on the right
-  // data index.
-  entries[`${SAMPLE_ACCOUNT_ROOT}/Bans/Bans.csv`] = encode(
-    BANS_HEADER +
-      CRLF +
-      validBansRow1 +
-      CRLF +
-      validBansRow2 +
-      CRLF +
-      validBansRow3 +
-      CRLF +
-      malformedBansRow +
-      CRLF,
+  entries[`${SAMPLE_ACCOUNT_ROOT}/Bans/Bans.csv`] = new TextEncoder().encode(
+    renderCsv(BANS_HEADER, [
+      ['2020-09-01 00:00:00', 'reason_alpha', '2020-09-08 00:00:00'],
+      // BAN_REASON `"unterminated` has no closing quote.
+      ['2020-09-04 00:00:00', '"unterminated', '2020-09-11 00:00:00'],
+      ['2020-09-02 00:00:00', 'reason_beta', '2020-09-09 00:00:00'],
+      ['2020-09-03 00:00:00', 'reason_gamma', '2020-09-10 00:00:00'],
+    ]),
   );
   return zipSync(entries);
 }
