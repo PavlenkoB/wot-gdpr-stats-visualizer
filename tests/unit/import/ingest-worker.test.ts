@@ -780,8 +780,9 @@ describe('03-01 — hostile User_Info shapes through the real worker', () => {
     const terminal = await ingest(buildOnlySupportedExport(), 'only-supported.zip');
     expect(terminal.type).toBe('done');
     if (terminal.type !== 'done') return;
-    // Five since 05-03 added Financial_data to the sample and to SUPPORTED.
-    expect(terminal.result.counts).toEqual({ supported: 5, 'known-deferred': 0, unknown: 0 });
+    // Six since quick 261012-bog added Device_info to SUPPORTED (five before
+    // that, since 05-03 added Financial_data).
+    expect(terminal.result.counts).toEqual({ supported: 6, 'known-deferred': 0, unknown: 0 });
     expect(terminal.result.identity).toEqual(EXPECTED_SAMPLE_IDENTITY);
   });
 

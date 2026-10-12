@@ -32,6 +32,12 @@ import {
 } from '../features/playtime/playtime-aggregate.ts';
 import { PLAYTIME_VERSION } from '../features/playtime/playtime-shared.ts';
 import {
+  hasBlobColumn,
+  isDeviceInfoCategory,
+  reduceBlobRow,
+} from '../features/device-info/device-info-aggregate.ts';
+import { DEVICE_INFO_CATEGORY } from '../features/device-info/device-info-shared.ts';
+import {
   buildLogins,
   isLoginsRow,
   viewFromLogins,
@@ -78,15 +84,17 @@ const scope = self as unknown as WorkerScopeLike;
 /**
  * The categories whose per-file presence facts are recorded at import (05-07).
  *
- * These are exactly the three the Phase 5 blocks read, and the set is spelled
- * here in lower case because the comparison is: a folder spelled
- * `financial_data` classifies as the same supported category as
+ * These are the three the Phase 5 blocks read plus `device_info` (quick task
+ * 261012-bog: the Device info pane tells a missing file from an empty one), and
+ * the set is spelled here in lower case because the comparison is: a folder
+ * spelled `financial_data` classifies as the same supported category as
  * `Financial_data` and its files need the same facts.
  */
 const PRESENCE_CATEGORIES: ReadonlySet<string> = new Set([
   'player_statistics',
   'financial_data',
   'payment_history',
+  DEVICE_INFO_CATEGORY,
 ]);
 
 scope.onmessage = async (event: MessageEvent<IngestRequest>) => {
@@ -808,6 +816,10 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
       // rows may feed the identity pick and the Account record, so a misfiled
       // copy never changes what the header shows.
       const userInfo = isUserInfoCategory(entry.name);
+      // The Device_info family (case-insensitive, for the same reason). It
+      // decides one thing: whether a row that carries the Assistant `POST`
+      // header is reduced at the choke point below.
+      const deviceInfo = isDeviceInfoCategory(entry.name);
 
       let rowCount = 0;
       let skippedRowCount = 0;
@@ -879,8 +891,27 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
           // attacker-controlled and classification can be wrong. A row with
           // neither is stored untouched, `__parsed_extra` included (Phase 2
           // stores everything outside the three columns).
+          //
+          // 261012-bog, PD-02: the Assistant blob is reduced HERE, keyed on the
+          // folder AND the header. A Device_info row that carries a `POST`
+          // header is replaced by a NEW object holding only the four
+          // allow-listed fields it yields, or by an explicit unreadable marker;
+          // the overflow bucket and every other key go with it, so the blob
+          // (the account id and an opaque flags value) is never stored. This
+          // runs BEFORE the User_Info strip in the same expression, so a row
+          // that is both is reduced and never merely sanitised.
+          //
+          // Accepted residual (T-bog-07), the same class as the D-18 deny-list
+          // residual: a copy of the Assistant file misfiled OUTSIDE Device_info
+          // keeps its cells at rest. They still never reach a view, because the
+          // device-info channel reads three exact file names of one category.
           const raw = parsed.rows[r]!.data;
-          const data = userInfo || hasSensitiveColumn(raw) ? sanitizeUserInfoRow(raw) : raw;
+          const data =
+            deviceInfo && hasBlobColumn(raw)
+              ? reduceBlobRow(raw)
+              : userInfo || hasSensitiveColumn(raw)
+                ? sanitizeUserInfoRow(raw)
+                : raw;
           allRows.push({
             category: entry.name,
             sourceFile: resolved.sourceFile,

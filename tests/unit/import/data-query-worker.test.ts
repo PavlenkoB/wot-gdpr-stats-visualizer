@@ -41,6 +41,7 @@ import type {
   VehicleView,
 } from '../../../src/lib/features/vehicles/vehicle-shared.ts';
 import type { LoginsView } from '../../../src/lib/features/logins/login-shared.ts';
+import type { DeviceInfoView } from '../../../src/lib/features/device-info/device-info-shared.ts';
 import type {
   DataQuery,
   IngestRequest,
@@ -191,12 +192,18 @@ describe('05-07 tracer: premium through the real worker and Dexie snapshot', () 
     expect(Array.isArray(files)).toBe(true);
     const list = files ?? [];
 
-    // Every entry names one of the three categories, and a file of another
-    // category is never listed.
+    // Every entry names one of the categories the presence list covers (the
+    // three Phase 5 ones, and Device_info since quick 261012-bog), and a file of
+    // another category is never listed.
     const categories = new Set(list.map((f) => f.category));
     for (const category of categories) {
-      expect(['Player_statistics', 'Financial_data', 'Payment_history']).toContain(category);
+      expect(['Player_statistics', 'Financial_data', 'Payment_history', 'Device_info']).toContain(
+        category,
+      );
     }
+    expect(categories.has('Device_info')).toBe(true);
+    expect(categories.has('User_Info')).toBe(false);
+    expect(categories.has('Bans')).toBe(false);
 
     // The premium file is there with its real row count.
     const premium = list.find((f) => f.sourceFile === PREMIUM_FILE);
@@ -316,7 +323,7 @@ function dataResult(
 function viewOf(
   reply: Extract<IngestResponse, { type: 'data-result' | 'data-error' }>,
   channel: DataQuery['channel'],
-): PremiumView | CurrencyView | SpendView | VehicleView | LoginsView {
+): PremiumView | CurrencyView | SpendView | VehicleView | LoginsView | DeviceInfoView {
   const result = dataResult(reply).result;
   if (result === null) throw new Error(`expected a ${channel} result, got null`);
   if (result.channel !== channel) {

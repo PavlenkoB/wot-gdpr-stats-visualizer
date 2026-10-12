@@ -10,6 +10,14 @@ import type { CategoryStatus } from '../core/types/worker-messages.ts';
  * premium balance deltas — and Phase 5 D-01 promoted it from a
  * dashboard-section name to a supported category so those rows get parsed,
  * stored and rendered instead of parked as an unknown folder.
+ *
+ * `Device_info` joined the same way (quick task 261012-bog): it is a REAL
+ * top-level folder holding the PC, Blitz and Assistant device lists, and it was
+ * filed under "Not yet supported" until the Device info pane could read its
+ * three files. Promoting it here changes the status everywhere at once: the
+ * import, the cache replay (`resultFromMeta` re-derives every status from the
+ * stored name, so a stale cache that stored it as unknown is repaired at read
+ * time with no Dexie version bump) and the Not yet supported list.
  */
 export const SUPPORTED: readonly string[] = [
   'Activity_history',
@@ -17,6 +25,7 @@ export const SUPPORTED: readonly string[] = [
   'User_Info',
   'Payment_history',
   'Financial_data',
+  'Device_info',
 ];
 
 /**

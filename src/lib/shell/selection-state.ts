@@ -28,7 +28,7 @@ import {
 //
 // The list pane, the Overview grid and the detail pane all describe the same
 // export. This module is the ONE place that turns a `ClassifyResult` into the
-// eight rows the list shows, so a list row, an Overview card and a detail pane
+// nine rows the list shows, so a list row, an Overview card and a detail pane
 // cannot disagree (the Phase 3 D-08 rule, carried forward).
 //
 // Three consequences worth stating, because all three are load-bearing:
@@ -49,7 +49,7 @@ import {
 //      channel.
 
 /**
- * The eight panes, in the fixed order the list shows them. The ids are the
+ * The nine panes, in the fixed order the list shows them. The ids are the
  * vocabulary of every `list-row-*`, `data-pane` and `openSection` test hook
  * downstream, so renaming one is a change to about twenty-five spec files.
  */
@@ -60,11 +60,13 @@ export const PANE_IDS = [
   'vehicles',
   'finance',
   'payments',
+  // Quick 261012-bog: the Device info pane, after Payments and before Account.
+  'device-info',
   'account',
   'not-yet-supported',
 ] as const;
 
-/** One of the eight pane ids. */
+/** One of the nine pane ids. */
 export type PaneId = (typeof PANE_IDS)[number];
 
 /** The pane shown when nothing else has been chosen (D-03). */
@@ -85,6 +87,7 @@ export const PANE_SECTION: Record<PaneId, NavId | null> = {
   vehicles: 'player-statistics',
   finance: 'financial-data',
   payments: 'payment-history',
+  'device-info': 'device-info',
   account: 'user-info',
   'not-yet-supported': 'not-yet-supported',
 };
@@ -113,7 +116,7 @@ function folderOf(section: NavId | null): string {
 }
 
 /**
- * The eight list rows, in `PANE_IDS` order, for the last known result (`null`
+ * The nine list rows, in `PANE_IDS` order, for the last known result (`null`
  * for "nothing loaded").
  *
  * Every folder name that reaches a summary is the canonical constant from
@@ -234,7 +237,7 @@ export function resolveSelection(choice: SelectionChoice, result: ClassifyResult
  * The pane one step up or down the list, for the keyboard (`j`/`k`, arrows).
  *
  * Clamped, not wrapped: a held key must not loop from the footer back to
- * Overview. All eight rows are reachable, muted ones included, because a muted
+ * Overview. All nine rows are reachable, muted ones included, because a muted
  * row's detail is the "Not in this export" panel and a keyboard user is
  * entitled to read it.
  */

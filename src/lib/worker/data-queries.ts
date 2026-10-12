@@ -1,3 +1,9 @@
+import { buildDeviceInfo } from '../features/device-info/device-info-aggregate.ts';
+import {
+  DEVICE_FILE_KEYS,
+  DEVICE_INFO_CATEGORY,
+  DEVICE_SOURCES,
+} from '../features/device-info/device-info-shared.ts';
 import { buildCurrency, buildPremium, buildSpend } from '../features/finance/finance-aggregate.ts';
 import type { FinanceRow } from '../features/finance/finance-shared.ts';
 import {
@@ -11,7 +17,7 @@ import type { RowsSnapshot } from './db.ts';
 import { MAX_BATTLE_TYPE_LENGTH, VEHICLE_TITLES } from '../features/vehicles/vehicle-shared.ts';
 
 // =============================================================================
-// data-queries.ts — the four channels, answered from ONE Dexie snapshot (05-07)
+// data-queries.ts — the five channels, answered from ONE Dexie snapshot (05-07)
 // =============================================================================
 //
 // The pure builders from 05-04 (vehicle) and 05-05 (finance) already know how
@@ -22,7 +28,7 @@ import { MAX_BATTLE_TYPE_LENGTH, VEHICLE_TITLES } from '../features/vehicles/veh
 // ## Why the file table lives here and not in db.ts
 //
 // `db.ts` is the persistence layer and must not know what a dashboard block
-// wants. The four channels' file names are product knowledge — the same
+// wants. The five channels' file names are product knowledge — the same
 // knowledge the builders hold — so naming them here keeps the reader generic
 // ("these names, these categories") and leaves one place where a new title's
 // file has to be declared. `VEHICLE_FILE_NAMES` is imported from the builder
@@ -64,7 +70,8 @@ export interface ChannelFiles {
  * The per-channel file table, keyed by channel.
  *
  * The three finance channels each need exactly one file, so their table entry is
- * a single name; the vehicles channel needs the builder's own sixteen-name set.
+ * a single name; the vehicles channel needs the builder's own sixteen-name set,
+ * and the device-info channel (261012-bog) needs the three Device_info files.
  *
  * The key type EXCLUDES `logins` (06-01): that channel reads no file at all —
  * it is answered from the aggregate stored on the meta record, with a rebuild
@@ -92,6 +99,13 @@ export const DATA_FILES: Readonly<Record<Exclude<DataQuery['channel'], 'logins'>
   vehicles: {
     names: VEHICLE_FILE_NAMES,
     categories: [CATEGORY_PLAYER_STATS],
+  },
+  // 261012-bog. The three lower-cased file names come from the shared contract
+  // so the table the reader screens on and the names the builder is fed cannot
+  // drift apart.
+  'device-info': {
+    names: new Set(DEVICE_SOURCES.map((source) => DEVICE_FILE_KEYS[source])),
+    categories: [DEVICE_INFO_CATEGORY],
   },
 };
 
@@ -180,7 +194,8 @@ const VEHICLE_TITLE_IDS: ReadonlySet<string> = new Set(VEHICLE_TITLES);
  *
  * The `logins` channel (06-01) is the fourth field-less channel and rides the
  * same rule unchanged: a bare `{ channel: 'logins' }` is a well-formed query,
- * and the same query plus a `title` is rejected.
+ * and the same query plus a `title` is rejected. The `device-info` channel
+ * (261012-bog) is the fifth and rides it too.
  */
 export function isDataQuery(x: unknown): x is DataQuery {
   if (typeof x !== 'object' || x === null || Array.isArray(x)) return false;
@@ -205,7 +220,7 @@ export function isDataQuery(x: unknown): x is DataQuery {
 /**
  * Answer one query from one snapshot.
  *
- * EXHAUSTIVE over the four channels that read files, deliberately: a channel
+ * EXHAUSTIVE over the five channels that read files, deliberately: a channel
  * that somehow reached here would fall to the default and throw, and the
  * caller's catch turns that into a `data-error` for that block. That is the
  * right shape for a bug — a block shows an error, the import is untouched, and
@@ -249,6 +264,26 @@ export function answerDataQuery(query: DataQuery, snapshot: RowsSnapshot): DataR
           battleType: query.battleType,
         }),
       };
+    case 'device-info': {
+      // Each source is fed its rows and its presence fact, so a file that was
+      // never in the archive is told from one that held no rows. The legacy
+      // asymmetry of `isPresent` applies unchanged. The builder re-applies the
+      // Assistant extractor to a legacy row that still holds the raw POST
+      // cell, so the blob is not exposed on that path either (PD-03).
+      const categories = DATA_FILES['device-info'].categories;
+      const source = (id: (typeof DEVICE_SOURCES)[number]) => ({
+        rows: rowsOf(snapshot, DEVICE_FILE_KEYS[id]),
+        seen: isPresent(snapshot, DEVICE_FILE_KEYS[id], categories),
+      });
+      return {
+        channel: 'device-info',
+        view: buildDeviceInfo({
+          pc: source('pc'),
+          blitz: source('blitz'),
+          assistant: source('assistant'),
+        }),
+      };
+    }
     default:
       throw new Error('unreachable channel');
   }

@@ -14,6 +14,7 @@ import {
   PLAYER_STATS_SAMPLE_ROW_COUNT,
 } from './player-stats-fixtures.ts';
 import { SAMPLE_ACCOUNT_ROOT } from './sample-account.ts';
+import { DEVICE_INFO_COUNTS, DEVICE_INFO_SAMPLE_FILES } from './device-info-fixtures.ts';
 
 /**
  * Re-exported from the leaf module so the importer surface every existing
@@ -67,8 +68,8 @@ export const WRAPPER_FOLDER_NAME = 'personal_data_export';
  * directory is the unit of the badge; the counts ARE the proof the
  * folder was actually opened (D-02).
  *
- * The three Phase 5 folders are DERIVED from the fixture modules that
- * own the data, never typed: a count that is re-typed here is a second
+ * The three Phase 5 folders and Device_info are DERIVED from the fixture
+ * modules that own the data, never typed: a count that is re-typed here is a second
  * answer to a question the module already answers, and the two only
  * agree by accident until one of them is edited (05-RESEARCH Pitfall 3,
  * which is what this rewrite exists to close).
@@ -82,7 +83,7 @@ export const SAMPLE_FILE_COUNTS: Record<string, number> = {
   Chat_history: 1,
   Clans: 1,
   Bans: 1,
-  Device_info: 1,
+  Device_info: DEVICE_INFO_COUNTS.files,
 };
 
 /**
@@ -99,6 +100,7 @@ export const SAMPLE_FILE_COUNTS: Record<string, number> = {
  *   Player_statistics — 05-02's hand-derived total across 19 files
  *   Financial_data    — 05-01's premium rows plus its currency rows
  *   Payment_history   — 05-01's hand Orders rows
+ *   Device_info       — the three device files' rows (PC, Blitz, Assistant)
  */
 export const SAMPLE_ROW_COUNTS: Record<string, number> = {
   Activity_history: 2,
@@ -109,13 +111,13 @@ export const SAMPLE_ROW_COUNTS: Record<string, number> = {
   Chat_history: 1,
   Clans: 1,
   Bans: 1,
-  Device_info: 1,
+  Device_info: DEVICE_INFO_COUNTS.total,
 };
 
 export const SAMPLE_EXPECTED_COUNTS: Record<CategoryStatus, number> = {
-  supported: 5,
+  supported: 6,
   'known-deferred': 2,
-  unknown: 2,
+  unknown: 1,
 };
 
 // -----------------------------------------------------------------------------
@@ -204,9 +206,9 @@ export const LONG_UNKNOWN_FOLDER =
  * of the SAMPLE_FILE_COUNTS set.
  */
 export const RENAMED_EXPECTED_COUNTS: Record<CategoryStatus, number> = {
-  supported: 5,
+  supported: 6,
   'known-deferred': 2,
-  unknown: 3,
+  unknown: 2,
 };
 
 /**
@@ -222,6 +224,7 @@ export const RENAMED_EXPECTED_COUNTS: Record<CategoryStatus, number> = {
  */
 export const SAMPLE_BADGE_ORDER: readonly string[] = [
   'Activity_history',
+  'Device_info',
   'Financial_data',
   'Payment_history',
   'Player_statistics',
@@ -229,7 +232,6 @@ export const SAMPLE_BADGE_ORDER: readonly string[] = [
   'Chat_history',
   'Clans',
   'Bans',
-  'Device_info',
 ];
 
 // -----------------------------------------------------------------------------
@@ -316,13 +318,13 @@ const DEVICES_ROW = 'device-001;pc;macos;13.0;2020-01-01 00:00:00;2020-12-31 23:
 // lockstep test to hold the copy honest; the duplication is gone.)
 
 /**
- * The canonical 29-file path-to-bytes map. Used by every fixture that
+ * The canonical path-to-bytes map (31 files since Device_info carries three). Used by every fixture that
  * wants the real archive's layout. Keys are joined with `root` so the
  * resulting archive can be placed under any folder name.
  *
- * Nine folders: five supported (Activity_history, Player_statistics,
- * Financial_data, Payment_history, User_Info), two known-deferred
- * (Chat_history, Clans) and two unknown (Bans, Device_info).
+ * Nine folders: six supported (Activity_history, Player_statistics,
+ * Financial_data, Payment_history, User_Info, Device_info), two known-deferred
+ * (Chat_history, Clans) and one unknown (Bans).
  *
  * IMPORTANT: keep this list stable — 01-01's zero-network Playwright
  * spec depends on the exact set of names produced by buildSampleExport().
@@ -358,11 +360,15 @@ function sampleEntries(root: string): Record<string, Uint8Array> {
     CRLF + CLAN_MEMBERSHIP_HEADER + CRLF + CLAN_MEMBERSHIP_ROW + CRLF,
   );
 
+  // Device_info: the three real-named synthetic files (quick 261012-bog). The
+  // module renders the export's own physical shape (bare header, quote-all
+  // cells, bare-CR terminator), so they are encoded without any CRLF wrapping.
+  for (const [relative, csv] of Object.entries(DEVICE_INFO_SAMPLE_FILES)) {
+    out[`${root}/${relative}`] = encode(csv);
+  }
+
   // unknown (not in either list)
   out[`${root}/Bans/Bans.csv`] = encode(CRLF + BANS_HEADER + CRLF + BANS_ROW + CRLF);
-  out[`${root}/Device_info/Devices.csv`] = encode(
-    CRLF + DEVICES_HEADER + CRLF + DEVICES_ROW + CRLF,
-  );
 
   return out;
 }
@@ -1119,10 +1125,10 @@ export function buildZeroRowPaymentExport(): Uint8Array {
   });
 }
 
-/** Only the five supported categories: the "nothing detected but unsupported" state. */
+/** Only the six supported categories: the "nothing detected but unsupported" state. */
 export function buildOnlySupportedExport(): Uint8Array {
   return buildCustomExport({
-    omitFolders: ['Chat_history', 'Clans', 'Bans', 'Device_info'],
+    omitFolders: ['Chat_history', 'Clans', 'Bans'],
   });
 }
 

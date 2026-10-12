@@ -4,7 +4,7 @@
 
 **WG Data Export Viewer**
 
-A browser-only, zero-backend tool that turns a Wargaming GDPR personal-data export (the "Data Export" zip Wargaming provides on request for World of Tanks, WoT Blitz, World of Warships, and World of Warplanes accounts) into an interactive dashboard — session activity heatmaps, per-vehicle battle stats, financial/currency history, and a login-IP history table with country-level geolocation. Everything happens client-side: unzip, parse, store, and render, with zero network requests after the page loads. Built for players who requested their own export and want to actually see it, without uploading sensitive account data anywhere.
+A browser-only, zero-backend tool that turns a Wargaming GDPR personal-data export (the "Data Export" zip Wargaming provides on request for World of Tanks, WoT Blitz, World of Warships, and World of Warplanes accounts) into an interactive dashboard — session activity heatmaps, per-vehicle battle stats, financial/currency history, device information (the PC, Blitz and Assistant device lists), and a login-IP history table with country-level geolocation. Everything happens client-side: unzip, parse, store, and render, with zero network requests after the page loads. Built for players who requested their own export and want to actually see it, without uploading sensitive account data anywhere.
 
 **Core Value:** Your data never leaves your machine. Every other decision — architecture, library choices, feature scope — is subordinate to keeping this verifiably true (zero network requests post-load, with one sanctioned exception: the opt-in city-level file; enforced by CI and an ESLint network ban, with a CSP as defence in depth).
 

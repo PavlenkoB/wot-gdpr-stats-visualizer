@@ -43,9 +43,9 @@ import {
 //     disabled and busy (D-08, D-10).
 //   - On success the bar goes slim and moves into the list pane, the
 //     identity header (also in the list pane) shows the raw account root,
-//     the eight list rows appear in PANE_IDS order, each data pane opens to
+//     the nine list rows appear in PANE_IDS order, each data pane opens to
 //     one section whose import line is built by `formatImportSummary` (and
-//     whose list row says the same counts), and the four unsupported
+//     whose list row says the same counts), and the three unsupported
 //     folders become `unsupported-banner` cards, in worker order, in the
 //     Not yet supported pane (D-01, D-02, D-03, D-11, D-12, D-13, Phase 8
 //     D-01).
@@ -102,6 +102,7 @@ const DATA_PANES = [
   { pane: 'vehicles', folder: 'Player_statistics' },
   { pane: 'finance', folder: 'Financial_data' },
   { pane: 'payments', folder: 'Payment_history' },
+  { pane: 'device-info', folder: 'Device_info' },
   { pane: 'account', folder: 'User_Info' },
 ] as const satisfies readonly { pane: PaneId; folder: string }[];
 
@@ -237,7 +238,7 @@ test('(a) shows stage feedback while busy, then account, summary and grouped bad
     formatAccountId(SAMPLE_ACCOUNT_ROOT),
   );
 
-  // The eight list rows are in PANE_IDS order (the list replaced the card
+  // The nine list rows are in PANE_IDS order (the list replaced the card
   // order of D-02; pixel positions are no longer the contract).
   expect(await listRowIdsInOrder(page)).toEqual([...PANE_IDS]);
 
@@ -269,7 +270,7 @@ test('(a) shows stage feedback while busy, then account, summary and grouped bad
     }
   }
 
-  // Four unsupported banners in worker order (the suffix of
+  // Three unsupported banners in worker order (the suffix of
   // SAMPLE_BADGE_ORDER after the supported group), with the status each
   // carries and its counts line. They live in the Not yet supported pane.
   await openSection(page, 'not-yet-supported');
@@ -320,10 +321,10 @@ test('(b) a renamed root with a never-seen folder is detected without a fixed la
     formatAccountId(RENAMED_ACCOUNT_ROOT),
   );
 
-  // The sample's four unsupported folders, plus the never-seen one. The
+  // The sample's three unsupported folders, plus the never-seen one. The
   // banners live in the Not yet supported pane, which an import lands outside of.
   await openSection(page, 'not-yet-supported');
-  await expect(page.getByTestId('unsupported-banner')).toHaveCount(5);
+  await expect(page.getByTestId('unsupported-banner')).toHaveCount(UNSUPPORTED_BANNERS.length + 1);
 
   // Find the unknown folder banner by its folder name. It must carry
   // data-status="unknown" and end with "2 files, 2 rows".
@@ -626,10 +627,10 @@ test('(h) start over + second import classifies a fresh result', async ({ page }
     formatAccountId(RENAMED_ACCOUNT_ROOT),
     { timeout: 30_000 },
   );
-  // The renamed export carries one extra unsupported folder, so five
-  // banners (the old assertion counted eight badges; four of those
-  // became sections and the other four stayed banners). They are read from
+  // The renamed export carries one extra unsupported folder, so the sample's
+  // banners plus one (the old assertion counted eight badges; five of those
+  // became sections and the rest stayed banners). They are read from
   // the Not yet supported pane, which the second import does not land on.
   await openSection(page, 'not-yet-supported');
-  await expect(page.getByTestId('unsupported-banner')).toHaveCount(5);
+  await expect(page.getByTestId('unsupported-banner')).toHaveCount(UNSUPPORTED_BANNERS.length + 1);
 });

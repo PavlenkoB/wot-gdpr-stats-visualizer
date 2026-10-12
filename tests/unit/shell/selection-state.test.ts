@@ -76,6 +76,7 @@ const FULL_SUPPORTED: EntrySpec[] = [
   ['Player_statistics', 'supported', 3, 8123],
   ['Financial_data', 'supported', 2, 17],
   ['Payment_history', 'supported', 1, 12],
+  ['Device_info', 'supported', 3, 15],
   ['User_Info', 'supported', 1, 1],
 ];
 
@@ -95,7 +96,7 @@ function rowOf(entries: PaneEntry[], id: PaneId): PaneEntry {
 }
 
 describe('the pane vocabulary', () => {
-  test('PANE_IDS is the eight ids in the fixed order', () => {
+  test('PANE_IDS is the nine ids in the fixed order', () => {
     expect([...PANE_IDS]).toEqual([
       'overview',
       'playtime',
@@ -103,6 +104,7 @@ describe('the pane vocabulary', () => {
       'vehicles',
       'finance',
       'payments',
+      'device-info',
       'account',
       'not-yet-supported',
     ]);
@@ -121,6 +123,7 @@ describe('the pane vocabulary', () => {
       vehicles: 'player-statistics',
       finance: 'financial-data',
       payments: 'payment-history',
+      'device-info': 'device-info',
       account: 'user-info',
       'not-yet-supported': 'not-yet-supported',
     });
@@ -132,7 +135,7 @@ describe('the pane vocabulary', () => {
 });
 
 describe('paneEntries', () => {
-  test('a null result gives eight muted rows, Overview included', () => {
+  test('a null result gives nine muted rows, Overview included', () => {
     const entries = paneEntries(null);
     expect(entries.map((entry) => entry.id)).toEqual([...PANE_IDS]);
     for (const entry of entries) {
@@ -163,6 +166,9 @@ describe('paneEntries', () => {
     expect(rowOf(entries, 'finance').headline).toBe(formatRowCount(17));
     expect(rowOf(entries, 'payments').headline).toBe(formatRowCount(12));
     expect(rowOf(entries, 'payments').summary).toBe(formatRowSummary('Payment_history', 1));
+    // The Device info row: one derivation, `{n} rows` and `Device_info · {n} files`.
+    expect(rowOf(entries, 'device-info').headline).toBe(formatRowCount(15));
+    expect(rowOf(entries, 'device-info').summary).toBe(formatRowSummary('Device_info', 3));
     expect(rowOf(entries, 'account')).toMatchObject({
       headline: '30',
       summary: ACCOUNT_ROW_SUMMARY,

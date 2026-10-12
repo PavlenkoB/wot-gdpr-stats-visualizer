@@ -12,6 +12,7 @@
   import { CHART_ANNOUNCE_KEY } from '../charts/tooltip-pin.ts';
   import DashboardSection from './DashboardSection.svelte';
   import DetailPane from './DetailPane.svelte';
+  import DeviceInfo from '../features/device-info/DeviceInfo.svelte';
   import FinancialData from '../features/finance/FinancialData.svelte';
   import ListPane from './ListPane.svelte';
   import LoginHistory from '../features/logins/LoginHistory.svelte';
@@ -298,6 +299,16 @@
       <!-- The `spend` channel (05-15, D-21). -->
       <DashboardSection {...sectionProps('payment-history', 'payments')}>
         <SpendSummary {result} client={ingestClient.data} />
+      </DashboardSection>
+    {:else if active === 'device-info'}
+      <!--
+        The `device-info` channel (quick 261012-bog): three per-source tables
+        and a counts summary, asked through the same channel-scoped client the
+        finance and statistics blocks use. Superseding is per CHANNEL (05-07),
+        so this block asking again releases only its own older question.
+      -->
+      <DashboardSection {...sectionProps('device-info', 'device-info')}>
+        <DeviceInfo {result} client={ingestClient.data} />
       </DashboardSection>
     {:else if active === 'account'}
       <!-- No block of its own: the identity lives in the list pane header, so

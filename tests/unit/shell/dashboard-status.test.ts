@@ -68,22 +68,22 @@ function resultOf(entries: EntrySpec[], accountRoot = '123456789'): ClassifyResu
   return { accountRoot, categories, counts };
 }
 
-/** The five supported folders, all populated — the "everything is fine" export. */
+/** The six supported folders, all populated — the "everything is fine" export. */
 const FULL_SUPPORTED: EntrySpec[] = [
   ['Activity_history', 'supported', 2, 1204],
   ['Player_statistics', 'supported', 3, 8123],
   ['Financial_data', 'supported', 2, 17],
   ['Payment_history', 'supported', 1, 12],
+  ['Device_info', 'supported', 3, 15],
   ['User_Info', 'supported', 1, 1],
 ];
 
-/** The sample shape: the five supported folders plus four others (worker order). */
+/** The sample shape: the six supported folders plus three others (worker order). */
 const SAMPLE: EntrySpec[] = [
   ...FULL_SUPPORTED,
   ['Chat_history', 'known-deferred', 1, 40],
   ['Clans', 'known-deferred', 1, 2],
   ['Bans', 'unknown', 1, 0],
-  ['Device_info', 'unknown', 2, 3],
 ];
 
 // -----------------------------------------------------------------------------
@@ -119,13 +119,13 @@ describe('tracer: ClassifyResult to visible-text accessible name', () => {
 // -----------------------------------------------------------------------------
 
 describe('sectionStatus', () => {
-  test('a null result is not-loaded for all five sections and for the block', () => {
+  test('a null result is not-loaded for all six sections and for the block', () => {
     for (const { id } of SECTIONS) {
       expect(sectionStatus(id, null)).toBe('not-loaded');
     }
     expect(unsupportedBlockStatus(null)).toBe('not-loaded');
     expect(unsupportedEntries(null)).toEqual([]);
-    expect(navEntries(null)).toHaveLength(6);
+    expect(navEntries(null)).toHaveLength(7);
   });
 
   test('a header-only entry (rowCount 0) is empty', () => {
@@ -190,7 +190,7 @@ describe('sectionStatus', () => {
     const result = resultOf([...FULL_SUPPORTED, ['Chat_history', 'known-deferred', 1, 40]]);
     for (const { id, folder } of SECTIONS) {
       expect(sectionCounts(folder, result)).not.toBeNull();
-      // Four sections have shipped a dashboard and read `ready` — the last
+      // Five sections have shipped a dashboard and read `ready` — the last
       // one stays `pending` and keeps the "Dashboard coming in a later
       // update" note. Named per id rather than counted, so a phase that adds
       // its own id to BUILT_DASHBOARDS has to come back and own this line.
@@ -198,7 +198,8 @@ describe('sectionStatus', () => {
         id === 'activity-history' ||
           id === 'player-statistics' ||
           id === 'financial-data' ||
-          id === 'payment-history'
+          id === 'payment-history' ||
+          id === 'device-info'
           ? 'ready'
           : 'pending',
       );
@@ -207,7 +208,7 @@ describe('sectionStatus', () => {
     expect(unsupportedBlockStatus(result)).toBe('has-items');
   });
 
-  test('with the default built set the four shipped sections are ready and only user-info is pending', () => {
+  test('with the default built set the five shipped sections are ready and only user-info is pending', () => {
     // Named per section rather than in a loop, so a future phase that adds its
     // own id to BUILT_DASHBOARDS has to come back and own this test.
     const result = resultOf(FULL_SUPPORTED);
@@ -219,18 +220,22 @@ describe('sectionStatus', () => {
     expect(sectionStatus('player-statistics', result)).toBe('ready');
     expect(sectionStatus('financial-data', result)).toBe('ready');
     expect(sectionStatus('payment-history', result)).toBe('ready');
+    // device-info was added by quick task 261012-bog in the same commit that
+    // mounted its body (the Device info pane).
+    expect(sectionStatus('device-info', result)).toBe('ready');
     // `User_Info` is the one section no phase builds a dashboard for, and it
     // is the ONLY pending section this phase ends with. Its card says so with
     // SECTION_NOTE_USER_INFO rather than the "coming in a later update" note.
     expect(sectionStatus('user-info', result)).toBe('pending');
   });
 
-  test('BUILT_DASHBOARDS holds exactly the four shipped section ids', () => {
+  test('BUILT_DASHBOARDS holds exactly the five shipped section ids', () => {
     // Named members of SECTIONS, not a prefix or a count: the id is a
     // SectionId, so a typo here would silently disable a dashboard rather
     // than fail the build.
     expect([...BUILT_DASHBOARDS].sort()).toEqual([
       'activity-history',
+      'device-info',
       'financial-data',
       'payment-history',
       'player-statistics',
@@ -280,6 +285,7 @@ describe('sectionStatus', () => {
       'player-statistics',
       'financial-data',
       'payment-history',
+      'device-info',
       'user-info',
       'not-yet-supported',
     ]);
@@ -288,6 +294,7 @@ describe('sectionStatus', () => {
       'player-statistics',
       'financial-data',
       'payment-history',
+      'device-info',
       'user-info',
       'not-yet-supported',
     ]);
@@ -373,6 +380,35 @@ describe('sectionStatus', () => {
   });
 });
 
+describe('device-info section (quick 261012-bog)', () => {
+  test('is ready with rows, empty with zero rows and no-export when absent', () => {
+    expect(sectionStatus('device-info', resultOf([['Device_info', 'supported', 3, 15]]))).toBe(
+      'ready',
+    );
+    expect(sectionStatus('device-info', resultOf([['Device_info', 'supported', 3, 0]]))).toBe(
+      'empty',
+    );
+    expect(sectionStatus('device-info', resultOf([['User_Info', 'supported', 1, 1]]))).toBe(
+      'no-export',
+    );
+  });
+
+  test('the section reads the Device_info folder, case-insensitively', () => {
+    const section = SECTIONS.find((candidate) => candidate.id === 'device-info');
+    expect(section?.folder).toBe('Device_info');
+    expect(sectionStatus('device-info', resultOf([['device_info', 'supported', 3, 15]]))).toBe(
+      'ready',
+    );
+  });
+
+  test('is listed between payment-history and user-info, and is a shipped dashboard', () => {
+    const ids = SECTIONS.map((section) => section.id);
+    expect(ids.indexOf('device-info')).toBe(ids.indexOf('payment-history') + 1);
+    expect(ids.indexOf('user-info')).toBe(ids.indexOf('device-info') + 1);
+    expect(BUILT_DASHBOARDS.has('device-info')).toBe(true);
+  });
+});
+
 // -----------------------------------------------------------------------------
 // Unsupported block
 // -----------------------------------------------------------------------------
@@ -384,7 +420,6 @@ describe('unsupported block', () => {
       'Chat_history',
       'Clans',
       'Bans',
-      'Device_info',
     ]);
     for (const entry of unsupportedEntries(result)) {
       expect(entry.status).not.toBe('supported');
@@ -428,20 +463,21 @@ describe('unsupported block', () => {
 // -----------------------------------------------------------------------------
 
 describe('navEntries', () => {
-  test('a null result gives six muted entries with reason not-loaded, in NAV_ORDER', () => {
+  test('a null result gives seven muted entries with reason not-loaded, in NAV_ORDER', () => {
     expect(navEntries(null)).toEqual([
       { id: 'activity-history', muted: true, reason: 'not-loaded' },
       { id: 'player-statistics', muted: true, reason: 'not-loaded' },
       { id: 'financial-data', muted: true, reason: 'not-loaded' },
       { id: 'payment-history', muted: true, reason: 'not-loaded' },
+      { id: 'device-info', muted: true, reason: 'not-loaded' },
       { id: 'user-info', muted: true, reason: 'not-loaded' },
       { id: 'not-yet-supported', muted: true, reason: 'not-loaded' },
     ]);
   });
 
-  test('the sample export gives six unmuted entries', () => {
+  test('the sample export gives seven unmuted entries', () => {
     const entries = navEntries(resultOf(SAMPLE));
-    expect(entries).toHaveLength(6);
+    expect(entries).toHaveLength(7);
     for (const entry of entries) {
       expect(entry.muted).toBe(false);
       expect(entry.reason).toBeNull();

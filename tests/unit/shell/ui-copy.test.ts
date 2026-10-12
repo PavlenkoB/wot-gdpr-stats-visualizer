@@ -153,6 +153,9 @@ describe('Phase 3 section, nav and banner copy', () => {
       // above it, and the reason this is an exact-object assertion.
       'financial-data': 'Financial_data',
       'payment-history': 'Payment_history',
+      // quick 261012-bog: the Device info pane's section, written as the
+      // export spells the folder.
+      'device-info': 'Device_info',
       'user-info': 'User_Info',
       'not-yet-supported': 'Not yet supported',
     });
@@ -1949,7 +1952,7 @@ describe('05-08 export inventory', () => {
 // Literals are typed out here, not read back from the constants, so a paraphrase
 // in ui-copy.ts fails here rather than reaching a user.
 describe('08-01 pane and row copy', () => {
-  test('PANE_TITLES names the eight panes', () => {
+  test('PANE_TITLES names the nine panes', () => {
     expect(playtimeCopy.PANE_TITLES).toEqual({
       overview: 'Overview',
       playtime: 'Playtime',
@@ -1957,6 +1960,7 @@ describe('08-01 pane and row copy', () => {
       vehicles: 'Vehicles',
       finance: 'Finance',
       payments: 'Payments',
+      'device-info': 'Device info',
       account: 'Account',
       'not-yet-supported': 'Not yet supported',
     });
@@ -2050,5 +2054,144 @@ describe('08-06 About-this disclosure copy', () => {
 
   test.each(NAME_ROWS)('%s is the UI-SPEC name', (name, literal) => {
     expect(playtimeCopy[name]).toBe(literal);
+  });
+});
+
+// quick 261012-bog: the Device info pane's copy. Every string the pane shows
+// is pinned here, so a paraphrase is an edit to ui-copy.ts and a failure here.
+describe('261012-bog Device info copy', () => {
+  const CONSTANT_ROWS = [
+    ['DEVICE_INFO_LOADING', 'Reading device information...'],
+    [
+      'DEVICE_INFO_ERROR',
+      'Device information could not be read from this export. Your imported data is unchanged. Drop the export again to retry.',
+    ],
+    [
+      'DEVICE_INFO_INTRO',
+      'The computers and devices your export lists, one table for each source file.',
+    ],
+    ['DEVICE_SUMMARY_HEADING', 'In this export'],
+    ['DEVICE_NOT_REPORTED', 'not reported'],
+    ['DEVICE_TABLE_NOT_IN_EXPORT', 'Not in this export'],
+    [
+      'DEVICE_UNREADABLE_EXPLANATION',
+      'These rows held no device type, app, platform or version this viewer can read, so they are counted but not listed.',
+    ],
+    [
+      'DEVICE_MEMORY_NOTE',
+      'Memory is shown in GB (1 GB = 1,024 MB). Values under 1 GB stay in MB.',
+    ],
+  ] as const;
+
+  test.each(CONSTANT_ROWS)('%s is the approved wording', (name, literal) => {
+    expect(playtimeCopy[name]).toBe(literal);
+  });
+
+  test('the record constants name the three sources, files and columns', () => {
+    expect(playtimeCopy.DEVICE_HEADINGS).toEqual({
+      pc: 'PC hardware',
+      blitz: 'Blitz devices',
+      assistant: 'Assistant app devices',
+    });
+    expect(playtimeCopy.DEVICE_FILE_LABELS).toEqual({
+      pc: 'WOT_Device_Info.csv',
+      blitz: 'WOTB_Device_Info.csv',
+      assistant: 'WOT_Assistant_Device_Info.csv',
+    });
+    expect(playtimeCopy.DEVICE_COLUMN_LABELS).toEqual({
+      pc: {
+        pcType: 'PC type',
+        os: 'OS',
+        osBit: 'OS bits',
+        cpuVendor: 'CPU vendor',
+        cpuName: 'CPU',
+        cpuCores: 'CPU cores',
+        gpuVendor: 'GPU vendor',
+        gpuMemory: 'GPU memory',
+        mainMemory: 'Main memory',
+        multiGpu: 'Multi-GPU',
+      },
+      blitz: {
+        platformName: 'Platform',
+        vendorName: 'Vendor',
+        modelName: 'Model',
+        os: 'OS',
+        region: 'Region',
+        shopName: 'Shop',
+        countryByIp: 'Country by IP',
+        countryByTz: 'Country by time zone',
+      },
+      assistant: {
+        deviceType: 'Device type',
+        app: 'App',
+        platform: 'Platform',
+        version: 'Version',
+      },
+    });
+  });
+
+  test.each([
+    [0, '0 MB'],
+    [512, '512 MB'],
+    [1023, '1,023 MB'],
+    [1024, '1 GB'],
+    [1536, '1.5 GB'],
+    [3000, '2.9 GB'],
+    [4096, '4 GB'],
+    [16384, '16 GB'],
+    [1048576, '1,024 GB'],
+    [Number.NaN, '0 MB'],
+    [Number.POSITIVE_INFINITY, '0 MB'],
+    [-5, '0 MB'],
+  ])('formatMemoryFromMb(%s) is %s', (mb, text) => {
+    expect(playtimeCopy.formatMemoryFromMb(mb)).toBe(text);
+  });
+
+  test('the provenance and empty-state sentences name the file', () => {
+    expect(playtimeCopy.formatDeviceFromFile('WOT_Device_Info.csv')).toBe(
+      'From WOT_Device_Info.csv',
+    );
+    expect(playtimeCopy.formatDeviceNoRows('WOTB_Device_Info.csv')).toBe(
+      'WOTB_Device_Info.csv is in this export but holds no rows',
+    );
+  });
+
+  test('the no-usable sentence singularises', () => {
+    expect(playtimeCopy.formatDeviceNoUsable(1)).toBe('The 1 row in this file could not be read');
+    expect(playtimeCopy.formatDeviceNoUsable(2)).toBe(
+      'None of the 2 rows in this file could be read',
+    );
+    expect(playtimeCopy.formatDeviceNoUsable(1204)).toBe(
+      'None of the 1,204 rows in this file could be read',
+    );
+  });
+
+  test('the unreadable pill is empty at zero and singularises', () => {
+    expect(playtimeCopy.formatDeviceUnreadablePill(0)).toBe('');
+    expect(playtimeCopy.formatDeviceUnreadablePill(1)).toBe('1 row could not be read');
+    expect(playtimeCopy.formatDeviceUnreadablePill(4)).toBe('4 rows could not be read');
+  });
+
+  test('the more-rows line singularises', () => {
+    expect(playtimeCopy.formatDeviceMoreRows(1)).toBe('and 1 more row not listed');
+    expect(playtimeCopy.formatDeviceMoreRows(37)).toBe('and 37 more rows not listed');
+  });
+
+  test('the per-source summary value covers all four statuses', () => {
+    expect(playtimeCopy.formatDeviceSourceCount('not-in-export', 0, 0)).toBe('not in this export');
+    expect(playtimeCopy.formatDeviceSourceCount('no-rows', 0, 0)).toBe('no rows');
+    expect(playtimeCopy.formatDeviceSourceCount('ready', 4, 0)).toBe('4 rows');
+    expect(playtimeCopy.formatDeviceSourceCount('ready', 1, 0)).toBe('1 row');
+    expect(playtimeCopy.formatDeviceSourceCount('ready', 8, 4)).toBe('8 rows, 4 could not be read');
+    expect(playtimeCopy.formatDeviceSourceCount('no-usable', 3, 3)).toBe(
+      '3 rows, 3 could not be read',
+    );
+    expect(playtimeCopy.formatDeviceSourceCount('no-usable', 1, 1)).toBe(
+      '1 row, 1 could not be read',
+    );
+  });
+
+  test('the table label appends the word table', () => {
+    expect(playtimeCopy.formatDeviceTableLabel('PC hardware')).toBe('PC hardware table');
   });
 });

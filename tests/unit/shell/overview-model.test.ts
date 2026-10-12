@@ -59,6 +59,7 @@ const FULL_SUPPORTED: EntrySpec[] = [
   ['Player_statistics', 'supported', 3, 8123],
   ['Financial_data', 'supported', 2, 17],
   ['Payment_history', 'supported', 1, 12],
+  ['Device_info', 'supported', 3, 15],
   ['User_Info', 'supported', 1, 1],
 ];
 
@@ -82,13 +83,14 @@ function without(folder: string): EntrySpec[] {
 }
 
 describe('OVERVIEW_CARD_IDS', () => {
-  test('is the six data panes in list order, a subset of PANE_IDS', () => {
+  test('is the seven data panes in list order, a subset of PANE_IDS', () => {
     expect([...OVERVIEW_CARD_IDS]).toEqual([
       'playtime',
       'login-history',
       'vehicles',
       'finance',
       'payments',
+      'device-info',
       'account',
     ]);
     for (const id of OVERVIEW_CARD_IDS) expect(PANE_IDS).toContain(id);
@@ -96,13 +98,18 @@ describe('OVERVIEW_CARD_IDS', () => {
 });
 
 describe('overviewChips', () => {
-  test('the sample shape has six sections with data, none absent, and the unsupported count', () => {
-    expect(overviewChips(SAMPLE())).toEqual({ withData: 6, absent: 0, unsupported: 3 });
+  test('the sample shape has seven sections with data, none absent, and the unsupported count', () => {
+    expect(overviewChips(SAMPLE())).toEqual({ withData: 7, absent: 0, unsupported: 3 });
   });
 
-  test('a missing Payment_history is one absent section and five with data', () => {
+  test('a missing Payment_history is one absent section and six with data', () => {
     const result = resultOf([...without('Payment_history'), ...UNSUPPORTED]);
-    expect(overviewChips(result)).toEqual({ withData: 5, absent: 1, unsupported: 3 });
+    expect(overviewChips(result)).toEqual({ withData: 6, absent: 1, unsupported: 3 });
+  });
+
+  test('a missing Device_info is one absent section, counted like the others', () => {
+    const result = resultOf([...without('Device_info'), ...UNSUPPORTED]);
+    expect(overviewChips(result)).toEqual({ withData: 6, absent: 1, unsupported: 3 });
   });
 
   test('a zero-row Payment_history is in neither chip (DATA-04)', () => {
@@ -111,10 +118,10 @@ describe('overviewChips', () => {
         spec[0] === 'Payment_history' ? [spec[0], spec[1], 1, 0] : spec,
       ),
     ]);
-    expect(overviewChips(result)).toEqual({ withData: 5, absent: 0, unsupported: 0 });
+    expect(overviewChips(result)).toEqual({ withData: 6, absent: 0, unsupported: 0 });
   });
 
-  test('withData + absent + empty always equals the six card panes', () => {
+  test('withData + absent + empty always equals the seven card panes', () => {
     const shapes: ClassifyResult[] = [
       SAMPLE(),
       resultOf(without('Payment_history')),
@@ -139,7 +146,7 @@ describe('overviewChips', () => {
 });
 
 describe('overviewCards', () => {
-  test('the sample gives six available cards in list order, each equal to its list row', () => {
+  test('the sample gives seven available cards in list order, each equal to its list row', () => {
     const result = SAMPLE();
     const cards = overviewCards(result);
     expect(cards.map((card) => card.id)).toEqual([...OVERVIEW_CARD_IDS]);
@@ -159,7 +166,7 @@ describe('overviewCards', () => {
     expect(payments.reason).toBe('no-export');
     expect(payments.headline).toBe(ROW_HEADLINE_NONE);
     expect(payments.summary).toBe('Not in this export');
-    expect(cards.filter((card) => card.available)).toHaveLength(5);
+    expect(cards.filter((card) => card.available)).toHaveLength(6);
   });
 
   test('a zero-row Payment_history says it has no rows, not that it is absent', () => {
@@ -187,7 +194,20 @@ describe('overviewCards', () => {
     expect(overviewChips(resultOf(without('Activity_history'))).absent).toBe(2);
   });
 
-  test('a null result is six unavailable cards', () => {
+  test('the Device info card sits before Account and says what its row says', () => {
+    const result = SAMPLE();
+    const cards = overviewCards(result);
+    const ids = cards.map((card) => card.id);
+    expect(ids.indexOf('device-info')).toBe(ids.indexOf('account') - 1);
+    const card = cards.find((entry) => entry.id === 'device-info')!;
+    expect(card.title).toBe('Device info');
+    expect(card.available).toBe(true);
+    const row = paneEntries(result).find((entry) => entry.id === 'device-info')!;
+    expect(card.headline).toBe(row.headline);
+    expect(card.summary).toBe(row.summary);
+  });
+
+  test('a null result is seven unavailable cards', () => {
     const cards = overviewCards(null);
     expect(cards).toHaveLength(OVERVIEW_CARD_IDS.length);
     for (const card of cards) {

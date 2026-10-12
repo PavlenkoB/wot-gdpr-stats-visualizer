@@ -28,12 +28,13 @@ import type { CategoryEntry, ClassifyResult } from '../core/types/worker-message
 // facts, get different statuses, and get different wording (D-10).
 
 /**
- * The five supported dashboard sections, in D-02 order.
+ * The six supported dashboard sections, in D-02 order.
  *
  * The order is declared HERE, explicitly, and not derived from `SUPPORTED`
  * in `worker/categories.ts` — that array is `Activity_history`,
  * `Player_statistics`, `User_Info`, `Payment_history`, `Financial_data`,
- * which is a different order (and exists for the worker, not for the page).
+ * `Device_info`, which is a different order (and exists for the worker, not
+ * for the page).
  * The same trap waits for anyone tempted to reuse `SAMPLE_BADGE_ORDER` from
  * the fixtures.
  */
@@ -47,15 +48,20 @@ export const SECTIONS = [
   // to a file the user can find in the zip they unzipped.
   { id: 'financial-data', folder: 'Financial_data' },
   { id: 'payment-history', folder: 'Payment_history' },
+  // Fifth since quick task 261012-bog: Device_info is a supported category with
+  // a read-only pane of its own (three per-source tables). It sits after
+  // Payment_history and before User_Info, so the account row stays the last of
+  // the data rows.
+  { id: 'device-info', folder: 'Device_info' },
   { id: 'user-info', folder: 'User_Info' },
 ] as const;
 
-/** Anchor id of one of the five supported sections. */
+/** Anchor id of one of the six supported sections. */
 export type SectionId = (typeof SECTIONS)[number]['id'];
 
 /**
  * Anchor id of the "Not yet supported" block. It shares the section shell
- * and the nav with the five above, so it is modelled as a sixth id rather
+ * and the nav with the six above, so it is modelled as a seventh id rather
  * than as a special case (D-22).
  */
 export const NOT_YET_SUPPORTED_ID = 'not-yet-supported';
@@ -64,7 +70,7 @@ export const NOT_YET_SUPPORTED_ID = 'not-yet-supported';
 export type NavId = SectionId | typeof NOT_YET_SUPPORTED_ID;
 
 /**
- * The nav's link order: the five sections in D-02 order, then the
+ * The nav's link order: the six sections in D-02 order, then the
  * unsupported block. Fixed, and independent of the order the worker's
  * `ClassifyResult` happens to list its categories in (D-02).
  */
@@ -73,6 +79,7 @@ export const NAV_ORDER = [
   'player-statistics',
   'financial-data',
   'payment-history',
+  'device-info',
   'user-info',
   NOT_YET_SUPPORTED_ID,
 ] as const satisfies readonly NavId[];
@@ -96,7 +103,7 @@ export type SectionStatus = 'not-loaded' | 'no-export' | 'empty' | 'pending' | '
  * A parameter rather than a hard-coded check, so a phase can pass its own
  * set and so a test can exercise `ready` without shipping a dashboard.
  *
- * Four ids, and each was added by the plan that gave its section a body rather
+ * Five ids, and each was added by the plan that gave its section a body rather
  * than by the plan that gave the section its card:
  *
  *   `activity-history` — Phase 4, plan 04-02, which shipped the playtime
@@ -107,6 +114,8 @@ export type SectionStatus = 'not-loaded' | 'no-export' | 'empty' | 'pending' | '
  *     `ready` in the same commit that mounted the Premium block.
  *   `payment-history`  — Phase 5, plan 05-15, which flipped the card to
  *     `ready` in the same commit that mounted the Real-money spend block.
+ *   `device-info`      — quick task 261012-bog, which added the section, flipped
+ *     it to `ready` and mounted the Device info pane in the same commit.
  *
  * The flip and the body land together on purpose, in every Phase 5 case: a
  * `ready` section with no body is a card that promises a dashboard and shows an
@@ -123,6 +132,7 @@ export const BUILT_DASHBOARDS: ReadonlySet<SectionId> = new Set<SectionId>([
   'player-statistics',
   'financial-data',
   'payment-history',
+  'device-info',
 ]);
 
 /** Import diagnostics for one section, summed across every matching entry. */
@@ -255,7 +265,7 @@ function mutedReasonFor(status: SectionStatus): NavMutedReason | null {
 }
 
 /**
- * The six nav links, in `NAV_ORDER`, each with its muted state and the
+ * The seven nav links, in `NAV_ORDER`, each with its muted state and the
  * reason behind it.
  *
  * Derived by calling `sectionStatus` and `unsupportedBlockStatus` — the same

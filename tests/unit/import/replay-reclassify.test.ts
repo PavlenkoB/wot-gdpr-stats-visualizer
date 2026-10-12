@@ -117,6 +117,7 @@ function buildFinancialExport(): Uint8Array {
  */
 const REPAIRED_ORDER = [
   'Activity_history',
+  'Device_info',
   'Financial_data',
   'Payment_history',
   'Player_statistics',
@@ -124,7 +125,6 @@ const REPAIRED_ORDER = [
   'Chat_history',
   'Clans',
   'Bans',
-  'Device_info',
 ] as const;
 
 /** The four categories a Phase-4 build already knew were supported. */
@@ -172,13 +172,14 @@ describe('05-03 tracer: Financial_data supported on import and on replay', () =>
     expect(financial!.status).toBe('supported');
 
     // `counts` is derived from the same status list, so it moves with it —
-    // the four pre-existing supported folders plus the new one.
-    expect(terminal.result.counts).toEqual({ supported: 5, 'known-deferred': 2, unknown: 2 });
+    // the four pre-existing supported folders plus the new one, and Device_info
+    // (promoted by quick 261012-bog), with Bans the one remaining unknown.
+    expect(terminal.result.counts).toEqual({ supported: 6, 'known-deferred': 2, unknown: 1 });
 
     // It sits in the SUPPORTED GROUP, in lower-case name order, rather than
     // being appended or left where an unknown folder would have gone.
     const names = terminal.result.categories.map((c) => c.name);
-    expect(names.slice(0, 5)).toEqual([...REPAIRED_ORDER].slice(0, 5));
+    expect(names.slice(0, 6)).toEqual([...REPAIRED_ORDER].slice(0, 6));
   });
 
   // ---------------------------------------------------------------------------
@@ -193,14 +194,16 @@ describe('05-03 tracer: Financial_data supported on import and on replay', () =>
    * This is the state a real returning user is in: correct folder name,
    * correct counts, correct rows on disk, wrong label.
    */
-  async function seedStaleUnknownStatus(): Promise<{ before: string[] }> {
+  async function seedStaleUnknownStatus(
+    names: readonly string[] = ['Financial_data'],
+  ): Promise<{ before: string[] }> {
     const { db } = await importWorkerDb();
     const meta = await db.meta.get('active');
     expect(meta).toBeDefined();
 
     const stale = sortCategoryEntries(
       meta!.categories.map((entry): CategoryEntry =>
-        entry.name === 'Financial_data' ? { ...entry, status: 'unknown' } : entry,
+        names.includes(entry.name) ? { ...entry, status: 'unknown' } : entry,
       ),
     );
     await db.meta.put({ ...meta!, categories: stale });
@@ -208,8 +211,9 @@ describe('05-03 tracer: Financial_data supported on import and on replay', () =>
     // Record what the DB now holds so the assertions can prove the replay
     // CHANGED something rather than passing on the import's own output.
     const reread = await db.meta.get('active');
-    const financial = reread!.categories.find((c) => c.name === 'Financial_data');
-    expect(financial?.status).toBe('unknown');
+    for (const name of names) {
+      expect(reread!.categories.find((c) => c.name === name)?.status).toBe('unknown');
+    }
     return { before: reread!.categories.map((c) => c.name) };
   }
 
@@ -239,7 +243,7 @@ describe('05-03 tracer: Financial_data supported on import and on replay', () =>
     // `counts` must be recomputed AFTER the remap. Deriving them before it is
     // the one ordering mistake that would leave supported at 4 here while
     // every entry says `supported`.
-    expect(cached!.counts).toEqual({ supported: 5, 'known-deferred': 2, unknown: 2 });
+    expect(cached!.counts).toEqual({ supported: 6, 'known-deferred': 2, unknown: 1 });
 
     // No user's data was touched to achieve this: the rows and the account
     // root ride through the repair unchanged.
@@ -248,6 +252,24 @@ describe('05-03 tracer: Financial_data supported on import and on replay', () =>
     expect(before.filter((n) => n !== 'Financial_data')).toEqual(
       categories.map((c) => c.name).filter((n) => n !== 'Financial_data'),
     );
+  });
+
+  test('a stale cache that stored Device_info as unknown replays it as supported, re-sorted, with Bans still unknown', async () => {
+    await ingestExport(postSpy, buildFinancialExport(), 'financial.zip');
+    await seedStaleUnknownStatus(['Device_info']);
+
+    postSpy.mockClear();
+    postRequest({ type: 'check-cache', jobId: 7 });
+    const status = await waitForMessage(postSpy, 'cache-status');
+    if (status.type !== 'cache-status') throw new Error('expected cache-status');
+
+    const categories = status.cached!.categories;
+    const byName = new Map(categories.map((c) => [c.name, c.status]));
+    expect(byName.get('Device_info')).toBe('supported');
+    expect(byName.get('Bans')).toBe('unknown');
+    // Repaired out of the unknown group and back into lower-case order.
+    expect(categories.map((c) => c.name)).toEqual([...REPAIRED_ORDER]);
+    expect(status.cached!.counts).toEqual({ supported: 6, 'known-deferred': 2, unknown: 1 });
   });
 
   test('a hash-identical re-drop (duplicate) yields the same repaired list', async () => {
@@ -289,7 +311,9 @@ describe('05-03 tracer: Financial_data supported on import and on replay', () =>
     expect(byName.get('Chat_history')).toBe('known-deferred');
     expect(byName.get('Clans')).toBe('known-deferred');
     expect(byName.get('Bans')).toBe('unknown');
-    expect(byName.get('Device_info')).toBe('unknown');
+    // Device_info was unknown until quick 261012-bog promoted it; an import now
+    // stores it as supported and the replay keeps it so.
+    expect(byName.get('Device_info')).toBe('supported');
     for (const name of PRE_PHASE5_SUPPORTED) {
       expect(byName.get(name)).toBe('supported');
     }
@@ -396,7 +420,7 @@ describe('sortCategoryEntries', () => {
       { name: 'user_info', status: 'supported', fileCount: 1 },
       { name: 'Clans', status: 'known-deferred', fileCount: 1 },
       { name: 'Activity_history', status: 'supported', fileCount: 2 },
-      { name: 'Device_info', status: 'unknown', fileCount: 1 },
+      { name: 'Device_info', status: 'supported', fileCount: 1 },
       { name: 'Chat_history', status: 'known-deferred', fileCount: 1 },
     ];
 
@@ -405,13 +429,13 @@ describe('sortCategoryEntries', () => {
       // because the raw-name tie-break is plain code-unit comparison and
       // uppercase sorts first.
       'Activity_history',
+      'Device_info',
       'User_Info',
       'user_info',
       // then known-deferred, then unknown
       'Chat_history',
       'Clans',
       'Bans',
-      'Device_info',
     ]);
   });
 
@@ -442,7 +466,7 @@ describe('sortCategoryEntries', () => {
       '123456789/Chat_history/Messages.csv',
       '123456789/Clans/Clan_membership.csv',
       '123456789/Bans/Bans.csv',
-      '123456789/Device_info/Devices.csv',
+      '123456789/Device_info/WOT_Device_Info.csv',
     ]);
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;

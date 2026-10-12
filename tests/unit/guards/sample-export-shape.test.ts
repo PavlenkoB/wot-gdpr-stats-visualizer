@@ -6,6 +6,11 @@ import {
   STATS_NAME_CANARY,
 } from '../../fixtures/player-stats-fixtures.ts';
 import { ORDERS_HEADER_12 } from '../../fixtures/finance-fixtures.ts';
+import {
+  DEVICE_FILE_NAMES,
+  DEVICE_FLAGS_CANARY,
+  DEVICE_SPA_CANARY,
+} from '../../fixtures/device-info-fixtures.ts';
 
 // =============================================================================
 // 05-06 — the shared sample's PHYSICAL shape
@@ -140,7 +145,6 @@ describe('05-06 shared sample physical shape', () => {
         'Chat_history/Messages.csv',
         'Clans/Clan_membership.csv',
         'Bans/Bans.csv',
-        'Device_info/Devices.csv',
       ];
       for (const relative of crlfFolders) {
         const text = new TextDecoder('utf-8').decode(
@@ -155,6 +159,54 @@ describe('05-06 shared sample physical shape', () => {
         inflated[`${SAMPLE_ACCOUNT_ROOT}/Activity_history/Sessions.csv`]!,
       );
       expect(sessions).not.toContain(LF);
+    });
+  });
+
+  describe('the Device_info folder (quick 261012-bog)', () => {
+    test('holds exactly the three real-named files and no invented Devices.csv', () => {
+      const names = entriesIn('Device_info').map((e) => e.baseName);
+      expect(names).toEqual(
+        [DEVICE_FILE_NAMES.assistant, DEVICE_FILE_NAMES.blitz, DEVICE_FILE_NAMES.pc].sort(),
+      );
+      expect(names).not.toContain('Devices.csv');
+      expect(names).toEqual([
+        'WOTB_Device_Info.csv',
+        'WOT_Assistant_Device_Info.csv',
+        'WOT_Device_Info.csv',
+      ]);
+    });
+
+    test('the three files are bare-header, quote-all and bare-CR terminated', () => {
+      for (const { path, text } of entriesIn('Device_info')) {
+        const [header = '', ...rest] = text.split(CR);
+        expect(header, `${path} header is quoted`).not.toContain('"');
+        expect(text.endsWith(CR), `${path} does not end on a terminator`).toBe(true);
+        expect(rest.length, `${path} has data rows`).toBeGreaterThan(1);
+      }
+    });
+
+    test('the Assistant file keeps LF inside its quoted cells (the parser mixed path)', () => {
+      const assistant = entriesIn('Device_info').find(
+        (e) => e.baseName === DEVICE_FILE_NAMES.assistant,
+      );
+      expect(assistant?.text).toContain(LF);
+    });
+
+    test('neither device canary appears outside its own file', () => {
+      const inflated = unzipSync(buildSampleExport());
+      const decode = (path: string) => new TextDecoder('utf-8').decode(inflated[path]!);
+      const assistantPath = `${SAMPLE_ACCOUNT_ROOT}/Device_info/${DEVICE_FILE_NAMES.assistant}`;
+      const carriers = (needle: string) =>
+        Object.keys(inflated)
+          .filter((path) => decode(path).includes(needle))
+          .sort();
+
+      expect(carriers(DEVICE_SPA_CANARY)).toEqual([assistantPath]);
+      expect(carriers(DEVICE_FLAGS_CANARY)).toEqual([assistantPath]);
+      // And the account NAME canary does not leak into a device file.
+      for (const { path, text } of entriesIn('Device_info')) {
+        expect(text, `${path} carries the NAME canary`).not.toContain(STATS_NAME_CANARY);
+      }
     });
   });
 

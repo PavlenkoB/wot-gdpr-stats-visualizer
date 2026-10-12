@@ -4,7 +4,7 @@ status: Awaiting next milestone
 stopped_at: Phase 02 complete, ready to plan Phase 07
 last_updated: "2026-10-12T04:06:13.993Z"
 last_activity: 2026-10-12
-last_activity_desc: Milestone v1.0 completed and archived
+last_activity_desc: Quick task 261012-bog completed (Device info pane)
 state_head: b9c892a664656cf528fbbe29a5daae35a44ccf2c
 progress:
   total_phases: 8
@@ -34,7 +34,7 @@ See: .planning/PROJECT.md (updated 2026-09-27)
 Phase: Milestone v1.0 complete
 Plan: —
 Status: Awaiting next milestone
-Last activity: 2026-10-12 — Milestone v1.0 completed and archived
+Last activity: 2026-10-12 — Quick task 261012-bog completed (Device_info supported, Device info pane)
 
 ## Performance Metrics
 
@@ -465,6 +465,12 @@ CI budget at 07-03: no limit moved. `playwright test --list` counts BOTH project
 - [Phase 04]: A note's placement in a wrapping flex row is a consequence of its LENGTH unless a rule says otherwise (04-18, G-04-UI-3 legend clause). The weekday-by-hour legend's short note shared More's line at 1280px (measured 166.56px indented) while the calendar's longer note got its own line by accident; both had 4px above them. `flex-basis: 100%` plus an 8px row gap (`gap: 8px 4px`, the `sm` step) makes the placement a rule in both legends. The pattern generalises: **in a wrapping flex row, anything that must start its own line needs a basis, and anything that must not break needs `white-space` — otherwise the sentence's length is deciding the layout.**
 - [Phase 04]: A source-shape test is worth adding exactly where the browser test would otherwise pass on the broken code (04-18). Both gaps this plan closed were the case where the computed style WAS the defect (`overflow-wrap: anywhere`; a 4px gap), so a `getComputedStyle` assertion cannot distinguish fixed from unfixed. Reading the declaration back off disk, comment-stripped by the file's existing `code()` helper and scoped to one rule's braces, fails on the old source and passes on the new — and a comment that merely names the declaration cannot satisfy it.
 - The broken-windows ledger is UN-APPENDABLE: 'gsd-tools windows append' refuses to run against .planning/WINDOWS.md because the rendered markdown table and the fenced JSON disagree for rows 8 and 9 (a pre-existing Phase 5 corruption, unrelated to Phase 6). The tool forbids hand-editing the table, so no defect discovered in Phase 6 could be recorded in the cross-phase register. 06-02's documented deviation — the plan's own acceptance criterion putting formatLoginShareLine(1, 200) on the wrong side of the half-percent boundary — is recorded in 06-02-SUMMARY.md instead. Repair rows 8-9 (edit the fenced JSON, discard the table edit, re-run) before the next plan that needs to append.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 261012-bog | Add Device_info as a supported category with a read-only Device info pane (three per-source tables, Assistant blob reduced at import) | 2026-10-12 | 6522b3d | [261012-bog-add-device-info-supported-category-pane](./quick/261012-bog-add-device-info-supported-category-pane/) |
 
 ## Deferred Items
 

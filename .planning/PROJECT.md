@@ -4,7 +4,7 @@
 
 ## What This Is
 
-A browser-only, zero-backend tool that turns a Wargaming GDPR personal-data export (the "Data Export" zip Wargaming provides on request for World of Tanks, WoT Blitz, World of Warships, and World of Warplanes accounts) into an interactive dashboard — session activity heatmaps, per-vehicle battle stats, financial/currency history, and a login-IP history table with country-level geolocation. Everything happens client-side: unzip, parse, store, and render, with zero network requests after the page loads. Built for players who requested their own export and want to actually see it, without uploading sensitive account data anywhere.
+A browser-only, zero-backend tool that turns a Wargaming GDPR personal-data export (the "Data Export" zip Wargaming provides on request for World of Tanks, WoT Blitz, World of Warships, and World of Warplanes accounts) into an interactive dashboard — session activity heatmaps, per-vehicle battle stats, financial/currency history, device information (the PC, Blitz and Assistant device lists), and a login-IP history table with country-level geolocation. Everything happens client-side: unzip, parse, store, and render, with zero network requests after the page loads. Built for players who requested their own export and want to actually see it, without uploading sensitive account data anywhere.
 
 ## Core Value
 
@@ -16,6 +16,7 @@ Your data never leaves your machine. Every other decision — architecture, libr
 
 - ✓ Activity_history: total hours/sessions/active days, calendar heatmap (year-by-year), day-of-week × hour-of-day heatmap, session-duration distribution — Phase 4 (real per-game session files WOT/WOTB/WOWS_Game_Sessions.csv supported; legacy Sessions.csv still accepted)
 - ✓ Activity_history: login-IP history table, masked by default with one global click-to-reveal toggle, with offline country-level geolocation (bundled DB-IP Lite range table, no live geo API) on a bundled world map, and city-level detail as an explicit opt-in download that is never fetched by default — Phase 6 (ACTIVITY-05, ACTIVITY-06, ACTIVITY-07)
+- ✓ Device_info: a read-only Device info pane with three per-source tables (PC hardware from `WOT_Device_Info.csv`, Blitz devices from `WOTB_Device_Info.csv`, Assistant app devices from `WOT_Assistant_Device_Info.csv`) under a counts summary; `N/D` and blank cells read as a muted "not reported", memory arrives in MB and shows in GB; the Assistant file's single `POST` blob is reduced at import to four fields (device type, app, platform, version) and never stored, posted or shown, so the account id and the flags value inside it appear nowhere — quick task 261012-bog
 - ✓ User can drag-and-drop a Wargaming GDPR export `.zip` and have it parsed entirely client-side — v1.0
 - ✓ App auto-detects the zip's root/category-folder structure rather than assuming a fixed layout — v1.0
 - ✓ Player_statistics: per-vehicle battle stats (win rate, damage, battles, etc.) across WoT, WoT Blitz, World of Warships, and World of Warplanes — v1.0

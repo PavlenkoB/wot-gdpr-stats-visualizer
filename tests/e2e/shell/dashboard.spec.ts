@@ -81,7 +81,7 @@ import {
 // =============================================================================
 //
 // Migrated to the master-detail shell in 08-08. The page is a list pane (the
-// identity header and eight rows) beside a detail pane that mounts ONE pane's
+// identity header and nine rows) beside a detail pane that mounts ONE pane's
 // section at a time, so every check that used to read all five cards at once now
 // opens each pane in turn (`openSection`) and keeps the same expected values.
 //
@@ -95,12 +95,13 @@ import {
 // them must break a test here rather than be absorbed.
 // =============================================================================
 
-/** The five supported section ids in D-02 order, block excluded (Task 3). */
+/** The six supported section ids in D-02 order, block excluded (Task 3). */
 const SUPPORTED_IDS = [
   'activity-history',
   'player-statistics',
   'financial-data',
   'payment-history',
+  'device-info',
   'user-info',
 ] as const;
 
@@ -116,11 +117,12 @@ const SECTIONS_BY_ID: Record<(typeof SUPPORTED_IDS)[number], string> = {
   'player-statistics': 'Player_statistics',
   'financial-data': 'Financial_data',
   'payment-history': 'Payment_history',
+  'device-info': 'Device_info',
   'user-info': 'User_Info',
 };
 
 /**
- * The six panes that show one supported section, in list order. Playtime and
+ * The seven panes that show one supported section, in list order. Playtime and
  * Login history are two views of the same Activity_history folder.
  */
 const DATA_PANES = [
@@ -129,6 +131,7 @@ const DATA_PANES = [
   'vehicles',
   'finance',
   'payments',
+  'device-info',
   'account',
 ] as const satisfies readonly PaneId[];
 
@@ -209,13 +212,13 @@ test.describe('dashboard shell (03-04 Task 2)', () => {
     );
   });
 
-  test('(sections-pending) four sections ready and only Account pending, each read through its own pane with its counts', async ({
+  test('(sections-pending) five sections ready and only Account pending, each read through its own pane with its counts', async ({
     page,
   }) => {
     await importExport(page, 'sample.zip', buildSampleExport());
     await expect(page.getByTestId('identity-nickname')).toBeVisible({ timeout: 30_000 });
 
-    // The row order of all eight panes is asserted once, by the `(order)` test
+    // The row order of all nine panes is asserted once, by the `(order)` test
     // in the block describe below. This test is about what each section SAYS,
     // and it reads them one pane at a time because only the open pane's section
     // is in the DOM (R4): the landing view after an import is Overview, where
@@ -232,10 +235,11 @@ test.describe('dashboard shell (03-04 Task 2)', () => {
       await expect(page.locator('[data-testid^="dashboard-section-"]')).toHaveCount(1);
       await expect(card).toHaveCount(1);
 
-      // Four sections have a dashboard and read `ready` — Activity_history
+      // Five sections have a dashboard and read `ready` — Activity_history
       // since 04-02, Player_statistics since 05-12, Financial_data since
-      // 05-10 and Payment_history since 05-15 — and User_Info (the Account
-      // pane) is the one that still says it will never have one. Named rather
+      // 05-10, Payment_history since 05-15 and Device_info since quick
+      // 261012-bog — and User_Info (the Account pane) is the one that still
+      // says it will never have one. Named rather
       // than counted, so a phase that adds its own id to BUILT_DASHBOARDS has
       // to come back and own this line.
       await expect(card).toHaveAttribute('data-status', pane === 'account' ? 'pending' : 'ready');
@@ -290,7 +294,8 @@ test.describe('dashboard shell (03-04 Task 2)', () => {
         await expect(card.getByTestId('city-load')).toHaveCount(1);
         await expect(card.locator('button')).toHaveCount(8);
       } else {
-        // Playtime, Finance, Payments and Account hold no button at all. The
+        // Playtime, Finance, Payments, Device info and Account hold no button
+        // at all. The
         // Playtime pane gave up the eight Activity_history buttons to the
         // Login history pane in the split, so its own count is zero.
         await expect(card.locator('button')).toHaveCount(0);
@@ -325,6 +330,11 @@ test.describe('dashboard shell (03-04 Task 2)', () => {
         await expect(card.getByTestId('about-map')).toHaveCount(1);
         await expect(card.getByTestId('country-list')).toHaveCount(1);
         await expect(card.locator('details')).toHaveCount(3);
+      } else if (pane === 'device-info') {
+        // The Device info pane is three plain tables under a summary: it holds
+        // no disclosure and no control (quick 261012-bog).
+        await expect(card.locator('details')).toHaveCount(0);
+        await expect(card.getByTestId('device-info-block')).toHaveCount(1);
       } else if (pane === 'account') {
         // A `pending` card is a promise with no dashboard: no disclosure.
         await expect(card.locator('details')).toHaveCount(0);
@@ -345,14 +355,21 @@ test.describe('dashboard shell (03-04 Task 2)', () => {
     await expect(section(page, 'user-info')).toContainText(SECTION_NOTE_USER_INFO);
     await expect(section(page, 'user-info')).not.toContainText(SECTION_NOTE_PENDING);
 
-    // The four READY sections must NOT carry the promise any more, and this is
+    // The five READY sections must NOT carry the promise any more, and this is
     // the assertion the 05-10, 05-12 and 05-15 flips have to keep: a `ready`
     // card that still says a dashboard is coming is a card that contradicts
     // itself. Activity_history was the LAST holdout — its Login history
     // sub-block was a placeholder that repeated the promise, and 06-08
-    // replaced it with the real block, so all four ready cards now agree. Both
+    // replaced it with the real block, so all five ready cards now agree. Both
     // of its panes are checked, because the split made them two views.
-    for (const pane of ['playtime', 'login-history', 'vehicles', 'finance', 'payments'] as const) {
+    for (const pane of [
+      'playtime',
+      'login-history',
+      'vehicles',
+      'finance',
+      'payments',
+      'device-info',
+    ] as const) {
       await openSection(page, pane);
       await expect(section(page, PANE_SECTION[pane]!)).not.toContainText(SECTION_NOTE_PENDING);
     }
@@ -369,7 +386,7 @@ test.describe('dashboard shell (03-04 Task 2)', () => {
     }
   });
 
-  test('(skeleton) a first visit shows the skeleton header and eight muted rows', async ({
+  test('(skeleton) a first visit shows the skeleton header and nine muted rows', async ({
     page,
   }) => {
     const header = page.getByTestId('identity-header');
@@ -382,7 +399,7 @@ test.describe('dashboard shell (03-04 Task 2)', () => {
 
     // The old claim was "every card is greyed `not-loaded`". On a first visit
     // no section is mounted any more (the detail pane hosts the drop target), so
-    // the equivalent is the eight list rows: every one muted, and every one in
+    // the equivalent is the nine list rows: every one muted, and every one in
     // the not-loaded wording, each under its own pane title. The title is read
     // from `PANE_TITLES` and not retyped, so a renamed pane fails the row that
     // shows it. (`master-detail-nav.spec.ts` `(empty-state)` asserts the same
@@ -600,8 +617,11 @@ test.describe('dashboard shell (03-04 Task 2)', () => {
 // render differently, this is where it shows.
 // =============================================================================
 
-/** The four non-supported folders of the sample, in the worker's order. */
-const SAMPLE_UNSUPPORTED_ORDER = ['Chat_history', 'Clans', 'Bans', 'Device_info'] as const;
+/**
+ * The three non-supported folders of the sample, in the worker's order.
+ * Device_info left this list in quick 261012-bog: it is a supported category now.
+ */
+const SAMPLE_UNSUPPORTED_ORDER = ['Chat_history', 'Clans', 'Bans'] as const;
 
 /**
  * The computed style of one banner, as the browser resolves it.
@@ -641,7 +661,7 @@ test.describe('not yet supported block (03-04 Task 3)', () => {
     await expect(page.getByTestId('unsupported-banner')).toHaveCount(0);
     await openSection(page, 'not-yet-supported');
     const banners = page.getByTestId('unsupported-banner');
-    await expect(banners).toHaveCount(4, { timeout: 30_000 });
+    await expect(banners).toHaveCount(SAMPLE_UNSUPPORTED_ORDER.length, { timeout: 30_000 });
 
     // Worker order: known-deferred first, then unknown, name-ascending
     // within each group — NOT the zip's order and NOT the D-02 order.
@@ -659,15 +679,15 @@ test.describe('not yet supported block (03-04 Task 3)', () => {
       await expect(banner.getByTestId('banner-counts')).toHaveText(expectedSummary(folder));
     }
 
-    // Two of the four are known-deferred and two are unknown. The
+    // Two of the three are known-deferred and one is unknown. The
     // `data-status` hook exists so this test can say so, and the identical
     // computed styles are what prove the hook never reached the CSS.
     expect(
       await banners.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-status'))),
-    ).toEqual(['known-deferred', 'known-deferred', 'unknown', 'unknown']);
+    ).toEqual(['known-deferred', 'known-deferred', 'unknown']);
 
     const reference = await readBannerStyle(banners.first());
-    for (let i = 1; i < 4; i++) {
+    for (let i = 1; i < SAMPLE_UNSUPPORTED_ORDER.length; i++) {
       expect(
         await readBannerStyle(banners.nth(i)),
         `banner ${i} is styled differently from the first banner`,
@@ -675,13 +695,13 @@ test.describe('not yet supported block (03-04 Task 3)', () => {
     }
   });
 
-  test('(banners-renamed) a fifth unknown folder appears with the same banner styling', async ({
+  test('(banners-renamed) a further unknown folder appears with the same banner styling', async ({
     page,
   }) => {
     await importExport(page, 'renamed.zip', buildRenamedRootExport());
     await openSection(page, 'not-yet-supported');
     const banners = page.getByTestId('unsupported-banner');
-    await expect(banners).toHaveCount(5, { timeout: 30_000 });
+    await expect(banners).toHaveCount(SAMPLE_UNSUPPORTED_ORDER.length + 1, { timeout: 30_000 });
 
     await expect(banners.getByTestId('banner-folder').last()).toHaveText(EXTRA_UNKNOWN_FOLDER);
     await expect(banners.last()).toHaveAttribute('data-status', 'unknown');
@@ -715,7 +735,7 @@ test.describe('not yet supported block (03-04 Task 3)', () => {
     await importExport(page, 'malformed.zip', buildMalformedRowsExport());
     await openSection(page, 'not-yet-supported');
     const banners = page.getByTestId('unsupported-banner');
-    await expect(banners).toHaveCount(4, { timeout: 30_000 });
+    await expect(banners).toHaveCount(SAMPLE_UNSUPPORTED_ORDER.length, { timeout: 30_000 });
 
     // Exactly one tag in the open pane, on the Bans banner, reading the one
     // skipped row.
@@ -738,7 +758,10 @@ test.describe('not yet supported block (03-04 Task 3)', () => {
     await expect(page.getByTestId('identity-nickname')).toBeVisible({ timeout: 30_000 });
     await expect(detailPane(page)).toHaveAttribute('data-pane', 'overview');
     await openSection(page, 'not-yet-supported');
-    await expect(page.getByTestId('unsupported-banner')).toHaveCount(4, { timeout: 30_000 });
+    await expect(page.getByTestId('unsupported-banner')).toHaveCount(
+      SAMPLE_UNSUPPORTED_ORDER.length,
+      { timeout: 30_000 },
+    );
     await expect(page.getByTestId('skip-tag')).toHaveCount(1);
   });
 
@@ -748,7 +771,7 @@ test.describe('not yet supported block (03-04 Task 3)', () => {
     await importExport(page, 'case-variants.zip', buildCaseVariantFoldersExport());
     await openSection(page, 'not-yet-supported');
     const banners = page.getByTestId('unsupported-banner');
-    await expect(banners).toHaveCount(5, { timeout: 30_000 });
+    await expect(banners).toHaveCount(SAMPLE_UNSUPPORTED_ORDER.length + 1, { timeout: 30_000 });
 
     // Two separate banners: the classifier matches folders
     // case-insensitively, but an UNKNOWN folder is still reported under
@@ -758,7 +781,6 @@ test.describe('not yet supported block (03-04 Task 3)', () => {
       'Clans',
       'Bans',
       'bans',
-      'Device_info',
     ]);
     // The matching side of the same fixture — two folders, one section,
     // summed counts — is asserted in the `(case-sum)` test above. Here the
@@ -767,7 +789,7 @@ test.describe('not yet supported block (03-04 Task 3)', () => {
     await expect(page.locator('[data-testid="dashboard-section-user-info"]')).toHaveCount(1);
   });
 
-  test('(order) the eight list rows render in PANE_IDS order with Not yet supported last', async ({
+  test('(order) the nine list rows render in PANE_IDS order with Not yet supported last', async ({
     page,
   }) => {
     await importExport(page, 'sample.zip', buildSampleExport());
@@ -1717,8 +1739,8 @@ test.describe('cache check window (03-06 Task 3)', () => {
     await expect(page.getByTestId('import-bar')).toHaveAttribute('data-variant', 'full');
     await expect(page.getByTestId('identity-header')).toBeVisible();
     await expect(page.getByTestId('list-nav')).toBeVisible();
-    // The first-visit state has the eight list rows (every pane, derived from
-    // PANE_IDS so a ninth pane cannot leave this stale) and mounts no section:
+    // The first-visit state has the nine list rows (every pane, derived from
+    // PANE_IDS so a tenth pane cannot leave this stale) and mounts no section:
     // the detail pane hosts the drop target, and a section only exists while
     // its pane is open.
     await expect(page.locator('[data-testid^="list-row-"]')).toHaveCount(PANE_IDS.length);

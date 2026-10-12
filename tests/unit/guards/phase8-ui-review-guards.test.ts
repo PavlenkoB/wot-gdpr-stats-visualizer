@@ -235,6 +235,7 @@ const ALLOWED_COLOUR_LITERALS: readonly AllowedColourLiteral[] = [
     literal: '#c5221f',
     reason: STATUS_REASON,
     files: [
+      'src/lib/features/device-info/DeviceInfo.svelte',
       'src/lib/features/finance/CurrencyBlock.svelte',
       'src/lib/features/finance/PremiumBlock.svelte',
       'src/lib/features/finance/SpendSummary.svelte',
@@ -250,6 +251,7 @@ const ALLOWED_COLOUR_LITERALS: readonly AllowedColourLiteral[] = [
     literal: '#fce8e6',
     reason: STATUS_REASON,
     files: [
+      'src/lib/features/device-info/DeviceInfo.svelte',
       'src/lib/features/finance/CurrencyBlock.svelte',
       'src/lib/features/finance/PremiumBlock.svelte',
       'src/lib/features/finance/SpendSummary.svelte',
@@ -265,6 +267,7 @@ const ALLOWED_COLOUR_LITERALS: readonly AllowedColourLiteral[] = [
     literal: '#8a1c17',
     reason: STATUS_REASON,
     files: [
+      'src/lib/features/device-info/DeviceInfo.svelte',
       'src/lib/features/finance/CurrencyBlock.svelte',
       'src/lib/features/finance/PremiumBlock.svelte',
       'src/lib/features/finance/SpendSummary.svelte',

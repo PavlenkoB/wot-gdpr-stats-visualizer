@@ -35,7 +35,10 @@ import { componentPath, listComponentFiles } from '../../helpers/components.ts';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const PHASE4_UI_SPEC = readFileSync(
-  path.join(REPO_ROOT, '.planning/phases/04-activity-time-dashboards/04-UI-SPEC.md'),
+  path.join(
+    REPO_ROOT,
+    '.planning/milestones/v1.0-phases/04-activity-time-dashboards/04-UI-SPEC.md',
+  ),
   'utf8',
 );
 const APP_CSS = readFileSync(path.join(REPO_ROOT, 'src/app.css'), 'utf8');
@@ -282,7 +285,10 @@ describe('playtime data ramp (04-UI-SPEC Color)', () => {
 // =============================================================================
 
 const PHASE5_UI_SPEC = readFileSync(
-  path.join(REPO_ROOT, '.planning/phases/05-vehicle-stats-financial-dashboards/05-UI-SPEC.md'),
+  path.join(
+    REPO_ROOT,
+    '.planning/milestones/v1.0-phases/05-vehicle-stats-financial-dashboards/05-UI-SPEC.md',
+  ),
   'utf8',
 );
 
@@ -810,7 +816,10 @@ describe('05-22 amendments appendix', () => {
 // =============================================================================
 
 const PHASE6_UI_SPEC = readFileSync(
-  path.join(REPO_ROOT, '.planning/phases/06-login-ip-history-offline-geolocation/06-UI-SPEC.md'),
+  path.join(
+    REPO_ROOT,
+    '.planning/milestones/v1.0-phases/06-login-ip-history-offline-geolocation/06-UI-SPEC.md',
+  ),
   'utf8',
 );
 
@@ -929,7 +938,10 @@ describe('the login map ramp pairs (06-UI-SPEC Color, Map shading)', () => {
 // ramp and flow declarations are re-pinned here as a tripwire against a token
 // edit that "tidies" them.
 const PHASE8_UI_SPEC = readFileSync(
-  path.join(REPO_ROOT, '.planning/phases/08-master-detail-ui-redesign/08-UI-SPEC.md'),
+  path.join(
+    REPO_ROOT,
+    '.planning/milestones/v1.0-phases/08-master-detail-ui-redesign/08-UI-SPEC.md',
+  ),
   'utf8',
 );
 

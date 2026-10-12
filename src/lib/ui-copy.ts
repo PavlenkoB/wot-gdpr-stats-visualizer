@@ -3,6 +3,8 @@ import type { NavId, NavMutedReason, SectionStatus } from './shell/dashboard-sta
 // union must come across without a runtime cycle.
 import type { PaneId } from './shell/selection-state.ts';
 import type { IngestStage, ParsingProgress } from './core/types/worker-messages.ts';
+// Type-only: the column labels are keyed by the Device info column ids.
+import type { DeviceColumnIds, DeviceSourceId } from './features/device-info/device-info-shared.ts';
 // Type-only: the split-column keys label strings, and a runtime import would
 // put a module in the bundle that this one only needs a union from.
 import type { HourGridBasis, SplitColumn } from './features/playtime/playtime-shared.ts';
@@ -217,6 +219,9 @@ export const SECTION_TITLES: Record<NavId, string> = {
   'player-statistics': 'Player_statistics',
   'financial-data': 'Financial_data',
   'payment-history': 'Payment_history',
+  // quick 261012-bog: the folder the Device info pane reads, as the export
+  // spells it. `Record<NavId, string>` is what forces this entry to exist.
+  'device-info': 'Device_info',
   'user-info': 'User_Info',
   'not-yet-supported': 'Not yet supported',
 };
@@ -2983,6 +2988,7 @@ export const PANE_TITLES: Record<PaneId, string> = {
   vehicles: 'Vehicles',
   finance: 'Finance',
   payments: 'Payments',
+  'device-info': 'Device info',
   account: 'Account',
   'not-yet-supported': 'Not yet supported',
 };
@@ -3092,3 +3098,149 @@ export const ABOUT_NAME_MAP = 'map';
 
 /** What the Login history table's disclosure calls it: `About this table`. */
 export const ABOUT_NAME_LOGIN_TABLE = 'table';
+
+// =============================================================================
+// Quick 261012-bog - Device info pane copy
+// =============================================================================
+//
+// The pane's three per-source tables, its counts summary and its honest states.
+// Every sentence the pane shows is here, pinned by
+// `tests/unit/shell/ui-copy.test.ts`. The file names keep their original
+// capitalisation because they are what the user sees in the zip they unzipped.
+// =============================================================================
+
+/** The line shown while the device-info query is in flight. */
+export const DEVICE_INFO_LOADING = 'Reading device information...';
+
+/**
+ * The FIXED sentence for a failed device-info query. The worker's detail is
+ * never shown (T-bog-05): it can name a path, and this is true whatever failed.
+ */
+export const DEVICE_INFO_ERROR =
+  'Device information could not be read from this export. Your imported data is unchanged. Drop the export again to retry.';
+
+/** The one-line description under the section title. */
+export const DEVICE_INFO_INTRO =
+  'The computers and devices your export lists, one table for each source file.';
+
+/** The heading of the counts summary. */
+export const DEVICE_SUMMARY_HEADING = 'In this export';
+
+/** What a null cell says: the export wrote `N/D` or nothing at all. */
+export const DEVICE_NOT_REPORTED = 'not reported';
+
+/** A source whose file is not in this export. */
+export const DEVICE_TABLE_NOT_IN_EXPORT = 'Not in this export';
+
+/** Why unreadable Assistant rows are counted but not listed. */
+export const DEVICE_UNREADABLE_EXPLANATION =
+  'These rows held no device type, app, platform or version this viewer can read, so they are counted but not listed.';
+
+/** The one-line memory rule (PD-07). */
+export const DEVICE_MEMORY_NOTE =
+  'Memory is shown in GB (1 GB = 1,024 MB). Values under 1 GB stay in MB.';
+
+/** The heading of each source's table. */
+export const DEVICE_HEADINGS: Record<DeviceSourceId, string> = {
+  pc: 'PC hardware',
+  blitz: 'Blitz devices',
+  assistant: 'Assistant app devices',
+};
+
+/** Each source's file name, as the export spells it. */
+export const DEVICE_FILE_LABELS: Record<DeviceSourceId, string> = {
+  pc: 'WOT_Device_Info.csv',
+  blitz: 'WOTB_Device_Info.csv',
+  assistant: 'WOT_Assistant_Device_Info.csv',
+};
+
+/** The column header of every table column, per source. */
+export const DEVICE_COLUMN_LABELS: {
+  [S in DeviceSourceId]: Record<DeviceColumnIds[S], string>;
+} = {
+  pc: {
+    pcType: 'PC type',
+    os: 'OS',
+    osBit: 'OS bits',
+    cpuVendor: 'CPU vendor',
+    cpuName: 'CPU',
+    cpuCores: 'CPU cores',
+    gpuVendor: 'GPU vendor',
+    gpuMemory: 'GPU memory',
+    mainMemory: 'Main memory',
+    multiGpu: 'Multi-GPU',
+  },
+  blitz: {
+    platformName: 'Platform',
+    vendorName: 'Vendor',
+    modelName: 'Model',
+    os: 'OS',
+    region: 'Region',
+    shopName: 'Shop',
+    countryByIp: 'Country by IP',
+    countryByTz: 'Country by time zone',
+  },
+  assistant: {
+    deviceType: 'Device type',
+    app: 'App',
+    platform: 'Platform',
+    version: 'Version',
+  },
+};
+
+/**
+ * A memory value in MB as the pane shows it (PD-07): under 1,024 MB stays in
+ * MB; from 1,024 MB up it is GB at 1,024 MB per GB, one decimal, with a
+ * trailing `.0` dropped. Goes through `formatNumber`, so the locale rules stay
+ * in one place. A non-finite or negative input reads `0 MB`, never `NaN`.
+ */
+export function formatMemoryFromMb(mb: number): string {
+  const value = Number.isFinite(mb) && mb > 0 ? mb : 0;
+  if (value < 1024) return `${formatNumber(Math.round(value))} MB`;
+  return `${formatNumber(Math.round((value / 1024) * 10) / 10)} GB`;
+}
+
+/** A table's provenance caption: `From WOT_Device_Info.csv`. */
+export function formatDeviceFromFile(file: string): string {
+  return `From ${file}`;
+}
+
+/** A file that was in the archive and held no data rows. */
+export function formatDeviceNoRows(file: string): string {
+  return `${file} is in this export but holds no rows`;
+}
+
+/** A file whose rows could not be read at all. */
+export function formatDeviceNoUsable(rowCount: number): string {
+  return rowCount === 1
+    ? 'The 1 row in this file could not be read'
+    : `None of the ${formatNumber(rowCount)} rows in this file could be read`;
+}
+
+/** The unreadable-rows pill: empty at zero, so no "0 rows" is ever shown. */
+export function formatDeviceUnreadablePill(n: number): string {
+  if (n <= 0) return '';
+  return n === 1 ? '1 row could not be read' : `${formatNumber(n)} rows could not be read`;
+}
+
+/** The line after a capped table. */
+export function formatDeviceMoreRows(k: number): string {
+  return k === 1 ? 'and 1 more row not listed' : `and ${formatNumber(k)} more rows not listed`;
+}
+
+/** One source's value in the counts summary. */
+export function formatDeviceSourceCount(
+  status: 'not-in-export' | 'no-rows' | 'no-usable' | 'ready',
+  rowCount: number,
+  unreadable: number,
+): string {
+  if (status === 'not-in-export') return 'not in this export';
+  if (status === 'no-rows') return 'no rows';
+  const rows = formatRowCount(rowCount);
+  return unreadable > 0 ? `${rows}, ${formatNumber(unreadable)} could not be read` : rows;
+}
+
+/** The accessible name of a source's table: `PC hardware table`. */
+export function formatDeviceTableLabel(heading: string): string {
+  return `${heading} table`;
+}

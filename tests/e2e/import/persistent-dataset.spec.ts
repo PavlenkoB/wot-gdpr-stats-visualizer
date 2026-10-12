@@ -76,7 +76,7 @@ function expectedSectionSummary(folder: string): string {
 }
 
 /**
- * The five supported folders, each paired with ONE pane that shows it (Playtime
+ * The six supported folders, each paired with ONE pane that shows it (Playtime
  * stands for Activity_history; Login history is a second view of the same
  * folder and is covered by import-flow). Only the open pane's section is in the
  * DOM, so the snapshots below open these in turn.
@@ -86,6 +86,7 @@ const SUPPORTED_PANES = [
   { pane: 'vehicles', folder: 'Player_statistics' },
   { pane: 'finance', folder: 'Financial_data' },
   { pane: 'payments', folder: 'Payment_history' },
+  { pane: 'device-info', folder: 'Device_info' },
   { pane: 'account', folder: 'User_Info' },
 ] as const satisfies readonly { pane: PaneId; folder: string }[];
 
@@ -96,11 +97,12 @@ const DATA_PANE_IDS = [
   'vehicles',
   'finance',
   'payments',
+  'device-info',
   'account',
 ] as const satisfies readonly PaneId[];
 
 /**
- * Open each of the five folders' panes in turn and read its import line, which
+ * Open each of the six folders' panes in turn and read its import line, which
  * must be the documented file + row counts (D-05: the worker populated the row
  * counts from a real parse, not just the file counts from classify). With one
  * pane open the page carries exactly ONE import line.
@@ -117,7 +119,7 @@ async function snapshotImportLines(page: Page): Promise<string[]> {
   return lines;
 }
 
-/** The text of the eight always-mounted list rows, in list order. */
+/** The text of the nine always-mounted list rows, in list order. */
 async function snapshotListRows(page: Page): Promise<string[]> {
   return page
     .getByTestId('list-nav')
@@ -150,8 +152,8 @@ const UNSUPPORTED_FOLDERS = SAMPLE_BADGE_ORDER.slice(
   SAMPLE_EXPECTED_COUNTS.supported,
 ) as readonly string[];
 
-/** The list always shows eight rows: Overview, six data panes, Not yet supported. */
-const PANE_COUNT = 8;
+/** The list always shows nine rows: Overview, seven data panes, Not yet supported. */
+const PANE_COUNT = 9;
 
 /** Wait for the dataset to be displayed: the bar is slim (D-25). */
 async function expectSlimBar(page: import('@playwright/test').Page): Promise<void> {
@@ -628,10 +630,12 @@ test.describe('persistent-dataset destructive controls', () => {
       },
     );
     // The renamed export adds one never-seen folder on top of the
-    // sample's four, so the banner count goes 4 -> 5. A replace lands on
-    // Overview (R1), so the banners are read from their own pane.
+    // sample's unsupported folders, so the banner count goes up by one. A
+    // replace lands on Overview (R1), so the banners are read from their own pane.
     await openSection(page, 'not-yet-supported');
-    await expect(page.getByTestId('unsupported-banner')).toHaveCount(5);
+    await expect(page.getByTestId('unsupported-banner')).toHaveCount(
+      UNSUPPORTED_FOLDERS.length + 1,
+    );
   });
 
   // -----------------------------------------------------------------------------

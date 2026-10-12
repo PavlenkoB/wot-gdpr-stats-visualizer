@@ -156,6 +156,10 @@ const PANE_EXPECTATIONS: Record<PaneId, { testIds: string[]; settled: string[] }
     testIds: ['dashboard-section-payment-history', 'spend-block'],
     settled: ['spend-block'],
   },
+  'device-info': {
+    testIds: ['dashboard-section-device-info', 'device-info-block'],
+    settled: ['device-info-block'],
+  },
   account: { testIds: ['dashboard-section-user-info'], settled: [] },
   'not-yet-supported': { testIds: ['dashboard-section-not-yet-supported'], settled: [] },
 };

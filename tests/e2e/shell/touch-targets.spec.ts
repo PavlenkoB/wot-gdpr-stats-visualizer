@@ -95,11 +95,11 @@ test('every list row, the back button, the persistent bar and the confirm button
   await gotoApp(page);
   await importExport(page, SYNTHETIC_ZIP_NAME, buildSampleExport());
 
-  // The list screen: all eight rows, then the persistent bar's controls.
+  // The list screen: all nine rows, then the persistent bar's controls.
   expect(
     await page.locator('[data-testid^="list-row-"]').count(),
-    'the list shows all eight rows',
-  ).toBe(8);
+    'the list shows all nine rows',
+  ).toBe(9);
   await expectTargets(page.locator('[data-testid^="list-row-"]'), 'the list rows');
   await expectTargets(page.getByTestId('start-over'), 'Start over');
   await expectTargets(page.getByTestId('clear-data-control'), 'Clear data');

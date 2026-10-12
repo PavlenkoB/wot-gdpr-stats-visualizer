@@ -8,6 +8,7 @@ import type {
   SpendView,
 } from '../../features/finance/finance-shared.ts';
 import type { LoginsView } from '../../features/logins/login-shared.ts';
+import type { DeviceInfoView } from '../../features/device-info/device-info-shared.ts';
 import type { CityView } from '../../features/logins/city-shared.ts';
 
 export type CategoryStatus = 'supported' | 'known-deferred' | 'unknown';
@@ -232,7 +233,12 @@ export type DataQuery =
   // a second thing to get wrong. It takes NO further fields — like the three
   // finance channels — so `isDataQuery` rejects a `title` or `battleType`
   // smuggled into it rather than ignoring fields this code does not understand.
-  | { channel: 'logins' };
+  | { channel: 'logins' }
+  // 261012-bog. The Device info pane asks for its three per-source tables
+  // through the same channel union. It takes no further fields, so
+  // `isDataQuery` rejects a `title` or `battleType` smuggled into it exactly as
+  // it does for the finance channels.
+  | { channel: 'device-info' };
 
 /**
  * The answer to one `DataQuery`, discriminated by the same channel as the
@@ -243,7 +249,8 @@ export type DataResult =
   | { channel: 'premium'; view: PremiumView }
   | { channel: 'currency'; view: CurrencyView }
   | { channel: 'spend'; view: SpendView }
-  | { channel: 'logins'; view: LoginsView };
+  | { channel: 'logins'; view: LoginsView }
+  | { channel: 'device-info'; view: DeviceInfoView };
 
 export interface ParsingProgress {
   category: string;

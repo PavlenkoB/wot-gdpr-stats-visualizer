@@ -18,7 +18,7 @@ import { IDENTITY_CREATED_LABEL, PANE_TITLES, formatCreatedDate } from '../ui-co
 // ClassifyResult the worker already produced.
 
 /**
- * The six panes that get a card, in list order. A subset of `PaneId`: Overview
+ * The seven panes that get a card, in list order. A subset of `PaneId`: Overview
  * does not summarise itself, and the unsupported footer is a chip, not a card.
  */
 export const OVERVIEW_CARD_IDS = [
@@ -27,10 +27,11 @@ export const OVERVIEW_CARD_IDS = [
   'vehicles',
   'finance',
   'payments',
+  'device-info',
   'account',
 ] as const satisfies readonly PaneId[];
 
-/** One of the six card pane ids. */
+/** One of the seven card pane ids. */
 export type OverviewCardId = (typeof OVERVIEW_CARD_IDS)[number];
 
 /** The three chip counts. */
@@ -86,7 +87,7 @@ export function overviewChips(result: ClassifyResult | null): OverviewChips {
 }
 
 /**
- * The six cards, in list order.
+ * The seven cards, in list order.
  *
  * The headline and summary are the list row's own, so the two surfaces word the
  * same fact the same way. The one addition is the Account card's summary, which

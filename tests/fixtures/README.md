@@ -122,3 +122,33 @@ buildCustomExport({ overrides: { 'Payment_history/Orders.csv': headerOnlyCsv } }
 
 Adding a `buildRealShapeFinanceExport()` would duplicate the sample's
 other twenty-eight files and put a second copy of the layout to keep in sync.
+
+## Device_info data module
+
+Since quick task 261012-bog the sample's `Device_info` folder is written by
+`tests/fixtures/device-info-fixtures.ts`, and `export-fixtures.ts` imports it in
+place of the old invented `Devices.csv` (which survives only in the 10x scale
+export's templates, so that export and its answer key are unchanged).
+
+- **Three real-named files**: `WOT_Device_Info.csv` (PC hardware, ten columns),
+  `WOTB_Device_Info.csv` (Blitz devices, eight) and
+  `WOT_Assistant_Device_Info.csv` (one `POST` column of JSON-like blobs). They
+  are written with `renderQuoteAllCsv`, so they have the export's own physical
+  shape: bare header, quote-all cells, bare-CR terminator.
+- **Two renderings of the Assistant file**: LF inside the quoted cells with a
+  bare-CR record terminator (the parser's mixed-terminator path, and the one the
+  sample carries) and every inner LF replaced by CR (the uniform bare-CR path).
+- **Every value is fabricated**: `Synth`-prefixed strings and unmistakable
+  synthetic numbers, never a value from a real export.
+- **Eight blobs, four readable**: each blob carries its derivation in a comment,
+  and the expected fields are stated beside it (a pretty multi-line blob, a
+  single-line one, a trailing comma that makes `JSON.parse` fail, a numeric
+  `Version`; then an object with none of the four keys, plain text, an all-`N/D`
+  blob and a `__proto__` blob).
+- **Two canaries**: `DEVICE_SPA_CANARY` stands for the account id the blob
+  carries and `DEVICE_FLAGS_CANARY` for the opaque flags value. Both are
+  confined to the Assistant file (a guard test pins that), so a leak into a
+  stored row, a posted view or the DOM is assertable by value.
+- **Counts are derived**: `DEVICE_INFO_COUNTS` is computed from the row arrays,
+  and `SAMPLE_FILE_COUNTS.Device_info` and `SAMPLE_ROW_COUNTS.Device_info` read
+  it, so a fixture edit cannot leave a stale count behind.

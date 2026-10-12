@@ -31,6 +31,7 @@ import {
   resolveCsvFileCategory,
 } from '../../../src/lib/worker/classify.ts';
 import { listEntryPaths } from '../../../src/lib/worker/zip-paths.ts';
+import { classifyFolder } from '../../../src/lib/worker/categories.ts';
 
 // =============================================================================
 // analyzeExport / classifyExport / detectRoot / categoryFoldersUnder — pure tests
@@ -434,6 +435,44 @@ describe('resolveCsvFileCategory — per-entry mapping', () => {
 //   wrapper level, plus a top-level-segment fallback for the rootless
 //   shape. Every fixture here is built from the existing sample's row
 //   data, just re-rooted — no fabricated values.
+
+describe('Device_info is a supported category (quick 261012-bog)', () => {
+  test('classifyFolder is supported for every spelling of Device_info', () => {
+    expect(classifyFolder('Device_info')).toBe('supported');
+    expect(classifyFolder('device_info')).toBe('supported');
+    expect(classifyFolder('DEVICE_INFO')).toBe('supported');
+  });
+
+  test('a lookalike folder is still unknown', () => {
+    expect(classifyFolder('Device_infos')).toBe('unknown');
+    expect(classifyFolder('Devices')).toBe('unknown');
+  });
+
+  test('analyzeExport puts Device_info in the supported group, second by lower-case order', () => {
+    const outcome = analyzeExport([
+      '123456789/Activity_history/Sessions.csv',
+      '123456789/Device_info/WOT_Device_Info.csv',
+      '123456789/Device_info/WOTB_Device_Info.csv',
+      '123456789/Device_info/WOT_Assistant_Device_Info.csv',
+      '123456789/User_Info/Account_Info.csv',
+      '123456789/Bans/Bans.csv',
+    ]);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const names = outcome.result.categories.map((c) => c.name);
+    expect(names).toEqual(['Activity_history', 'Device_info', 'User_Info', 'Bans']);
+    const device = outcome.result.categories.find((c) => c.name === 'Device_info');
+    expect(device?.status).toBe('supported');
+    expect(device?.fileCount).toBe(3);
+  });
+
+  test('resolveCsvFileCategory resolves a real Device_info file name to that category', () => {
+    const recognized = new Set<string>(['Device_info']);
+    expect(
+      resolveCsvFileCategory('123/Device_info/WOT_Device_Info.csv', '123', recognized),
+    ).toEqual({ category: 'Device_info', sourceFile: 'WOT_Device_Info.csv' });
+  });
+});
 
 describe('analyzeExport — depth-tolerant detection (G-01-20)', () => {
   test('buildWrapperExport: classifies ok, accountRoot is the inner SAMPLE_ACCOUNT_ROOT, deep-equal to the sample result', () => {

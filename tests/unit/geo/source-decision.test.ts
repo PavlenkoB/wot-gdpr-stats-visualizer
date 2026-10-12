@@ -65,7 +65,7 @@ function geoConstraintLine(): string {
 
 /** The single `REQUIREMENTS.md` bullet for `ACTIVITY-06`. */
 function activity06Line(): string {
-  const requirements = readRepoFile('.planning/REQUIREMENTS.md');
+  const requirements = readRepoFile('.planning/milestones/v1.0-REQUIREMENTS.md');
   const line = requirements.split('\n').find((candidate) => candidate.includes('**ACTIVITY-06**'));
   expect(line, 'REQUIREMENTS.md must keep an ACTIVITY-06 line').toBeDefined();
   return line!;

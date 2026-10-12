@@ -159,9 +159,9 @@ test.describe('master-detail navigation', () => {
   }) => {
     await gotoApp(page);
 
-    // Before any import: eight rows, every one muted by the shared derivation.
-    await expect(page.locator('[data-testid^="list-row-"]')).toHaveCount(8);
-    await expect(page.locator('[data-testid^="list-row-"].muted')).toHaveCount(8);
+    // Before any import: nine rows, every one muted by the shared derivation.
+    await expect(page.locator('[data-testid^="list-row-"]')).toHaveCount(9);
+    await expect(page.locator('[data-testid^="list-row-"].muted')).toHaveCount(9);
 
     await importExport(page, SYNTHETIC_ZIP_NAME, buildSampleExport());
     await expect(page.getByTestId('identity-header')).toHaveAttribute('data-variant', 'loaded');
@@ -259,12 +259,14 @@ test.describe('master-detail navigation', () => {
       vehicles: 'Player_statistics',
       finance: 'Financial_data',
       payments: 'Payment_history',
+      'device-info': 'Device_info',
       account: 'User_Info',
     };
     const panes: PaneId[] = [
       'vehicles',
       'finance',
       'payments',
+      'device-info',
       'account',
       'login-history',
       'playtime',
@@ -276,7 +278,7 @@ test.describe('master-detail navigation', () => {
       await expect(detailPane(page)).toHaveAttribute('data-pane', pane);
       expect(await offScaleText(page), `${pane} text is on the type scale`).toEqual([]);
 
-      // Exactly the pane's own section root exists; the other five do not.
+      // Exactly the pane's own section root exists; the other six do not.
       const own = PANE_SECTION[pane];
       for (const section of NAV_ORDER) {
         await expect(page.getByTestId('dashboard-section-' + section)).toHaveCount(
@@ -589,12 +591,12 @@ test.describe('master-detail navigation', () => {
     await expect(page.getByTestId('dropzone-main').getByTestId('dropzone')).toHaveCount(1);
     await expect(page.getByTestId('import-bar')).toHaveAttribute('data-variant', 'full');
 
-    // The identity slot and all eight rows say that nothing is loaded.
+    // The identity slot and all nine rows say that nothing is loaded.
     const header = page.getByTestId('identity-header');
     await expect(header).toHaveAttribute('data-variant', 'skeleton');
     await expect(header).toContainText(IDENTITY_SKELETON_TITLE);
     const rows = page.locator('[data-testid^="list-row-"]');
-    await expect(rows).toHaveCount(8);
+    await expect(rows).toHaveCount(9);
     for (const row of await rows.all()) {
       await expect(row).toHaveClass(/muted/);
       await expect(row).toContainText(formatSectionStatus('not-loaded', ''));
@@ -665,7 +667,7 @@ test.describe('master-detail navigation', () => {
     await expect(page.getByTestId('dropzone')).toHaveCount(1);
     await expect(page.getByTestId('file-input')).toHaveCount(1);
     await expect(page.getByTestId('dropzone')).toBeFocused();
-    await expect(page.locator('[data-testid^="list-row-"].muted')).toHaveCount(8);
+    await expect(page.locator('[data-testid^="list-row-"].muted')).toHaveCount(9);
     await expect(header).toHaveAttribute('data-variant', 'skeleton');
   });
 
@@ -709,7 +711,7 @@ test.describe('master-detail navigation', () => {
 
     // Offer it again and commit. While it processes, a page-side observer records
     // what is on screen at every DOM change that shows the processing notice: the
-    // eight rows and the OLD finance section must all still be there.
+    // nine rows and the OLD finance section must all still be there.
     await page.evaluate(() => {
       const w = window as unknown as { __during: { rows: number; finance: boolean }[] };
       w.__during = [];
@@ -741,7 +743,7 @@ test.describe('master-detail navigation', () => {
     );
     expect(during.length).toBeGreaterThan(0);
     for (const sample of during) {
-      expect(sample).toEqual({ rows: 8, finance: true });
+      expect(sample).toEqual({ rows: 9, finance: true });
     }
     // The new dataset lands on Overview (R1).
     await expectSelected(page, 'overview');
@@ -757,7 +759,7 @@ test.describe('master-detail navigation', () => {
     await expectInViewportAndListPane(page, banner);
     await expect(page.getByTestId('import-bar')).toHaveAttribute('data-variant', 'slim');
     await expect(page.getByTestId('list-pane').getByTestId('import-bar')).toHaveCount(1);
-    await expect(page.locator('[data-testid^="list-row-"]')).toHaveCount(8);
+    await expect(page.locator('[data-testid^="list-row-"]')).toHaveCount(9);
     await expect(page.getByTestId('identity-nickname')).toHaveText(nickname);
     await expectSelected(page, 'vehicles');
     await expect(page.getByTestId('dashboard-section-player-statistics')).toBeVisible();
