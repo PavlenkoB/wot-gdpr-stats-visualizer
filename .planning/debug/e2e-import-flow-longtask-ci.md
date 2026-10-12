@@ -3,6 +3,10 @@ status: awaiting_human_verify
 trigger: "CI (ubuntu, 1 worker): tests/e2e/import-flow.spec.ts:420 '(f) the page stays responsive while a large export is unzipped' failed at :490, one main-thread long task { startTime: 4371.2, duration: 1216 } against a 1000 ms threshold; 197 passed / 1 failed; passed locally 198/198 several times"
 created: 2026-10-03T00:00:00Z
 updated: 2026-10-03T00:00:00Z
+audit_acknowledged:
+  milestone: v1.0
+  at: 2026-10-12
+  status: awaiting_human_verify
 ---
 
 ## Current Focus

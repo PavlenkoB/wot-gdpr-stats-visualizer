@@ -16,23 +16,24 @@ Your data never leaves your machine. Every other decision — architecture, libr
 
 - ✓ Activity_history: total hours/sessions/active days, calendar heatmap (year-by-year), day-of-week × hour-of-day heatmap, session-duration distribution — Phase 4 (real per-game session files WOT/WOTB/WOWS_Game_Sessions.csv supported; legacy Sessions.csv still accepted)
 - ✓ Activity_history: login-IP history table, masked by default with one global click-to-reveal toggle, with offline country-level geolocation (bundled DB-IP Lite range table, no live geo API) on a bundled world map, and city-level detail as an explicit opt-in download that is never fetched by default — Phase 6 (ACTIVITY-05, ACTIVITY-06, ACTIVITY-07)
+- ✓ User can drag-and-drop a Wargaming GDPR export `.zip` and have it parsed entirely client-side — v1.0
+- ✓ App auto-detects the zip's root/category-folder structure rather than assuming a fixed layout — v1.0
+- ✓ Player_statistics: per-vehicle battle stats (win rate, damage, battles, etc.) across WoT, WoT Blitz, World of Warships, and World of Warplanes — v1.0
+- ✓ Financial_data: premium-time operations and virtual-currency flow timelines — v1.0
+- ✓ Parsed data is cached in IndexedDB so re-uploading isn't needed on repeat visits; re-uploading the same zip is detected (hash) and skipped; uploading a *different* zip replaces the current dataset (single active dataset, not multi-account storage) — v1.0
+- ✓ Categories are classified 3-way — supported / known-deferred (Chat_history, Clans) / unknown (any folder never seen before, e.g. a future Wargaming export-format addition) — all three render the same "detected but not yet supported" banner, not hidden and not silently dropped or crashed on — v1.0
+- ✓ A category folder missing from a given user's export (e.g. no Financial_data, no Warplanes data) shows that dashboard section empty/greyed-out rather than removing it — v1.0
+- ✓ A zip that isn't a recognizable Wargaming export (wrong file, corrupt archive) shows a generic failure state — v1.0
+- ✓ Dashboard is responsive and usable at phone width, not desktop-only — v1.0
+- ✓ Zero network requests after initial page load — enforced by an automated CI check, backed by a CSP as defense-in-depth — v1.0
+- ✓ Deployed as a static site to GitHub Pages via GitHub Actions — v1.0
+- ✓ Account identity header at the top of the dashboard (nickname, region, account-created date from `User_Info`) — email address (the `LOGIN` field) is deliberately omitted from display even though it never leaves the device — v1.0
+- ✓ Financial_data includes a real-money spend summary from `Payment_history`, totaled **per currency** (the real data spans USD/RUB/UAH in one account) — never blended into one converted number, since any conversion needs a live or hardcoded FX rate, both rejected — v1.0
+- ✓ A discoverable "clear my cached data" control ships in the same phase as IndexedDB caching, not bolted on later — nothing currently wipes the unencrypted-on-disk cache otherwise — v1.0
 
 ### Active
 
-- [ ] User can drag-and-drop a Wargaming GDPR export `.zip` and have it parsed entirely client-side
-- [ ] App auto-detects the zip's root/category-folder structure rather than assuming a fixed layout
-- [ ] Player_statistics: per-vehicle battle stats (win rate, damage, battles, etc.) across WoT, WoT Blitz, World of Warships, and World of Warplanes
-- [ ] Financial_data: premium-time operations and virtual-currency flow timelines
-- [ ] Parsed data is cached in IndexedDB so re-uploading isn't needed on repeat visits; re-uploading the same zip is detected (hash) and skipped; uploading a *different* zip replaces the current dataset (single active dataset, not multi-account storage)
-- [ ] Categories are classified 3-way — supported / known-deferred (Chat_history, Clans) / unknown (any folder never seen before, e.g. a future Wargaming export-format addition) — all three render the same "detected but not yet supported" banner, not hidden and not silently dropped or crashed on
-- [ ] A category folder missing from a given user's export (e.g. no Financial_data, no Warplanes data) shows that dashboard section empty/greyed-out rather than removing it
-- [ ] A zip that isn't a recognizable Wargaming export (wrong file, corrupt archive) shows a generic failure state
-- [ ] Dashboard is responsive and usable at phone width, not desktop-only
-- [ ] Zero network requests after initial page load — enforced by an automated CI check, backed by a CSP as defense-in-depth
-- [ ] Deployed as a static site to GitHub Pages via GitHub Actions
-- [ ] Account identity header at the top of the dashboard (nickname, region, account-created date from `User_Info`) — email address (the `LOGIN` field) is deliberately omitted from display even though it never leaves the device
-- [ ] Financial_data includes a real-money spend summary from `Payment_history`, totaled **per currency** (the real data spans USD/RUB/UAH in one account) — never blended into one converted number, since any conversion needs a live or hardcoded FX rate, both rejected
-- [ ] A discoverable "clear my cached data" control ships in the same phase as IndexedDB caching, not bolted on later — nothing currently wipes the unencrypted-on-disk cache otherwise
+(None — next milestone not yet defined; run `/gsd-new-milestone`)
 
 ### Out of Scope
 
@@ -118,4 +119,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-10-05 after Phase 6*
+*Last updated: 2026-10-12 after v1.0 milestone (live Pages deploy and WR-04 runner exposure still open)*

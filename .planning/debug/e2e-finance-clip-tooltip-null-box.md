@@ -3,6 +3,10 @@ status: awaiting_human_verify
 trigger: "running `playwright test` fails (failure output unavailable to reporter; reproduce first)"
 created: 2026-10-03T00:00:00Z
 updated: 2026-10-03T00:00:00Z
+audit_acknowledged:
+  milestone: v1.0
+  at: 2026-10-12
+  status: awaiting_human_verify
 ---
 
 ## Current Focus
