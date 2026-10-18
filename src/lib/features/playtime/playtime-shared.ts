@@ -54,8 +54,14 @@ export const HOUR_GRID_BASIS: HourGridBasis = 'overlap';
  * aggregate says this export has no session file — is re-derived from its own
  * stored rows on the next playtime query and shows its playtime with no
  * re-import (T-04-30, UAT gap G-04-1).
+ *
+ * 3 — 10-01: bumped because a stored aggregate now carries a PER-GAME scope
+ * beside the all-games one (`games` / `byGame`), which a v2 cache has no room
+ * for. The bump reuses the existing lazy rebuild: a v2 aggregate is recomputed
+ * from its own stored rows on the next playtime query and written back, with
+ * no re-import and no Dexie bump (D-16, D-21).
  */
-export const PLAYTIME_VERSION = 2;
+export const PLAYTIME_VERSION = 3;
 
 /** Cells in the weekday-by-hour grid: 7 weekdays times 24 hours. */
 export const HOUR_CELL_COUNT = 168;
@@ -88,3 +94,34 @@ export const MAX_SPLIT_VALUES = 50;
  * legacy columns follow in the order the synthetic fixture has always had them.
  */
 export const SPLIT_COLUMNS: readonly SplitColumn[] = ['GAME', 'SERVER_NAME', 'CLIENT_PLATFORM'];
+
+/**
+ * What a game token LOOKS LIKE, once upper-cased: one to 24 characters of
+ * `A-Z`, `0-9` and `_`.
+ *
+ * The SAME character class `sessionFileGame` matches in a session file's name,
+ * upper-cased. Sharing it is the point: a token the aggregator can produce from
+ * an archive is a token this accepts, so a game a real export names is never
+ * rejected by the filter that is meant to select it, and a token no file name
+ * could carry is never accepted in its place.
+ *
+ * Anchored, single character class and no nested quantifier, for the same reason
+ * {@link PLAYTIME_VERSION}'s neighbours in `playtime-aggregate.ts` are: this
+ * pattern is run on a `postMessage` field the worker did not author, and a
+ * backtracking-prone pattern is a free denial of service on the query path.
+ */
+export const GAME_TOKEN_RE = /^[A-Z0-9_]{1,24}$/;
+
+/**
+ * True when `value` is a game token the stored aggregate can hold.
+ *
+ * The trust boundary for `playtime-query.game` (T-10-01). It is a pure
+ * predicate with no throw, mirroring `isDataQuery` in `data-queries.ts`: a
+ * value that is not a token is not an error to report, it is a question the
+ * worker cannot answer, and the worker's answer is All. The caller must NEVER
+ * copy the raw value into a reply — a malformed token degrades to All rather
+ * than being echoed back.
+ */
+export function isGameToken(value: unknown): value is string {
+  return typeof value === 'string' && GAME_TOKEN_RE.test(value);
+}

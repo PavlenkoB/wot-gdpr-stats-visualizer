@@ -2,19 +2,20 @@
 gsd_state_version: "1.0"
 milestone: v1.1
 milestone_name: Multi-account & new data
-current_phase: 10
-current_phase_name: Merged Dashboard Across Accounts
-status: "Phase 09 shipped — PR #16"
-stopped_at: Phase 09 complete, ready to plan Phase 10
-last_updated: "2026-10-18T10:26:29.867Z"
+current_phase: 11
+current_phase_name: New Game Data
+status: planning
+stopped_at: Phase 10 complete, ready to plan Phase 11
+last_updated: "2026-10-18T19:49:50.882Z"
 last_activity: 2026-10-18
-state_head: 0a7fc613094bbb8defdb0f58626aa9598e45be93
+last_activity_desc: Phase 10 complete, transitioned to Phase 11
+state_head: 77cb81ed04784c2913c12eadd0e955d36d88dea4
 progress:
   total_phases: 4
-  completed_phases: 1
-  total_plans: 11
-  completed_plans: 11
-  percent: 25
+  completed_phases: 2
+  total_plans: 17
+  completed_plans: 17
+  percent: 50
 ---
 
 # Project State
@@ -24,22 +25,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-16)
 
 **Core value:** Your data never leaves your machine. Zero network requests after page load, enforced by CI and a CSP.
-**Current focus:** Phase 09 — Multi-account Import & Account Identity
+**Current focus:** Phase 10 — merged-dashboard-across-accounts
 
 ## Current Position
 
-Phase: 10 — Merged Dashboard Across Accounts
+Phase: 11 — New Game Data
 Plan: Not started
-Status: Phase 09 shipped — PR #16
-Last activity: 2026-10-18
+Status: Ready to plan
+Last activity: 2026-10-18 — Phase 10 complete, transitioned to Phase 11
 
-Progress: [███░░░░░░░] 25% (v1.1: 0 of 4 phases)
+Progress: [█████░░░░░] 50% (v1.1: 0 of 4 phases)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 113
+- Total plans completed: 119
 - Average duration: -
 - Total execution time: 0.0 hours
 
@@ -55,6 +56,7 @@ Progress: [███░░░░░░░] 25% (v1.1: 0 of 4 phases)
 | 6 | 17 | - | - |
 | 08 | 22 | - | - |
 | 09 | 11 | - | - |
+| 10 | 6 | - | - |
 
 **Recent Trend:**
 
@@ -149,6 +151,12 @@ Progress: [███░░░░░░░] 25% (v1.1: 0 of 4 phases)
 | Phase 09 P09 | 22m | 3 tasks | 7 files |
 | Phase 09 P10 | 9 min | 3 tasks | 7 files |
 | Phase 09 P11 | 10min | 3 tasks | 13 files |
+| Phase 10 P01 | 9 min | 2 tasks | 8 files |
+| Phase 10 P02 | 28 min | 3 tasks | 17 files |
+| Phase 10-merged-dashboard-across-accounts P03 | 4h 27m | 3 tasks | 17 files |
+| Phase 10 P04 | 1h 12m | 2 tasks | 15 files |
+| Phase 10 P05 | 35min | 2 tasks | 9 files |
+| Phase 10 P06 | 40min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -425,6 +433,23 @@ CI budget at 07-03: no limit moved. `playwright test --list` counts BOTH project
 - [Phase 09]: 09-08: the widened duplicate-row scan reads panes through an expect.poll on a stable row count, not on data-status — the Account pane is pending forever on a multi-account dataset, and Finance/Device info draw after ready, so a status gate is both unusable and vacuous
 - [Phase 09]: The account count counts the accounts that hold DATA, decided by the user at a blocking-human checkpoint and not derived (09-10, `accountCountSemantics: option-a`). The count described the archive's roots while the rows described the data, so the title, the list and the six pane captions were three statements about one dataset. It is now one number, produced by ONE projection — `accountSummariesOf` — that `done`, `duplicate` and `cache-status` all go through, so agreement is structural rather than three matching edits. What holds it back together: the flag is OPTIONAL and read as ABSENT-MEANS-DATA, so a cache written before it renders exactly as it always has and Dexie stays at `version(2)` with its upgrader untouched; and the STORE keeps every root while the PUBLISHED LIST is filtered, because a gate that counts the published list would let one account's address stand for a two-root dataset (T-09-13). `readLoginRowData` therefore reads `accountsOfMeta`, never the projection, and says so at the call site. Accepted cost, recorded so it reads as a decision: a folder the user can see in their zip now contributes nothing and is named nowhere. D-17 is untouched — a root with sessions and no `User_Info` holds stored rows and stays listed — and the filter is `hasData === false` rather than any inference from a summary, because a root with no games, no years and a null identity still holds data.
 - [Phase 09]: 09-11: rootCount (account folders the archive held) decides every variant via hasMultipleRoots; accountCountOf (accounts holding data) decides every title, row count and caption; rootCount derived at publish time, never persisted
+- [Phase 10]: A per-game playtime scope is a COMPLETE scope, not a slice (D-21, 10-01): PlaytimeScope is the old PlaytimeAggregates minus the game fields, the all-games aggregate extends it, and ONE readyView builds the ready view for either — so a scope can never pair its split with another scope's byValue and the reader holds no second interpretation of splitColumn. — A per-game playtime scope is a COMPLETE scope, not a slice (D-21, 10-01): PlaytimeScope is the old PlaytimeAggregates minus the game fields, the all-games aggregate extends it, and ONE readyView builds the ready view for either — so a scope can never pair its split with another scope's byValue and the reader holds no second interpretation of splitColumn.
+- [Phase 10]: buildGameScopes WRAPS rankAggregates rather than editing it (10-01): the all-games aggregate and every per-game scope come out of one function, so rankAggregates and aggregateSlice stay byte-identical and the v1.0 merge and session count cannot drift (D-07 amended). — buildGameScopes WRAPS rankAggregates rather than editing it (10-01): the all-games aggregate and every per-game scope come out of one function, so rankAggregates and aggregateSlice stay byte-identical and the v1.0 merge and session count cannot drift (D-07 amended).
+- [Phase 10]: The filter is one stamped cell in Dashboard.svelte and resets by a pure read, so the first import, the replace and the clear return it to All games with no reset effect to forget (10-02).
+- [Phase 10]: A playtime slice is the PAIR (value index, game): every awaiting, stamp and roll-back comparison covers both halves, because a chip click carries valueIndex null and compares equal on the index alone (10-02).
+- [Phase 10]: The empty-game body is decided from the VIEW rather than the derived state, so it survives a chip click in flight instead of blanking the block (10-02).
+- [Phase 10-merged-dashboard-across-accounts]: The account letter is assigned by the PUBLISHED D-16 order, never by a sort, and every root-keyed lookup is a Map so a root named __proto__ is just another root.
+- [Phase 10-merged-dashboard-across-accounts]: The identity header's legend and every Vehicles row's chip read the same letter for the same account, because both come from one letterOf projection of the published list.
+- [Phase 10-merged-dashboard-across-accounts]: A vehicle id two accounts own stays two rows, but a battle-type CODE folds to one row with summed figures; merging ids would invent a count belonging to neither account.
+- [Phase 10-merged-dashboard-across-accounts]: The combined header sums lifetime battles and DROPS the premium expiry unless exactly one account contributes (D-20) - the earliest of two is a claim the export never made.
+- [Phase 10-merged-dashboard-across-accounts]: Search takes the new capability as an OPTIONAL argument and the caller passes undefined when it is absent, so the single-account call site is literally v1.0's.
+- [Phase 10-merged-dashboard-across-accounts]: The privacy rule for a tagged pane is proven from outside: markup count equals text count per nickname, and no attribute holds either nickname or any root.
+- [Phase 10]: 10-04: An account row's chips are ordered by their LETTER, never by the stored array's order — the aggregate sorts roots code-unit ascending (a record order), which for the three-account fixture is the reverse of the D-16 order the identity header publishes above the table.
+- [Phase 10]: 10-04: LoginAddress.accounts is OPTIONAL (a stored version-2 cache has none, and LOGINS_VERSION 3 turns that into a rebuild) while LoginRow.accounts is REQUIRED and defaults to [] — so a chip renderer asking for .length is safe on an old cache.
+- [Phase 10]: 10-04: A row's account set stays a Set of ROOTS and an address is never split per account, so totalLogins, countries, unknown and other are byte-identical to the same archive run without accounts. Every accounts assertion in this plan is paired with that equality.
+- [Phase 10]: 10-05: byAccount split accumulated in the included-paid branch; drawn only in a closed per-account disclosure, never as a headline (D-14)
+- [Phase 10]: 10-06: The Dexie schema stays at version 2; the non-indexed account field with in-memory grouping handles 54,000 rows in about 0.25 s (D-16)
+- [Phase 10]: 10-06: CI limits raised to 31 / 33 / 41 min from a MEASURED 49 s allowance for the large scale spec; 31 min holds up to 264 listed tests
 
 ### Pending Todos
 
@@ -523,8 +548,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-18T07:57:51.083Z
-Stopped at: Phase 09 complete, ready to plan Phase 10
+Last session: 2026-10-18T19:40:33.295Z
+Stopped at: Phase 10 complete, ready to plan Phase 11
 Resume file: None
 
 ## Operator Next Steps

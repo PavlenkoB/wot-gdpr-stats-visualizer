@@ -111,6 +111,23 @@ function idsOf(rows: readonly VehicleRow[]): string[] {
   return rows.map(rawIdOf);
 }
 
+/**
+ * One hand-built row, for the account-search cases.
+ *
+ * A model needs no cells to search, so these carry a single cell and a null
+ * battle count: what the tests below are about is which STRINGS a row is
+ * matched against, not what it draws.
+ */
+function row(id: string, account: string, letter: string): VehicleRow {
+  return {
+    id,
+    nation: null,
+    battles: null,
+    account,
+    cells: [{ t: 's', v: `${letter}:${id}` }],
+  };
+}
+
 describe('05-09 the vehicle table model', () => {
   describe('sortRows — D-12, the order the table opens with', () => {
     it('opens on battles descending, with the zero-battle vehicle last and not filtered out', () => {
@@ -274,6 +291,9 @@ describe('05-09 the vehicle table model', () => {
           id: 'zulu',
           nation: null,
           battles: 1,
+          // D-10: every row names its owning account, and this block is about
+          // the sort, so all three carry the same one.
+          account: '2000002',
           cells: [
             { t: 's', v: 'zulu' },
             { t: 'n', v: 750 },
@@ -283,6 +303,7 @@ describe('05-09 the vehicle table model', () => {
           id: 'alpha',
           nation: null,
           battles: 1,
+          account: '2000002',
           cells: [
             { t: 's', v: 'alpha' },
             { t: 'n', v: 750 },
@@ -292,6 +313,7 @@ describe('05-09 the vehicle table model', () => {
           id: 'mike',
           nation: null,
           battles: 1,
+          account: '2000002',
           cells: [
             { t: 's', v: 'mike' },
             { t: 'n', v: 750 },
@@ -430,6 +452,98 @@ describe('05-09 the vehicle table model', () => {
       expect(idsOf(filtered)).toEqual(idsOf(kept));
       // A12_T29 and Ch99_<b>bold_markup carry the letter; the other four do not.
       expect(idsOf(filtered)).toEqual(['usa:A12_T29', 'china:Ch99_<b>bold_markup']);
+    });
+  });
+
+  // ===========================================================================
+  // Phase 10, D-11 — the account is searchable TEXT, and nothing else
+  // ===========================================================================
+  //
+  // A letter or an account ID narrows the table to one account. There is no
+  // sort-by-account and no account picker (D-11), so search is the ONLY way in
+  // — which makes the third argument of `filterRows` load-bearing rather than
+  // a convenience.
+
+  describe('filterRows — D-11, with the account strings', () => {
+    /**
+     * Four rows across two accounts, and NO id that happens to carry a tag
+     * letter or an account digit.
+     *
+     * That is load-bearing: with an id like `bravo-two` a query of `B` would
+     * match the ID as well as the letter, and the "with no third argument the
+     * answer is exactly today's" control could not tell the two reasons apart.
+     */
+    function taggedRows(): VehicleRow[] {
+      return [
+        row('tank-one', '2000002', 'A'),
+        row('tank-two', '500000001', 'B'),
+        row('tank-three', '500000001', 'B'),
+        row('tank-four', '2000002', 'A'),
+      ];
+    }
+
+    /** The strings `PlayerStats.svelte` builds: the letter and the root. */
+    const accountTextOf = (r: VehicleRow): readonly string[] =>
+      r.account === '2000002' ? ['A', '2000002'] : ['B', '500000001'];
+
+    it('a LETTER query returns that account rows, plus any whose id carries it', () => {
+      expect(idsOf(vehicleModel.filterRows(taggedRows(), 'B', accountTextOf))).toEqual([
+        'tank-two',
+        'tank-three',
+      ]);
+    });
+
+    it('an account-ID query returns ONLY that account rows', () => {
+      expect(idsOf(vehicleModel.filterRows(taggedRows(), '500000001', accountTextOf))).toEqual([
+        'tank-two',
+        'tank-three',
+      ]);
+    });
+
+    it("with no third argument the answer is exactly today's", () => {
+      const rows = taggedRows();
+      // The control that makes the two tests above mean something: without the
+      // account strings a letter and an ID match nothing at all.
+      expect(vehicleModel.filterRows(rows, 'B')).toHaveLength(0);
+      expect(vehicleModel.filterRows(rows, '2000002')).toHaveLength(0);
+      // And the plain id search is untouched by the argument existing.
+      expect(idsOf(vehicleModel.filterRows(rows, 'tank-one'))).toEqual(['tank-one']);
+    });
+
+    it('an UNKNOWN root contributes no strings, so it cannot match a query', () => {
+      // Neither id carries a tag letter or an account digit, so a query that
+      // returns a row can only have returned it through the account strings.
+      const rows = [row('stray', '__no_such_account__', 'Q'), row('mine', '2000002', 'B')];
+      const lookup = (r: VehicleRow): readonly string[] =>
+        r.account === '2000002' ? ['B', '2000002'] : [];
+      // An empty list must NOT match every non-empty query: `''.includes('')`
+      // is true, so a caller that returned `['']` would match the orphan on
+      // any single character the reader typed.
+      expect(idsOf(vehicleModel.filterRows(rows, 'Q', lookup))).toEqual([]);
+      expect(idsOf(vehicleModel.filterRows(rows, '__no', lookup))).toEqual([]);
+      expect(idsOf(vehicleModel.filterRows(rows, 'B', lookup))).toEqual(['mine']);
+    });
+
+    it('a needle cannot straddle two fields', () => {
+      // Concatenating the haystacks would make `2` + `alpha` match `2alpha`,
+      // which the reader never typed as one thing. Each field is its own
+      // comparison.
+      expect(vehicleModel.filterRows(taggedRows(), '2tank', accountTextOf)).toHaveLength(0);
+      expect(vehicleModel.filterRows(taggedRows(), '2000002alpha', accountTextOf)).toHaveLength(0);
+    });
+
+    it('the order of the rows is preserved', () => {
+      const rows = taggedRows();
+      const filtered = vehicleModel.filterRows(rows, '', accountTextOf);
+      expect(idsOf(filtered)).toEqual(idsOf(rows));
+      expect(idsOf(vehicleModel.filterRows(rows, 'B', accountTextOf))).toEqual([
+        'tank-two',
+        'tank-three',
+      ]);
+      expect(idsOf(vehicleModel.filterRows(rows, '2000002', accountTextOf))).toEqual([
+        'tank-one',
+        'tank-four',
+      ]);
     });
   });
 

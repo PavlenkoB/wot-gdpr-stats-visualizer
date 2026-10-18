@@ -908,8 +908,11 @@ describe('04-14 — a failed and a dropped selection change both reconcile', () 
     // answer must not pull `requested` back over a newer request, and an ask
     // that is no longer the requested one must not rewrite it either.
     const body = code(BLOCK);
+    // The third gate is Phase 10's: the game is part of the slice identity from
+    // D-01 on, so a roll-back that matched only the index could reconcile a
+    // request for one game with what is on screen for another.
     expect(body).toMatch(
-      /if \(accepted === null\) \{[\s\S]*?if \(\s*outcome\.kind !== 'superseded' &&\s*wanted === importedAt &&\s*requested\?\.valueIndex === ask\.valueIndex\s*\) \{[\s\S]*?requested = \{ importedAt: wanted, valueIndex: shown\?\.valueIndex \?\? null \};[\s\S]*?return;/,
+      /if \(accepted === null\) \{[\s\S]*?if \(\s*outcome\.kind !== 'superseded' &&\s*wanted === importedAt &&\s*requested\?\.valueIndex === ask\.valueIndex &&\s*\(requested\?\.game \?\? null\) === ask\.game\s*\) \{[\s\S]*?requested = \{\s*importedAt: wanted,\s*valueIndex: shown\?\.valueIndex \?\? null,\s*game: shown\?\.game \?\? null,?\s*\};[\s\S]*?return;/,
     );
   });
 });

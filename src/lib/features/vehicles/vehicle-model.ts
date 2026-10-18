@@ -226,13 +226,39 @@ export function sortRows(
  *
  * The order of the rows is untouched: filtering never reorders, so the sort the
  * reader chose survives typing in the box.
+ *
+ * ## The account strings (Phase 10, D-11)
+ *
+ * `accountTextOf` is OPTIONAL and OFF by default, so a caller that passes
+ * nothing gets exactly v1.0's behaviour — that is what keeps the single-account
+ * pane's results byte-identical.
+ *
+ * Each string is compared ON ITS OWN, never concatenated into one haystack: a
+ * needle could then straddle two fields and match a row for a reason the reader
+ * did not type. `5` and an account root ending in `5` are two separate
+ * comparisons, each of which the reader could have meant on its own.
+ *
+ * A row whose root the caller does not recognise contributes NO strings rather
+ * than an empty one, because `"".includes("")` is true and an unrecognised root
+ * would otherwise match every non-empty query.
  */
-export function filterRows(rows: readonly VehicleRow[], query: string): VehicleRow[] {
+export function filterRows(
+  rows: readonly VehicleRow[],
+  query: string,
+  accountTextOf?: (row: VehicleRow) => readonly string[],
+): VehicleRow[] {
   const needle = query.trim().toLowerCase();
   if (needle === '') {
     return [...rows];
   }
-  return rows.filter((row) => row.id.toLowerCase().includes(needle));
+  return rows.filter((row) => {
+    if (row.id.toLowerCase().includes(needle)) return true;
+    if (accountTextOf === undefined) return false;
+    for (const text of accountTextOf(row)) {
+      if (text.toLowerCase().includes(needle)) return true;
+    }
+    return false;
+  });
 }
 
 /**

@@ -5,6 +5,7 @@ import {
   MA_CHAT_CANARY,
   MA_CREATED_EU,
   MA_EXPECTED_GAMES,
+  MA_EXPECTED_PLAYTIME,
   MA_EXPECTED_YEARS,
   MA_FORUM_EMAIL_CANARY,
   MA_FORUM_IP_CANARY,
@@ -30,6 +31,9 @@ import {
   buildSampleExport,
 } from '../../fixtures/export-fixtures.ts';
 import { formatAccountId } from '../../../src/lib/ui-copy.ts';
+import { ORDERS_HAND_EXPECTED } from '../../fixtures/finance-fixtures.ts';
+import { REAL_SHAPE_IP } from '../../fixtures/playtime-real-shape-fixture.ts';
+import { maskIp } from '../../../src/lib/geo/ip.ts';
 // A NAMESPACE import on purpose, for the RED run's sake: a named import of an
 // export that does not exist yet is a link error that takes the whole file down
 // and reports "No tests found", which would be a broken RED rather than a
@@ -83,6 +87,17 @@ import {
  * never be promoted out of the header's own visible text.
  */
 const DOCUMENT_TITLE = 'WG Data Export Viewer';
+
+/**
+ * The address every session row in the three-account fixture shares.
+ *
+ * `buildRealShapeCsv` fills the IP column with `REAL_SHAPE_IP` for a row that
+ * names none, and all three roots have such rows — so this is the busiest
+ * address and the one that must carry all three letters (D-18). It is imported
+ * from the fixture rather than written out so the step cannot drift from the
+ * archive it is reading.
+ */
+const MA_SHARED_IP = REAL_SHAPE_IP;
 
 /**
  * The value the browser computes for `color: var(--{token})`, as `rgb(...)`.
@@ -260,6 +275,15 @@ async function expectNoLeak(
   // the document" — which is why only the two nicknames this fixture has are
   // counted.
   //
+  // This "exactly once" block is a SINGLE-ACCOUNT-pane rule and is deliberately
+  // not loosened for Phase 10. Every call site below runs on a view that carries
+  // no tagged rows (the landing view, the Account pane and the post-reload
+  // replay of each), where the nickname is still visible exactly once in the
+  // header. A TAGGED pane repeats the nickname into one visually-hidden phrase
+  // per drawn row (D-19), so there the count is a function of the window and
+  // `expectNicknameTextOnly` below states the rule that does hold on every pane:
+  // text count equals markup count, and no attribute holds either nickname.
+  //
   // "In the rendered text exactly once" and "in the whole markup exactly once"
   // are asserted together on purpose: the second is the stronger statement and
   // it is what proves the FIRST occurrence is text rather than markup. An
@@ -291,6 +315,82 @@ async function expectNoLeak(
   // Control: the IP column is deliberately NOT stripped, so a dump that read
   // empty would fail here instead of passing every negative assertion above.
   expect(dump, `${where}: the IP column must still be at rest`).toContain('"IP"');
+}
+
+/**
+ * D-19 RESTATED for a TAGGED pane: a nickname is TEXT and only text.
+ *
+ * `expectNoLeak` above cannot be used here, and the difference is the point.
+ * Its rule is "exactly once in the document", which is a single-account rule: on
+ * a one-account pane the nickname is visible once in the header and nowhere
+ * else. Phase 10's tag puts the nickname into a visually-hidden phrase on EVERY
+ * tagged Vehicles row (D-19, relaxing v1.0's D-21 for those rows), so the count
+ * on a tagged pane is a function of how many rows the window drew — a number no
+ * test should hardcode.
+ *
+ * What does NOT vary is WHERE each occurrence lives. The rule here is
+ * COUNT-IN-TEXT == COUNT-IN-MARKUP, per nickname: an occurrence in a `title`, an
+ * `aria-label`, a `data-*` value or any other attribute would be a second
+ * occurrence of the raw literal in `outerHTML` that `innerText` cannot match,
+ * because Svelte's text interpolation writes a value as text while an attribute
+ * carrying it repeats the same literal in the markup. The second assertion
+ * closes the loophole from the other side: no attribute VALUE anywhere in the
+ * detail pane or the identity header may hold either nickname or any of the
+ * three roots, which is stronger than counting because it does not depend on how
+ * many rows happened to draw.
+ */
+async function expectNicknameTextOnly(
+  page: Page,
+  where: string,
+  scopeSelector = '[data-testid="player-stats"]',
+): Promise<void> {
+  const surface = await readPageSurface(page);
+
+  for (const nickname of [MA_NICKNAME_EU, MA_NICKNAME_NA]) {
+    expect(
+      countOccurrences(surface.outerHtml, nickname),
+      `${where}: ${nickname} occurs as often in the markup as in the text, so never in an attribute`,
+    ).toBe(countOccurrences(surface.innerText, nickname));
+  }
+
+  // A control that cannot pass on a page that drew nothing: a pane with no
+  // tagged row would satisfy both equalities trivially with zero on both sides.
+  expect(
+    countOccurrences(surface.innerText, MA_NICKNAME_EU),
+    `${where}: the EU nickname is drawn as text at least once`,
+  ).toBeGreaterThanOrEqual(1);
+
+  const offenders = await page.evaluate(
+    ([needles, scopeSelectors]) => {
+      const found: string[] = [];
+      for (const selector of scopeSelectors) {
+        const scope = document.querySelector(selector);
+        if (scope === null) {
+          found.push(`${selector} is absent, so this scan proved nothing`);
+          continue;
+        }
+        for (const element of scope.querySelectorAll('*')) {
+          for (const attribute of element.attributes) {
+            for (const needle of needles) {
+              if (attribute.value.includes(needle)) {
+                found.push(`${selector} ${element.tagName}[${attribute.name}] holds ${needle}`);
+              }
+            }
+          }
+        }
+      }
+      return found;
+    },
+    [
+      [MA_NICKNAME_EU, MA_NICKNAME_NA, MA_ROOT_RU, MA_ROOT_EU, MA_ROOT_NA],
+      // The pane under test, named by the caller rather than hardcoded to
+      // Vehicles: the rule is the rule for every TAGGED pane, and a hardcoded
+      // selector would have made this scan pass vacuously on any other one —
+      // which the `is absent` branch above reports as the failure it is.
+      [scopeSelector, '[data-testid="identity-header"]'],
+    ] as const,
+  );
+  expect(offenders, `${where}: no attribute holds a nickname or an account id`).toEqual([]);
 }
 
 /**
@@ -557,6 +657,28 @@ async function readAccountRow(page: Page): Promise<{ headline: string; summary: 
 }
 
 /**
+ * The account phrase of every DRAWN Vehicles row, in drawing order.
+ *
+ * Read through the tag's own sibling rather than off the cell's text: the cell
+ * holds the chip, the hidden phrase, the nation chip and the vehicle id, so its
+ * text is the cell and not the phrase (D-10). An empty string means the row
+ * carries no tag at all, which on a multi-account dataset is a failure the
+ * caller sees as a mismatched phrase rather than as a missing node.
+ */
+async function readVehicleTagPhrases(page: Page): Promise<string[]> {
+  return page
+    .getByTestId('vehicle-row')
+    .locator('td.sticky-first')
+    .evaluateAll((cells) =>
+      cells.map((cell) =>
+        (
+          cell.querySelector('[data-testid="account-tag"]')?.nextElementSibling?.textContent ?? ''
+        ).trim(),
+      ),
+    );
+}
+
+/**
  * The pane-by-pane leak scan (09-05), scoped to the DETAIL pane.
  *
  * Narrower than {@link expectNoLeak} on purpose: that one is the whole-surface
@@ -696,6 +818,126 @@ test.describe('multi-account identity header (ACCOUNT-05, D-13 … D-17)', () =>
       }
     });
 
+    // =============================================================================
+    // 10-02 Task 1 — the game filter chip row (ACCOUNT-06, D-01/D-03/D-05)
+    //
+    // One click in, real numbers out. The expected figures are the
+    // `MA_EXPECTED_PLAYTIME` literals, hand-derived in the fixture beside the
+    // session rows that produce them and NOT read back off the page — so a
+    // change in the aggregator cannot move this expectation with it.
+    //
+    // HEAT and WOTC are the interesting half: they have real sessions and are
+    // counted under All games, but they get NO chip (D-05). So the four chips
+    // below are All games, WoT, WoT Blitz and Warships while the all-games
+    // total is larger than the three of them added together.
+    // =============================================================================
+    await test.step('the game filter narrows Playtime to one game across all accounts', async () => {
+      await openSection(page, 'playtime');
+      await expect(page.getByTestId('playtime')).toHaveAttribute('data-state', 'ready', {
+        timeout: 30_000,
+      });
+
+      // The chips, named by the fixed token list rather than by a count, so a
+      // chip for a non-filterable game (HEAT, WOTC) fails here.
+      for (const chip of ['all', 'wot', 'wotb', 'wows']) {
+        await expect(
+          page.getByTestId(`game-filter-chip-${chip}`),
+          `the ${chip} chip exists`,
+        ).toHaveCount(1);
+      }
+
+      await page.getByTestId('game-filter-chip-wot').click();
+      await expect(page.getByTestId('playtime')).toHaveAttribute('data-state', 'ready');
+      await expect(page.getByTestId('playtime-total-hours')).toHaveText(
+        copy.formatHours(MA_EXPECTED_PLAYTIME.byGame.WOT.seconds),
+      );
+      await expect(page.getByTestId('playtime-total-sessions')).toHaveText(
+        String(MA_EXPECTED_PLAYTIME.byGame.WOT.sessions),
+      );
+      await expect(page.getByTestId('playtime-active-days')).toHaveText(
+        String(MA_EXPECTED_PLAYTIME.byGame.WOT.days),
+      );
+      await expect(
+        page.getByTestId('game-filter-chip-wot').locator('input'),
+        'the WoT radio is the checked one',
+      ).toBeChecked();
+
+      // And back to All, which restores the merged figure — the one that counts
+      // HEAT and WOTC as well.
+      await page.getByTestId('game-filter-chip-all').click();
+      await expect(page.getByTestId('playtime')).toHaveAttribute('data-state', 'ready');
+      await expect(page.getByTestId('playtime-total-hours')).toHaveText(
+        copy.formatHours(MA_EXPECTED_PLAYTIME.all.seconds),
+      );
+      await expect(page.getByTestId('playtime-total-sessions')).toHaveText(
+        String(MA_EXPECTED_PLAYTIME.all.sessions),
+      );
+      await expect(page.getByTestId('playtime-active-days')).toHaveText(
+        String(MA_EXPECTED_PLAYTIME.all.days),
+      );
+    });
+
+    // =============================================================================
+    // 10-02 Task 3 — Vehicles follows the shared filter, and the filter is
+    // session-only (ACCOUNT-06, D-04, D-21)
+    //
+    // One cell, two faces. Playtime offers it as chips and Vehicles as the Game
+    // select it already had; no second widget appears on Vehicles, so the round
+    // trip is proven by the SELECT's value changing and the chips changing
+    // back, not by anything new on the page.
+    // =============================================================================
+    await test.step('Vehicles follows the shared filter through its own Game select', async () => {
+      await page.getByTestId('game-filter-chip-wotb').click();
+      await expect(page.getByTestId('playtime')).toHaveAttribute('data-state', 'ready');
+
+      await openSection(page, 'vehicles');
+      const block = playerStatsBlock(page);
+      await expect(block).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+      await expect(block.getByTestId('player-stats-title-selector')).toHaveValue('wotb');
+      expect(
+        await page.getByTestId('vehicle-row').count(),
+        'the Blitz table has rows',
+      ).toBeGreaterThan(0);
+
+      // And the other direction: a title chosen HERE sets the filter Playtime
+      // reads. D-21 for WoT.
+      await block.getByTestId('player-stats-title-selector').selectOption('wot');
+      await openSection(page, 'playtime');
+      await expect(page.getByTestId('playtime')).toHaveAttribute('data-state', 'ready');
+      await expect(
+        page.getByTestId('game-filter-chip-wot').locator('input'),
+        'the WoT chip is checked after choosing WoT on Vehicles',
+      ).toBeChecked();
+      await expect(page.getByTestId('playtime-total-hours')).toHaveText(
+        copy.formatHours(MA_EXPECTED_PLAYTIME.byGame.WOT.seconds),
+      );
+
+      // Warplanes is Vehicles-local: it writes nothing, so the filter is still
+      // WoT when the reader comes back.
+      await openSection(page, 'vehicles');
+      await playerStatsBlock(page).getByTestId('player-stats-title-selector').selectOption('wowp');
+      await openSection(page, 'playtime');
+      await expect(
+        page.getByTestId('game-filter-chip-wot').locator('input'),
+        'Warplanes left the shared filter alone',
+      ).toBeChecked();
+
+      // All games hands the title choice back to the worker, whose own
+      // first-title-with-rows rule then decides. Which title that is is the
+      // worker's answer, not a contract, so only "the select shows a title"
+      // is asserted here (UI-SPEC Recorded Choices 1 and 4).
+      await page.getByTestId('game-filter-chip-all').click();
+      await expect(page.getByTestId('playtime')).toHaveAttribute('data-state', 'ready');
+      await openSection(page, 'vehicles');
+      await expect(playerStatsBlock(page)).toHaveAttribute('data-state', 'ready', {
+        timeout: 30_000,
+      });
+      expect(
+        await playerStatsBlock(page).getByTestId('player-stats-title-selector').inputValue(),
+        'the select shows whichever title the worker applied',
+      ).toMatch(/^(wot|wotb|wows|wowp)$/);
+    });
+
     await test.step('no pane draws a duplicate row on this dataset', async () => {
       // T-09-22 widened. The keyed-each fix in 09-04 was proved in the browser
       // on the Vehicles pane alone, which left every OTHER keyed list that can
@@ -797,7 +1039,7 @@ test.describe('multi-account identity header (ACCOUNT-05, D-13 … D-17)', () =>
       }
     });
 
-    await test.step('the Vehicles pane renders the repeated ids and codes', async () => {
+    await test.step('the Vehicles pane repeats the ids and folds the codes (D-09, D-20)', async () => {
       await openSection(page, 'vehicles');
       const block = playerStatsBlock(page);
       await expect(block).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
@@ -814,11 +1056,21 @@ test.describe('multi-account identity header (ACCOUNT-05, D-13 … D-17)', () =>
       const drawnRows = await page.getByTestId('vehicle-row').count();
       expect(drawnRows, 'the Blitz table draws at least one row').toBeGreaterThan(0);
 
-      const ids = await page.getByTestId('vehicle-row').locator('td.sticky-first').allInnerTexts();
+      // Read the id from its own `.id` span rather than from the cell's text.
+      // The cell's text is now the account tag's letter and hidden phrase plus
+      // the nation chip plus the id (D-10), so `allInnerTexts()` on the cell
+      // would no longer be "the vehicle id" — it would be the cell.
+      const ids = await page
+        .getByTestId('vehicle-row')
+        .locator('td.sticky-first .id')
+        .allInnerTexts();
       const distinctIds = new Set(ids.map((text) => text.trim()));
+      // D-09's half that does NOT change: a vehicle two accounts own stays two
+      // rows, because merging them would invent a battle count that belongs to
+      // neither account.
       expect(
         distinctIds.size,
-        `the drawn Blitz rows really repeat an id (${drawnRows} rows, ${distinctIds.size} distinct)`,
+        `the drawn Blitz rows still repeat an id (${drawnRows} rows, ${distinctIds.size} distinct)`,
       ).toBeLessThan(drawnRows);
 
       const summary = page.getByTestId('battle-type-summary');
@@ -826,13 +1078,31 @@ test.describe('multi-account identity header (ACCOUNT-05, D-13 … D-17)', () =>
         .getByTestId('battle-type-row')
         .evaluateAll((rows) => rows.map((row) => row.getAttribute('data-code')));
       expect(codes.length, 'the battle-type summary draws at least two rows').toBeGreaterThan(1);
+      // D-09's other half — PHASE 10, and the flip this step's name records.
+      // The summary FOLDS across accounts, so a code two roots both wrote is one
+      // row with their figures added up. This assertion is the inverse of
+      // Phase 9's, which is why the step was renamed rather than reworded: a
+      // duplicate-key failure here is now a regression, not the expected shape.
       expect(
         new Set(codes).size,
-        `the drawn battle-type codes really repeat (${codes.length} rows, ${new Set(codes).size} distinct)`,
-      ).toBeLessThan(codes.length);
-      // The duplicate scan above excludes this table BY SCOPE, so this step is
-      // also the proof the exclusion is not hiding a defect: the duplication
-      // D-12 calls for is still really there, code for code.
+        `the drawn battle-type codes are now distinct (${codes.length} rows, ${new Set(codes).size} distinct)`,
+      ).toBe(codes.length);
+
+      // D-20: two accounts contribute a row, so the lifetime battles SUM and
+      // the premium expiry is dropped rather than filled with one account's
+      // value. The header is still there — one honest figure beats none.
+      await expect(
+        block.getByTestId('player-stats-header'),
+        'the combined header is shown',
+      ).toHaveCount(1);
+      await expect(
+        block.getByTestId('lifetime-battles'),
+        'the combined lifetime figure is shown',
+      ).toHaveCount(1);
+      await expect(
+        block.getByTestId('premium-expires'),
+        'no account’s expiry is presented as the combined figure',
+      ).toHaveCount(0);
 
       // T-09-22's other half: the pane rendered, and nothing complained about it.
       expect(
@@ -920,6 +1190,641 @@ test.describe('multi-account identity header (ACCOUNT-05, D-13 … D-17)', () =>
       await expect(card).not.toContainText(MA_REGION_EU);
       await expect(card).not.toContainText(MA_NICKNAME_EU);
       await expect(page.getByTestId('overview')).not.toContainText(MA_REGION_NA);
+
+      // D-15 (10-05): the Overview keeps its Phase 9 shape. The card reads its
+      // count and the earliest date and nothing else, and no pane-level combined
+      // total, currency note or per-account split appears on it.
+      // (The label and summary are asserted verbatim above; what is added here is
+      // the ABSENCE of any money, combined-total wording or currency code.)
+      await expect(card).not.toContainText(/combined|\b(USD|EUR|UAH|RUB)\b|\d[.,]\d{2}\b/i);
+      await expect(page.getByTestId('overview').getByTestId('finance-combined-note')).toHaveCount(
+        0,
+      );
+      await expect(page.getByTestId('overview').getByTestId('spend-per-account')).toHaveCount(0);
+    });
+
+    // =============================================================================
+    // 10-03 Task 1 — D-10: the account tag, in the legend and on a Vehicles row
+    // (ACCOUNT-04, T-10-08, T-10-09)
+    //
+    // Three things at once, because the tag is only useful if all three hold:
+    // the header row shows the letter, a data row shows the SAME letter, and the
+    // full phrase is TEXT — an account ID and a nickname in a visually-hidden
+    // span and nowhere else.
+    // =============================================================================
+    await test.step('the account tag names each account in the header and on a Vehicles row', async () => {
+      // (1) THE LEGEND. Three chips, letters A, B, C, in the D-16 order the
+      // header rows are already asserted in: RU, EU, NA.
+      const headerRows = page.getByTestId('identity-multi-row');
+      await expect(headerRows, 'the legend has one row per account').toHaveCount(3);
+      const lettersByRoot: Record<string, string> = {};
+      for (const [index, root] of [MA_ROOT_RU, MA_ROOT_EU, MA_ROOT_NA].entries()) {
+        const tag = headerRows.nth(index).getByTestId('account-tag');
+        await expect(tag, `${root}: one chip in its row`).toHaveCount(1);
+        const letter = (await tag.innerText()).trim();
+        expect(letter, `${root}: the chip is one letter`).toMatch(/^[A-Z]{1,2}$/);
+        lettersByRoot[root] = letter;
+
+        // The legend phrase is `Account {letter}` and NOTHING more: the row
+        // already shows the nickname and the ID as visible text, and repeating
+        // them in hidden text would break D-21's once-per-row rule.
+        await expect(tag.locator('xpath=following-sibling::span[1]')).toHaveText(
+          copy.formatAccountLegendLabel(letter),
+        );
+      }
+      expect(lettersByRoot[MA_ROOT_RU], 'RU is A').toBe('A');
+      expect(lettersByRoot[MA_ROOT_EU], 'EU is B').toBe('B');
+      expect(lettersByRoot[MA_ROOT_NA], 'NA is C').toBe('C');
+
+      // (2) THE DATA ROWS. The Blitz title, whose vehicle file is in all three
+      // roots — so drawn rows genuinely carry more than one account's letter.
+      await openSection(page, 'vehicles');
+      const block = playerStatsBlock(page);
+      await expect(block).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+      await block.getByTestId('player-stats-title-selector').selectOption('wotb');
+      await expect(block).toHaveAttribute('data-state', 'ready');
+
+      const rows = page.getByTestId('vehicle-row');
+      const drawnRows = await rows.count();
+      expect(drawnRows, 'the Blitz table draws rows').toBeGreaterThan(0);
+
+      const drawnTags = await rows.locator('td.sticky-first').evaluateAll((cells) =>
+        cells.map((cell) => {
+          const tag = cell.querySelector('[data-testid="account-tag"]');
+          const hidden = tag?.nextElementSibling;
+          return {
+            letter: (tag?.textContent ?? '').trim(),
+            ariaHidden: tag?.firstElementChild?.getAttribute('aria-hidden'),
+            phrase: (hidden?.textContent ?? '').trim(),
+          };
+        }),
+      );
+      // EVERY drawn row is tagged: a row whose root the map did not hold would
+      // be silent, which is exactly the gap this step exists to close.
+      expect(
+        drawnTags.every((entry) => entry.letter !== ''),
+        'every drawn Vehicles row carries a letter',
+      ).toBe(true);
+
+      // The letters the rows wear are the letters the legend assigned.
+      const expectedLetters = Object.values(lettersByRoot);
+      for (const entry of drawnTags) {
+        expect(expectedLetters, `${entry.letter} is one of the legend's letters`).toContain(
+          entry.letter,
+        );
+        // The letter itself is hidden from assistive technology, because the
+        // phrase beside it says the same thing in words.
+        expect(entry.ariaHidden, 'the bare letter is not announced').toBe('true');
+      }
+
+      // At least one row per letter DRAWN, so the check above is not vacuous on
+      // a window that happens to hold one account's rows. Which accounts are
+      // drawn is the windowing's business, not this step's.
+      const drawnLetters = new Set(drawnTags.map((entry) => entry.letter));
+      expect(
+        drawnLetters.size,
+        `drawn letters were ${[...drawnLetters].join(', ')}`,
+      ).toBeGreaterThanOrEqual(2);
+
+      // (3) THE PHRASE, which is where the account and its row are tied
+      // together. It opens with the letter and the account's own root, and the
+      // root is the legend's account for that letter — so a row attributed to
+      // the wrong account fails here rather than passing on a letter that
+      // happened to be right.
+      //
+      // The nickname clause (D-19) follows the ACCOUNT and not the row: an
+      // account with a nickname ends its phrase with it, and the RU account —
+      // which has no `User_Info` row at all (D-17) — stops at the ID. Asserted
+      // per drawn row rather than for a named account, because which accounts
+      // the window holds is the virtualiser's business, not this step's.
+      const nicknameOf: Record<string, string> = {
+        [MA_ROOT_RU]: '',
+        [MA_ROOT_EU]: MA_NICKNAME_EU,
+        [MA_ROOT_NA]: MA_NICKNAME_NA,
+      };
+      for (const entry of drawnTags) {
+        const root = Object.entries(lettersByRoot).find(
+          ([, letter]) => letter === entry.letter,
+        )?.[0];
+        expect(root, `letter ${entry.letter} maps to a known account`).toBeDefined();
+        expect(
+          entry.phrase.startsWith(`Account ${entry.letter}, ID ${root}`),
+          `${entry.letter}'s phrase opens with its own account`,
+        ).toBe(true);
+        const nickname = root === undefined ? undefined : nicknameOf[root];
+        if (nickname === undefined || nickname === '') {
+          expect(entry.phrase, `${root ?? entry.letter}: no nickname clause`).not.toContain(
+            'nickname',
+          );
+        } else {
+          expect(entry.phrase, `${root}: the phrase ends with its own nickname`).toBe(
+            `Account ${entry.letter}, ID ${root}, nickname ${nickname}`,
+          );
+        }
+      }
+    });
+
+    // =============================================================================
+    // Plan 10-03 Task 3 — D-11 (the account is searchable TEXT) and D-19's
+    // privacy rule restated for a tagged pane.
+    //
+    // The three facts below are asserted in this order on purpose. The hint is
+    // asserted BEFORE any typing, because a filter that works but is
+    // undiscoverable is a defect D-11 exists to prevent and a missing hint is
+    // easy to miss when the table has already narrowed to one account.
+    // =============================================================================
+    await test.step('the Vehicles search finds an account by its ID and by its letter (D-11)', async () => {
+      const block = playerStatsBlock(page);
+      const search = block.getByTestId('vehicle-search');
+
+      // (1) THE HINT, and the link that announces it with the input rather than
+      // leaving it to be read as an unrelated paragraph under the controls.
+      const hint = block.getByTestId('vehicle-search-hint');
+      await expect(hint, 'a multi-account dataset shows the search hint').toHaveCount(1);
+      await expect(hint, 'the hint is the sentence the unit test pins').toHaveText(
+        copy.VEHICLE_SEARCH_ACCOUNT_HINT,
+      );
+      const describedBy = await search.getAttribute('aria-describedby');
+      expect(describedBy, 'the input is described').not.toBeNull();
+      expect(
+        await hint.getAttribute('id'),
+        'the id the input names IS the hint, so the reference resolves',
+      ).toBe(describedBy);
+
+      // (2) BY ACCOUNT ID. `filterRows` compares the root as its own field, so
+      // every drawn row is that account's — and its phrase ends with its own
+      // nickname, which is the half of the phrase an ID query cannot fake.
+      await search.fill(MA_ROOT_EU);
+      await expect
+        .poll(() => readVehicleTagPhrases(page), { timeout: 10_000 })
+        .toEqual([
+          copy.formatAccountTagLabel('B', MA_ROOT_EU, MA_NICKNAME_EU),
+          copy.formatAccountTagLabel('B', MA_ROOT_EU, MA_NICKNAME_EU),
+          copy.formatAccountTagLabel('B', MA_ROOT_EU, MA_NICKNAME_EU),
+        ]);
+      // And the ID query found SOMETHING: the Blitz file holds three rows per
+      // root, so an equal-length list of three is the whole account, not a
+      // truncated window that happened to match.
+      expect(
+        await page.getByTestId('vehicle-row').count(),
+        'the ID query draws the EU rows and nothing else',
+      ).toBe(3);
+
+      // (3) D-19, asserted on the pane that actually shows a nickname: every
+      // occurrence is text, and no attribute anywhere in the pane or the header
+      // holds either nickname or any of the three roots.
+      await expectNicknameTextOnly(page, 'Vehicles pane, EU rows drawn');
+
+      // (4) BY LETTER. `C` is the interesting needle here because none of this
+      // fixture's Blitz ids contains the letter — `blitz_alpha`, `ussr:R12_Blitz`
+      // and `blitz_gamma` — so every drawn row is NA's and the letter alone did
+      // the narrowing. A needle that also matched ids would not separate the two
+      // reasons a row was kept.
+      await search.fill('C');
+      await expect
+        .poll(() => readVehicleTagPhrases(page), { timeout: 10_000 })
+        .toEqual([
+          copy.formatAccountTagLabel('C', MA_ROOT_NA, MA_NICKNAME_NA),
+          copy.formatAccountTagLabel('C', MA_ROOT_NA, MA_NICKNAME_NA),
+          copy.formatAccountTagLabel('C', MA_ROOT_NA, MA_NICKNAME_NA),
+        ]);
+
+      // The count line still reads as a count, and no-match copy is not what a
+      // three-row answer shows — the hint promised account matching and the pane
+      // delivered it.
+      await expect(block.getByTestId('vehicle-count')).toContainText('3');
+
+      // (5) Back to the whole table, so the rest of the test sees what it saw
+      // before this step typed anything.
+      await search.fill('');
+      await expect(page.getByTestId('vehicle-row')).toHaveCount(9);
+    });
+
+    // =============================================================================
+    // Plan 10-04 Task 1 — D-18 (one chip per account on a login row) and D-13
+    // (ONE table, one map, no per-account record card).
+    //
+    // Logins are the one pane where a ROW is not owned by one account: an
+    // address is one row however many accounts logged in from it, so this step
+    // reads two rows rather than one — the address all three share, and the one
+    // only the NA root holds. A table that quietly dropped one of the chips, or
+    // drew the whole set as one chip, would still look tagged.
+    // =============================================================================
+    await test.step('the Login history rows name every account that logged in (D-18, D-13)', async () => {
+      await openSection(page, 'login-history');
+      const block = page.getByTestId('login-history');
+      await expect(block).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+
+      // D-13: ONE table and ONE map, and the Account record row is ABSENT —
+      // with two or more accounts there is no single account record, so the
+      // 'Account record' tag and the account chips never share a table.
+      await expect(page.getByTestId('login-account-row'), 'no per-account record row').toHaveCount(
+        0,
+      );
+      await expect(page.getByTestId('login-table'), 'one table across the accounts').toHaveCount(1);
+      await expect(
+        page.getByTestId('login-map-section'),
+        'one map across the accounts',
+      ).toHaveCount(1);
+
+      const rows = page.getByTestId('login-row');
+      await expect.poll(() => rows.count(), { timeout: 10_000 }).toBeGreaterThan(1);
+
+      /**
+       * The first cell of every drawn row, read from the DOM: its chips' letters
+       * and the visually-hidden phrase beside each one.
+       *
+       * Read through `evaluateAll` rather than through Playwright locators because
+       * the phrases live inside `.visually-hidden` spans, and a locator's text
+       * would not separate a chip's letter from the phrase that follows it. The
+       * rows are found by their CHIPS and never by their address, which is the
+       * point of the whole step: while masked there is nothing to find them by.
+       */
+      const cellsOf = (): Promise<{ letters: string[]; phrases: string[] }[]> =>
+        rows.locator('td.sticky-first').evaluateAll((nodes) =>
+          nodes.map((cell) => {
+            const tags = [...cell.querySelectorAll('[data-testid="account-tag"]')];
+            const phrases = [...cell.querySelectorAll('.visually-hidden')].map((span) =>
+              (span.textContent ?? '').trim(),
+            );
+            return {
+              letters: tags.map((tag) => (tag.textContent ?? '').trim()),
+              phrases,
+            };
+          }),
+        );
+
+      // The busiest row is the shared one: every session row in this fixture that
+      // names no address carries `REAL_SHAPE_IP`, and all three roots have some.
+      const busiest = rows.first();
+      const busiestCell = busiest.locator('td.sticky-first');
+      await expect(
+        busiestCell.getByTestId('account-tag'),
+        'the busiest row carries three chips',
+      ).toHaveCount(3);
+      const busiestLetters = await busiestCell
+        .getByTestId('account-tag')
+        .evaluateAll((tags) => tags.map((tag) => (tag.textContent ?? '').trim()));
+      expect(busiestLetters, 'A, B, C in the published header order').toEqual(['A', 'B', 'C']);
+
+      // Each chip's phrase names ITS OWN account — the letter, the root and (where
+      // the account has one) the nickname. Tied to the header's own letters, so a
+      // row attributed to the wrong account fails here rather than passing on a
+      // letter that happened to be right.
+      const busiestPhrases = await busiestCell
+        .locator('.visually-hidden')
+        .evaluateAll((spans) => spans.map((span) => (span.textContent ?? '').trim()));
+      expect(busiestPhrases).toEqual([
+        copy.formatAccountTagLabel('A', MA_ROOT_RU, null),
+        copy.formatAccountTagLabel('B', MA_ROOT_EU, MA_NICKNAME_EU),
+        copy.formatAccountTagLabel('C', MA_ROOT_NA, MA_NICKNAME_NA),
+      ]);
+
+      // The RU account has no `User_Info` row (D-17), so its phrase stops at the
+      // ID rather than reading "nickname" and then nothing.
+      expect(busiestPhrases[0], 'the ID-only account names no nickname').not.toContain('nickname');
+
+      // Three chips draw no overflow count: `+N` is for accounts past the third,
+      // and a three-account dataset has none.
+      await expect(busiestCell.locator('.more'), 'no overflow at three').toHaveCount(0);
+
+      // The lone-address rows: one chip, C. Only the NA root has a session file
+      // whose row names its own address (the alias-header WOT row), so the one
+      // address that belongs to a single account is C's — and the panel holds it
+      // as ONE row, not one row per account.
+      const drawn = await cellsOf();
+      expect(drawn.length, 'the table drew rows').toBeGreaterThan(1);
+      const oneChip = drawn.filter((cell) => cell.letters.length === 1);
+      expect(oneChip.length, 'a row owned by one account exists').toBeGreaterThan(0);
+      for (const cell of oneChip) {
+        expect(cell.letters, 'the lone chip is C').toEqual(['C']);
+        expect(cell.phrases).toEqual([copy.formatAccountTagLabel('C', MA_ROOT_NA, MA_NICKNAME_NA)]);
+      }
+      expect(
+        drawn.filter((cell) => cell.letters.length === 3).length,
+        'the shared address is ONE row, not one per account',
+      ).toBe(1);
+
+      // D-19 restated for this pane: every occurrence of a nickname or a root is
+      // TEXT, and no attribute anywhere in the pane or the header holds one. The
+      // chips are a second and third appearance in text, which is exactly what
+      // `expectNicknameTextOnly` allows and `expectNoLeak`'s once-per-row rule
+      // does not.
+      await expectNicknameTextOnly(
+        page,
+        'Login history pane, tagged rows',
+        '[data-testid="login-history"]',
+      );
+
+      // =======================================================================
+      // Task 2 — ACCOUNT-07's "masking and the city opt-in unchanged". Four
+      // claims, in the order they can fail: nothing is fetched, the address is
+      // masked, the reveal is local to the text, and the merged figures still add
+      // up. Each one is a claim about behaviour that Task 1 did not write, so a
+      // failure here is a defect in Task 1 rather than something to fix here.
+      // =======================================================================
+
+      // (1) NOTHING IS FETCHED (T-10-13). The city detail is the project's one
+      // sanctioned request and it is behind an explicit opt-in, so opening and
+      // sorting the merged table must issue nothing at all. The listener is
+      // registered HERE, so it covers this step's own requests and cannot be
+      // fooled by an earlier one.
+      const issued: string[] = [];
+      const onRequest = (request: import('@playwright/test').Request): void => {
+        issued.push(request.url());
+      };
+      page.on('request', onRequest);
+      try {
+        await page.getByTestId('login-sort-logins').click();
+        await page.getByTestId('login-sort-ip').click();
+        await expect(page.getByTestId('login-history')).toHaveAttribute('data-state', 'ready');
+      } finally {
+        page.off('request', onRequest);
+      }
+      expect(issued, 'opening and sorting the merged Login history fetched nothing').toEqual([]);
+      // The control that makes the empty list mean something: the opt-in is on
+      // screen and still idle, so a request WOULD be visible if one were made.
+      await expect(page.getByTestId('city-optin')).toHaveAttribute('data-state', 'idle');
+
+      // (2) MASKED, beside three chips. The busiest row's text holds the masked
+      // form and not the address, and the whole document — markup included — does
+      // not hold it either. The chips have changed what is IN the cell; they have
+      // not changed what the cell says about the address.
+      await page.getByTestId('login-sort-logins').click();
+      await expect(page.getByTestId('login-row').first()).toBeVisible();
+      const maskedText = await page.getByTestId('login-row').first().innerText();
+      expect(maskedText, 'the busiest row shows the masked form').toContain(maskIp(MA_SHARED_IP));
+      expect(maskedText, 'the busiest row does not show the address').not.toContain(MA_SHARED_IP);
+      expect(
+        await page.evaluate(() => document.documentElement.outerHTML),
+        'no full address exists anywhere in the markup while masked',
+      ).not.toContain(MA_SHARED_IP);
+
+      // (3) THE REVEAL is one global action and it changes TEXT only. This is the
+      // half `displayIp` has always owned; the chips are beside it and must not
+      // turn an address into an attribute, so the scan covers EVERY attribute of
+      // EVERY element in the pane after the reveal, not the row's own text.
+      await page.getByTestId('login-mask-toggle').click();
+      await expect
+        .poll(async () => page.getByTestId('login-row').first().innerText(), { timeout: 5_000 })
+        .toContain(MA_SHARED_IP);
+      const attributeLeaks = await page.evaluate(
+        ([needles]) => {
+          const found: string[] = [];
+          const scope = document.querySelector('[data-testid="login-history"]');
+          if (scope === null) return ['the pane is absent, so this scan proved nothing'];
+          for (const element of scope.querySelectorAll('*')) {
+            for (const attribute of element.attributes) {
+              for (const needle of needles) {
+                if (attribute.value.includes(needle)) {
+                  found.push(`${element.tagName}[${attribute.name}] holds ${needle}`);
+                }
+              }
+            }
+          }
+          return found;
+        },
+        [[MA_SHARED_IP, MA_ROOT_RU, MA_ROOT_EU, MA_ROOT_NA, MA_NICKNAME_EU, MA_NICKNAME_NA]],
+      );
+      expect(
+        attributeLeaks,
+        'a revealed address, a root and a nickname are TEXT, never attributes',
+      ).toEqual([]);
+      // Back to masked, so every later step of this test sees what it saw before.
+      await page.getByTestId('login-mask-toggle').click();
+      await expect
+        .poll(async () => page.getByTestId('login-row').first().innerText(), { timeout: 5_000 })
+        .not.toContain(MA_SHARED_IP);
+
+      // (4) THE MERGED FIGURES still add up (D-13, success criterion 4). One
+      // country list and one map cover every account, and the drawn countries,
+      // the not-drawn countries and the unknown-country row sum to the tile
+      // total — the relationship `MAX_LOGIN_IPS` exists to keep and this plan's
+      // tagging must leave alone. It is asserted as arithmetic rather than as
+      // "the list is there", because a list that quietly lost a country would
+      // still render.
+      await expect(page.getByTestId('login-country').first()).toBeVisible();
+      const countryTotals = await page.evaluate(() => {
+        const digits = (text: string | null | undefined): number =>
+          Number((text ?? '').replace(/[^0-9]/g, ''));
+        const cell = (row: Element | null | undefined): number =>
+          digits(row?.children[1]?.textContent);
+        const drawn = [...document.querySelectorAll('[data-testid="country-row"]')].map(cell);
+        const unknown = cell(document.querySelector('[data-testid="login-unknown-row"]'));
+        // The count line is `{addresses} · {logins}` and is the LISTED figure.
+        // This fixture is four orders of magnitude below `MAX_LOGIN_IPS`, so
+        // listed logins and `totalLogins` are the same number here — which is
+        // what lets a rendered DOM check restate the aggregate's sum.
+        const countLine = document.querySelector('[data-testid="login-count"]')?.textContent ?? '';
+        return { drawn, unknown, listedLogins: digits(countLine.split('·')[1]) };
+      });
+      expect(countryTotals.drawn.length, 'the country list drew rows').toBeGreaterThan(0);
+      const countrySum = countryTotals.drawn.reduce((sum, value) => sum + value, 0);
+      expect(
+        countrySum + countryTotals.unknown,
+        'the drawn countries plus the unknown row are the whole of the counted logins',
+      ).toBe(countryTotals.listedLogins);
+      // And the country count agrees with the tile above the table, so the list
+      // is not showing fewer countries than the summary claims.
+      expect(countryTotals.drawn.length, 'one row per drawn country').toBe(
+        await page
+          .getByTestId('login-tile-countries')
+          .innerText()
+          .then((text) => Number(text.replace(/[^0-9]/g, ''))),
+      );
+      await expectNicknameTextOnly(
+        page,
+        'Login history pane, tagged rows after the reveal',
+        '[data-testid="login-history"]',
+      );
+
+      // (5) AT 375px the 224px first column does not widen the PAGE. The table is
+      // wider than the card by design and scrolls inside its own scroller, so the
+      // assertion is about the document, not the table — and the row is still one
+      // 40px line, which is the constant `windowRange` divides by (D-18).
+      await page.setViewportSize({ width: 375, height: 812 });
+      const atPhone = await page.evaluate(() => {
+        const table = document.querySelector('[data-testid="login-table"]');
+        const first = document.querySelector('[data-testid="login-row"] td.sticky-first');
+        return {
+          innerWidth: window.innerWidth,
+          scrollWidth: document.documentElement.scrollWidth,
+          firstCellWidth: first instanceof HTMLElement ? first.clientWidth : -1,
+          declaredCellWidth: first instanceof HTMLElement ? getComputedStyle(first).width : '',
+          declaredCellPx:
+            first instanceof HTMLElement ? parseFloat(getComputedStyle(first).width) : -1,
+          rowHeight:
+            (document.querySelector('[data-testid="login-row"]') as HTMLElement | null)
+              ?.clientHeight ?? -1,
+          tableWidth: table instanceof HTMLElement ? table.getBoundingClientRect().width : -1,
+        };
+      });
+      expect(
+        atPhone.scrollWidth,
+        'the tagged Login table at 375px never widens the document',
+      ).toBeLessThanOrEqual(atPhone.innerWidth);
+      // The cell is the 224px the model declared, and the row is still 40px —
+      // three chips beside a masked address must not make a windowed row taller
+      // than the constant the virtualiser divides by.
+      // The declared width is the 224px D-18 specifies. Read from the COMPUTED style
+      // rather than `clientWidth`, because the table gives every cell 8px of
+      // padding on each side and `clientWidth` includes it — so it reads 240 and
+      // would be asserting a number no element produces.
+      expect(atPhone.declaredCellWidth, 'the first column declares 224px').toBe('224px');
+      expect(
+        atPhone.firstCellWidth - atPhone.declaredCellPx,
+        'the rendered cell is the declared width plus its own padding',
+      ).toBe(16);
+      expect(atPhone.rowHeight, 'a tagged row stays one 40px line').toBe(40);
+      // The table still scrolls INSIDE its own scroller rather than the page.
+      expect(
+        atPhone.tableWidth,
+        'the table is wider than the card, which is what the scroller is for',
+      ).toBeGreaterThan(atPhone.innerWidth);
+      await page.setViewportSize({ width: 1280, height: 720 });
+    });
+
+    // =============================================================================
+    // 10-05 Task 1 — D-14/D-10: the Payments per-account split, in detail only
+    //
+    // EU and NA both carry `Orders.csv` in this fixture and both carry the SAME
+    // sixteen hand rows, so "exactly double" is a figure this step can state
+    // rather than approximate — and the single-account counts it doubles come
+    // from the hand answer key, never from the page.
+    // =============================================================================
+    await test.step('a Payments card divides its combined total per account (D-14, D-10)', async () => {
+      await openSection(page, 'payments');
+      const block = page.getByTestId('spend-block');
+      await expect(block).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+
+      /** The hand answer key's card for one code, or a thrown failure — never a default. */
+      function handCard(code: string): { paid: number; totalThousandths: number } {
+        const card = ORDERS_HAND_EXPECTED.cards.find((entry) => entry.code === code);
+        if (card === undefined) throw new Error(`the hand key has no ${code} card`);
+        return { paid: card.paid, totalThousandths: card.totalThousandths };
+      }
+
+      // (1) THE CARD. USD is the hand key's top card by paid orders, so it is
+      // also the first card drawn — but it is found BY ITS CODE rather than by
+      // position, so card ordering is not what this step is about.
+      const card = page.locator('[data-testid="spend-card"][data-currency="USD"]');
+      await expect(card, 'the USD card exists').toHaveCount(1);
+      const single = handCard('USD');
+      await expect(card.getByTestId('spend-paid-count')).toHaveText(
+        copy.formatPaidOrders(single.paid * 2),
+      );
+
+      // (2) THE DISCLOSURE, and it is CLOSED to begin with: D-14 puts the split
+      // in detail only, so a reader who came for the combined figure never has
+      // to open anything.
+      const split = card.getByTestId('spend-per-account');
+      await expect(split, 'one per-account disclosure per card').toHaveCount(1);
+      await expect(split).not.toHaveAttribute('open', /.*/);
+      await split.locator('summary').click();
+
+      // (3) THE ROWS, in IDENTITY-HEADER ORDER: EU is B and NA is C, so the
+      // disclosure reads B then C under a header that publishes A, B, C. The
+      // aggregate stores these roots code-unit sorted — 1000000003 before
+      // 500000001 — which is why this assertion is worth making (10-04's bug).
+      const rows = split.locator('tbody tr');
+      await expect(rows, 'exactly the two accounts that ordered').toHaveCount(2);
+      const letters = await split
+        .getByTestId('account-tag')
+        .evaluateAll((tags) => tags.map((tag) => (tag.textContent ?? '').trim()));
+      expect(letters, 'B then C, the published order').toEqual(['B', 'C']);
+
+      const phrases = await split
+        .locator('td:first-child .visually-hidden')
+        .evaluateAll((spans) => spans.map((span) => (span.textContent ?? '').trim()));
+      expect(phrases[0]).toContain(`Account B, ID ${MA_ROOT_EU}`);
+      expect(phrases[1]).toContain(`Account C, ID ${MA_ROOT_NA}`);
+
+      // Each row's Paid cell is the SINGLE-account count, because each account
+      // placed exactly the single account's orders, and the two of them are the
+      // doubled headline above. Read from the DOM, not recomputed by the test.
+      const paidCells = await rows
+        .locator('td:nth-child(2)')
+        .evaluateAll((cells) => cells.map((cell) => (cell.textContent ?? '').trim()));
+      expect(paidCells).toEqual([
+        copy.formatPaidOrders(single.paid),
+        copy.formatPaidOrders(single.paid),
+      ]);
+
+      // (4) THE AGGREGATED TABLES CARRY NO TAG (UI-SPEC Recorded Choice 5):
+      // there is no per-payment row to attribute, so the split is the only
+      // place an account tag appears on this pane. Two tags, both in the split.
+      await expect(
+        card.getByTestId('spend-breakdown').getByTestId('account-tag'),
+        'the year and game tables carry no tag',
+      ).toHaveCount(0);
+      await expect(
+        card.getByTestId('account-tag'),
+        'the split holds exactly the two tags',
+      ).toHaveCount(2);
+
+      // (5) THE PRIVACY RULE, on the new pane: the phrase is text and no
+      // attribute of the block holds a nickname or an account id.
+      //
+      // Every disclosure is opened FIRST, and that is a requirement of the
+      // helper rather than tidiness: it compares the markup against
+      // `innerText`, and a CLOSED `<details>` contributes its rows to the
+      // markup but not to `innerText`. With four splits still shut the counts
+      // cannot agree however correct the template is, so the assertion would be
+      // reporting a hidden row as if it were an attribute leak.
+      const allSplits = block.getByTestId('spend-per-account');
+      const splitCount = await allSplits.count();
+      expect(splitCount, 'a split on every card with a paid order').toBeGreaterThan(1);
+      for (let index = 0; index < splitCount; index += 1) {
+        const one = allSplits.nth(index);
+        // Only the CLOSED ones: the USD card above is already open, and
+        // clicking its summary again would close it and put the helper back
+        // where it started.
+        if ((await one.getAttribute('open')) !== null) continue;
+        await one.locator('summary').click();
+      }
+      const openCount = await allSplits.evaluateAll(
+        (nodes) => nodes.filter((node) => node.hasAttribute('open')).length,
+      );
+      expect(openCount, 'every split is open, so every phrase is rendered text').toBe(splitCount);
+      await expectNicknameTextOnly(
+        page,
+        'Payments pane, per-account split',
+        '[data-testid="spend-block"]',
+      );
+    });
+
+    // =============================================================================
+    // 10-05 Task 2 — D-14: the one line that says amounts are added per currency
+    // =============================================================================
+    await test.step('Finance and Payments say once that currencies are added, never converted (D-14)', async () => {
+      for (const pane of ['finance', 'payments'] as const) {
+        await openSection(page, pane);
+        const note = page.getByTestId('finance-combined-note');
+        await expect(note, `${pane}: exactly one note`).toHaveCount(1);
+        await expect(note, `${pane}: the note text`).toHaveText(copy.FINANCE_COMBINED_NOTE);
+        // The caption is the reworded one, and the note is not a live region.
+        await expectCombinedCaption(page, pane);
+        await expect(note).not.toHaveAttribute('role', /.*/);
+        await expect(note).not.toHaveAttribute('aria-live', /.*/);
+      }
+    });
+
+    await test.step('the tagged Vehicles pane never widens the page at 375px', async () => {
+      // The measurable half of a backstop truth (Plan 10-03, must_have 10): a
+      // phrase holding a 40-character nickname must not widen the DOCUMENT. The
+      // visually-hidden span is clipped to 1px, so a leak here would show up as
+      // `scrollWidth > innerWidth` rather than as a wide-looking chip.
+      await page.setViewportSize({ width: 375, height: 812 });
+      const viewport = await page.evaluate(() => ({
+        innerWidth: window.innerWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+      }));
+      expect(
+        viewport.scrollWidth,
+        'the Vehicles pane at 375px never scrolls sideways',
+      ).toBeLessThanOrEqual(viewport.innerWidth);
+      // Restored, so every later step of this test lays out as it did before.
+      await page.setViewportSize({ width: 1280, height: 720 });
     });
 
     await test.step('the reload replays the same header and still leaks nothing', async () => {
@@ -937,6 +1842,19 @@ test.describe('multi-account identity header (ACCOUNT-05, D-13 … D-17)', () =>
 
       await openSection(page, 'account');
       await expectNoLeak(page, consoleMessages, 'after reload, pane account');
+
+      // D-01 / T-10-04: the filter is component state and nothing else, so the
+      // reload that replays the cached dataset returns it to All games. This is
+      // the browser half of "no route, no hash, no storage" — the shell guard
+      // proves the absence, and this proves the consequence.
+      await openSection(page, 'playtime');
+      await expect(page.getByTestId('playtime')).toHaveAttribute('data-state', 'ready', {
+        timeout: 30_000,
+      });
+      await expect(
+        page.getByTestId('game-filter-chip-all').locator('input'),
+        'a reload returns the filter to All games',
+      ).toBeChecked();
     });
 
     await test.step('a one-account replace removes every caption and restores v1.0', async () => {
@@ -963,6 +1881,20 @@ test.describe('multi-account identity header (ACCOUNT-05, D-13 … D-17)', () =>
           `${pane}: no caption for one account`,
         ).toHaveCount(0);
       }
+
+      // 10-05: the finance note and the per-account split are multi-account
+      // nodes too, so one account has neither (D-14, zero-one-many).
+      for (const pane of ['finance', 'payments'] as const) {
+        await openSection(page, pane);
+        await expect(
+          page.getByTestId('finance-combined-note'),
+          `${pane}: no currency note for one account`,
+        ).toHaveCount(0);
+      }
+      await expect(
+        page.getByTestId('spend-per-account'),
+        'no Payments card has a per-account disclosure for one account',
+      ).toHaveCount(0);
 
       // And the card is the single-account wording again, which is the stronger
       // statement: it proves the multi branch is a branch and not a new default.
@@ -1081,6 +2013,62 @@ test.describe('multi-account identity header (ACCOUNT-05, D-13 … D-17)', () =>
         MA_ROOT_RU,
       );
       rowsAfterImport = snapshot.rowCount;
+    });
+
+    // =============================================================================
+    // 10-02 Task 2 — the empty game, and the About disclosure
+    //
+    // The two-account archive (EU + NA) has WOT, WoT Blitz and HEAT sessions
+    // and NO Warships ones, so Warships is the game the worker can hold the
+    // filter on and answer `no-game-sessions` for. Choosing it on Vehicles and
+    // then opening Playtime is the whole round trip in one step: the filter
+    // crosses panes, the empty-game body replaces the tiles, and the chips stay
+    // so All games is one tap away.
+    // =============================================================================
+    await test.step('a game with no sessions shows the empty line and the chips recover', async () => {
+      await openSection(page, 'vehicles');
+      await playerStatsBlock(page).getByTestId('player-stats-title-selector').selectOption('wows');
+      await expect(playerStatsBlock(page)).toHaveAttribute('data-state', 'ready', {
+        timeout: 30_000,
+      });
+
+      await openSection(page, 'playtime');
+      await expect(page.getByTestId('playtime')).toHaveAttribute('data-state', 'no-game-sessions', {
+        timeout: 30_000,
+      });
+
+      // The four chips: All, the two games the export has, and the carried-over
+      // Warships one — which is shown precisely because it is the ACTIVE choice
+      // even though it has no sessions (UI-SPEC amendment 6).
+      for (const chip of ['all', 'wot', 'wotb', 'wows']) {
+        await expect(page.getByTestId(`game-filter-chip-${chip}`), `the ${chip} chip`).toHaveCount(
+          1,
+        );
+      }
+      await expect(
+        page.getByTestId('game-filter-chip-wows').locator('input'),
+        'the carried-over Warships chip is checked',
+      ).toBeChecked();
+
+      await expect(page.getByTestId('playtime-game-empty')).toHaveText(
+        copy.formatNoGameSessions('WOWS'),
+      );
+      await expect(
+        page.getByTestId('playtime-total-hours'),
+        'no tiles while the game is empty',
+      ).toHaveCount(0);
+      await expect(page.getByTestId('calendar-heatmap'), 'and no charts').toHaveCount(0);
+
+      // And back: the tiles return, which is the whole point of keeping the
+      // chips enabled through the empty state.
+      await page.getByTestId('game-filter-chip-all').click();
+      await expect(page.getByTestId('playtime')).toHaveAttribute('data-state', 'ready');
+      await expect(page.getByTestId('playtime-game-empty')).toHaveCount(0);
+      await expect(page.getByTestId('playtime-total-hours')).toBeVisible();
+
+      // D-06: two accounts means the merge explanation is warranted, and it is
+      // present exactly once under the totals.
+      await expect(page.getByTestId('about-playtime-totals')).toHaveCount(1);
     });
 
     await test.step('Clear my cached data empties the store', async () => {

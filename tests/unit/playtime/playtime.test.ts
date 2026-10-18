@@ -1193,9 +1193,16 @@ describe('viewFromAggregates selection', () => {
     // `values`. `splitColumn` is the other string, and it is the column's own
     // name — never a cell from the file.
     expect(json.match(/"eu-1"|"na-1"/g)).toHaveLength(2);
+    // The KEY SET is the whole claim: a field added to the stored aggregate
+    // without being thought about is a field an IP could travel in. 10-01 added
+    // `games` and `byGame` — the per-game scopes (D-21) — and both are tokens
+    // read from a session FILE's name, so they widen the key set without
+    // widening what the record can hold.
     expect(Object.keys(aggregates).sort()).toEqual([
       'all',
+      'byGame',
       'byValue',
+      'games',
       'sessionsFileSeen',
       'splitColumn',
       'v',

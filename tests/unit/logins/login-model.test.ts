@@ -16,7 +16,9 @@ import {
   DEFAULT_LOGIN_SORT,
   EMPTY_LOGIN_TILES,
   LOGIN_COLUMNS,
+  LOGIN_TAGGED_IP_WIDTH_PX,
   accountCells,
+  accountChipsOf,
   buildLoginRows,
   displayIp,
   hasAccountRow,
@@ -31,6 +33,7 @@ import {
 } from '../../../src/lib/features/logins/login-model.ts';
 import { lookupCountry } from '../../../src/lib/geo/country-lookup.ts';
 import { countryName } from '../../../src/lib/geo/country-names.ts';
+import { letterOf, type AccountTagModel } from '../../../src/lib/shell/identity-model.ts';
 import {
   LOGIN_ACCOUNT_TAG,
   LOGIN_GAMES_NOT_RECORDED,
@@ -50,6 +53,9 @@ import {
   type RealShapeRow,
 } from '../../fixtures/playtime-real-shape-fixture.ts';
 import { parseCsvFile } from '../../../src/lib/worker/csv-parse.ts';
+import type { CityView } from '../../../src/lib/features/logins/city-shared.ts';
+import { maskIp } from '../../../src/lib/geo/ip.ts';
+import { MA_ROOT_EU, MA_ROOT_NA, MA_ROOT_RU } from '../../fixtures/multi-account-fixtures.ts';
 import {
   LOGINS_HAND_KEY,
   LOGINS_IP_HOME,
@@ -1076,5 +1082,232 @@ describe('sortLoginRows over the seeded export, against a naive reference (06-10
   it('parses each address once, when the rows are built, and not per comparison', () => {
     // A built row carries its parsed bytes, so a sort never calls parseIp.
     expect(rows.every((row) => row.parsed !== null)).toBe(true);
+  });
+});
+
+// =============================================================================
+// Phase 10, D-18 — the row's accounts, the wider first column, and the chips
+// =============================================================================
+
+/** Five roots' worth of tags, keyed by root, for the chip cases. */
+function tagsOf(...roots: readonly string[]): Map<string, AccountTagModel> {
+  return new Map(
+    roots.map((root, index) => [root, { root, letter: letterOf(index), nickname: null }]),
+  );
+}
+
+describe('Phase 10: buildLoginRows copies the address accounts onto the row', () => {
+  it('copies them verbatim, and defaults an address without them to none', () => {
+    const rows = rowsOf([
+      { ...addressOf('192.0.2.10', 3), accounts: ['root-a', 'root-b'] },
+      addressOf('192.0.2.11', 1),
+    ]);
+    expect(rows[0]?.accounts).toEqual(['root-a', 'root-b']);
+    // An aggregate written before version 3 has no `accounts` at all, and the
+    // row answers an EMPTY list rather than `undefined` — a chip renderer asking
+    // for the length of undefined is a crash on exactly the old cache.
+    expect(rows[1]?.accounts).toEqual([]);
+  });
+
+  it('never folds the accounts into the address or the counts', () => {
+    const rows = rowsOf([{ ...addressOf('192.0.2.10', 3), accounts: ['root-a', 'root-b'] }]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.logins).toBe(3);
+    expect(rows[0]?.ip).toBe('192.0.2.10');
+  });
+});
+
+describe('Phase 10: visibleLoginColumns widens the first column only when tagged (D-18)', () => {
+  it('is byte-identical to the untagged list without the second argument', () => {
+    // The call site a single-account dataset uses is the call site v1.0 had, so
+    // this is an equality rather than a spot check.
+    expect(visibleLoginColumns(false)).toEqual(visibleLoginColumns(false, false));
+    expect(visibleLoginColumns(true)).toEqual(visibleLoginColumns(true, false));
+  });
+
+  it('gives the first column 224px and `w-ip-tagged` when tagged', () => {
+    const tagged = visibleLoginColumns(false, true);
+    const first = tagged[0]!;
+    expect(first.key).toBe('ip');
+    expect(first.widthPx).toBe(224);
+    expect(first.widthPx).toBe(LOGIN_TAGGED_IP_WIDTH_PX);
+    expect(first.widthClass).toBe('w-ip-tagged');
+    // 720 plus the 64 the chips take, and the table's minimum width is the sum
+    // of these numbers — the record the stylesheet declares must be this one.
+    expect(tagged.reduce((sum, column) => sum + column.widthPx, 0)).toBe(784);
+  });
+
+  it('leaves every other column the same object, tagged or not', () => {
+    const plain = visibleLoginColumns(false);
+    const tagged = visibleLoginColumns(false, true);
+    // Identity, not equality: a copy of the city column with a drifted `key` or
+    // `title` would render identically here and sort wrongly.
+    for (const column of plain.slice(1)) {
+      expect(tagged.slice(1)).toContain(column);
+    }
+  });
+
+  it('widens the column with the City one loaded too', () => {
+    const tagged = visibleLoginColumns(true, true);
+    expect(tagged.map((column) => column.key)).toContain('city');
+    expect(tagged[0]?.widthClass).toBe('w-ip-tagged');
+  });
+});
+
+describe('Phase 10: accountChipsOf draws three, hides the rest and counts them (D-18)', () => {
+  const five = ['root-a', 'root-b', 'root-c', 'root-d', 'root-e'];
+
+  it('shows three chips, keeps the rest as hidden tags, and counts them', () => {
+    const chips = accountChipsOf(five, tagsOf(...five));
+    expect(chips.shown.map((tag) => tag.root)).toEqual(['root-a', 'root-b', 'root-c']);
+    expect(chips.hiddenTags.map((tag) => tag.root)).toEqual(['root-d', 'root-e']);
+    expect(chips.extra).toBe(2);
+    // The cap is three for the three-account fixture too, and the count is the
+    // same for every smaller address.
+    expect(accountChipsOf(five.slice(0, 3), tagsOf(...five)).extra).toBe(0);
+    expect(accountChipsOf(five.slice(0, 1), tagsOf(...five)).shown).toHaveLength(1);
+  });
+
+  it("draws the chips in the PUBLISHED order, not the stored array's", () => {
+    // The aggregate stores an address's accounts code-unit ascending, which with
+    // these roots is NA, RU, EU — the reverse of the D-16 order the identity
+    // header lists. Drawn in stored order the row would read C, A, B under a
+    // legend reading A, B, C, so the ordering is pinned here rather than left to
+    // whichever array happened to reach the cell.
+    const tags = new Map<string, AccountTagModel>([
+      [MA_ROOT_RU, { root: MA_ROOT_RU, letter: 'A', nickname: null }],
+      [MA_ROOT_EU, { root: MA_ROOT_EU, letter: 'B', nickname: null }],
+      [MA_ROOT_NA, { root: MA_ROOT_NA, letter: 'C', nickname: null }],
+    ]);
+    const chips = accountChipsOf([MA_ROOT_NA, MA_ROOT_RU, MA_ROOT_EU], tags);
+    expect(chips.shown.map((tag) => tag.letter)).toEqual(['A', 'B', 'C']);
+  });
+
+  it('orders a two-letter chip after every one-letter chip', () => {
+    // `letterOf` is bijective base-26, so `AA` is the TWENTY-SEVENTH position. A
+    // plain string sort would put `AA` before `B`, and a chip row reading
+    // `A AA B C` would claim an account ahead of the letter the header gives it.
+    const tags = new Map([
+      ['root-a', { root: 'root-a', letter: 'A', nickname: null }],
+      ['root-b', { root: 'root-b', letter: 'AA', nickname: null }],
+      ['root-c', { root: 'root-c', letter: 'B', nickname: null }],
+      ['root-d', { root: 'root-d', letter: 'Z', nickname: null }],
+    ]);
+    const chips = accountChipsOf(['root-d', 'root-b', 'root-c', 'root-a'], tags);
+    expect(chips.shown.map((tag) => tag.letter)).toEqual(['A', 'B', 'Z']);
+    expect(chips.hiddenTags.map((tag) => tag.letter)).toEqual(['AA']);
+    expect(chips.extra).toBe(1);
+  });
+
+  it('skips a root the map does not hold rather than inventing a letter', () => {
+    // A stale aggregate or a malformed source. A chip for an account the header
+    // never listed would contradict the legend directly above the table.
+    const chips = accountChipsOf(['root-a', 'unknown-root'], tagsOf(...five));
+    expect(chips.shown.map((tag) => tag.root)).toEqual(['root-a']);
+    expect(chips.hiddenTags).toEqual([]);
+    expect(chips.extra).toBe(0);
+  });
+
+  it('answers three empties with no tags at all — the one-account case', () => {
+    // `null` is the zero case and it is what a single-account dataset passes, so
+    // the caller needs no `if` around the cell and that cell is Phase 9's.
+    expect(accountChipsOf(five, null)).toEqual({ shown: [], hiddenTags: [], extra: 0 });
+  });
+
+  it('answers three empties for an address that names no account', () => {
+    // The addresses of an unstamped legacy source, on a tagged dataset: rows
+    // exist and are listed, they simply have no owner to draw.
+    expect(accountChipsOf([], tagsOf(...five)).shown).toEqual([]);
+  });
+});
+
+// =============================================================================
+// Phase 10, Task 2 — masking and the city opt-in are UNCHANGED (ACCOUNT-07)
+// =============================================================================
+
+/** A city view whose `placeOf` names one place per address, in order. */
+function cityViewFor(addresses: readonly LoginAddress[]): CityView {
+  return {
+    month: '2026-10',
+    places: addresses.map((address, index) => ({
+      cc: address.cc ?? 'ZZ',
+      state: `State ${index}`,
+      city: `City ${index}`,
+    })),
+    // Each address to ITS OWN index, so a row that read the wrong entry would be
+    // visibly wrong rather than accidentally right.
+    placeOf: addresses.map((_, index) => index),
+    ranked: addresses.map((_, index) => ({ place: index, logins: 1, ips: 1 })),
+    moreCities: 0,
+    noCityAddresses: 0,
+  };
+}
+
+describe('Phase 10: accounts do not move the city alignment (D-18)', () => {
+  const ownedAddresses: LoginAddress[] = [
+    { ...addressOf('192.0.2.10', 3), cc: 'DE', accounts: ['root-a', 'root-b'] },
+    { ...addressOf('192.0.2.11', 1), cc: 'DE', accounts: ['root-a'] },
+    { ...addressOf('192.0.2.12', 2), cc: 'DE', accounts: ['root-b'] },
+  ];
+
+  it('gives every row its own city, because the rows were NOT split per account', () => {
+    // `placeOf` is aligned to `addresses` BY INDEX. If accounts had split a row
+    // per account the array would be six long and every index after the first
+    // would land on the wrong address's city — which is exactly what this asserts
+    // is not the case.
+    const rows = buildLoginRows(
+      ownedAddresses,
+      namesOf({ DE: 'Germany' }),
+      cityViewFor(ownedAddresses),
+    );
+    expect(rows).toHaveLength(3);
+    expect(rows.map((row) => row.city)).toEqual([
+      { kind: 'place', text: 'City 0, State 0' },
+      { kind: 'place', text: 'City 1, State 1' },
+      { kind: 'place', text: 'City 2, State 2' },
+    ]);
+  });
+
+  it('ignores a view whose placeOf is for another list of addresses, whole', () => {
+    // The alignment check is a LENGTH check, and a length that disagrees means
+    // the view belongs to a different address list. Half-applying it would put
+    // one address's city on another's row, so the view is dropped whole.
+    const misaligned: CityView = { ...cityViewFor(ownedAddresses), placeOf: [0, 1] };
+    const rows = buildLoginRows(ownedAddresses, namesOf({ DE: 'Germany' }), misaligned);
+    for (const row of rows) expect(row.city).toEqual({ kind: 'none' });
+  });
+});
+
+describe('Phase 10: accounts do not move the mask (ACCOUNT-07, T-10-12)', () => {
+  const owned = buildLoginRows(
+    [{ ...addressOf('192.0.2.10', 3), cc: 'DE', accounts: ['root-a', 'root-b'] }],
+    namesOf({ DE: 'Germany' }),
+  )[0]!;
+  const plain = buildLoginRows([addressOf('192.0.2.10', 3)], namesOf({ DE: 'Germany' }))[0]!;
+
+  it('masks a row that names two accounts exactly as it masks one that names none', () => {
+    // The address text path (`displayIp`) is not touched by this plan, and this
+    // is the comparison that says so: the two cells are the same string.
+    expect(loginCells(owned, false).ip.text).toBe(loginCells(plain, false).ip.text);
+    expect(loginCells(owned, false).ip.text).toBe(maskIp('192.0.2.10'));
+    // And revealing is the same one action, on the same row.
+    expect(loginCells(owned, true).ip.text).toBe('192.0.2.10');
+  });
+
+  it('puts neither an address nor an account root in the cells while masked (T-10-12)', () => {
+    // The chips are drawn from `row.accounts` by the component, and the CELLS are
+    // built by `loginCells` — so the whole serialised cell set must be free of
+    // both while masked. An account root reaching an attribute is the leak the
+    // first cell's chips were designed to avoid.
+    const serialised = JSON.stringify(loginCells(owned, false));
+    expect(serialised).not.toContain('192.0.2.10');
+    expect(serialised).not.toContain('root-a');
+    expect(serialised).not.toContain('root-b');
+    // Revealed, the address appears in the cell text — and STILL in no title, so
+    // the e2e's attribute scan and this cell check agree.
+    const revealed = loginCells(owned, true);
+    expect(revealed.ip.text).toBe('192.0.2.10');
+    expect(revealed.ip.title).toBeNull();
+    expect(JSON.stringify(revealed)).not.toContain('root-a');
   });
 });

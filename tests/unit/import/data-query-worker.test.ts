@@ -353,7 +353,14 @@ describe('05-07: the currency, spend and vehicles channels', () => {
     const reply = await ask(post, { channel: 'spend' }, 1);
 
     expect(viewOf(reply, 'spend')).toEqual(
-      buildSpend(oneAccount(rowsOf(ORDERS_HEADER_12, ORDERS_HAND_ROWS) as never)),
+      buildSpend(
+        // The ROOT, not the helper's default, for the same reason the vehicles
+        // oracle below names it: the worker stamped these rows with the account
+        // they came from, and Phase 10's `SpendCard.byAccount` carries that root
+        // across the boundary. An oracle built as `test-account` would differ on
+        // the one field this field exists to hold.
+        oneAccount(rowsOf(ORDERS_HEADER_12, ORDERS_HAND_ROWS) as never, '123456789'),
+      ),
     );
     // The five cards in order, and no blended total anywhere (D-21, D-24).
     const view = viewOf(reply, 'spend') as SpendView;
@@ -373,7 +380,14 @@ describe('05-07: the currency, spend and vehicles channels', () => {
     for (const [fileName, text] of Object.entries(PLAYER_STATS_SAMPLE_FILES)) {
       const parsed = parseCsvFile(text, 'Player_statistics', fileName);
       files.set(fileName.toLowerCase(), {
-        groups: oneAccount(parsed.rows.map((r) => r.data)),
+        // The ROOT, not the helper's default: Phase 10's D-10 stamps every row
+        // with its owning account, so the oracle has to name the same account
+        // the worker stored or the two views differ on a field that is no
+        // longer bookkeeping. The sample export's one folder is `123456789`.
+        groups: oneAccount(
+          parsed.rows.map((r) => r.data),
+          '123456789',
+        ),
         seen: true,
       });
     }

@@ -5,6 +5,8 @@
   import PremiumBlock from './PremiumBlock.svelte';
   import CurrencyBlock from './CurrencyBlock.svelte';
   import ChartTooltip from '../../charts/ChartTooltip.svelte';
+  import { accountCountOf } from '../../shell/identity-model.ts';
+  import { FINANCE_COMBINED_NOTE } from '../../ui-copy.ts';
 
   /**
    * The `Financial_data` card's body (05-10, 05-11).
@@ -39,7 +41,15 @@
   One 24px stack, the page's lg rhythm — the same gap the section cards use.
 -->
 <div class="financial">
-  <PremiumBlock {result} {client} onTip={handleTip} />
+  <!--
+    For two or more accounts only (Phase 10, D-14): the one line saying the
+    amounts are added per currency and never converted. The conditional tag sits
+    flush against the block after it so a single account leaves no whitespace
+    text node, and the DOM stays Phase 9's. Not a live region.
+  -->
+  {#if accountCountOf(result) >= 2}<p class="body" data-testid="finance-combined-note">
+      {FINANCE_COMBINED_NOTE}
+    </p>{/if}<PremiumBlock {result} {client} onTip={handleTip} />
   <!--
     The currency block AFTER the premium one, and both on the SAME `onTip`.
     Order is D-01's (the two files keep the order the export lists them), and
@@ -62,5 +72,15 @@
     flex-direction: column;
     gap: 24px;
     min-width: 0;
+  }
+
+  .body {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.5;
+    color: var(--text);
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 </style>

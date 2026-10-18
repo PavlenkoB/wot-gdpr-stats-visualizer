@@ -224,6 +224,24 @@ export interface LoginsHandAddress {
   last: number;
 }
 
+/**
+ * The hand key's addresses as the WORKER's stamps read them (Phase 10, D-18).
+ *
+ * {@link LOGINS_HAND_KEY} itself stays account-free on purpose: it is derived
+ * from ROWS, and a row carries no owner — the owner is the FILE's folder, which
+ * the pure aggregator is handed separately and the import path stamps from. So
+ * the two are compared through this projection rather than by editing the key,
+ * which would have quietly made "the hand key says which account logged in" a
+ * claim about rows that never held.
+ *
+ * Every address of the hand export belongs to the one root its files sit under,
+ * so this is `accounts: [root]` on all three — a one-account answer, which is
+ * what a single-account dataset has and what a tag-less first cell expects.
+ */
+export function handAddressesOwnedBy(root: string): LoginsHandAddress[] {
+  return LOGINS_HAND_KEY.addresses.map((address) => ({ ...address, accounts: [root] }));
+}
+
 /** The whole expected aggregate, derived from the rows above by hand. */
 export interface LoginsHandKey {
   totalLogins: number;

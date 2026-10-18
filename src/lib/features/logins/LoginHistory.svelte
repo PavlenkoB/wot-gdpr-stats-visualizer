@@ -50,6 +50,7 @@
   } from './login-model.ts';
   import AboutDisclosure from '../../charts/AboutDisclosure.svelte';
   import ExcludedNotice from '../../shell/ExcludedNotice.svelte';
+  import { accountTagsFor } from '../../shell/identity-model.ts';
   import LoginSummary from './LoginSummary.svelte';
   import LoginMapSection from './LoginMapSection.svelte';
   import LoginTable from './LoginTable.svelte';
@@ -258,8 +259,19 @@
   /** The rows in the order the sort asks for. Never reads the mask. */
   const sortedRows = $derived(sortLoginRows(rows, sort));
 
-  /** The six default columns; City joins them once city detail is loaded. */
-  const columns = $derived(visibleLoginColumns(cityView !== null));
+  /**
+   * The account tags to draw, or `null` with one account (D-18).
+   *
+   * The same gate every other pane uses, and it feeds both the column width and
+   * the chips, so there is one condition rather than two that could disagree.
+   */
+  const tags = $derived(accountTagsFor(result));
+
+  /**
+   * The six default columns; City joins them once city detail is loaded, and the
+   * first column widens to 224px when the dataset has tags (D-18).
+   */
+  const columns = $derived(visibleLoginColumns(cityView !== null, tags !== null));
 
   /**
    * The pinned Account record row's cells, or null when the export has none.
@@ -429,6 +441,7 @@
         {sort}
         {onSort}
         {account}
+        {tags}
         regionName={LOGIN_TABLE_ARIA_NAME}
         resetKey={`${importedAt}|${sort.key}|${sort.dir}`}
       />

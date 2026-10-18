@@ -16,9 +16,16 @@ import {
   buildLoginsExportOfAddresses,
   buildLoginsHandExport,
   buildLoginsMergedExport,
+  handAddressesOwnedBy,
 } from '../../fixtures/logins-fixtures.ts';
 import { SAMPLE_IP } from '../../fixtures/export-fixtures.ts';
 import { SAMPLE_ACCOUNT_ROOT } from '../../fixtures/sample-account.ts';
+import {
+  MA_OVERLAP_ADDRESSES,
+  MA_OVERLAP_ROOT_A,
+  MA_OVERLAP_ROOT_B,
+  buildOverlapTwoAccountExport,
+} from '../../fixtures/multi-account-fixtures.ts';
 import { buildCustomExport } from '../../fixtures/export-fixtures.ts';
 import { buildRealShapeCsv } from '../../fixtures/playtime-real-shape-fixture.ts';
 import {
@@ -139,7 +146,7 @@ describe('06-01 — a missing or stale aggregate is rebuilt from the stored rows
     const rebuilt = await askLogins(post, 2);
     expect(rebuilt).toEqual(atImport);
     if (rebuilt?.status !== 'ready') throw new Error('unreachable: asserted above');
-    expect(rebuilt.addresses).toEqual(LOGINS_HAND_KEY.addresses);
+    expect(rebuilt.addresses).toEqual(handAddressesOwnedBy(SAMPLE_ACCOUNT_ROOT));
     expect(rebuilt.totalLogins).toBe(LOGINS_HAND_KEY.totalLogins);
     expect(rebuilt.unreadableRows).toBe(LOGINS_HAND_KEY.unreadableRows);
 
@@ -517,5 +524,136 @@ describe('06-05: buildLogins over the same sources twice is deeply equal (D-01 i
     const first = buildLogins(snapshot.sources, () => null, account);
     const second = buildLogins(snapshot.sources, () => null, account);
     expect(second).toEqual(first);
+  });
+});
+
+// =============================================================================
+// Phase 10, Task 2 — the merged Logins invariants, through the REAL worker
+// (ACCOUNT-07, D-13, D-18, T-10-14)
+//
+// WHY THIS BLOCK, AND WHY THE OVERLAP FIXTURE
+// Logins is the one channel where Phase 10's change is invisible in the numbers
+// and very visible in the ownership. So each case below pairs an accounts
+// assertion with a TOTALS assertion: if accounts ever started splitting a row,
+// inflating a distinct-address count or dropping a login, the pairing fails.
+//
+// The fixture is Plan 10-01's `buildOverlapTwoAccountExport`, whose answer key
+// `MA_OVERLAP_ADDRESSES` is hand-written and already pins five addresses whose
+// login counts and account sets are all different — including two addresses two
+// accounts share. Nothing is duplicated here; the fixture is imported.
+// =============================================================================
+
+describe('Phase 10: one merged login table across accounts (D-13, D-18)', () => {
+  /** Import the two-account overlap archive and answer one logins query. */
+  async function askOverlap(reversed = false): Promise<Extract<LoginsView, { status: 'ready' }>> {
+    const terminal = await ingestExport(
+      post,
+      buildOverlapTwoAccountExport({ reversed }),
+      reversed ? 'overlap-reversed.zip' : 'overlap.zip',
+    );
+    if (terminal.type !== 'done') throw new Error(`expected done, got ${terminal.type}`);
+    const view = await askLogins(post, 1);
+    if (view === null || view.status !== 'ready') throw new Error('expected a ready logins view');
+    return view;
+  }
+
+  it('lists five addresses with their accounts and their games, from the hand key', async () => {
+    const view = await askOverlap();
+
+    // THE assertion, and it is an equality against the plan's hand key rather
+    // than a spot check: an address's stored ip, logins, accounts and games are
+    // one figure, and two of the five rows carry BOTH accounts.
+    expect(
+      view.addresses.map((entry) => ({
+        address: entry.ip,
+        logins: entry.logins,
+        accounts: entry.accounts,
+        games: entry.games,
+      })),
+    ).toEqual(MA_OVERLAP_ADDRESSES);
+
+    // The totals the UI-SPEC's sums rest on, unchanged by tagging: nine logins
+    // over five addresses, and the countries plus the unknown bucket account for
+    // every one of them.
+    expect(view.totalLogins).toBe(9);
+    expect(view.addresses).toHaveLength(5);
+    const tallied = view.countries.reduce((sum, country) => sum + country.logins, 0);
+    expect(tallied + view.unknown.logins).toBe(view.totalLogins);
+
+    // D-13: no per-account record card. There is no single account to record,
+    // and the identity header already lists both, so a pinned 'Account record'
+    // row here would be a fourth way of saying the same thing and would put the
+    // record's own chip in a table that draws account chips.
+    expect(view.account, 'two accounts, so no Account record').toBeNull();
+  });
+
+  it('gives the shared address both accounts and the lone one only its own', async () => {
+    const view = await askOverlap();
+    const accountsOf = (ip: string): readonly string[] | undefined =>
+      view.addresses.find((entry) => entry.ip === ip)?.accounts;
+
+    // 192.0.2.10 is three rows across two accounts and 192.0.2.12 is one row
+    // from each — the two shapes D-18 draws as three chips and as three chips
+    // respectively, and the three single-account rows as one.
+    expect(accountsOf('192.0.2.10')).toEqual([MA_OVERLAP_ROOT_A, MA_OVERLAP_ROOT_B]);
+    expect(accountsOf('192.0.2.12')).toEqual([MA_OVERLAP_ROOT_A, MA_OVERLAP_ROOT_B]);
+    expect(accountsOf('192.0.2.20')).toEqual([MA_OVERLAP_ROOT_B]);
+    expect(accountsOf('192.0.2.11')).toEqual([MA_OVERLAP_ROOT_A]);
+    expect(accountsOf('192.0.2.21')).toEqual([MA_OVERLAP_ROOT_B]);
+  });
+
+  it('answers the same addresses and accounts whichever order the zip is in', async () => {
+    // The stored order is logins-descending then address, so an aggregator that
+    // let the ROWS' arrival order into an address's account list would answer a
+    // different array here for the same export.
+    const forward = await askOverlap(false);
+    const reverse = await askOverlap(true);
+    expect(reverse.addresses).toEqual(forward.addresses);
+    expect(reverse.totalLogins).toBe(forward.totalLogins);
+  });
+
+  it('rebuilds a v2 cache to exactly the import-time answer, accounts included (T-10-14)', async () => {
+    const atImport = await askOverlap();
+
+    // The state a cache written by the PREVIOUS build is really in: the version
+    // that stored no accounts, and no `accounts` key on any address. Nothing else
+    // is disturbed, so a rebuild that answered differently would be answering
+    // from something other than the rows.
+    const { db } = await importWorkerDb();
+    const stored = (await db.meta.get('active'))?.logins as LoginAggregates;
+    expect(stored.v, 'the import stamped the current version').toBe(LOGINS_VERSION);
+    // The version-2 shape: every other field, and NO `accounts` key at all. The
+    // omission is the point, so it is built through a cast rather than by
+    // assigning `accounts: []` — a record that merely emptied the field would be
+    // a version-3 record with nothing in it, and a reader that skipped the
+    // rebuild because of it would still pass.
+    const asV2 = {
+      ...stored,
+      v: LOGINS_VERSION - 1,
+      addresses: stored.addresses.map(({ ip, cc, logins, first, last, games }) => ({
+        ip,
+        cc,
+        logins,
+        first,
+        last,
+        games,
+      })),
+    } as unknown as LoginAggregates;
+    await db.meta.update('active', { logins: asV2 });
+
+    const rebuilt = await askLogins(post, 2);
+    expect(rebuilt?.status).toBe('ready');
+    // THE assertion: deep equality against the import-time view, which includes
+    // the accounts every address gained. A rebuild that dropped the stamp, or
+    // that read the old array instead of the rows, fails here.
+    expect(rebuilt).toEqual(atImport);
+
+    // And it was RE-DERIVED and written back: the stored copy is current again,
+    // which is the only way a stale `v` is a rebuild rather than a cast.
+    const after = (await db.meta.get('active'))?.logins as LoginAggregates;
+    expect(after.v).toBe(LOGINS_VERSION);
+    expect(after.addresses.map((entry) => entry.accounts)).toEqual(
+      MA_OVERLAP_ADDRESSES.map((entry) => entry.accounts),
+    );
   });
 });

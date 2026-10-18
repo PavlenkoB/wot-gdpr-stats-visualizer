@@ -553,16 +553,18 @@ export function formatAccountCount(count: number): string {
 }
 
 /**
- * The "{N} accounts combined" caption a pane shows when it merges every
- * account's rows (D-11; UI-SPEC Surface 2, Copywriting Contract).
+ * The "All {N} accounts combined" caption a pane shows when it merges every
+ * account's rows (D-11, D-12; UI-SPEC Surface 2, Copywriting Contract).
  *
  * Distinct from {@link formatAccountCount} on purpose: one names the dataset
- * ("3 accounts"), the other names what a PANE is showing ("3 accounts
+ * ("3 accounts"), the other names what a PANE is showing ("All 3 accounts
  * combined"). A pane that said only "3 accounts" would be indistinguishable
- * from the header above it.
+ * from the header above it. Phase 10 prefixes "All" because the panes now
+ * really do merge every account (Phase 9 only announced the intent), and the
+ * word is what tells a reader no account was left out of the figures below.
  */
 export function formatCombinedCaption(count: number): string {
-  return `${count} accounts combined`;
+  return `All ${count} accounts combined`;
 }
 
 /**
@@ -883,6 +885,47 @@ export const PLAYTIME_UPDATING = 'Updating charts...';
  */
 export const PLAYTIME_CACHE_CLEARED =
   'Your cached data was cleared in another tab, so your selection could not be applied. Drop your export again to keep exploring it.';
+
+/**
+ * The empty-game body line (Phase 10, D-03; UI-SPEC Copywriting, "Playtime
+ * empty game, body").
+ *
+ * One sentence pair and no heading: the export HAS sessions — the chips above it
+ * are still there and one of them is All games — so this is not "no data", it
+ * is "not this game", and the sentence names the game rather than describing an
+ * absence. It ends with the way out rather than only the fact, because the state
+ * is reachable by a single chip click away and the reader should not have to
+ * work out which control does it.
+ *
+ * The token goes through `formatGameName`, exactly like every other place a
+ * game reaches the screen (T-06-05).
+ */
+export function formatNoGameSessions(token: string): string {
+  return `No ${formatGameName(token)} sessions in this export. Choose All games to see all of your playtime.`;
+}
+
+/**
+ * The "About this summary" disclosure's explanation of how merged playtime is
+ * counted (Phase 10, D-06; UI-SPEC Copywriting, amended by D-07 as amended).
+ *
+ * The wording is load-bearing and was corrected at plan-phase: the sentence the
+ * UI-SPEC first drafted claimed "hours, sessions and active days all come from
+ * those stretches", which is FALSE. Sessions are usable CSV rows and active days
+ * are the distinct start days; only HOURS take the union of intervals. The
+ * sentence below therefore states each rule on its own, which is also why a
+ * reader who checks the two tiles against the three charts finds them
+ * consistent.
+ *
+ * The last clause exists because the tile can genuinely read smaller than the
+ * games added together — each game's scope merges overlap among its own
+ * sessions only, so an overlap that spans two games is counted in both. Saying
+ * so is the difference between a bug report and an understood number.
+ */
+export const PLAYTIME_MERGE_ABOUT =
+  'Playtime is counted once. When sessions overlap, whether on different accounts or in different games, ' +
+  'the overlap counts as a single stretch of play, so hours are the time covered by at least one session. ' +
+  'Sessions and active days are counted from the sessions recorded. ' +
+  "A game's hours are worked out from that game alone, so All games can show fewer hours than the games added together.";
 
 /**
  * The `Login_history` sub-heading. "New copy" table, Login history sub-heading
@@ -1691,6 +1734,21 @@ export const VEHICLE_FIND_HINT =
 
 /** UI-SPEC New copy: No search match, Derived-value note, Warships note. */
 export const VEHICLE_NO_MATCH = 'No vehicles match your search.';
+
+/**
+ * The Vehicles search hint when the dataset holds two or more accounts (D-11).
+ *
+ * A capability the reader cannot otherwise discover: the box is labelled
+ * "Search vehicles", and a tag letter or an account ID matching is not
+ * something one would try unprompted. It is linked to the input with
+ * `aria-describedby`, so a screen reader reads it with the field rather than as
+ * an unrelated paragraph below it.
+ *
+ * Absent entirely for one account, with no node and no `describedby` — a hint
+ * about a capability that does not exist would be a lie about the search.
+ */
+export const VEHICLE_SEARCH_ACCOUNT_HINT = 'Also matches account letters and account IDs.';
+
 export const VEHICLE_DERIVED_NOTE =
   "Win rate and average damage are calculated here from the export's totals (wins ÷ battles, damage dealt ÷ battles).";
 export const WARSHIPS_ALL_NOTE =
@@ -2287,6 +2345,35 @@ export const SPEND_BY_GAME = 'By game code';
 export const SPEND_BREAKDOWN_HEADERS = ['Year', 'Game code', 'Paid orders', 'Total'];
 export const SPEND_UNKNOWN_YEAR = 'Unknown year';
 export const SPEND_BLANK_GAME = '(not recorded)';
+
+/**
+ * The Payments per-account disclosure's summary, and the heading of the split it
+ * holds (Phase 10, D-14, D-10; UI-SPEC Surface 6).
+ *
+ * A DISCLOSURE rather than a table on the card, which is D-14's rule in one
+ * word: the combined figure is the headline, and the per-account division lives
+ * in detail only so the pane never grows a second set of headline numbers that
+ * a reader could mistake for the total. The same string is the summary and the
+ * visually-hidden table caption, so the name a screen reader hears and the name a
+ * reader clicks are one string and cannot drift.
+ */
+export const SPEND_PER_ACCOUNT_SUMMARY = 'Per account';
+
+/**
+ * The one line under the Finance and Payments panes when several accounts are
+ * combined (Phase 10, D-14; UI-SPEC Surface 6).
+ *
+ * It is said ONCE per pane, as a body line, rather than repeated on every card:
+ * the rule is the same for every currency, and a note on each card would read
+ * like a warning about that card. "Never converted" is the half that matters —
+ * a reader seeing a combined figure must not wonder whether two currencies were
+ * blended into it.
+ */
+export const FINANCE_COMBINED_NOTE =
+  'Amounts in the same currency are added across all accounts. Currencies are never converted.';
+
+/** The per-account split's first column: the account tag chip and its phrase. */
+export const HEADER_ACCOUNT = 'Account';
 
 /** UI-SPEND Spend excluded pill and explanation. */
 export const SPEND_EXCLUDED_EXPLANATION =
@@ -2941,6 +3028,84 @@ export function formatGames(tokens: readonly string[]): string {
 }
 
 // -----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// Phase 10 — the shared game filter's words
+// -----------------------------------------------------------------------------
+
+/**
+ * The filter chip row's visible label, and the accessible name of its
+ * radiogroup (D-01).
+ *
+ * One string for both is the point: a group named by text that is not on screen
+ * is a name the sighted reader cannot check, and the label role above the chips
+ * is a line the block would otherwise not have.
+ */
+export const GAME_FILTER_LABEL = 'Filter by game';
+
+/**
+ * The chip that answers no narrowing (D-01).
+ *
+ * Not "All": that word already names the split selector's unfiltered view
+ * (`SPLIT_ALL_OPTION`) one row below, and two controls two rows apart both
+ * reading "All" invite the reader to apply them as one setting.
+ */
+export const GAME_FILTER_ALL = 'All games';
+
+// -----------------------------------------------------------------------------
+// Phase 10 — the account tag's words (D-10, D-19)
+// -----------------------------------------------------------------------------
+//
+// The tag chip is one inert letter, and everything it means for a screen reader
+// lives in this text. Both functions return STRINGS: the callers interpolate
+// them as text content, and neither this module nor any caller puts the result
+// in an attribute, a title, a tooltip or a describedby (D-19, T-10-08).
+
+/**
+ * The account tag's accessible phrase in a DATA ROW (D-10, D-19):
+ * `Account B, ID 500000001, nickname Synthetic EU Captain`.
+ *
+ * The `nickname` clause is present only for a non-blank nickname, so an account
+ * with no `User_Info` row — or one whose `NAME` column is blank — still names
+ * itself by its letter and its ID rather than reading "nickname" and then
+ * nothing. The half-blank case is what makes the test matrix three rows rather
+ * than two.
+ *
+ * Both the ID and the nickname are UNTRUSTED zip text and this function only
+ * concatenates them: escaping is Svelte's job at the interpolation, which it
+ * does for every string in this app.
+ */
+export function formatAccountTagLabel(letter: string, id: string, nickname: string | null): string {
+  const base = `Account ${letter}, ID ${id}`;
+  return nickname === null || nickname.trim() === '' ? base : `${base}, nickname ${nickname}`;
+}
+
+/**
+ * The account tag's phrase in the IDENTITY HEADER legend (D-10):
+ * `Account A`, and nothing else.
+ *
+ * Deliberately shorter than {@link formatAccountTagLabel}: the header row
+ * already SHOWS the nickname and the account ID as visible text beside the chip,
+ * so repeating them in hidden text would announce the same account three times
+ * and break D-21's "once in its own row" rule that `expectNoLeak` counts.
+ */
+export function formatAccountLegendLabel(letter: string): string {
+  return `Account ${letter}`;
+}
+
+/**
+ * The overflow count beside a row's account chips (D-18): `+2`.
+ *
+ * Plain text and deliberately NOT a chip: the cells beside it are the tags, and
+ * a third chip-shaped thing reading `+2` would be read as an account named `+2`.
+ *
+ * The accounts it counts are still named to a screen reader through their own
+ * hidden phrases, so this is a visual convenience rather than the only record of
+ * them (T-10-15).
+ */
+export function formatAccountOverflow(count: number): string {
+  return `+${count}`;
+}
+
 // Formatters — map sentences
 // -----------------------------------------------------------------------------
 
@@ -3260,6 +3425,16 @@ export const ABOUT_NAME_MAP = 'map';
 
 /** What the Login history table's disclosure calls it: `About this table`. */
 export const ABOUT_NAME_LOGIN_TABLE = 'table';
+
+/**
+ * What the Playtime totals' disclosure calls itself: `About this summary`
+ * (Phase 10, D-06).
+ *
+ * "summary" and not "chart": the explanation is about the TILES (hours counted
+ * once, sessions as recorded) and sits under them, so it names the thing it is
+ * about rather than a chart it does not sit beside.
+ */
+export const ABOUT_NAME_PLAYTIME_TOTALS = 'summary';
 
 // =============================================================================
 // Quick 261012-bog - Device info pane copy

@@ -193,7 +193,33 @@ export default defineConfig({
   // W + 8 relationship as every raise before it. 30 min holds up to 262
   // listed tests. Left unpriced, 258 would have projected 1338 s and a floor of
   // 1739.4 s — 0.6 s of slack under the 1740 s this line replaced.
-  globalTimeout: 30 * 60 * 1000,
+  //
+  // 31 min is 10-06's raise, and this comment is where its arithmetic lives.
+  // The plan added two listed tests, the large three-account import and its
+  // game-filter flow, in one serial describe that imports a 1.4 MB archive (a
+  // 54,000-row currency file, 20,000 sessions, 7,000 vehicle rows) ONCE. They are
+  // priced as a block with the growth of the two Phase 9 multi-account tests,
+  // which gained steps in plans 10-02 to 10-05, so they are held back from the
+  // per-test count and added back as one allowance. 260 tests in 29 files,
+  // MEASURED (`playwright test --list`):
+  //
+  //   E = 330 + 5 * (260 - 86 - 5 - 5 - 5 - 2 - 2) + 120 + 90 + 13 + 32 + 49
+  //     = 1409 s
+  //   1.3 * E = 1831.7 s, and ceil(1831.7 / 60) = 31 min
+  //
+  // The 49 s is MEASURED on this machine, one worker, slowest of three runs,
+  // times the 3x runner factor the guard already uses, rounded up: the new file
+  // takes 8.1 s end to end, and the two Phase 9 tests grew from 3.6 s and 5.7 s
+  // to 10.1 s and 7.2 s, +8.0 s, so (8.1 + 8.0) * 3 = 48.4 s.
+  //
+  // G = 31, W = 33 and J = 41: all three moved together, the same G + 2 and
+  // W + 8 relationship as every raise before it. 31 min holds up to 264 listed
+  // tests (264 project 1429 s and a floor of 1857.7 s against 1860 s). Left
+  // unpriced (Phase 9's formula alone), 260 would have projected 1370 s and a
+  // floor of 1781 s, 19 s under the 1800 s this raise replaces: it looks
+  // passable and is not, because the measured cost of the large import and of the
+  // grown Phase 9 tests is nowhere in it.
+  globalTimeout: 31 * 60 * 1000,
   timeout: 120000,
   webServer: {
     // Direct binary invocation (NOT `pnpm run build && pnpm run preview`).

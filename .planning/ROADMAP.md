@@ -28,7 +28,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md). Audit: [
 **Milestone Goal:** Accept a real multi-account export (several account-ID folders from region migrations and extra accounts) and show it as one merged dashboard, then surface the data categories the app still ignores. Numbering continues from v1.0, so this milestone starts at Phase 9.
 
 - [x] **Phase 9: Multi-account Import & Account Identity** - A zip with several account-ID folders imports, is cached as one dataset, and every account is listed in the identity header (completed 2026-10-18)
-- [ ] **Phase 10: Merged Dashboard Across Accounts** - Playtime, finance, vehicles and login history read as one combined history, with a game filter, no double-counting and a source account on every row
+- [x] **Phase 10: Merged Dashboard Across Accounts** - Playtime, finance, vehicles and login history read as one combined history, with a game filter, no double-counting and a source account on every row (completed 2026-10-18)
 - [ ] **Phase 11: New Game Data** - HEAT, WoT Console, World of Warplanes account and plane stats, and WoWS crews and storage, each through the fail-closed PII strip
 - [ ] **Phase 12: Account Timeline & Perks** - Name, service, language/country history, bans, authorized third parties, subscriptions, coupons, bonus codes and surveys, with emails, IPs and codes masked
 
@@ -86,7 +86,27 @@ Plans:
   4. Login-IP history lists the logins of all accounts in one table and one country map. IPs stay masked until the single global reveal, and city-level detail stays an explicit opt-in that fetches nothing until the user asks.
   5. A synthetic large three-account export, including a 54,000-row `Virtual_Currencies` file, imports and renders the merged panes without freezing the tab: node counts scale with buckets or visible windows, not with rows. The zero-network assertion holds through the merged flows.
 
-**Plans**: TBD
+**Plans**: 6/6 plans complete
+
+Plans:
+**Wave 1**
+- [x] 10-01-PLAN.md — Per-game Playtime aggregates in the worker (PLAYTIME_VERSION 3, validated `game` on `playtime-query`) and the hand-computed two-account overlap fixture proved through the real worker
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [x] 10-02-PLAN.md — The shared game filter: stamped shell cell, chip row on Playtime, empty-game state and About text, Vehicles Game select kept in sync
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [x] 10-03-PLAN.md — Account tag chip (identity header legend, Vehicles rows), Vehicles combined summary and header, tag-aware search, nickname-as-text-only privacy assertion
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [x] 10-04-PLAN.md — Merged Logins: accounts per address (LOGINS_VERSION 3), one chip per account on a row, 224px first column, masking and city opt-in unchanged
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [x] 10-05-PLAN.md — Finance and Payments: per-currency sums across accounts proved exact, 'Per account' disclosure, combined note, caption reworded to "All N accounts combined"
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [x] 10-06-PLAN.md — Large three-account fixture with a 54,000-row currency file, worker-level and browser-level scale proofs with zero network, and the three CI limits raised together to 31 / 33 / 41 min
+
 **UI hint**: yes
 
 ### Phase 11: New Game Data
@@ -139,6 +159,6 @@ Phases execute in numeric order: 9 → 10 → 11 → 12
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 9. Multi-account Import & Account Identity | v1.1 | 11/11 | Complete    | 2026-10-18 |
-| 10. Merged Dashboard Across Accounts | v1.1 | 0/TBD | Not started | - |
+| 10. Merged Dashboard Across Accounts | v1.1 | 6/6 | Complete    | 2026-10-18 |
 | 11. New Game Data | v1.1 | 0/TBD | Not started | - |
 | 12. Account Timeline & Perks | v1.1 | 0/TBD | Not started | - |

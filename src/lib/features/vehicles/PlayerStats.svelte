@@ -2,7 +2,7 @@
   import { onMount, untrack } from 'svelte';
   import type { QueryClient } from '../../core/query-client.ts';
   import type { ClassifyResult } from '../../core/types/worker-messages.ts';
-  import type { TitleState, VehicleTitleId, VehicleView } from './vehicle-shared.ts';
+  import type { TitleState, VehicleTitleId, VehicleRow, VehicleView } from './vehicle-shared.ts';
   import { VEHICLE_TITLES } from './vehicle-shared.ts';
   import {
     filterRows,
@@ -28,6 +28,7 @@
     VEHICLE_FIND_HINT,
     VEHICLE_NO_MATCH,
     VEHICLE_SCROLL_HINT,
+    VEHICLE_SEARCH_ACCOUNT_HINT,
     VEHICLE_SEARCH_LABEL,
     VEHICLE_TABLE_TITLE,
     VEHICLE_TITLE_LABELS,
@@ -57,6 +58,8 @@
   } from './vehicle-state.ts';
   import BattleTypeSummary from './BattleTypeSummary.svelte';
   import VehicleTable from './VehicleTable.svelte';
+  import { filterAfterTitleChange, filterToTitle } from '../../shell/game-filter-state.ts';
+  import { accountTagsFor } from '../../shell/identity-model.ts';
 
   /**
    * The Vehicle statistics block of the Player_statistics card (05-12).
@@ -97,9 +100,20 @@
     result: ClassifyResult | null;
     /** The data query seam — the only way this block asks for vehicles. */
     client: QueryClient;
+    /**
+     * The shared game filter (Phase 10, D-04/D-21): the applied token, or `null`
+     * for All games.
+     *
+     * This block has NO chip row and no widget of its own: the existing Game
+     * select IS the filter's face here (UI-SPEC Recorded Choice 1), so the filter
+     * travels in and out through two pure functions and nothing else.
+     */
+    gameFilter: string | null;
+    /** Write the shared filter after the reader picks a title in the select. */
+    onGameFilterChange: (token: string | null) => void;
   }
 
-  let { result, client }: Props = $props();
+  let { result, client, gameFilter, onGameFilterChange }: Props = $props();
 
   /**
    * The control ids for the two labels, generated rather than hand-written so
@@ -110,6 +124,8 @@
   const selectId = $props.id();
   const searchId = `${selectId}-search`;
   const battleTypeId = `${selectId}-battle-type`;
+  /** The hint's own id, so the input can point at it (D-11). */
+  const searchHintId = `${selectId}-search-hint`;
 
   /** The dataset this block is describing; `null` before the first import. */
   const importedAt = $derived(result?.importedAt ?? null);
@@ -227,7 +243,17 @@
       // component state, so there is nothing to persist and nothing to
       // migrate — and a title, a search or a sort from the previous export is
       // exactly the stale value that must not survive.
-      const ask: VehicleAsk = { importedAt: wanted, title: null, battleType: null };
+      //
+      // Phase 10's half of that line: the first ask now names the shared
+      // filter's title, read INSIDE `untrack` so the effect still depends on
+      // `importedAt` alone. With a filter set, opening Vehicles opens that
+      // game; with All it is `null` and the worker's first-title-with-rows rule
+      // applies exactly as it always did (D-21).
+      const ask: VehicleAsk = {
+        importedAt: wanted,
+        title: filterToTitle(gameFilter),
+        battleType: null,
+      };
       requested = ask;
       selection = freshSelection();
       resetKey += 1;
@@ -258,6 +284,12 @@
     selection = freshSelection();
     resetKey += 1;
     void load(ask, true);
+    // D-21: WoT, WoT Blitz and Warships ARE the shared filter; Warplanes is
+    // Vehicles-local and leaves it exactly as it was. The write happens AFTER
+    // the load, so a title the worker then declines cannot leave the filter
+    // claiming a game the select is not showing — the select always renders
+    // `view.title`, the APPLIED one.
+    onGameFilterChange(filterAfterTitleChange(control.value, gameFilter));
   }
 
   /**
@@ -409,12 +441,18 @@
    * second list of titles kept here. Never the account's `NAME` column: that
    * is the nickname, and Phase 3 D-21 confines it to the identity header
    * (T-05-12c). `ViewHeader.battles` has no field for it either.
+   *
+   * D-20: `headerBattles` is the SUM across the accounts that contribute, and
+   * `headerExpires` is `null` as soon as two or more do — the expiry belongs to
+   * one account's premium status and has no combined form, so the header shows
+   * one figure instead of two rather than showing a figure that is not true
+   * (T-10-11). With ONE account both are exactly what v1.0 showed.
    */
   const headerBattles = $derived(
     view?.header === null || view === null ? null : formatVehicleCell(view.header.battles, 'count'),
   );
   const headerExpires = $derived(
-    view === null || view.header === null
+    view === null || view.header === null || view.header.premiumExpires === null
       ? null
       : formatVehicleCell(view.header.premiumExpires, 'text'),
   );
@@ -471,6 +509,34 @@
   );
 
   /**
+   * D-10's tags: `null` for a single-account dataset, the map otherwise.
+   *
+   * Derived from `result` rather than from the view, because the letters belong
+   * to the ACCOUNT list — the identity header's own D-16 order — and not to
+   * whichever title's rows happen to be on screen. The same expression therefore
+   * gives every pane the same letter for the same account by construction.
+   */
+  const tags = $derived(accountTagsFor(result));
+
+  /**
+   * D-11: the extra strings one row matches on — its account's LETTER and its
+   * account's ROOT, each compared on its own by `filterRows`.
+   *
+   * `undefined` (not an empty array) when there are no tags, so `filterRows`
+   * takes its third argument as absent and behaves exactly as v1.0's caller
+   * did. A row whose root the map does not hold contributes nothing, which is
+   * what stops an unrecognised account from matching an empty string.
+   */
+  const accountTextOf = $derived(
+    tags === null
+      ? undefined
+      : (row: VehicleRow): readonly string[] => {
+          const tag = tags.get(row.account);
+          return tag === undefined ? [] : [tag.letter, tag.root];
+        },
+  );
+
+  /**
    * The drawn rows, filtered then ordered.
    *
    * Filter BEFORE sort, never after: `filterRows` explicitly does not reorder,
@@ -481,7 +547,11 @@
   const rows = $derived(
     view === null
       ? []
-      : sortRows(filterRows(view.rows, selection.query), view.columns, selection.sort),
+      : sortRows(
+          filterRows(view.rows, selection.query, accountTextOf),
+          view.columns,
+          selection.sort,
+        ),
   );
 
   /**
@@ -647,6 +717,12 @@
         is for. `type="search"` for the native clear affordance and the native
         Escape behaviour, so there is no key handler here to keep in step with
         the browser's.
+
+        D-11: `aria-describedby` appears only when the hint does. With one
+        account the attribute is ABSENT rather than pointing at nothing, so the
+        single-account input is exactly the element v1.0 rendered — an empty
+        `aria-describedby` would still be an attribute a test and a screen
+        reader both have to interpret.
       -->
       <div class="control">
         <label for={searchId}>{VEHICLE_SEARCH_LABEL}</label>
@@ -656,7 +732,23 @@
           data-testid="vehicle-search"
           value={selection.query}
           oninput={onSearchInput}
+          aria-describedby={tags === null ? undefined : searchHintId}
         />
+        <!--
+          The hint, directly under the input and inside the same `.control`, so
+          the 4px gap the CSS puts between a label and its control is the gap
+          between the input and this line too. The `{#if}` and the `<p>` sit
+          flush against the `<input>`'s closing tag: a newline there would put a
+          whitespace text node inside every single-account control, which the
+          layout specs read.
+        -->
+        {#if tags !== null}<p
+            class="caption search-hint"
+            id={searchHintId}
+            data-testid="vehicle-search-hint"
+          >
+            {VEHICLE_SEARCH_ACCOUNT_HINT}
+          </p>{/if}
       </div>
     </div>
 
@@ -673,8 +765,15 @@
       It is shown for a title with NO ROWS as well as a title with a table: the
       account file is a different file, and its figures are true whatever the
       vehicle file holds.
+
+      D-20: the OUTER gate is the lifetime figure alone, and the expiry term is
+      its own inner gate. Two or more accounts sum their battles and leave the
+      expiry out, rather than dropping the whole header — a combined header with
+      one honest figure beats either no header or a header whose second figure
+      belongs to one account out of several (T-10-11). With one account both
+      gates are true and this markup is byte-identical to what v1.0 rendered.
     -->
-    {#if headerBattles !== null && headerExpires !== null}
+    {#if headerBattles !== null}
       <dl class="header" data-testid="player-stats-header">
         <dt>{HEADER_LIFETIME_BATTLES_LABEL}</dt>
         <dd data-testid="lifetime-battles">
@@ -683,13 +782,15 @@
             <span class="sr-only">{headerBattles.hidden}</span>
           {/if}
         </dd>
-        <dt>{HEADER_PREMIUM_EXPIRES_LABEL}</dt>
-        <dd data-testid="premium-expires">
-          {headerExpires.text}
-          {#if headerExpires.hidden !== null}
-            <span class="sr-only">{headerExpires.hidden}</span>
-          {/if}
-        </dd>
+        {#if headerExpires !== null}
+          <dt>{HEADER_PREMIUM_EXPIRES_LABEL}</dt>
+          <dd data-testid="premium-expires">
+            {headerExpires.text}
+            {#if headerExpires.hidden !== null}
+              <span class="sr-only">{headerExpires.hidden}</span>
+            {/if}
+          </dd>
+        {/if}
       </dl>
     {/if}
 
@@ -801,6 +902,7 @@
           {regionName}
           {resetKey}
           updating={playerState === 'updating'}
+          {tags}
         />
       {/if}
 
@@ -965,6 +1067,19 @@
     font-weight: 600;
     line-height: 1.4;
     color: var(--text);
+  }
+
+  /* D-11's search hint: the shared `.caption` rule with ONE addition, a 1.5
+     line height instead of the captions' 1.4. A hint sits under a control the
+     eye is about to use, so it gets the airier leading of a line the reader
+     reads rather than the tight leading of a table caption; everything else —
+     the 14px, the 400 weight, the `--muted` colour and the zero margin, the
+     `.control` column's own `gap: 4px` doing the separating — is the caption
+     family unchanged, which is what stops a later edit styling this hint as a
+     label and making it look like a second control. */
+  .search-hint {
+    margin: 0;
+    line-height: 1.5;
   }
 
   /* Label role, the Phase 4 select exactly (05-UI-SPEC section 3). The

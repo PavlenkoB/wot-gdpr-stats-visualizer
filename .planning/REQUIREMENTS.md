@@ -11,10 +11,10 @@
 - [x] **ACCOUNT-01**: User can import a zip with several account-ID folders without the generic failure banner
 - [x] **ACCOUNT-02**: Each account folder is classified and parsed independently; an account with missing categories (e.g. no `User_Info`) still imports
 - [x] **ACCOUNT-03**: One cached dataset holds all accounts, with replace-on-new-upload and hash-dedupe behaving as before
-- [ ] **ACCOUNT-04**: The dashboard shows all accounts merged: combined playtime and activity, combined finance totals (per currency, never blended), combined vehicle stats
+- [x] **ACCOUNT-04**: The dashboard shows all accounts merged: combined playtime and activity, combined finance totals (per currency, never blended), combined vehicle stats
 - [x] **ACCOUNT-05**: The identity header lists every account with its ID, the games it covers, and its first-to-last activity years
-- [ ] **ACCOUNT-06**: A game filter on merged playtime and vehicles separates WoT, WoTB and WoWS; overlapping sessions across accounts are not double-counted, and each row stays traceable to its account
-- [ ] **ACCOUNT-07**: Login-IP history merges across accounts, with masking and the city opt-in unchanged
+- [x] **ACCOUNT-06**: A game filter on merged playtime and vehicles separates WoT, WoTB and WoWS; overlapping sessions across accounts are not double-counted, and each row stays traceable to its account
+- [x] **ACCOUNT-07**: Login-IP history merges across accounts, with masking and the city opt-in unchanged
 - [x] **ACCOUNT-08**: Clear and Start Over wipe all accounts; fixtures and tests cover 1, 2 and 3 account roots
 
 ### New games
@@ -39,7 +39,7 @@
 
 - [ ] **PRIV-01**: Every new category goes through the same fail-closed PII strip as `LOGIN` and `BIRTH_DATE`, with unit tests per header
 - [ ] **PRIV-02**: Zero network requests after load still holds; the Playwright guard is extended to the new panes
-- [ ] **SCALE-01**: All new panes aggregate or virtualize; the 54k-row Virtual_Currencies file is checked against a synthetic large export
+- [x] **SCALE-01**: All new panes aggregate or virtualize; the 54k-row Virtual_Currencies file is checked against a synthetic large export
 
 ## Future Requirements
 
@@ -63,10 +63,10 @@
 | ACCOUNT-01 | Phase 9 | Complete |
 | ACCOUNT-02 | Phase 9 | Complete |
 | ACCOUNT-03 | Phase 9 | Complete |
-| ACCOUNT-04 | Phase 10 | Pending |
+| ACCOUNT-04 | Phase 10 | Complete |
 | ACCOUNT-05 | Phase 9 | Complete |
-| ACCOUNT-06 | Phase 10 | Pending |
-| ACCOUNT-07 | Phase 10 | Pending |
+| ACCOUNT-06 | Phase 10 | Complete |
+| ACCOUNT-07 | Phase 10 | Complete |
 | ACCOUNT-08 | Phase 9 | Complete |
 | GAMES-01 | Phase 11 | Pending |
 | GAMES-02 | Phase 11 | Pending |
@@ -79,7 +79,7 @@
 | PERKS-03 | Phase 12 | Pending |
 | PRIV-01 | Phase 11 | Pending |
 | PRIV-02 | Phase 11 | Pending |
-| SCALE-01 | Phase 10 | Pending |
+| SCALE-01 | Phase 10 | Complete |
 
 **Coverage:** 20/20 v1.1 requirements mapped, no orphans, no duplicates.
 

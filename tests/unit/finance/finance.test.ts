@@ -47,7 +47,7 @@ import type {
   SpendCard,
 } from '../../../src/lib/features/finance/finance-shared';
 import { mulberry32 } from '../../fixtures/sessions-fixtures';
-import { oneAccount } from '../../helpers/row-groups';
+import { oneAccount, oneAccountEach } from '../../helpers/row-groups';
 import type { AccountRowGroup } from '../../../src/lib/worker/csv-columns';
 import {
   MA_DIVERGENT_AMOUNT_CANONICAL,
@@ -56,6 +56,9 @@ import {
   MA_DIVERGENT_CURRENCY_CODE,
   MA_DIVERGENT_CURRENCY_CREATED,
   MA_DIVERGENT_RENAMED_ROOT,
+  MA_ROOT_EU,
+  MA_ROOT_NA,
+  MA_ROOT_RU,
 } from '../../fixtures/multi-account-fixtures';
 
 /**
@@ -1395,5 +1398,351 @@ describe('09-07 CR-01: two accounts whose same-named currency file disagrees on 
     // And the account that renamed the column is reported honestly on its own
     // row: `no AMOUNT this app reads` is an exclusion, not a silent zero.
     expect(view.excluded).toBe(1);
+  });
+});
+
+// =============================================================================
+// Phase 10, plan 10-05 — the per-account split (D-14, D-10, T-10-18)
+//
+// WHAT THIS FILE IS FOR
+// Two accounts' orders of ONE currency are one combined figure, added exactly
+// and never converted or blended — and the division of that figure by account
+// lives in a disclosure inside the card, never in a second headline (D-14).
+//
+// The split is the SUM OF THE SAME ROWS the headline sums, so the strong claim
+// is not "the numbers look right" but "each entry equals the single-account
+// card, the entries add to the card, and the card is exactly double" — three
+// statements that together leave no room for a split that is plausible and
+// wrong. The figures come from the hand fixture and from `oracleSpend`, never
+// from the builder under test.
+// =============================================================================
+
+describe('Phase 10: per-account split', () => {
+  /**
+   * Two roots in the identity-header order the phase's fixture publishes (EU
+   * then NA), holding the SAME sixteen hand rows each — which is what makes
+   * "exactly double" a checkable statement rather than a hope.
+   */
+  const ROOT_FIRST = MA_ROOT_EU;
+  const ROOT_SECOND = MA_ROOT_NA;
+
+  function bothAccounts(rows: readonly FinanceRow[]): AccountRowGroup<FinanceRow>[] {
+    return oneAccountEach([rows, rows], [ROOT_FIRST, ROOT_SECOND]);
+  }
+
+  function readyCards(groups: AccountRowGroup<FinanceRow>[]): readonly SpendCard[] | null {
+    const view = finance.buildSpend(groups);
+    return view.status === 'ready' ? view.cards : null;
+  }
+
+  it('reads exactly double for two accounts, and every entry equals the single card', () => {
+    const rows = ordersHandRows();
+    const once = readyCards(oneAccount(rows));
+    const twice = readyCards(bothAccounts(rows));
+    expect(once, 'the single-account fixture builds').not.toBeNull();
+    expect(twice, 'the two-account fixture builds').not.toBeNull();
+    if (once === null || twice === null) return;
+
+    // Five cards for one account and FIVE for two: combining accounts adds
+    // money to a card, it never adds a card. A blended figure would appear here
+    // as a sixth card holding USD + EUR, which is the shape T-10-16 forbids.
+    expect(twice.map((card) => card.code)).toEqual(once.map((card) => card.code));
+
+    for (const [index, doubled] of twice.entries()) {
+      const single = once[index]!;
+      const where = `${doubled.code ?? 'unit-less'}`;
+
+      expect(doubled.paid, `${where}: exactly double the paid orders`).toBe(single.paid * 2);
+      expect(doubled.units, `${where}: exactly double, in micro-units`).toBe(
+        (BigInt(single.units) * 2n).toString(),
+      );
+
+      // Both accounts, and BOTH entries equal to the single-account card —
+      // because each account ordered exactly what the single account did.
+      expect(
+        doubled.byAccount.map((entry) => entry.account),
+        `${where}: one entry per account, in storage order`,
+      ).toHaveLength(2);
+      for (const entry of doubled.byAccount) {
+        expect(entry.paid, `${where}: ${entry.account} paid what the single account paid`).toBe(
+          single.paid,
+        );
+        expect(entry.units, `${where}: ${entry.account} spent what the single account spent`).toBe(
+          single.units,
+        );
+      }
+
+      // And the split is the SAME addition, so it adds up. Count first, then
+      // value: a split that lost an order would still be a plausible table.
+      expect(
+        doubled.byAccount.reduce((total, entry) => total + entry.paid, 0),
+        `${where}: the entries' counts add to the headline`,
+      ).toBe(doubled.paid);
+      expect(
+        doubled.byAccount.reduce((total, entry) => total + BigInt(entry.units), 0n),
+        `${where}: the entries' exact sums add to the headline`,
+      ).toBe(BigInt(doubled.units));
+    }
+  });
+
+  it('agrees with the oracle over the same rows written twice', () => {
+    // The independent answer key: `oracleSpend` imports nothing from `src/`, so
+    // it cannot be moved by a change to the builder. Every card, every year and
+    // every game row of the doubled view has to equal it.
+    const rows = ordersHandRows();
+    const doubled = readyCards(bothAccounts(rows));
+    const recomputed = oracle.oracleSpend([...rows, ...rows]);
+    expect(doubled, 'the doubled fixture builds').not.toBeNull();
+    if (doubled === null) return;
+    expect(doubled.map(cardOf)).toEqual(recomputed.cards.map(cardOfOracle));
+  });
+
+  it('gives one account a single-entry split', () => {
+    // A single-account dataset still carries the field — the renderer gates on
+    // `accountTagsFor` rather than on the data being empty, so a one-account
+    // export is not a special case in the aggregate at all.
+    const cards = readyCards(oneAccount(ordersHandRows()));
+    expect(cards).not.toBeNull();
+    if (cards === null) return;
+    for (const card of cards) {
+      expect(card.byAccount, `${card.code ?? 'unit-less'}: exactly one entry`).toHaveLength(1);
+      expect(card.byAccount[0]!.paid).toBe(card.paid);
+      expect(card.byAccount[0]!.units).toBe(card.units);
+    }
+  });
+
+  it('leaves an account out of a currency it only failed or queued in', () => {
+    // D-21: only PAID orders count toward money. An account whose USD rows are a
+    // FAILED and a NEW order has an honest place in the card's `failed` and
+    // `new` counts and NO place in the split — a row of zeros would claim it
+    // spent nothing here, which is a different statement from "its rows were
+    // not counted".
+    const first = ordersHandRows();
+    const second = [
+      orderRow('2021-04-04 12:15:00', 'WOT', 'USD', '50', '0', 'FAILED'),
+      orderRow('2021-05-05 13:00:00', 'WOT', 'USD', '7.77', '0', 'NEW'),
+      // A currency the FIRST account holds none of, so its card can be checked
+      // for the other half of the rule: an account absent from a currency it
+      // never paid in is absent rather than zero.
+      orderRow('2021-06-06 14:20:00', 'WOT', 'EUR', '40.00', '0', 'PAID'),
+    ];
+    const cards = readyCards(oneAccountEach([first, second], [ROOT_FIRST, ROOT_SECOND]));
+    expect(cards).not.toBeNull();
+    if (cards === null) return;
+
+    const usd = cards.find((card) => card.code === 'USD');
+    const eur = cards.find((card) => card.code === 'EUR');
+    expect(usd, 'the USD card exists').toBeDefined();
+    expect(eur, 'the EUR card exists').toBeDefined();
+    if (usd === undefined || eur === undefined) return;
+
+    // The card itself carries both accounts' USD rows — the FAILED and NEW ones
+    // are counted, just not added in.
+    expect(usd.paid).toBe(4);
+    expect(usd.failed).toBe(2);
+    expect(usd.new).toBe(2);
+    expect(usd.byAccount.map((entry) => entry.account)).toEqual([ROOT_FIRST]);
+    expect(usd.byAccount[0]!.units).toBe(units(15_495));
+
+    // EUR is its own card holding one account's one order, and the account that
+    // holds none of it has no row on it.
+    expect(eur.byAccount.map((entry) => entry.account)).toEqual([ROOT_SECOND]);
+    expect(eur.byAccount[0]!.units).toBe(eur.units);
+  });
+
+  it('treats a root named __proto__ as an ordinary account', () => {
+    // The key is a zip FOLDER NAME, so this one is reachable and is why every
+    // root-keyed map in this app is a Map rather than an object (T-10-09). An
+    // object would have dropped the key entirely and the split would have been
+    // short by one account while every other field stayed correct.
+    const rows = ordersHandRows();
+    const cards = readyCards(oneAccountEach([rows, rows], ['__proto__', 'constructor']));
+    expect(cards).not.toBeNull();
+    if (cards === null) return;
+    const usd = cards.find((card) => card.code === 'USD');
+    expect(usd, 'the USD card exists').toBeDefined();
+    if (usd === undefined) return;
+    expect(usd.byAccount.map((entry) => entry.account)).toEqual(['__proto__', 'constructor']);
+    expect(usd.byAccount).toHaveLength(2);
+    expect(usd.byAccount.reduce((total, entry) => total + entry.paid, 0)).toBe(usd.paid);
+  });
+
+  it('stores the split by ROOT in code units, which is not the letter order', () => {
+    // The two orders, named apart (T-10-18 and 10-04's lesson):
+    //   - STORAGE is code-unit ascending by root, so the record is reproducible;
+    //   - READING is by account letter, because the identity header above the
+    //     pane publishes that order.
+    // Code-unit order puts `1000000003` before `2000002` — the same fixture
+    // whose letters are B (500000001), then... this is precisely the case that
+    // drew `C, A, B` in Logins until `accountChipsOf` re-sorted it. Pinning the
+    // stored order here is what keeps the view's re-sort load-bearing rather
+    // than accidental.
+    const rows = ordersHandRows();
+    const cards = readyCards(oneAccountEach([rows], [MA_ROOT_NA]));
+    expect(cards).not.toBeNull();
+    if (cards === null) return;
+    expect(cards[0]!.byAccount.map((entry) => entry.account)).toEqual([MA_ROOT_NA]);
+
+    const two = readyCards(
+      oneAccountEach([rows, rows, rows], [MA_ROOT_RU, MA_ROOT_NA, MA_ROOT_EU]),
+    );
+    expect(two).not.toBeNull();
+    if (two === null) return;
+    expect(
+      two[0]!.byAccount.map((entry) => entry.account),
+      'code units: 1… before 2… before 5…',
+    ).toEqual([MA_ROOT_NA, MA_ROOT_RU, MA_ROOT_EU]);
+  });
+
+  it('keeps a fractional amount exact through both the addition and the split', () => {
+    // T-10-18. The hand fixture's 1.005 USD row is three decimals, so the
+    // single-account USD card is 15.495 units — a float sum of two of them
+    // gives 30.989999999999998, and a per-account figure drawn as a float would
+    // not add to the headline a reader is looking at. Both figures are compared
+    // as STRINGS here, which is the only comparison that can tell.
+    const rows = ordersHandRows();
+    const cards = readyCards(bothAccounts(rows));
+    expect(cards).not.toBeNull();
+    if (cards === null) return;
+    const usd = cards.find((card) => card.code === 'USD');
+    expect(usd, 'the USD card exists').toBeDefined();
+    if (usd === undefined) return;
+    expect(usd.units).toBe(units(30_990));
+    expect(usd.byAccount.map((entry) => entry.units)).toEqual([units(15_495), units(15_495)]);
+    // What the float path would have produced for ONE account's half of that
+    // sum, asserted so the exactness claim above is about a number this test
+    // knows how to get wrong: 9.99 + 0.5 + 1.005 + 4.00 is not a whole number
+    // of micro-units in binary floating point, so an entry built by adding
+    // floats would be 15495000.000000002 rather than the string above.
+    const floatMicro = [9.99, 0.5, 1.005, 4.0].reduce((a, b) => a + b, 0) * 1e6;
+    expect(Number.isInteger(floatMicro), 'the float path is not whole micro-units').toBe(false);
+  });
+});
+
+// =============================================================================
+// Phase 10, plan 10-05 — accounts combine per currency, never across them
+// (D-14, T-10-16, T-10-18)
+//
+// The claim is narrower than "the sums are right": it is that combining adds
+// money WITHIN a currency and never between two. Every expected figure here
+// comes from `oracleSpend` / `oracleCurrency` (which import nothing from `src/`)
+// or from a typed literal, never from the builder under test.
+// =============================================================================
+
+describe('Phase 10: accounts combine per currency', () => {
+  const FIRST = MA_ROOT_EU;
+  const SECOND = MA_ROOT_NA;
+
+  /** The spend cards of a ready view, or `null`. */
+  function readyCards(groups: AccountRowGroup<FinanceRow>[]): readonly SpendCard[] | null {
+    const view = finance.buildSpend(groups);
+    return view.status === 'ready' ? view.cards : null;
+  }
+
+  /** A currency view that must be ready, or a thrown failure. */
+  function readyCurrency(groups: AccountRowGroup<FinanceRow>[]) {
+    const view = finance.buildCurrency(groups, true);
+    if (view.status !== 'ready') throw new Error(`expected a ready currency view: ${view.status}`);
+    return view;
+  }
+
+  it('doubles every currency chart and other-currency row, exactly as the oracle does', () => {
+    const rows = currencyHandRows();
+    const once = readyCurrency(oneAccount(rows));
+    const twice = readyCurrency(oneAccountEach([rows, rows], [FIRST, SECOND]));
+    const recomputed = oracle.oracleCurrency([...rows, ...rows]);
+
+    // The independent answer key over the rows written twice.
+    expect(twice.excluded).toBe(recomputed.excluded);
+    expect(twice.charts.map((entry) => chartGroup(entry))).toEqual(recomputed.charted);
+    expect(twice.others.map((entry) => chartGroup(entry))).toEqual(recomputed.others);
+
+    // And the relationship to the single account, entry by entry, in the exact
+    // scale: operations and both sums double, no currency appears or vanishes.
+    const byCode = (view: typeof once) =>
+      new Map([...view.charts, ...view.others].map((entry) => [entry.code, entry]));
+    const single = byCode(once);
+    const combined = byCode(twice);
+    expect([...combined.keys()].sort()).toEqual([...single.keys()].sort());
+    for (const [code, entry] of combined) {
+      const base = single.get(code)!;
+      expect(entry.ops, `${code}: operations double`).toBe(base.ops * 2);
+      expect(entry.inUnits, `${code}: deposits double exactly`).toBe(
+        (BigInt(base.inUnits) * 2n).toString(),
+      );
+      expect(entry.outUnits, `${code}: withdrawals double exactly`).toBe(
+        (BigInt(base.outUnits) * 2n).toString(),
+      );
+    }
+    // The one non-integer total in the file stays exact through the addition.
+    expect(combined.get('UAH')?.inUnits).toBe(units(1_025_000));
+  });
+
+  it('keeps two currencies as two cards and never blends them', () => {
+    // The second account's USD orders are rewritten to EUR. If the fold were
+    // anything but keyed by currency as written, a USD+EUR card would appear.
+    const first = ordersHandRows();
+    const second = first.map((row) =>
+      row.PAYMENT_CURRENCY === 'USD' ? { ...row, PAYMENT_CURRENCY: 'EUR' } : row,
+    );
+    const single = readyCards(oneAccount(first));
+    const cards = readyCards(oneAccountEach([first, second], [FIRST, SECOND]));
+    expect(single).not.toBeNull();
+    expect(cards).not.toBeNull();
+    if (single === null || cards === null) return;
+
+    const usdAlone = single.find((card) => card.code === 'USD')!;
+    const usd = cards.find((card) => card.code === 'USD');
+    const eur = cards.find((card) => card.code === 'EUR');
+    expect(usd, 'the USD card exists').toBeDefined();
+    expect(eur, 'the EUR card exists').toBeDefined();
+    if (usd === undefined || eur === undefined) return;
+
+    // USD is the first account alone; EUR is the second account's former USD.
+    expect(cardOf(usd)).toEqual(cardOf(usdAlone));
+    expect(cardOf(eur)).toEqual({ ...(cardOf(usdAlone) as object), code: 'EUR' });
+    expect(usd.byAccount.map((entry) => entry.account)).toEqual([FIRST]);
+    expect(eur.byAccount.map((entry) => entry.account)).toEqual([SECOND]);
+
+    // No card holds the two currencies' sum (15.495 + 15.495).
+    expect(cards.some((card) => card.units === units(30_990))).toBe(false);
+    // Every OTHER currency doubled: one extra card (EUR), nothing merged.
+    expect(cards).toHaveLength(single.length + 1);
+
+    // The unit-less group is still its own card, still last, still not merged
+    // with a three-letter code, and still doubled within itself.
+    const unitLessAlone = single.find((card) => card.code === null)!;
+    const unitLess = cards.find((card) => card.code === null);
+    expect(cards[cards.length - 1]!.code, 'the unit-less card stays last').toBeNull();
+    expect(unitLess?.paid).toBe(unitLessAlone.paid * 2);
+    expect(unitLess?.units).toBe((BigInt(unitLessAlone.units) * 2n).toString());
+  });
+
+  it('is unchanged by an account with an empty or header-only Orders file', () => {
+    const rows = ordersHandRows();
+    expect(readyCards(oneAccountEach([rows, []], [FIRST, SECOND]))).toEqual(
+      readyCards(oneAccountEach([rows], [FIRST])),
+    );
+    const currency = currencyHandRows();
+    expect(readyCurrency(oneAccountEach([currency, []], [FIRST, SECOND]))).toEqual(
+      readyCurrency(oneAccountEach([currency], [FIRST])),
+    );
+  });
+
+  it('keeps a fractional amount exact across accounts, compared as unit strings', () => {
+    // The 1.005 USD row: a float sum of the two accounts would not be a whole
+    // number of micro-units, so a string comparison is the only honest one.
+    const rows = ordersHandRows();
+    const cards = readyCards(oneAccountEach([rows, rows], [FIRST, SECOND]));
+    expect(cards).not.toBeNull();
+    if (cards === null) return;
+    const recomputed = oracle.oracleSpend([...rows, ...rows]);
+    for (const expected of recomputed.cards) {
+      const card = cards.find((entry) => (entry.code ?? '') === expected.code);
+      expect(card, `${expected.code || 'unit-less'} exists`).toBeDefined();
+      expect(card!.units).toBe(units(expected.totalThousandths));
+      expect(card!.paid).toBe(expected.paid);
+    }
+    expect(cards.find((card) => card.code === 'USD')!.units).toBe(units(30_990));
   });
 });

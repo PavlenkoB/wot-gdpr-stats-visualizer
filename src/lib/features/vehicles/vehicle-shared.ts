@@ -151,6 +151,12 @@ export interface VehicleColumn {
  * sorts and the count line reads, or null when the cell is a special, so the
  * model never has to re-read a cell to sort on it.
  *
+ * `account` is the ROOT of the account this row came from, stamped from the
+ * owning `AccountRowGroup.account` and never from any cell (Phase 10, D-10,
+ * T-10-10). It is what the tag chip is looked up by, so a misattributed row
+ * would put one account's letter on another account's vehicle — which is why it
+ * is a parameter of the mapper rather than something a cell can influence.
+ *
  * `cells[i]` belongs to `columns[i]`, and `cells[0]` is the vehicle column's own
  * text cell, so a row and a column list always describe the same width.
  */
@@ -158,6 +164,8 @@ export interface VehicleRow {
   id: string;
   nation: string | null;
   battles: number | null;
+  /** The owning account root, stamped by the mapper from the group (D-10). */
+  account: string;
   cells: VehicleCell[];
 }
 
@@ -170,17 +178,25 @@ export interface BattleTypeSummaryRow {
 }
 
 /**
- * The two figures above a title's table (D-13).
+ * The figures above a title's table (D-13; combined across accounts by D-20).
  *
- * `battles` is the account file's lifetime battle count and `premiumExpires` is
- * its expiry cell exactly as written — a value like `1970-01-01 00:00:00` is an
- * export artefact, not a date to reformat. The account file's `NAME` column is
- * the nickname and is NEVER read (Phase 3 D-21, T-05-12), which is why this
- * type has no field for it.
+ * `battles` is the account file's lifetime battle count — with two or more
+ * accounts contributing, the SUM of their numeric battle cells (or the first
+ * special when none of them is a number).
+ *
+ * `premiumExpires` is the expiry cell exactly as written — a value like
+ * `1970-01-01 00:00:00` is an export artefact, not a date to reformat — and is
+ * `null` when TWO OR MORE accounts contributed. There is no honest combined
+ * expiry: the earliest of two is a claim the export never made and the latest
+ * drops one account, so the term is omitted instead (D-20, T-10-11). One
+ * account answers with its own cell, exactly as v1.0 did.
+ *
+ * The account file's `NAME` column is the nickname and is NEVER read (Phase 3
+ * D-21, T-05-12), which is why this type has no field for it.
  */
 export interface VehicleHeader {
   battles: VehicleCell;
-  premiumExpires: VehicleCell;
+  premiumExpires: VehicleCell | null;
 }
 
 /** What the title selector needs to draw one option per title (D-05). */

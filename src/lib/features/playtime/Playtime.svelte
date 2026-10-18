@@ -4,13 +4,16 @@
   import type { ClassifyResult, PlaytimeView } from '../../core/types/worker-messages.ts';
   import type { RequestedSlice, ShownPlaytime } from './playtime-state.ts';
   import {
+    ABOUT_NAME_PLAYTIME_TOTALS,
     PLAYTIME_CACHE_CLEARED,
     PLAYTIME_ERROR,
     PLAYTIME_HEADING,
+    PLAYTIME_MERGE_ABOUT,
     PLAYTIME_NO_SESSION_FILE,
     PLAYTIME_NO_USABLE_SESSIONS,
     SPLIT_ALL_OPTION,
     SPLIT_COLUMN_LABELS,
+    formatNoGameSessions,
     formatSplitValue,
   } from '../../ui-copy.ts';
   import {
@@ -26,6 +29,10 @@
   import PlaytimeSummary from './PlaytimeSummary.svelte';
   import PlaytimeCharts from './PlaytimeCharts.svelte';
   import ExcludedNotice from '../../shell/ExcludedNotice.svelte';
+  import GameFilter from '../../shell/GameFilter.svelte';
+  import { filterChips } from '../../shell/game-filter-state.ts';
+  import { accountCountOf } from '../../shell/identity-model.ts';
+  import AboutDisclosure from '../../charts/AboutDisclosure.svelte';
 
   /**
    * The Playtime block of the Activity_history card (04-02, grown in 04-08,
@@ -82,9 +89,18 @@
     result: ClassifyResult | null;
     /** The playtime query seam (D-06) — the only way this block asks for numbers. */
     client: PlaytimeClient;
+    /**
+     * The shared game filter (Phase 10, D-01): the applied token, or `null` for
+     * All games. It is read ONLY inside the dataset effect's `untrack` and in
+     * the chip handler — never as a dependency, because a filter change is a
+     * NEW QUERY, not a new dataset.
+     */
+    gameFilter: string | null;
+    /** A chip was chosen. Writes the shared filter in the shell cell. */
+    onGameFilterChange: (token: string | null) => void;
   }
 
-  let { result, client }: Props = $props();
+  let { result, client, gameFilter, onGameFilterChange }: Props = $props();
 
   /**
    * The control id for the label. From `$props.id()` rather than a literal so
@@ -129,6 +145,10 @@
   /**
    * Ask for one slice and show it, if it is still the slice being asked for.
    *
+   * A slice is the PAIR (value index, game) since Phase 10, and both travel in
+   * the ask so `acceptOutcome` stamps the answer with the QUESTION rather than
+   * with anything the reply says about itself. The game is null for All games.
+   *
    * The acceptance rule is `acceptOutcome`'s, and it is handed THREE facts: the
    * outcome, the ask it answers, and the dataset on screen now. The third is
    * the one a hand-written reset would forget — a replace can land while the
@@ -139,12 +159,16 @@
    * than a repeat of what the page already said on load. The initial load and
    * every dataset change pass false.
    */
-  async function load(valueIndex: number | null, userInitiated: boolean): Promise<void> {
+  async function load(
+    valueIndex: number | null,
+    game: string | null,
+    userInitiated: boolean,
+  ): Promise<void> {
     const wanted = importedAt;
     if (wanted === null) return;
 
-    const ask: RequestedSlice = { importedAt: wanted, valueIndex };
-    const outcome = await client.query(valueIndex);
+    const ask: RequestedSlice = { importedAt: wanted, valueIndex, game };
+    const outcome = await client.query(valueIndex, game);
     if (!alive) return;
 
     const accepted = acceptOutcome(outcome, ask, importedAt);
@@ -184,9 +208,14 @@
       if (
         outcome.kind !== 'superseded' &&
         wanted === importedAt &&
-        requested?.valueIndex === ask.valueIndex
+        requested?.valueIndex === ask.valueIndex &&
+        (requested?.game ?? null) === ask.game
       ) {
-        requested = { importedAt: wanted, valueIndex: shown?.valueIndex ?? null };
+        requested = {
+          importedAt: wanted,
+          valueIndex: shown?.valueIndex ?? null,
+          game: shown?.game ?? null,
+        };
       }
       return;
     }
@@ -222,12 +251,37 @@
       // with them (04-16): a notice is a claim about ONE dataset, and the way
       // back from it is dropping the export again — which is exactly what
       // re-runs this effect.
-      requested = { importedAt: wanted, valueIndex: null };
+      requested = { importedAt: wanted, valueIndex: null, game: gameFilter };
       announcement = '';
       cacheCleared = false;
-      void load(null, false);
+      void load(null, gameFilter, false);
     });
   });
+
+  /**
+   * The reader's choice of game (Phase 10, D-01).
+   *
+   * Two things are worth spelling out, because both were the obvious mistake:
+   *
+   *   - the split index ALWAYS resets to All. The split value list belongs to
+   *     the game scope, so an index chosen under WoT names nothing under Warships
+   *     and the worker would answer All for it anyway; carrying it would leave
+   *     the selector showing a value the new answer does not hold.
+   *   - `requested` is written BEFORE the query, and with the game, because
+   *     `derivePlaytimeState` compares the pair. A request differing only by
+   *     game is `updating`, which is what keeps the previous slice on screen
+   *     with "Updating charts..." rather than swapping it for a blank block
+   *     mid-flight (D-03).
+   *
+   * The filter itself is written to the shell cell through the callback rather
+   * than here, so this block holds no state the reader can leave behind.
+   */
+  function onGameChange(token: string | null): void {
+    if (importedAt === null) return;
+    onGameFilterChange(token);
+    requested = { importedAt, valueIndex: null, game: token };
+    void load(null, token, true);
+  }
 
   /**
    * The user's choice of slice.
@@ -236,13 +290,21 @@
    * index — a value like `'0'` is the first server, never All. A request made
    * with no dataset on screen is dropped rather than stored: there is no query
    * to send, so a request could only be a stale one.
+   *
+   * The ask carries the game of the slice ON SCREEN (`shown.game`), not the
+   * shell's current filter: while a game change is still in flight this control
+   * belongs to the previous game's value list, so asking for the new game with
+   * an index from the old one would ask for a list that does not exist. That
+   * also supersedes the in-flight game request, which is what "the latest
+   * request wins" means here.
    */
   function onSelectChange(event: Event): void {
     const control = event.currentTarget as HTMLSelectElement;
     if (importedAt === null) return;
     const valueIndex = control.value === ALL_OPTION ? null : Number(control.value);
-    requested = { importedAt, valueIndex };
-    void load(valueIndex, true);
+    const game = shown?.game ?? null;
+    requested = { importedAt, valueIndex, game };
+    void load(valueIndex, game, true);
   }
 
   /** The state the whole block renders (04-UI-SPEC section 2). */
@@ -280,6 +342,41 @@
 
   /** The status paragraph's text; empty whenever there is nothing to say. */
   const statusText = $derived(statusLine(playtimeState, announcement));
+
+  /**
+   * The game tokens the ON-SCREEN answer carries, and the chip row they warrant.
+   *
+   * Read from `view` rather than from the shell's filter or from the worker
+   * directly, for the reason the rest of this block reads `shown`: while a chip
+   * click is in flight the previous answer is the truth on screen, and the chips
+   * must not move or vanish under the reader's cursor (UI-SPEC Surface 1).
+   *
+   * `null` means the row renders no node at all — a single-game export, no
+   * session file, or only HEAT and WOTC, where All games is the only view there
+   * is.
+   */
+  const chipGames = $derived(
+    view !== null && (view.status === 'ready' || view.status === 'no-game-sessions')
+      ? (view.games ?? [])
+      : [],
+  );
+
+  const chipTokens = $derived(filterChips(chipGames, gameFilter));
+
+  /**
+   * Whether the "About this summary" disclosure belongs on screen (Phase 10,
+   * D-06).
+   *
+   * It explains two things a single-account, single-game export cannot show:
+   * that overlapping sessions are counted once, and that All games can read
+   * smaller than the games added together. Either is reachable exactly when the
+   * filter row is there (the reader can choose a game and compare) or the
+   * dataset holds two or more accounts (the totals are merged). With neither,
+   * the disclosure would be an essay about a case the reader cannot reach, so
+   * it renders no node and a one-account one-game dataset's DOM stays
+   * byte-identical to v1.0.
+   */
+  const showAboutTotals = $derived(chipTokens !== null || accountCountOf(result) >= 2);
 </script>
 
 <!--
@@ -352,6 +449,25 @@
     </p>
   {/if}
 
+  <!--
+    The game filter chip row (Phase 10, D-01; UI-SPEC Surface 1).
+
+    Placed AFTER the status live region and the storage notice and BEFORE the
+    `GAME` selector row, so the tab order is: filter group, split selector,
+    charts — one stop per group, and the filter (the coarser choice) is the one
+    a reader lands on first. It sits OUTSIDE the `ready` branch on purpose: the
+    chips come from the view's own `games` list, which an empty-game answer
+    carries too, so a game with no sessions keeps its chips and All games stays
+    one tap away (D-03).
+
+    No conditional node at all when the row is not warranted — `filterChips`
+    answers null and nothing is drawn, so a single-game dataset's DOM is
+    byte-identical to v1.0.
+  -->
+  {#if chipTokens !== null}
+    <GameFilter games={chipTokens} selected={gameFilter} onchange={onGameChange} />
+  {/if}
+
   {#if readyView !== null}
     {#if split !== null && column !== null}
       <!--
@@ -385,7 +501,28 @@
       </div>
     {/if}
 
-    <PlaytimeSummary slice={readyView.slice} {split} selected={readyView.selected} />
+    <PlaytimeSummary
+      slice={readyView.slice}
+      {split}
+      selected={readyView.selected}
+    />{#if showAboutTotals}
+      <!--
+        How the merged totals are counted (Phase 10, D-06), directly under the
+        tiles it explains. It is a `details`, so collapsed by default and adding
+        no height the reader did not ask for; the `About this summary` summary
+        is the one added tab stop.
+
+        The `{#if}` tag is flush against the `<PlaytimeSummary />` above it with
+        NO whitespace between them, exactly as `DashboardSection.svelte`'s
+        combined caption is: a newline here would put a whitespace TEXT NODE
+        between the totals and whatever follows them on a dataset that does not
+        warrant the disclosure, which is the v1.0 DOM this plan promises to
+        leave byte-identical.
+      -->
+      <AboutDisclosure name={ABOUT_NAME_PLAYTIME_TOTALS} testId="about-playtime-totals">
+        <p class="caption">{PLAYTIME_MERGE_ABOUT}</p>
+      </AboutDisclosure>
+    {/if}
 
     <!--
       The charts, mounted under the totals in every state that HAS a slice —
@@ -401,6 +538,17 @@
       are not showing.
     -->
     <PlaytimeCharts slice={readyView.slice} updating={playtimeState === 'updating'} />
+  {:else if view !== null && view.status === 'no-game-sessions'}
+    <!--
+      The empty GAME (Phase 10, D-03): this export HAS sessions, just not this
+      game's, so the tiles and the charts are replaced by the one body line and
+      the chip row above stays. Decided from the VIEW rather than from
+      `playtimeState`, and that is the point: while a chip click is in flight
+      the state is `updating` but the empty game is still the answer on screen,
+      and a body that vanished mid-click would leave the block blank for a
+      frame with no explanation and no numbers.
+    -->
+    <p class="body" data-testid="playtime-game-empty">{formatNoGameSessions(view.game)}</p>
   {:else if playtimeState === 'no-session-file'}
     <p class="body">{PLAYTIME_NO_SESSION_FILE}</p>
   {:else if playtimeState === 'no-usable-sessions'}
@@ -491,6 +639,21 @@
      see, and a second error red would drift from the first. The box is the
      Body role's own 8px/12px, not the banner's, because this is body text
      inside a card and not a notice above the dropzone. */
+  /* The "About this summary" body (Phase 10, D-06). Body role's own metrics
+     with the muted ink the other captions in this app use, and the same
+     `overflow-wrap` so the 340-character counting rule cannot widen the card at
+     375px. It is a caption rather than a `.body` because it is supplementary
+     reading, never a state message. */
+  .caption {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.5;
+    color: var(--muted);
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
   .error {
     padding: 8px 12px;
     border: 1px solid #c5221f;

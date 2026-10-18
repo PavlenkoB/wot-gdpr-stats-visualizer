@@ -90,7 +90,12 @@ describe('06-01: buildLogins over the hand fixture', () => {
   });
 
   it('groups one row per distinct address, in the stored order', () => {
-    expect(aggregates.addresses).toEqual(LOGINS_HAND_KEY.addresses);
+    // `handSources()` are parsed rows and carry no owner, so the accounts field
+    // is `[]` on all three — read through the key's projection rather than by
+    // editing the key, which is derived from rows and rows name no account.
+    expect(aggregates.addresses).toEqual(
+      LOGINS_HAND_KEY.addresses.map((address) => ({ ...address, accounts: [] })),
+    );
     expect(aggregates.addresses.map((a) => a.ip)).toEqual([
       LOGINS_IP_HOME,
       LOGINS_IP_WORK,
@@ -675,6 +680,37 @@ describe('06-03: the cap is the PRODUCTION constant, exercised by a real archive
     expect(masks.size).toBe(1);
     expect(new Set(aggregates.addresses.map((a) => a.ip)).size).toBe(MAX_LOGIN_IPS);
   });
+
+  it('names the accounts on the LISTED addresses only, and still totals all of them (D-18)', () => {
+    // The cap bounds what is STORED, and the accounts ride on the stored rows —
+    // so the question a reader asks at the cap is whether an address past it lost
+    // its owner along with its row. It did: an unlisted address is not drawn, so
+    // it can carry no chip. What must NOT move is the arithmetic.
+    const stamped = scaleSources(OVER_CAP).map((source, index) => ({
+      ...source,
+      account: index % 2 === 0 ? 'root-a' : 'root-b',
+    }));
+    const aggregates = buildLogins(stamped, () => 'AA');
+
+    expect(aggregates.addresses).toHaveLength(MAX_LOGIN_IPS);
+    expect(
+      aggregates.addresses.every((entry) => entry.accounts !== undefined),
+      'every listed address names its accounts',
+    ).toBe(true);
+    // The two relationships MAX_LOGIN_IPS exists to keep, restated with the
+    // accounts present: the listed rows plus `other` are the whole of
+    // totalLogins, and so are the country figures plus the unknown bucket.
+    const listed = aggregates.addresses.reduce((sum, a) => sum + a.logins, 0);
+    expect(listed + aggregates.other.logins).toBe(aggregates.totalLogins);
+    const tallied = aggregates.countries.reduce((sum, c) => sum + c.logins, 0);
+    expect(tallied + aggregates.unknown.logins).toBe(aggregates.totalLogins);
+    // And the accounts themselves changed no figure at all against the same
+    // archive run without them.
+    const unstamped = buildLogins(scaleSources(OVER_CAP), () => 'AA');
+    expect(aggregates.totalLogins).toBe(unstamped.totalLogins);
+    expect(aggregates.countries).toEqual(unstamped.countries);
+    expect(aggregates.addresses.map((a) => a.ip)).toEqual(unstamped.addresses.map((a) => a.ip));
+  });
 });
 
 describe('06-03: the account record is stored and NEVER counted (D-02)', () => {
@@ -793,3 +829,110 @@ function dataLines(text: string): string[] {
 function csvText(header: string, lines: readonly string[]): string {
   return header + '\r\n' + lines.map((line) => line + '\r\n').join('');
 }
+
+// =============================================================================
+// Phase 10, D-18 — an address NAMES its accounts, and names nothing else
+//
+// The whole block is about what the account set does and does NOT change. An
+// address is still ONE row however many accounts logged in from it (D-05), the
+// ranking is untouched, and the country and unknown figures are the numbers
+// Phase 6 pinned. So every case here pairs its account assertion with a
+// comparison against the SAME sources run without accounts — if accounts ever
+// started splitting rows or moving a country total, that pair fails.
+// =============================================================================
+
+/** One WOT file holding one row per address, given as `[address]` per row. */
+function ownedSource(account: string | undefined, addresses: readonly string[]): LoginSource {
+  return {
+    kind: 'sessions',
+    game: 'WOT',
+    rows: rowsOf(
+      buildRealShapeCsv(addresses.map((ip) => ['06.03.2024 10:00', '06.03.2024 11:00', ip])),
+    ),
+    ...(account === undefined ? {} : { account }),
+  };
+}
+
+describe('Phase 10: an address names the accounts that logged in from it (D-18)', () => {
+  it('gives one address every account that contributed a row to it, sorted', () => {
+    const aggregates = buildLogins(
+      [
+        ownedSource('root-b', ['192.0.2.10', '192.0.2.10']),
+        ownedSource('root-a', ['192.0.2.10']),
+        ownedSource('root-c', ['192.0.2.99']),
+      ],
+      NO_TABLE,
+    );
+    const home = aggregates.addresses.find((a) => a.ip === '192.0.2.10');
+    // Three rows from root-b, one from root-a, and the SET is what makes it two
+    // accounts rather than four "contributions".
+    expect(home?.accounts).toEqual(['root-a', 'root-b']);
+    expect(home?.logins).toBe(3);
+    expect(aggregates.addresses.find((a) => a.ip === '192.0.2.99')?.accounts).toEqual(['root-c']);
+  });
+
+  it('does not split an address into a row per account, and moves no total', () => {
+    const addresses = ['192.0.2.10', '192.0.2.11', '192.0.2.12'];
+    const withAccounts = buildLogins(
+      [ownedSource('root-a', addresses), ownedSource('root-b', addresses)],
+      () => 'AA',
+    );
+    const without = buildLogins(
+      [ownedSource(undefined, addresses), ownedSource(undefined, addresses)],
+      () => 'AA',
+    );
+
+    // Three rows, not six: an address is an address (D-05), and a reader counting
+    // "how many addresses have I logged in from" must not get a bigger answer
+    // because there are two accounts.
+    expect(withAccounts.addresses).toHaveLength(3);
+    // `buildLogins` ALWAYS emits the field — the optionality in the type is for a
+    // stored aggregate written before version 3, which is a cache shape and not
+    // this function's output. So this asserts the presence, not a `?? []`.
+    expect(
+      withAccounts.addresses.every((address) => address.accounts !== undefined),
+      'a fresh aggregate stamps every address',
+    ).toBe(true);
+    expect(withAccounts.addresses.map((a) => a.accounts?.length)).toEqual([2, 2, 2]);
+    // Every other figure is byte-identical: the ranking, the country rollups,
+    // the unknown bucket and the two totals the UI-SPEC's sums rest on.
+    expect(withAccounts.addresses.map((a) => a.ip)).toEqual(without.addresses.map((a) => a.ip));
+    expect(withAccounts.countries).toEqual(without.countries);
+    expect(withAccounts.unknown).toEqual(without.unknown);
+    expect(withAccounts.other).toEqual(without.other);
+    expect(withAccounts.totalLogins).toBe(without.totalLogins);
+    expect(withAccounts.unreadableRows).toBe(without.unreadableRows);
+    const tallied = withAccounts.countries.reduce((sum, c) => sum + c.logins, 0);
+    expect(tallied + withAccounts.unknown.logins).toBe(withAccounts.totalLogins);
+  });
+
+  it('gives an address an empty list when no source named an owner', () => {
+    // A legacy or hand-built source carries no account. It must contribute
+    // NOTHING — not `undefined` on the row, not a fabricated root — and it must
+    // not throw, because `buildLogins` never throws on data.
+    const aggregates = buildLogins([ownedSource(undefined, ['192.0.2.10'])], NO_TABLE);
+    expect(aggregates.addresses[0]?.accounts).toEqual([]);
+    expect(aggregates.totalLogins).toBe(1);
+  });
+
+  it('treats a root named __proto__ as an ordinary account string (T-10-09)', () => {
+    // The account is a zip folder name, so a hostile one is a string and must
+    // round-trip through the set, the sort and the stored array like any other.
+    const aggregates = buildLogins(
+      [ownedSource('__proto__', ['192.0.2.10']), ownedSource('constructor', ['192.0.2.10'])],
+      NO_TABLE,
+    );
+    expect(aggregates.addresses[0]?.accounts).toEqual(['__proto__', 'constructor']);
+  });
+
+  it('passes the addresses through the view verbatim, accounts included', () => {
+    // `viewFromLogins` copies the stored array, so a filter that dropped the
+    // field here would leave the table silently untagged with no error.
+    const aggregates = buildLogins([ownedSource('root-a', ['192.0.2.10'])], NO_TABLE);
+    const view = viewFromLogins(aggregates);
+    expect(view.status).toBe('ready');
+    if (view.status !== 'ready') throw new Error('unreachable: asserted above');
+    expect(view.addresses).toBe(aggregates.addresses);
+    expect(view.addresses[0]?.accounts).toEqual(['root-a']);
+  });
+});

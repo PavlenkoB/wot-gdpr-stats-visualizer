@@ -2056,13 +2056,18 @@ describe('04-06 backfill: legacy, stale and failed playtime aggregates', () => {
     expect(recomputed.view?.status).toBe('no-session-file');
   });
 
-  test('PLAYTIME_VERSION is 2, so an aggregate from the previous build is stale', async () => {
+  test('PLAYTIME_VERSION is 3, so an aggregate from the previous build is stale', async () => {
     // The one place the number is written down. Every other test reads the
     // constant, so reverting this is a deliberate act with a failing test, not
     // a silent consequence of editing something else (T-04-30).
+    //
+    // Flipped 2 -> 3 by 10-01: a stored aggregate now carries a per-game scope
+    // beside the all-games one, which a v2 record has no room for. The lazy
+    // rebuild is what absorbs it — a v2 cache is recomputed from its own rows
+    // on the next playtime query and written back, with no re-import (D-21).
     const { PLAYTIME_VERSION } =
       await import('../../../src/lib/features/playtime/playtime-shared.ts');
-    expect(PLAYTIME_VERSION).toBe(2);
+    expect(PLAYTIME_VERSION).toBe(3);
   });
 
   test('a query after clear-data answers importedAt null and no view', async () => {

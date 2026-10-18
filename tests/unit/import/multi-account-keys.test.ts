@@ -230,6 +230,13 @@ const AUDITED: readonly AuditedKey[] = [
 
   // --- Fixed lists: the collection is a module constant ---------------------
   {
+    file: 'GameFilter.svelte',
+    key: 'index',
+    why: 'fixed-list',
+    reason:
+      'The chip tokens `filterChips` returned, already deduplicated and already in `GAME_FILTER_TOKENS` order. The module decides the ORDER precisely so an untrusted export cannot; keying on the token itself would make the fixed order a claim rather than a guarantee.',
+  },
+  {
     file: 'CalendarHeatmap.svelte',
     key: 'label.month',
     why: 'fixed-list',
@@ -533,18 +540,28 @@ describe('keyed each: repeated values are real', () => {
     expect(new Set(ids).size, 'and their vehicle ids really repeat').toBeLessThan(ids.length);
   });
 
-  test('three accounts repeat them further, and the summary repeats its codes', () => {
+  test('three accounts repeat the vehicle ids, and the summary does NOT repeat its codes', () => {
+    // Phase 10, D-09 — the split the Phase 9 pin asserted has now happened, and
+    // the two halves went DIFFERENT WAYS on purpose:
+    //
+    //   - the VEHICLE rows stay one per account (a vehicle both accounts own is
+    //     two rows, because merging them would invent a battle count that
+    //     belongs to neither account);
+    //   - the BATTLE-TYPE SUMMARY folds, so a code two accounts both wrote is
+    //     ONE row with their figures added up.
+    //
+    // The second half is why this test's NAME changed rather than only its
+    // expectation: "the summary repeats its codes" was the Phase 9 claim, and a
+    // renamed test is how the flip stays visible in the log.
     const files = blitzFiles({ vehicle: 3, battleTypes: 2 });
     const view = buildVehicleView(files, { title: 'wotb', battleType: null });
 
     const ids = view.rows.map((row) => row.id);
-    expect(new Set(ids).size).toBeLessThan(ids.length);
+    expect(new Set(ids).size, 'the vehicle ids still repeat').toBeLessThan(ids.length);
 
-    // And the summary: the Battle_Types file is in two roots, so a code arrives
-    // twice and `{#each … (row.code)}` could not have drawn it.
     const codes = view.summary.map((row) => row.code);
     expect(codes.length).toBeGreaterThan(1);
-    expect(new Set(codes).size, 'the battle-type codes really repeat').toBeLessThan(codes.length);
+    expect(new Set(codes).size, 'the summary codes are now distinct').toBe(codes.length);
   });
 
   test("a single account's copy does NOT repeat — which is why v1.0 never saw it", () => {

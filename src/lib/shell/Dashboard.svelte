@@ -16,6 +16,7 @@
   import FinancialData from '../features/finance/FinancialData.svelte';
   import ListPane from './ListPane.svelte';
   import { accountCountOf } from './identity-model.ts';
+  import { resolveGameFilter, type GameFilterChoice } from './game-filter-state.ts';
   import LoginHistory from '../features/logins/LoginHistory.svelte';
   import Overview from './Overview.svelte';
   import PlayerStats from '../features/vehicles/PlayerStats.svelte';
@@ -116,6 +117,28 @@
   let viewChoice = $state<PhoneViewChoice>({ view: 'list', stamp: null });
 
   const view = $derived(resolvePhoneView(viewChoice, result));
+
+  /**
+   * The shared game filter, stamped with the dataset it was chosen under
+   * (Phase 10, D-01/D-21) — the SAME stamped-cell pattern as `choice` above,
+   * and for the same reason: a replace changes `result.importedAt`, so the stamp
+   * no longer matches and `resolveGameFilter` answers All games.
+   *
+   * It lives here, at the composition root, rather than in a pane because TWO
+   * panes read and write it: Playtime offers it as a chip row, Vehicles as its
+   * existing Game select (D-04), and a cell inside either one would be gone the
+   * moment the reader switched panes. It is component state and nothing else —
+   * no route, no hash, no storage (T-10-04) — so a reload and a new import both
+   * return it to All games by construction.
+   */
+  let gameChoice = $state<GameFilterChoice>({ token: null, stamp: null });
+
+  const gameFilter = $derived(resolveGameFilter(gameChoice, datasetStamp(result)));
+
+  /** Apply a game the reader chose, stamped with the dataset it was chosen on. */
+  function setGameFilter(token: string | null): void {
+    gameChoice = { token, stamp: datasetStamp(result) };
+  }
 
   /**
    * Whether the detail pane's CONTENT exists. While the phone's list screen is
@@ -279,7 +302,12 @@
         remount here cannot starve any other channel.
       -->
       <DashboardSection {...sectionProps('activity-history', 'playtime')}>
-        <Playtime {result} client={ingestClient.playtime} />
+        <Playtime
+          {result}
+          client={ingestClient.playtime}
+          {gameFilter}
+          onGameFilterChange={setGameFilter}
+        />
       </DashboardSection>
     {:else if active === 'login-history'}
       <!--
@@ -294,7 +322,12 @@
     {:else if active === 'vehicles'}
       <!-- The `vehicles` channel (05-12, D-05); see the note above on channels. -->
       <DashboardSection {...sectionProps('player-statistics', 'vehicles')}>
-        <PlayerStats {result} client={ingestClient.data} />
+        <PlayerStats
+          {result}
+          client={ingestClient.data}
+          {gameFilter}
+          onGameFilterChange={setGameFilter}
+        />
       </DashboardSection>
     {:else if active === 'finance'}
       <!-- The `premium` and `currency` channels (05-10, 05-13, D-01). -->

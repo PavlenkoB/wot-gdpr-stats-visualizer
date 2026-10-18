@@ -810,6 +810,24 @@ function battleTypeCodes(
  * battles go", with ties broken by the same code order the filter uses. A
  * battles cell that is not a number sorts last in both directions, since a
  * special never counts as zero in an order (D-09).
+ *
+ * ## One row per code, summed across accounts (Phase 10, D-09)
+ *
+ * The rows stay PER ACCOUNT — the same vehicle id in two accounts is two rows,
+ * and only the summary folds. Each code is accumulated in a `Map`, never an
+ * object: a code is an untrusted cell (T-05-14 clamps it to 64 characters, not
+ * to a safe word), so a code literally named `__proto__` is a key like any other
+ * (T-10-09).
+ *
+ * The three figures fold INDEPENDENTLY, which is the part that is easy to get
+ * wrong: battles can be a number for one account and `N/D` for the other, and
+ * the answer is the sum of the numbers rather than either value chosen. Only a
+ * code whose EVERY contributing cell is a special keeps a special, and then the
+ * FIRST one — the same "a special never counts as a number" rule D-09 applies
+ * everywhere else.
+ *
+ * With ONE account the fold is the identity on every cell, so a single-account
+ * summary is byte-identical to the rows the pre-Phase-10 push loop produced.
  */
 function buildSummary(
   files: VehicleFiles,
@@ -821,21 +839,38 @@ function buildSummary(
   if (codes.length === 0) return [];
   const groups = groupsOf(files, TITLE_FILES[title].battleTypes);
   const fields = [TYPE_FIELD, BATTLES_FIELD, WINS_FIELD, DAMAGE_FIELD];
-  // Per group, from that group's own first row (CR-01). The rows of every group
-  // are then sorted together, which is what keeps a code two accounts both
-  // wrote ONE summary row with rather than two (D-12).
-  const summary: BattleTypeSummaryRow[] = [];
+  // Per group, from that group's own first row (CR-01).
+  const folded = new Map<
+    string,
+    { battles: VehicleCell; wins: VehicleCell; damage: VehicleCell }
+  >();
   for (const group of groups) {
     const keys = resolveFields(group.rows[0], fields);
     for (const row of group.rows) {
-      summary.push({
-        code: codeOf(cell(row, keys.get('type') ?? null)),
+      const code = codeOf(cell(row, keys.get('type') ?? null));
+      const incoming = {
         battles: readNumber(row, keys.get('battles') ?? null),
         wins: readNumber(row, keys.get('wins') ?? null),
         damage: readNumber(row, keys.get('damage') ?? null),
+      };
+      const existing = folded.get(code);
+      if (existing === undefined) {
+        folded.set(code, incoming);
+        continue;
+      }
+      folded.set(code, {
+        battles: sumCells(existing.battles, incoming.battles),
+        wins: sumCells(existing.wins, incoming.wins),
+        damage: sumCells(existing.damage, incoming.damage),
       });
     }
   }
+  const summary: BattleTypeSummaryRow[] = [...folded].map(([code, cells]) => ({
+    code,
+    battles: cells.battles,
+    wins: cells.wins,
+    damage: cells.damage,
+  }));
   summary.sort((a, b) => {
     const usableA = a.battles.t === 'n';
     const usableB = b.battles.t === 'n';
@@ -847,6 +882,23 @@ function buildSummary(
     return compareCodes(a.code, b.code);
   });
   return summary;
+}
+
+/**
+ * One cell plus the next, under the summary's fold rule (D-09, D-11).
+ *
+ * Any numeric contribution makes the result the SUM OF THE NUMBERS, so a
+ * `not available` from one account and a `not defined` from the next read as
+ * their combined figure rather than as one account's answer standing for both.
+ * Only an all-special pair keeps a special, and then the FIRST — an absent or
+ * undefined value is not a number, and picking the later one would make the
+ * result depend on which account the archive happened to list first.
+ */
+function sumCells(accumulated: VehicleCell, incoming: VehicleCell): VehicleCell {
+  if (accumulated.t === 'n') {
+    return incoming.t === 'n' ? { t: 'n', v: accumulated.v + incoming.v } : accumulated;
+  }
+  return incoming.t === 'n' ? incoming : accumulated;
 }
 
 /**
@@ -893,11 +945,18 @@ function directCell(row: VehicleRowData, key: string | null, kind: ColumnKind): 
  *
  * The vehicle column's cell is the CLEANED id, so a row and its cells always
  * agree with `row.id`; the raw name never reaches the table twice.
+ *
+ * `account` is the OWNING GROUP's root, passed in rather than read from `row`:
+ * no cell of a vehicle file carries an account, and a row that took its owner
+ * from its own contents could be attributed to anything the archive put in a
+ * cell (D-10, T-10-10). The caller is the loop over `AccountRowGroup`, so the
+ * stamp is as trustworthy as the file it came from.
  */
 function mapRow(
   row: VehicleRowData,
   fields: Map<string, string | null>,
   columns: readonly ColumnSpec[],
+  account: string,
 ): VehicleRow {
   const vehicle = splitVehicleId(cell(row, fields.get('vehicle') ?? null));
   const cells: VehicleCell[] = [];
@@ -924,7 +983,7 @@ function mapRow(
     if (column.key === 'battles' && built.t === 'n') battles = built.v;
   }
 
-  return { id: vehicle.id, nation: vehicle.nation, battles, cells };
+  return { id: vehicle.id, nation: vehicle.nation, battles, account, cells };
 }
 
 /**
@@ -939,27 +998,53 @@ function mapRow(
  * The expiry is the cell EXACTLY as written: a value of `1970-01-01 00:00:00`
  * is an export artefact, not a date to reformat, and parsing it into a
  * formatted local time would be a claim the export never made.
+ *
+ * ## Across accounts (Phase 10, D-20, T-10-11)
+ *
+ * Battles ADD UP across the accounts that contribute a row; the premium expiry
+ * is shown only when EXACTLY ONE account contributes. An expiry is a property of
+ * one account's premium status, and there is no honest way to combine two: the
+ * earliest of two is a claim the export never made and the latest quietly drops
+ * one account. With two or more, the expiry term is omitted rather than filled,
+ * and the lifetime-battles term stays — so the header is still "what this export
+ * holds", one figure shorter.
+ *
+ * Each account contributes ONCE, through the first file name in the title's
+ * preference list it has a row for (WoWP has two: the 19 and the 20 file, and
+ * the 19 is preferred). Both its figures are then read through its OWN resolved
+ * keys (CR-01), and its first row is the row the pre-Phase-10 reader read for
+ * one account — which is why one account still answers exactly what v1.0 did.
  */
 function buildHeader(files: VehicleFiles, title: VehicleTitleId): VehicleHeader | null {
+  // Per ACCOUNT, in the preference order of the file names. The inner `seen`
+  // set is what makes an account contribute once rather than once per file name
+  // it happens to have.
+  const seen = new Set<string>();
+  let battles: VehicleCell | null = null;
+  let expiry: VehicleCell | null = null;
+  let contributors = 0;
+
   for (const name of TITLE_FILES[title].accounts) {
-    // The FIRST account's header, not a merge of them: the header is one
-    // account's lifetime figure rather than a table (D-13), and Phase 10 owns
-    // whatever a per-account header should say. What matters here is only that
-    // the row is read through ITS OWN group's keys (CR-01) — which, for one
-    // account, is the row the pre-fix reader read.
     for (const group of factsOf(files, name).groups) {
+      if (seen.has(group.account)) continue;
       const first = group.rows[0];
       // A file that was in the zip but holds no row is not a header, and the
       // next account file in the list gets its turn.
       if (first === undefined) continue;
+      seen.add(group.account);
       const fields = resolveFields(first, [BATTLES_FIELD, PREMIUM_EXPIRY_FIELD]);
-      return {
-        battles: readNumber(first, fields.get('battles') ?? null),
-        premiumExpires: expiryCell(first, fields.get('premiumExpires') ?? null),
-      };
+      const own = readNumber(first, fields.get('battles') ?? null);
+      battles = battles === null ? own : sumCells(battles, own);
+      expiry = expiryCell(first, fields.get('premiumExpires') ?? null);
+      contributors += 1;
     }
   }
-  return null;
+
+  if (contributors === 0) return null;
+  return {
+    battles: battles ?? { t: 'x', v: 'missing' },
+    premiumExpires: contributors === 1 ? expiry : null,
+  };
 }
 
 /** The premium-expiry column, under WoT's and the other titles' spellings. */
@@ -1069,9 +1154,15 @@ export function buildVehicleView(files: VehicleFiles, request: VehicleViewReques
     const listed = listColumns(spec, unionResolved(byTypeMaps));
     const rows: VehicleRow[] = [];
     for (let g = 0; g < byTypeGroups.length; g++) {
+      const group = byTypeGroups[g]!;
       const typeKey = byTypeMaps[g]!.get('type') ?? null;
-      for (const row of byTypeGroups[g]!.rows) {
-        if (codeOf(cell(row, typeKey)) === applied) rows.push(mapRow(row, byTypeMaps[g]!, listed));
+      for (const row of group.rows) {
+        if (codeOf(cell(row, typeKey)) === applied) {
+          // D-10: the owner is the GROUP's root, stamped by the loop that is
+          // already walking this account's rows. No cell of a by_Type file
+          // carries an account, so this is the only thing that could.
+          rows.push(mapRow(row, byTypeMaps[g]!, listed, group.account));
+        }
       }
     }
     return {
@@ -1095,7 +1186,10 @@ export function buildVehicleView(files: VehicleFiles, request: VehicleViewReques
   const columns = listColumns(spec, unionResolved(mainMaps));
   const rows: VehicleRow[] = [];
   for (let g = 0; g < mainGroups.length; g++) {
-    for (const row of mainGroups[g]!.rows) rows.push(mapRow(row, mainMaps[g]!, columns));
+    const group = mainGroups[g]!;
+    for (const row of group.rows) {
+      rows.push(mapRow(row, mainMaps[g]!, columns, group.account));
+    }
   }
 
   return {

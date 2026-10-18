@@ -49,8 +49,10 @@ import type {
   SpecialKey,
   VehicleCell,
   VehicleRow,
+  VehicleRowData,
   VehicleView,
 } from '../../../src/lib/features/vehicles/vehicle-shared';
+import type { AccountRowGroup } from '../../../src/lib/worker/csv-columns';
 import type {
   VehicleFileFacts,
   VehicleFiles,
@@ -1131,5 +1133,416 @@ describe('09-07 CR-01: a file two accounts contribute under different headers', 
     const canonical = view.rows.find((row) => row.id === 'SynthDivergentTank-Canonical');
     expect(canonical, 'the account that declares the column is not blanked').toBeDefined();
     expect(canonical!.battles).toBe(12);
+  });
+});
+
+// =============================================================================
+// Phase 10, D-10 / T-10-10 — the row's account comes from the OWNING GROUP
+// =============================================================================
+//
+// `VehicleRow.account` decides which letter a row wears in every pane, so a
+// wrong owner is a wrong attribution of somebody's own data. It cannot come
+// from a cell: no cell of a vehicle file carries an account, and a file named
+// `__proto__` is a hostile string that a group-keyed `Map` handles as an
+// ordinary key.
+
+describe('Phase 10: every row names its owning account', () => {
+  it('two accounts with the SAME vehicle file yield two rows, two accounts', () => {
+    const header = 'VEHICLE_NAME;BATTLES_COUNT;WINS_COUNT;DAMAGE_DEALT;FRAGS_COUNT;XP_AMOUNT';
+    const rows = (battles: string) =>
+      parseCsvFile(
+        fixtures.renderStatsCsv(header, [['synth:SynthTwin', battles, '5', '1000', '3', '9000']]),
+        CATEGORY,
+        'WOT_Vehicle_Statistics.csv',
+      ).rows.map((entry) => entry.data);
+
+    const files = filesFrom(['WOT_Account_Statistics.csv']);
+    files.set('wot_vehicle_statistics.csv', {
+      groups: [
+        { account: '2000002', rows: rows('11') },
+        { account: '500000001', rows: rows('22') },
+      ],
+      seen: true,
+    });
+
+    const view = vehicleStats.buildVehicleView(files, { title: 'wot', battleType: null });
+
+    // D-09: a vehicle both accounts own stays TWO rows, one per account.
+    expect(view.rows).toHaveLength(2);
+    expect(view.rows.every((row) => row.id === 'SynthTwin')).toBe(true);
+    // And each row carries ITS OWN group's root, not the first one's and not a
+    // cell's. Asserting the PAIR is the point: an implementation that stamped
+    // the first group twice would still produce two rows.
+    expect(view.rows.map((row) => row.account).sort()).toEqual(['2000002', '500000001']);
+    // The battle counts are the two accounts' own, which is the control that
+    // the two rows really are different rows rather than one row twice.
+    expect(view.rows.map((row) => row.battles).sort()).toEqual([11, 22]);
+  });
+
+  it('an account root named __proto__ is an ordinary owner', () => {
+    const header = 'VEHICLE_NAME;BATTLES_COUNT;WINS_COUNT;DAMAGE_DEALT;FRAGS_COUNT;XP_AMOUNT';
+    const rows = parseCsvFile(
+      fixtures.renderStatsCsv(header, [['synth:SynthProto', '5', '1', '100', '0', '500']]),
+      CATEGORY,
+      'WOT_Vehicle_Statistics.csv',
+    ).rows.map((entry) => entry.data);
+
+    const files = filesFrom(['WOT_Account_Statistics.csv']);
+    files.set('wot_vehicle_statistics.csv', {
+      groups: [{ account: '__proto__', rows }],
+      seen: true,
+    });
+
+    const view = vehicleStats.buildVehicleView(files, { title: 'wot', battleType: null });
+    expect(view.rows[0]?.account).toBe('__proto__');
+  });
+
+  it('a battle-type view stamps the by_Type group too', () => {
+    // The second of the two row loops. A stamped main-table row and an unstamped
+    // by_Type row would make the same vehicle carry different letters depending
+    // on which code was selected.
+    const files = allFiles();
+    const view = vehicleStats.buildVehicleView(files, { title: 'wot', battleType: '1' });
+    expect(view.rows.length).toBeGreaterThan(0);
+    for (const row of view.rows) {
+      expect(row.account, 'every by_Type row names its account').toBe('test-account');
+    }
+  });
+});
+
+// =============================================================================
+// Phase 10, D-09 / D-20 — the summary folds across accounts, the header sums
+// =============================================================================
+//
+// Two things happen at once here and they went DIFFERENT WAYS, which is the
+// point: the vehicle ROWS stay one per account (a vehicle two accounts own is
+// two rows), while the battle-type SUMMARY and the header's lifetime battles
+// add the accounts together. The expiry does NOT: with two accounts there is no
+// honest combined expiry, so the term is dropped rather than filled (T-10-11).
+
+describe('Phase 10: accounts combine', () => {
+  /** One by-type battle file, parsed, with the given rows per account. */
+  function battleTypeRows(cells: readonly (readonly string[])[]): VehicleRowData[] {
+    return parseCsvFile(
+      fixtures.renderStatsCsv('TYPE;BATTLES_COUNT;WINS_COUNT;DAMAGE_DEALT', cells),
+      CATEGORY,
+      'WOT_Battle_Types_Statistics.csv',
+    ).rows.map((row) => row.data);
+  }
+
+  /** An account file with one row: `battles` battles and this expiry. */
+  function accountRows(battles: string, expiry = '2021-01-01 00:00:00'): VehicleRowData[] {
+    return parseCsvFile(
+      fixtures.renderStatsCsv('NAME;BATTLES_COUNT;PREMIUM_EXPIRY_TIME', [
+        ['CanaryName', battles, expiry],
+      ]),
+      CATEGORY,
+      'WOT_Account_Statistics.csv',
+    ).rows.map((row) => row.data);
+  }
+
+  /** A vehicle file with one row, so the title is `ready`. */
+  function vehicleRows(): VehicleRowData[] {
+    return parseCsvFile(
+      fixtures.renderStatsCsv(
+        'VEHICLE_NAME;BATTLES_COUNT;WINS_COUNT;DAMAGE_DEALT;FRAGS_COUNT;XP_AMOUNT',
+        [['synth:SynthTank', '5', '2', '900', '1', '4000']],
+      ),
+      CATEGORY,
+      'WOT_Vehicle_Statistics.csv',
+    ).rows.map((row) => row.data);
+  }
+
+  /**
+   * The by_Type file, which is what makes the title `ready` AND supplies the
+   * code list the summary is gated on. Without it the view has no codes, and
+   * `buildSummary` returns nothing — RESEARCH Pitfall 10's "the summary is a
+   * DIFFERENT list" is why a battle-types file alone would not be enough.
+   */
+  function byTypeRows(): VehicleRowData[] {
+    return parseCsvFile(
+      fixtures.renderStatsCsv('TYPE;BATTLES_COUNT;DAMAGE_DEALT', [['1', '5', '900']]),
+      CATEGORY,
+      'WOT_Vehicle_Statistics_by_Type.csv',
+    ).rows.map((row) => row.data);
+  }
+
+  /**
+   * The WoT files with `groups` contributing the summary's codes.
+   *
+   * A MUTABLE map, not `VehicleFiles`, because several tests below add the
+   * account file afterwards — which is what D-20 is about. It is still passed
+   * straight into `buildVehicleView`, which takes the readonly type.
+   */
+  function wotWithBattleTypes(
+    groups: readonly AccountRowGroup<VehicleRowData>[],
+  ): Map<string, VehicleFileFacts> {
+    const files = new Map<string, VehicleFileFacts>();
+    files.set('wot_vehicle_statistics.csv', {
+      groups: [{ account: '2000002', rows: vehicleRows() }],
+      seen: true,
+    });
+    files.set('wot_vehicle_statistics_by_type.csv', {
+      groups: [{ account: '2000002', rows: byTypeRows() }],
+      seen: true,
+    });
+    files.set('wot_battle_types_statistics.csv', { groups, seen: true });
+    return files;
+  }
+
+  it('two accounts writing the same codes yield ONE summary row each, summed', () => {
+    const view = vehicleStats.buildVehicleView(
+      wotWithBattleTypes([
+        {
+          account: '2000002',
+          rows: battleTypeRows([
+            ['1', '10', '4', '1000'],
+            ['2', '5', '1', '500'],
+          ]),
+        },
+        {
+          account: '500000001',
+          rows: battleTypeRows([
+            ['1', '7', '3', '400'],
+            ['2', '3', '0', '200'],
+          ]),
+        },
+      ]),
+      { title: 'wot', battleType: null },
+    );
+
+    expect(view.summary).toHaveLength(2);
+    // Code 1: battles 10 + 7, wins 4 + 3, damage 1000 + 400. The code-2 row
+    // has fewer battles, so the sort still puts code 1 first — the old order.
+    expect(view.summary[0]?.code).toBe('1');
+    expect(view.summary[0]?.battles).toEqual({ t: 'n', v: 17 });
+    expect(view.summary[0]?.wins).toEqual({ t: 'n', v: 7 });
+    expect(view.summary[0]?.damage).toEqual({ t: 'n', v: 1400 });
+    expect(view.summary[1]?.code).toBe('2');
+    expect(view.summary[1]?.battles).toEqual({ t: 'n', v: 8 });
+  });
+
+  it('a numeric cell in one account and a special in the other sums the numeric one', () => {
+    // `N/A` is not a number and is not a zero (D-09): the other account's 10
+    // is the answer, and it is NOT `10 + 0` dressed up as a count.
+    const view = vehicleStats.buildVehicleView(
+      wotWithBattleTypes([
+        { account: '2000002', rows: battleTypeRows([['1', '10', 'N/A', '1000']]) },
+        { account: '500000001', rows: battleTypeRows([['1', 'N/A', '3', '400']]) },
+      ]),
+      { title: 'wot', battleType: null },
+    );
+
+    expect(view.summary).toHaveLength(1);
+    expect(view.summary[0]?.battles, 'the numeric side wins the fold').toEqual({ t: 'n', v: 10 });
+    // The wins figure is the mirror image: special first, number second.
+    expect(view.summary[0]?.wins, 'a later number still counts').toEqual({ t: 'n', v: 3 });
+    expect(view.summary[0]?.damage).toEqual({ t: 'n', v: 1400 });
+  });
+
+  it('a code whose cells are ALL specials keeps the FIRST special', () => {
+    const view = vehicleStats.buildVehicleView(
+      wotWithBattleTypes([
+        { account: '2000002', rows: battleTypeRows([['1', 'N/A', 'N/D', 'N/A']]) },
+        { account: '500000001', rows: battleTypeRows([['1', 'N/D', 'N/A', 'N/D']]) },
+      ]),
+      { title: 'wot', battleType: null },
+    );
+
+    expect(view.summary).toHaveLength(1);
+    // The FIRST account's `not available`, not the second's `not defined` —
+    // picking the later one would make the answer depend on the order the
+    // archive happened to list its folders in.
+    expect(view.summary[0]?.battles).toEqual({ t: 'x', v: 'na' });
+    expect(view.summary[0]?.wins).toEqual({ t: 'x', v: 'nd' });
+    expect(view.summary[0]?.damage).toEqual({ t: 'x', v: 'na' });
+  });
+
+  it('a code named __proto__ is an ordinary code', () => {
+    // The code is an untrusted cell, so the fold is a `Map`. An object would
+    // have dropped this row on assignment (T-10-09).
+    const view = vehicleStats.buildVehicleView(
+      wotWithBattleTypes([
+        { account: '2000002', rows: battleTypeRows([['__proto__', '10', '4', '1000']]) },
+        { account: '500000001', rows: battleTypeRows([['__proto__', '5', '1', '100']]) },
+      ]),
+      { title: 'wot', battleType: null },
+    );
+
+    expect(view.summary).toHaveLength(1);
+    expect(view.summary[0]?.code).toBe('__proto__');
+    expect(view.summary[0]?.battles).toEqual({ t: 'n', v: 15 });
+  });
+
+  it('one account produces exactly the rows it produced before', () => {
+    const view = vehicleStats.buildVehicleView(
+      wotWithBattleTypes([
+        {
+          account: '2000002',
+          rows: battleTypeRows([
+            ['1', '10', '4', '1000'],
+            ['2', '5', 'N/A', '500'],
+          ]),
+        },
+      ]),
+      { title: 'wot', battleType: null },
+    );
+
+    expect(view.summary.map((row) => row.code)).toEqual(['1', '2']);
+    expect(view.summary[0]?.battles).toEqual({ t: 'n', v: 10 });
+    // The fold is the identity on a single contribution: the special survives
+    // as itself, not as a zero and not as the first numeric thing nearby.
+    expect(view.summary[1]?.wins).toEqual({ t: 'x', v: 'na' });
+  });
+
+  it('two accounts: the header sums battles and shows NO expiry (D-20)', () => {
+    const files = wotWithBattleTypes([
+      { account: '2000002', rows: battleTypeRows([['1', '10', '4', '1000']]) },
+    ]);
+    files.set('wot_account_statistics.csv', {
+      groups: [
+        { account: '2000002', rows: accountRows('100', '2021-01-01 00:00:00') },
+        { account: '500000001', rows: accountRows('250', '2030-06-06 00:00:00') },
+      ],
+      seen: true,
+    });
+
+    const view = vehicleStats.buildVehicleView(files, { title: 'wot', battleType: null });
+    expect(view.header).not.toBeNull();
+    expect(view.header!.battles).toEqual({ t: 'n', v: 350 });
+    // T-10-11: never one account's expiry as the combined figure, and never a
+    // fabricated combination of two.
+    expect(view.header!.premiumExpires).toBeNull();
+  });
+
+  it('one account: the header is exactly what v1.0 showed, expiry and all', () => {
+    const files = wotWithBattleTypes([
+      { account: '2000002', rows: battleTypeRows([['1', '10', '4', '1000']]) },
+    ]);
+    files.set('wot_account_statistics.csv', {
+      groups: [{ account: '2000002', rows: accountRows('100', '2021-01-01 00:00:00') }],
+      seen: true,
+    });
+
+    const view = vehicleStats.buildVehicleView(files, { title: 'wot', battleType: null });
+    expect(view.header!.battles).toEqual({ t: 'n', v: 100 });
+    expect(view.header!.premiumExpires).toEqual({ t: 's', v: '2021-01-01 00:00:00' });
+  });
+
+  it('a data-less account is not a contributor', () => {
+    // The account file carries THREE rows for one account and none for the
+    // second. The second must not count toward "two accounts contribute",
+    // because it contributed nothing at all (D-20 is about CONTRIBUTORS).
+    const files = wotWithBattleTypes([
+      { account: '2000002', rows: battleTypeRows([['1', '10', '4', '1000']]) },
+    ]);
+    files.set('wot_account_statistics.csv', {
+      groups: [{ account: '2000002', rows: accountRows('100', '2021-01-01 00:00:00') }],
+      seen: true,
+    });
+
+    const view = vehicleStats.buildVehicleView(files, { title: 'wot', battleType: null });
+    expect(view.header!.battles).toEqual({ t: 'n', v: 100 });
+    expect(view.header!.premiumExpires, 'one contributor means the expiry is still shown').toEqual({
+      t: 's',
+      v: '2021-01-01 00:00:00',
+    });
+  });
+
+  it('an account with several rows contributes its FIRST row, once', () => {
+    // The one-listing rule (T-05-12) meets D-20: the second row's 900 battles
+    // are not added, or the header would claim more than the account's own
+    // first record says.
+    const files = wotWithBattleTypes([
+      { account: '2000002', rows: battleTypeRows([['1', '10', '4', '1000']]) },
+    ]);
+    files.set('wot_account_statistics.csv', {
+      groups: [
+        {
+          account: '2000002',
+          rows: parseCsvFile(
+            MULTI_ROW_ACCOUNT_CSV,
+            CATEGORY,
+            'WOT_Account_Statistics.csv',
+          ).rows.map((row) => row.data),
+        },
+      ],
+      seen: true,
+    });
+
+    const view = vehicleStats.buildVehicleView(files, { title: 'wot', battleType: null });
+    expect(view.header!.battles, 'the first row is the account figure').toEqual({ t: 'n', v: 10 });
+  });
+
+  it('the Warplanes preference list still picks the 19 file per account', () => {
+    // WoWP is the one title with TWO account files. Each account contributes
+    // through the 19 file it has a row for, and the 20 file never adds a second
+    // contribution for the same account.
+    const accounts = (battles: string) =>
+      parseCsvFile(
+        fixtures.renderStatsCsv('NAME;BATTLES_COUNT;PREMIUM_EXPIRY_TIME', [
+          ['Canary', battles, 'N/A'],
+        ]),
+        CATEGORY,
+        'WOWP_19_Account_Statistics.csv',
+      ).rows.map((row) => row.data);
+    const twenty = (battles: string) =>
+      parseCsvFile(
+        fixtures.renderStatsCsv('NAME;BATTLES_COUNT;PREMIUM_EXPIRY_TIME', [
+          ['Canary', battles, 'N/A'],
+        ]),
+        CATEGORY,
+        'WOWP_20_Account_Statistics.csv',
+      ).rows.map((row) => row.data);
+    const plane = (name: string) =>
+      parseCsvFile(
+        fixtures.renderStatsCsv('NAME;BATTLES_COUNT;DAMAGE_DEALT;WINS_COUNT', [
+          [name, '1', 'N/D', '0'],
+        ]),
+        CATEGORY,
+        'WOWP_19_Plane_Statistics.csv',
+      ).rows.map((row) => row.data);
+
+    const files = new Map<string, VehicleFileFacts>();
+    files.set('wowp_19_plane_statistics.csv', {
+      groups: [
+        { account: '2000002', rows: plane('synth:SynthPlane') },
+        { account: '500000001', rows: plane('synth:SynthPlane') },
+      ],
+      seen: true,
+    });
+    files.set('wowp_19_account_statistics.csv', {
+      groups: [
+        { account: '2000002', rows: accounts('40') },
+        { account: '500000001', rows: accounts('60') },
+      ],
+      seen: true,
+    });
+    // A 20 file the SAME accounts also have, with different numbers. If the
+    // preference list were not consulted per account, these would be added.
+    files.set('wowp_20_account_statistics.csv', {
+      groups: [
+        { account: '2000002', rows: twenty('4000') },
+        { account: '500000001', rows: twenty('6000') },
+      ],
+      seen: true,
+    });
+
+    const view = vehicleStats.buildVehicleView(files, { title: 'wowp', battleType: null });
+    expect(view.header!.battles, 'the 19 files sum, the 20 files do not add again').toEqual({
+      t: 'n',
+      v: 100,
+    });
+    expect(view.header!.premiumExpires, 'two contributors drop the expiry').toBeNull();
+  });
+
+  it('no account file at all is still no header', () => {
+    const view = vehicleStats.buildVehicleView(
+      wotWithBattleTypes([
+        { account: '2000002', rows: battleTypeRows([['1', '10', '4', '1000']]) },
+      ]),
+      { title: 'wot', battleType: null },
+    );
+    expect(view.header).toBeNull();
   });
 });

@@ -30,7 +30,7 @@ import {
   type SessionRow,
   type SessionSource,
 } from '../features/playtime/playtime-aggregate.ts';
-import { PLAYTIME_VERSION } from '../features/playtime/playtime-shared.ts';
+import { PLAYTIME_VERSION, isGameToken } from '../features/playtime/playtime-shared.ts';
 import {
   hasBlobColumn,
   isDeviceInfoCategory,
@@ -130,7 +130,7 @@ scope.onmessage = async (event: MessageEvent<IngestRequest>) => {
   // aggregate stored on the meta record at import, so no rows are ever read
   // for a chart and no import is ever running on this path.
   if (msg.type === 'playtime-query') {
-    await handlePlaytimeQuery(msg.queryId, msg.valueIndex);
+    await handlePlaytimeQuery(msg.queryId, msg.valueIndex, msg.game);
     return;
   }
   // 05-07: the four Phase 5 blocks ask for their numbers the same way. Answered
@@ -151,7 +151,7 @@ scope.onmessage = async (event: MessageEvent<IngestRequest>) => {
 };
 
 /**
- * Answer one `playtime-query` from the stored aggregate (D-06, D-02).
+ * Answer one `playtime-query` from the stored aggregate (D-06, D-02, D-21).
  *
  * Three outcomes, all on the same read:
  *   - nothing imported — `importedAt` and `view` both null, which is not the
@@ -160,15 +160,31 @@ scope.onmessage = async (event: MessageEvent<IngestRequest>) => {
  *   - a stored aggregate that is absent, null or of an older version — the
  *     lazy backfill below
  *
+ * ## The game dimension, and the one place it is validated (D-21, T-10-01)
+ *
+ * The answer has an optional game dimension: `msg.game` names one stored
+ * per-game scope instead of the all-games one, and the view carries the token
+ * list so the main thread can render a filter without a second query.
+ *
+ * `msg.game` is a `postMessage` field this worker did not author, so it is
+ * validated ONCE, here, with `isGameToken` — a strict anchored predicate that
+ * cannot throw. Anything that is not a token (a number, a lower-case string, a
+ * 25-character string, an object, absent) degrades to All. The RAW value is
+ * never copied into a reply, in either branch: a rejected token is not even
+ * echoed back as itself, so a hostile string cannot reach a reply and from
+ * there a Svelte template. A token that IS valid but that no usable session
+ * carries answers `no-game-sessions`, carrying only the stored token list.
+ *
  * ## Why a stale aggregate is rebuilt rather than refused
  *
  * A cache written before this build has no split in it, and a cache whose
  * aggregation threw at import has `playtime: null`. The rows are the dataset;
  * the aggregate is a derived convenience over them (T-04-03), so refusing to
  * answer would show the user an error for data the app still holds. What the
- * The aggregate may NOT do is be cast: an old one is rebuilt from the rows by the
+ * aggregate may NOT do is be cast: an old one is rebuilt from the rows by the
  * same `buildPlaytimeFromSources` the import used, over the same per-file
- * grouping, so the numbers are the ones the current rules produce.
+ * grouping, so the numbers are the ones the current rules produce. `v: 2` is
+ * exactly the shape that case now takes, since 3 added the per-game scopes.
  *
  * ## Why the answer and its data come from ONE snapshot
  *
@@ -189,7 +205,14 @@ scope.onmessage = async (event: MessageEvent<IngestRequest>) => {
  * nothing else: no `jobId`, no error type beyond the name, and no row data
  * (T-04-01).
  */
-async function handlePlaytimeQuery(queryId: number, valueIndex: number | null): Promise<void> {
+async function handlePlaytimeQuery(
+  queryId: number,
+  valueIndex: number | null,
+  game?: string | null,
+): Promise<void> {
+  // The one validation, above the two branches, so the stored and the rebuilt
+  // path cannot answer a game question differently.
+  const wanted = isGameToken(game) ? game : null;
   try {
     const meta = await checkCache();
     if (meta === null) {
@@ -208,7 +231,7 @@ async function handlePlaytimeQuery(queryId: number, valueIndex: number | null): 
         type: 'playtime-result',
         queryId,
         importedAt: meta.importedAt,
-        view: viewFromAggregates(stored, valueIndex),
+        view: viewFromAggregates(stored, valueIndex, wanted),
       } satisfies IngestResponse);
       return;
     }
@@ -232,7 +255,7 @@ async function handlePlaytimeQuery(queryId: number, valueIndex: number | null): 
       type: 'playtime-result',
       queryId,
       importedAt: snapshot.importedAt,
-      view: viewFromAggregates(rebuilt, valueIndex),
+      view: viewFromAggregates(rebuilt, valueIndex, wanted),
     } satisfies IngestResponse);
   } catch (err) {
     const e = err instanceof Error ? err : new Error(String(err));
@@ -1040,7 +1063,7 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
           // session file has no rows to build a source from, and it still has to
           // reach the login aggregator as a file that was SEEN — that fact is
           // the only difference between `no-source` and `no-usable`.
-          loginSources.push({ game, kind: 'sessions', rows });
+          loginSources.push({ game, kind: 'sessions', rows, account: resolved.root });
         }
         // 06-05, D-01: the same before-the-loop rule for the `Logins.csv`. Its
         // source is pushed with `game: null` and SHARES the `rows` array, so a
@@ -1048,7 +1071,7 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
         // difference between `no-source` and `no-usable` — and a 2,000-row file
         // is never copied to be offered to a second aggregator.
         if (isLoginsFile) {
-          loginSources.push({ game: null, kind: 'logins', rows });
+          loginSources.push({ game: null, kind: 'logins', rows, account: resolved.root });
         }
         // Same before-the-loop rule, for the same reason. The category is
         // matched LOWER-CASED because a folder spelled `player_statistics`

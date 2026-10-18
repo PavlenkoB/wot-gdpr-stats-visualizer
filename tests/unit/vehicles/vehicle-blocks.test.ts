@@ -362,12 +362,17 @@ describe('05-12 Task 2 — the block: one live region, the controls, the count l
     // substring of the block's own `ShownVehicles` type, so a verbatim check
     // on it would fail on an identifier rather than on a sentence. The
     // positive half is asserted instead, immediately below.
+    //
+    // `TITLE_CONTROL_LABEL` joins it for the same reason from Phase 10 on: its
+    // value is `Game`, which is a substring of the block's own `onGameFilterChange`
+    // callback prop (D-21, the Vehicles face of the shared filter). The label is
+    // still pinned, by the positive half below — the guard is "no SENTENCE is
+    // typed here", and an identifier is not a sentence.
     const sentences = [
       PLAYER_STATS_HEADING,
       PLAYER_STATS_LOADING,
       PLAYER_STATS_UPDATING,
       PLAYER_STATS_ERROR,
-      TITLE_CONTROL_LABEL,
       VEHICLE_SEARCH_LABEL,
       VEHICLE_SCROLL_HINT,
       VEHICLE_FIND_HINT,
@@ -385,6 +390,10 @@ describe('05-12 Task 2 — the block: one live region, the controls, the count l
     }
     // The positive half: the h4 is the inventory's constant, not the word.
     expect(code(BLOCK)).toMatch(/<h4[^>]*>\s*\{VEHICLE_TABLE_TITLE\}\s*<\/h4>/);
+    // And the Game select's label is the inventory's constant too — no literal
+    // "Game" beside it anywhere in the template.
+    expect(code(BLOCK)).toContain(`<label for={selectId}>{TITLE_CONTROL_LABEL}</label>`);
+    expect(code(BLOCK)).not.toMatch(new RegExp(`>\\s*${TITLE_CONTROL_LABEL}\\s*<`));
   });
 
   test('the block writes no raw HTML, no inline style, no motion and no router', () => {

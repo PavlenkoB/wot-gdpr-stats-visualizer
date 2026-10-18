@@ -110,7 +110,15 @@ export class PlaytimeClient {
 
   /**
    * Ask the worker for one slice's numbers. `valueIndex` is null for the All
-   * chart and otherwise an index into the stored split.
+   * chart and otherwise an index into the stored split. `game` is the shared
+   * game's token, or null for All games (Phase 10, D-01/D-21).
+   *
+   * The `game` key is added ONLY for a non-null token, rather than always being
+   * sent as null. That is not tidiness: the message type declares every field a
+   * channel does not use as ABSENT rather than null, so the worker's validator
+   * can reject a malformed shape instead of guessing at defaults (T-05-18), and
+   * a caller that never sets a game keeps posting byte-identical messages to
+   * the ones the 04-07 tests pin.
    *
    * The returned promise is kept in a map keyed by its own id, so two charts
    * asking at once cannot settle each other and a reply that arrives out of
@@ -133,7 +141,7 @@ export class PlaytimeClient {
    * check, so a refused query still consumes its id and a late reply can
    * never be matched to it.
    */
-  query(valueIndex: number | null): Promise<PlaytimeOutcome> {
+  query(valueIndex: number | null, game: string | null = null): Promise<PlaytimeOutcome> {
     this.#queryId += 1;
     const queryId = this.#queryId;
 
@@ -148,7 +156,12 @@ export class PlaytimeClient {
     return new Promise<PlaytimeOutcome>((resolve) => {
       this.#pending.set(queryId, resolve);
       try {
-        this.#post({ type: 'playtime-query', queryId, valueIndex });
+        this.#post({
+          type: 'playtime-query',
+          queryId,
+          valueIndex,
+          ...(game === null ? {} : { game }),
+        });
       } catch {
         // The thrown value is deliberately NOT read: it can carry a path or
         // an internal name, and the outcome is local bookkeeping (D-21).

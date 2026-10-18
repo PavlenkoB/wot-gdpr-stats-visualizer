@@ -20,6 +20,7 @@ import {
   formatLoginDate,
   formatNumber,
 } from '../../ui-copy.ts';
+import type { AccountTagModel } from '../../shell/identity-model.ts';
 import type { CityPlace, CityView } from './city-shared.ts';
 import type { AccountRecord, LoginAddress, LoginsView } from './login-shared.ts';
 
@@ -342,9 +343,48 @@ export const LOGIN_COLUMNS: readonly LoginColumn[] = [
   },
 ];
 
-/** The columns to draw: the six defaults, plus City once city detail is loaded. */
-export function visibleLoginColumns(cityLoaded: boolean): readonly LoginColumn[] {
-  return cityLoaded ? LOGIN_COLUMNS : LOGIN_COLUMNS.filter((column) => column.key !== 'city');
+/**
+ * The first column's width with account tags in it (D-18, UI-SPEC Amendment 1).
+ *
+ * 160px plus 64px, which is room for three 24px chips and their 4px gaps
+ * before the address. It is a CONSTANT beside {@link visibleLoginColumns} rather
+ * than arithmetic in it, for the reason the vehicle table states: the width the
+ * stylesheet declares and the width the table's minimum width is computed from
+ * must be two halves of one record, and `160 + 64` written in two files is the
+ * exact defect that produced a wrong column width once already.
+ */
+export const LOGIN_TAGGED_IP_WIDTH_PX = 224;
+
+/**
+ * How many account chips a first cell draws before the overflow count (D-18).
+ *
+ * Three is the UI-SPEC's number and it is a RENDERING cap, never a data cap:
+ * every account past the third still contributes its full visually-hidden
+ * phrase, so nothing is lost to a screen reader (T-10-15).
+ */
+export const LOGIN_CHIPS_VISIBLE = 3;
+
+/**
+ * The columns to draw: the six defaults, plus City once city detail is loaded,
+ * plus the wider first column when the dataset has account tags (D-18).
+ *
+ * `tagged` defaults to `false` so the single-account call site is the call site
+ * v1.0 had, argument for argument — "with one account the column list is
+ * exactly Phase 9's" is then a fact about the code rather than a comparison two
+ * tests have to keep making. The only difference when it is true is the first
+ * column's class and width; the other six are the SAME objects, not copies, so a
+ * sort hook, a `title` or a `key` cannot drift between the two paths.
+ */
+export function visibleLoginColumns(cityLoaded: boolean, tagged = false): readonly LoginColumn[] {
+  const columns = cityLoaded
+    ? LOGIN_COLUMNS
+    : LOGIN_COLUMNS.filter((column) => column.key !== 'city');
+  if (!tagged) return columns;
+  return columns.map((column) =>
+    column.key === 'ip'
+      ? { ...column, widthClass: 'w-ip-tagged', widthPx: LOGIN_TAGGED_IP_WIDTH_PX }
+      : column,
+  );
 }
 
 /**
@@ -372,6 +412,21 @@ export interface LoginRow {
   readonly gamesText: string;
   /** What the City cell says about this address (06-13). */
   readonly city: RowCity;
+  /**
+   * The account roots that contributed a counted row to this address (D-18),
+   * copied from the aggregate verbatim.
+   *
+   * A COPY rather than a live reference because the row outlives the view it was
+   * built from through a sort, and because `buildLoginRows` has to work with an
+   * address from a hand-built test that carries none: an absent `accounts` is
+   * `[]` here, which is "this row names no account" and not "this row's accounts
+   * failed to load".
+   *
+   * It is the OWNERSHIP and nothing else — never a count and never an address.
+   * The chips are built from it and the mask never reads it, which is what stops
+   * a chip from revealing anything about an address (T-10-12).
+   */
+  readonly accounts: readonly string[];
 }
 
 /**
@@ -428,7 +483,83 @@ export function buildLoginRows(
     last: address.last,
     gamesText: address.games.length === 0 ? '' : formatGames(address.games),
     city: aligned ? cityOf(address, cityView.placeOf[index]!, cityView.places) : NO_CITY,
+    accounts: address.accounts ?? [],
   }));
+}
+
+/**
+ * What a first cell draws for one row's accounts (D-18).
+ *
+ * Three outputs, because the cell needs three DIFFERENT kinds of thing and one
+ * function that had to build all three would have to guess which the caller
+ * wanted: `shown` are the chips (at most {@link LOGIN_CHIPS_VISIBLE}), the same
+ * {@link AccountTagModel} objects the identity header's legend wears, so a root
+ * that is `B` here is `B` there; `hiddenTags` are the accounts past the cap, whose
+ * PHRASES are still rendered as visually-hidden text so a screen reader hears
+ * every account even though the cell draws three; and `extra` is how many there
+ * were, which the cell shows as one muted `+N`.
+ *
+ * ## Why the chips are ordered by LETTER and not by the stored array
+ *
+ * The aggregate stores an address's accounts code-unit ascending, which is a
+ * STORAGE rule and not a reading one — with roots `1000000003`, `2000002` and
+ * `500000001` it answers NA, RU, EU, which is the reverse of the D-16 order the
+ * identity header lists above the table. Drawn in stored order the chips would
+ * read C, A, B under a legend that reads A, B, C, which is worse than no chips
+ * at all: the reader has to re-derive the mapping on every row.
+ *
+ * So the order here is the LETTER, which IS the published position (D-10). The
+ * comparator is by length first and then by code unit, which is the bijective
+ * base-26 order `letterOf` writes in and therefore the only ordering in which
+ * `AA` follows `Z` — a plain string sort would put `AA` first.
+ *
+ * ## Why an unknown root is SKIPPED rather than rendered
+ *
+ * A root the map does not hold is a stale aggregate or a malformed source. The
+ * vehicle table's `tagOf` returns null for the same case, and for the same
+ * reason: a letter for an account the header never listed would be a chip that
+ * contradicts the legend directly above it. Skipping loses one chip, which the
+ * reader can see is missing; inventing one loses the reader's trust in every
+ * other letter on the page.
+ *
+ * `tags === null` — the single-account case — answers three empties, so the
+ * caller needs no `if` around the whole cell and the one-account DOM is exactly
+ * the markup it was before this function existed.
+ */
+export function accountChipsOf(
+  roots: readonly string[],
+  tags: ReadonlyMap<string, AccountTagModel> | null,
+): { shown: AccountTagModel[]; hiddenTags: AccountTagModel[]; extra: number } {
+  if (tags === null) return { shown: [], hiddenTags: [], extra: 0 };
+  const known: AccountTagModel[] = [];
+  for (const root of roots) {
+    const tag = tags.get(root);
+    if (tag !== undefined) known.push(tag);
+  }
+  // Drawn in the header's order, never in the stored array's — see the header of
+  // this function. `sort` is stable, so two tags with the same letter (only
+  // possible for a duplicate root the map already collapsed) keep a stable order.
+  known.sort((a, b) => compareLetters(a.letter, b.letter));
+  return {
+    shown: known.slice(0, LOGIN_CHIPS_VISIBLE),
+    hiddenTags: known.slice(LOGIN_CHIPS_VISIBLE),
+    extra: Math.max(0, known.length - LOGIN_CHIPS_VISIBLE),
+  };
+}
+
+/**
+ * Two account letters in their published order: SHORTER first, then code unit.
+ *
+ * The same order `letterOf` writes in, stated as a comparison rather than
+ * re-derived from an index the tag does not carry. A one-character `Z` must come
+ * before a two-character `AA`, and a plain `a < b` string comparison says
+ * otherwise — which is why this is length-then-code-unit and not `localeCompare`
+ * (the order is stored on screen, and a locale-dependent one would give two
+ * readers of one export two different chip orders).
+ */
+function compareLetters(a: string, b: string): number {
+  if (a.length !== b.length) return a.length - b.length;
+  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 /** One address' City cell source (see {@link RowCity}). */

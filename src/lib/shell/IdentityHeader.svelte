@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { AccountIdentity, ClassifyResult } from '../core/types/worker-messages.ts';
-  import { accountRows, hasMultipleRoots } from './identity-model.ts';
+  import { accountRows, hasMultipleRoots, letterOf } from './identity-model.ts';
+  import AccountTag from './AccountTag.svelte';
   import {
     IDENTITY_ACTIVITY_LABEL,
     IDENTITY_ARIA_LABEL,
@@ -14,6 +15,7 @@
     UNKNOWN_VALUE,
     formatAccountCount,
     formatAccountId,
+    formatAccountLegendLabel,
     formatCreatedDate,
     formatIdentityFallbackTitle,
   } from '../ui-copy.ts';
@@ -94,6 +96,17 @@
    */
   const rows = $derived(accountRows(result?.accounts ?? []));
 
+  /**
+   * D-10: whether the rows carry a letter chip, and so whether this header is
+   * the LEGEND the data panes' tags refer to.
+   *
+   * The test is the ROW count, not the folder count: a multi variant whose
+   * archive held a data-less sibling folder has ONE row, and a legend of one
+   * letter explains nothing that the row does not already show in its own name
+   * and ID line. With one row the header renders exactly as Phase 9 left it.
+   */
+  const showTagLegend = $derived(rows.length >= 2);
+
   /** D-16: an absent OR empty value shows "Unknown" in its slot, so a
    * half-populated row never renders a blank line. The worker's `pick()`
    * already trims, so the value is shown exactly as it was read. */
@@ -143,9 +156,38 @@
           data-testid="identity-multi-row"
           data-user-info={row.idOnly ? 'absent' : undefined}
         >
-          <h3 class="multi-name" class:id-only={row.idOnly} data-testid="identity-multi-name">
-            {row.name}
-          </h3>
+          <!--
+            D-10's legend: the letter chip, then the name, in one flex row.
+
+            The `{#if}` and the `<AccountTag>` sit flush against the `<h3>`'s
+            neighbours with NO whitespace between them, which is the same
+            load-bearing adjacency `DashboardSection.svelte` uses for the
+            combined caption: a newline here would put a whitespace text node
+            inside a one-row header that is supposed to render unchanged.
+
+            The letter is `letterOf(index)` on this list's own index — the SAME
+            expression the data panes use through `accountTagsOf`, so the letter
+            an account wears here is by construction the letter it wears in the
+            Vehicles table (D-10, UI-SPEC ordering). The hidden phrase is
+            `Account {letter}` and nothing more: the nickname and the ID are
+            already visible text in this row, and repeating them in hidden text
+            would break D-21's once-per-row rule that the e2e counts.
+          -->
+          {#if showTagLegend}<div class="multi-head">
+              <AccountTag
+                letter={letterOf(index)}
+                label={formatAccountLegendLabel(letterOf(index))}
+              />
+              <h3 class="multi-name" class:id-only={row.idOnly} data-testid="identity-multi-name">
+                {row.name}
+              </h3>
+            </div>{/if}{#if !showTagLegend}<h3
+              class="multi-name"
+              class:id-only={row.idOnly}
+              data-testid="identity-multi-name"
+            >
+              {row.name}
+            </h3>{/if}
 
           {#if row.idLine !== null}
             <p class="account-id" data-testid="identity-multi-id">{row.idLine}</p>
@@ -325,6 +367,21 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
+    min-width: 0;
+  }
+
+  /* D-10: the chip and the name on one line, the chip 8px ahead of the name.
+
+     `align-items: baseline` rather than `center`: the chip's box is 20px tall
+     and the name is an 18px heading, so centring them would leave the letter
+     sitting a pixel low against the first line of the name. Baseline alignment
+     puts the chip's own text on the name's first baseline whatever the glyph
+     sizes are. `min-width: 0` and the flex child's `min-width: 0` in `.multi-name`
+     let a long untrusted name wrap rather than widen the 320px pane. */
+  .multi-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
     min-width: 0;
   }
 

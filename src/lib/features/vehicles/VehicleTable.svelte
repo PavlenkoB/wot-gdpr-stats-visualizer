@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import type { VehicleColumn, VehicleRow } from './vehicle-shared.ts';
   import { SCROLLER_MAX_PX, windowRange, type SortState } from './vehicle-model.ts';
+  import AccountTag from '../../shell/AccountTag.svelte';
+  import { tagLabel, type AccountTagModel } from '../../shell/identity-model.ts';
   import { VEHICLE_BLANK_NAME, VEHICLE_COLUMN_LABELS, formatVehicleCell } from '../../ui-copy.ts';
 
   /**
@@ -65,9 +67,29 @@
      * them (05-UI-SPEC section 2).
      */
     updating?: boolean;
+    /**
+     * The account tags, or `null` for a single-account dataset (D-10).
+     *
+     * `null` and not an empty map is the zero-one-many rule: with one account
+     * the table renders no chip, no wrapper and no extra column width, so this
+     * component's DOM and its geometry are exactly Phase 9's. With two or more,
+     * every row whose root is in the map carries a letter; a row whose root is
+     * not carries nothing and throws nothing, because a malformed result is
+     * something to draw past, not something to fail on.
+     */
+    tags?: ReadonlyMap<string, AccountTagModel> | null;
   }
 
-  let { columns, rows, sort, onSort, regionName, resetKey, updating = false }: Props = $props();
+  let {
+    columns,
+    rows,
+    sort,
+    onSort,
+    regionName,
+    resetKey,
+    updating = false,
+    tags = null,
+  }: Props = $props();
 
   /** The scroll offset, the one piece of DOM state this table reads. */
   let scrollTop = $state(0);
@@ -121,6 +143,22 @@
     xp: { px: 96, cls: 'w-numeric' },
     lastBattle: { px: 160, cls: 'w-date' },
   };
+
+  /**
+   * The same vehicle column, one chip wider (D-10, UI-SPEC Surface 5).
+   *
+   * A SECOND record rather than a `+ 32` inside `widthOf`, so the width the
+   * stylesheet declares and the width the table's minimum width is computed
+   * from are still two halves of ONE record — the split that produced a wrong
+   * column width once already (see the note on {@link COLUMN_GEOMETRY}).
+   */
+  const COLUMN_GEOMETRY_TAGGED: Readonly<Record<string, { px: number; cls: string }>> = {
+    ...COLUMN_GEOMETRY,
+    vehicle: { px: 192, cls: 'w-vehicle-tagged' },
+  };
+
+  /** Which geometry record applies: the tagged one exactly when tags exist. */
+  const geometry = $derived(tags === null ? COLUMN_GEOMETRY : COLUMN_GEOMETRY_TAGGED);
   /** A numeric column the UI-SPEC sizes at 96px, whatever its key. */
   const NUMERIC_WIDTH_PX = 96;
   /** The two Warships per-type columns, which the UI-SPEC widens to 176px. */
@@ -137,9 +175,9 @@
     return !column.sortable && (column.key === 'winRate' || column.key === 'avgDamage');
   }
 
-  /** One column's pixel width, from the geometry row. */
+  /** One column's pixel width, from the geometry row in force. */
   function widthOf(column: VehicleColumn): number {
-    const named = COLUMN_GEOMETRY[column.key];
+    const named = geometry[column.key];
     if (named !== undefined) return named.px;
     if (isPerType(column)) return PER_TYPE_WIDTH_PX;
     return column.kind === 'text' || column.kind === 'date' ? 160 : NUMERIC_WIDTH_PX;
@@ -147,9 +185,21 @@
 
   /** One column's width class, from the same record the width comes from. */
   function widthClass(column: VehicleColumn): string {
-    const named = COLUMN_GEOMETRY[column.key];
+    const named = geometry[column.key];
     if (named !== undefined) return named.cls;
     return column.kind === 'text' || column.kind === 'date' ? 'w-date' : 'w-numeric';
+  }
+
+  /**
+   * The tag for one row, or `null` when there is nothing to draw.
+   *
+   * The one place the two facts meet: `tags === null` is the single-account
+   * case and a root the map does not hold is the malformed case, and both answer
+   * "no chip" rather than "no letter" — which is why a hostile or stale root can
+   * never reach the chip's letter or its hidden phrase (RESEARCH Pitfall 8).
+   */
+  function tagOf(row: VehicleRow): AccountTagModel | null {
+    return tags === null ? null : (tags.get(row.account) ?? null);
   }
 
   /**
@@ -349,7 +399,24 @@
           {#each columns as column, cellIndex (column.key)}
             {#if cellIndex === 0}
               <td class="{widthClass(column)} sticky-first" title={row.id}>
-                {#if row.nation !== null}
+                <!--
+                  D-10's tag, first in the cell and 4px ahead of the nation chip.
+
+                  The `{#if}` and the `<AccountTag>` sit flush against the nation
+                  chip's `{#if}` with no whitespace between them, which is the
+                  same load-bearing adjacency the identity header uses: a
+                  newline here would put a whitespace text node inside every
+                  single-account cell, and the cell's text is read by
+                  `tests/e2e/vehicles/vehicle-stats.spec.ts`.
+
+                  The cell keeps `title={row.id}` — the VEHICLE id, and nothing
+                  else. The account's ID and nickname ride in the tag's hidden
+                  TEXT, never in an attribute (D-19, T-10-08).
+                -->
+                {#if tagOf(row) !== null}<AccountTag
+                    letter={tagOf(row)!.letter}
+                    label={tagLabel(tagOf(row)!)}
+                  />{/if}{#if row.nation !== null}
                   <span class="nation" data-testid="vehicle-nation-tag">{row.nation}</span>
                 {/if}
                 <span class="id">{row.id === '' ? VEHICLE_BLANK_NAME : row.id}</span>
@@ -596,6 +663,21 @@
      script. */
   .w-vehicle {
     width: 160px;
+  }
+  /* The same column once the account tag sits in front of the name (D-10):
+     160px plus a 24px chip, a 4px gap and a 4px margin. The row height is
+     untouched — the chip is 20px tall inside a fixed 40px row. */
+  .w-vehicle-tagged {
+    width: 192px;
+  }
+  /* The chip's 4px gap to whatever follows it in the first cell. Declared here
+     rather than on the tag itself because the same component renders in the
+     identity header, where the gap comes from the row's own `gap: 8px`; a
+     margin baked into the component would add itself to that. `:global`
+     because the chip is another component's markup — Svelte scoping reaches
+     this component's own elements, not the ones its children render. */
+  .sticky-first :global([data-testid='account-tag']) {
+    margin-right: 4px;
   }
   .w-battles {
     width: 88px;

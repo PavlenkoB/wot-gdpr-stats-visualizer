@@ -206,15 +206,14 @@ export interface PlaytimeSlice {
 }
 
 /**
- * The whole-dataset playtime aggregate, computed once in the worker at import
- * and persisted on the dataset meta record.
+ * One complete aggregation scope: everything a `playtime-query` needs to answer
+ * from, and nothing that names WHICH scope it is.
  *
- * It is stored on the meta record and NOT on `ClassifyResult` on purpose:
- * `IngestClient` holds the import result as a deep `$state` proxy, which
- * would walk thousands of numbers on every replay, and the aggregate is far
- * too large to clone across `postMessage` on each query.
+ * This is today's `PlaytimeAggregates` with the per-game fields lifted out, so
+ * the all-games scope and every per-game scope are the SAME shape and one
+ * `viewFromAggregates` call can serve either (D-21).
  */
-export interface PlaytimeAggregates {
+export interface PlaytimeScope {
   /** `PLAYTIME_VERSION` at aggregation time; a mismatch is an error, not a cast. */
   v: number;
   /**
@@ -241,6 +240,43 @@ export interface PlaytimeAggregates {
   byValue: PlaytimeSlice[];
 }
 
+/**
+ * The whole-dataset playtime aggregate, computed once in the worker at import
+ * and persisted on the dataset meta record.
+ *
+ * It is stored on the meta record and NOT on `ClassifyResult` on purpose:
+ * `IngestClient` holds the import result as a deep `$state` proxy, which
+ * would walk thousands of numbers on every replay, and the aggregate is far
+ * too large to clone across `postMessage` on each query.
+ *
+ * `games` and `byGame` are OPTIONAL, and what absent means is different for
+ * each. Absent `games` is "this aggregate does not carry the game list at all":
+ * a hand-built literal, or a shape written by an older build. Absent `byGame`
+ * is the same. Neither is a claim that the export has no games, because a
+ * scope's `all` is still complete without them. At runtime the
+ * `PLAYTIME_VERSION` bump is what guarantees both are present on anything the
+ * worker reads (D-21), so a reader may default an absent list to `[]` and must
+ * never treat it as a reason to refuse an answer.
+ */
+export interface PlaytimeAggregates extends PlaytimeScope {
+  /**
+   * Every game token with at least one USABLE session, ascending by code unit,
+   * cut at `MAX_SPLIT_VALUES`.
+   *
+   * The token comes from a session FILE's name and never from a cell
+   * (T-04-27), so this list is a claim the export itself makes.
+   */
+  games?: string[];
+  /**
+   * One complete scope per token of {@link games}, in the same order.
+   *
+   * A per-game scope's `all` is that game's merge over EVERY account's rows for
+   * it, which is why its totals can sum to MORE than the all-games total:
+   * each scope merges overlap among its own sessions only.
+   */
+  byGame?: { game: string; scope: PlaytimeScope }[];
+}
+
 /** The "split by" menu: which column, and how many seconds each value holds. */
 export interface PlaytimeSplit {
   column: string;
@@ -251,18 +287,38 @@ export interface PlaytimeSplit {
 /**
  * What a `playtime-query` answers with.
  *
- * Three statuses, and the copy treats them as three different sentences:
+ * Four statuses, and the copy treats them as four different sentences:
  *   - `no-session-file` — this export has no session file at all (neither
  *     `Sessions.csv` nor a per-game one, only `Logins.csv`), so there is
  *     nothing to say about playtime and no column to split by.
  *   - `no-usable-sessions` — the file was there, but no row carried a usable
  *     start and end pair, so the chart is empty and the copy names the
  *     excluded count.
+ *   - `no-game-sessions` — the ask named a game token that is a VALID token
+ *     (D-21, T-10-01) but that no usable session in this export carries. It is
+ *     not an error and not the same sentence as an absent session file: the
+ *     export has both. It carries the full `games` list so the chip row stays
+ *     on screen and the user can move off the empty game themselves.
  *   - `ready` — the charts have their numbers.
+ *
+ * The two empty states carry NO `games`/`game`: they are answered before any
+ * game dimension is resolved, and their copy must not claim anything about
+ * games.
  */
 export type PlaytimeView =
   | { status: 'no-session-file' }
   | { status: 'no-usable-sessions'; excluded: number }
+  | {
+      /**
+       * The token that was ASKED for and found valid. It is echoed because the
+       * user chose it, not because the worker trusted it — only a value
+       * `isGameToken` accepted reaches here, so this is a stored token the
+       * aggregate itself produced (D-21, T-10-01).
+       */
+      status: 'no-game-sessions';
+      game: string;
+      games: string[];
+    }
   | {
       status: 'ready';
       split: PlaytimeSplit | null;
@@ -282,6 +338,24 @@ export type PlaytimeView =
       selected: number | null;
       /** The slice the main thread is showing: the selected value's, or All. */
       slice: PlaytimeSlice;
+      /**
+       * The game tokens this export carries, ascending, and the chip list.
+       *
+       * ABSENT means "the answer was not built by a game-aware worker": the
+       * field is optional so a main thread and a test written against the
+       * pre-game contract still type-check, and a reader that finds it absent
+       * must render no chip row rather than an empty one. At runtime every
+       * `ready` answer from the current worker carries it.
+       */
+      games?: string[];
+      /**
+       * The game this answer is scoped to, or null for All.
+       *
+       * It is the APPLIED token, so a request for a token with no usable
+       * sessions answers `no-game-sessions` instead of a `ready` with a
+       * `null`. Absent means the same as an absent `games`: pre-game worker.
+       */
+      game?: string | null;
     };
 
 export type IngestStage = 'hashing' | 'unzipping' | 'classifying' | 'parsing' | 'writing';
@@ -342,7 +416,12 @@ export type IngestRequest =
   // NEW — D-06. Its own `queryId` namespace, deliberately NOT the ingest
   // `jobId`: charts are asked for while no import is running, and reusing
   // `jobId` would drag the import state machine into every query.
-  | { type: 'playtime-query'; queryId: number; valueIndex: number | null }
+  // 10-01, D-21. `game` is OPTIONAL and a `postMessage` field the worker did
+  // not author, so it is validated with `isGameToken` before anything reads it:
+  // a value that is not a token means All and is never copied into a reply
+  // (T-10-01). Absent means All, which is why every pre-game message — the
+  // whole existing suite — still asks the question it always asked.
+  | { type: 'playtime-query'; queryId: number; valueIndex: number | null; game?: string | null }
   // 05-07. The four Phase 5 blocks share ONE request variant rather than four:
   // a channel per message would multiply the union and drift. `queryId` is the
   // same shared namespace idea the playtime pair established, and deliberately

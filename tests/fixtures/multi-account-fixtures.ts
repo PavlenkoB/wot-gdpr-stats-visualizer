@@ -1,17 +1,23 @@
 import { zipSync } from './pinned-zip.ts';
 import {
+  CURRENCY_2K_SPEC,
+  CURRENCY_500_SPEC,
+  CURRENCY_54K_SPEC,
   CURRENCY_HAND_CSV,
   CURRENCY_OPS_HEADER,
   ORDERS_HAND_CSV,
   PREMIUM_HAND_CSV,
+  generateCurrencyOpsCsv,
   renderQuoteAllCsv,
 } from './finance-fixtures.ts';
 import { DEVICE_INFO_SAMPLE_FILES, DEVICE_PC_HEADER } from './device-info-fixtures.ts';
 import {
   PLAYER_STATS_SAMPLE_FILES,
   WOT_MAIN_HEADER,
+  generateVehicleMainCsv,
   renderStatsCsv,
 } from './player-stats-fixtures.ts';
+import { mulberry32 } from './sessions-fixtures.ts';
 import { buildRealShapeCsv, type RealShapeRow } from './playtime-real-shape-fixture.ts';
 
 /**
@@ -228,6 +234,45 @@ export const MA_EXPECTED_YEARS: Readonly<Record<string, readonly [number, number
  * files, which are statistics rather than sessions.
  */
 export const MA_EXPECTED_SESSION_COUNT = 13;
+
+/**
+ * The merged playtime figures for the three-account archive, hand-derived from
+ * the same session rows, as LITERALS (D-06, ACCOUNT-06).
+ *
+ * Nothing here is read back off the worker: each number is the arithmetic of the
+ * rows above, written out so a change in the aggregator's behaviour cannot move
+ * the expectation. Sessions are counted as ROWS and active days as distinct
+ * start days (D-07 as amended); only hours take the union of intervals, and on
+ * this archive no row overlaps another, so the union is the plain sum.
+ *
+ * Per game, from the rows:
+ *   WOT   RU 5400 + 4500, EU 3600 + 5400, NA 3600  =  22,500 s / 5 rows / 5 days
+ *   WOTB  RU 3600,             EU 3600,   NA 3600 x2 =  14,400 s / 4 rows / 4 days
+ *   WOWS  RU 4500  (NA's file is header-only, so it contributes nothing) = 4,500 / 1 / 1
+ *   HEAT  EU 3600 x2           (no chip: counted under All only, D-05) = 7,200 / 2 / 2
+ *   WOTC  RU 3600              (same)                                = 3,600 / 1 / 1
+ *   ALL   22,500 + 14,400 + 4,500 + 7,200 + 3,600 = 52,200 s / 13 rows / 13 days
+ *
+ * `games` is the token list the chip row is built from, and the sum of the four
+ * filterable entries is EQUAL to All here — which is the whole point of typing
+ * it out: the e2e asserts the numbers, and the "All can be smaller than the sum"
+ * rule only becomes visible on an archive WITH overlap (the two-account overlap
+ * fixture's literals, below).
+ */
+export const MA_EXPECTED_PLAYTIME = {
+  /** The all-games answer: every account's rows merged. */
+  all: { seconds: 52_200, sessions: 13, days: 13 },
+  /** Per token, in `GAME_FILTER_TOKENS` order plus the two non-filterable ones. */
+  byGame: {
+    WOT: { seconds: 22_500, sessions: 5, days: 5 },
+    WOTB: { seconds: 14_400, sessions: 4, days: 4 },
+    WOWS: { seconds: 4_500, sessions: 1, days: 1 },
+    HEAT: { seconds: 7_200, sessions: 2, days: 2 },
+    WOTC: { seconds: 3_600, sessions: 1, days: 1 },
+  },
+  /** Every token with at least one usable row, ascending — the chip list's input. */
+  games: ['HEAT', 'WOT', 'WOTB', 'WOTC', 'WOWS'],
+} as const;
 
 // -----------------------------------------------------------------------------
 // Folder names, spelled the way the real archive spells them
@@ -1068,4 +1113,453 @@ export function buildLongTextAccountsExport(): Uint8Array {
     { root: MA_LONG_ROOT, identity: true, nickname: MA_LONG_NICKNAME },
     { root: '1000000002', identity: true },
   ]);
+}
+
+// -----------------------------------------------------------------------------
+// The cross-account OVERLAP export (10-01, D-06..D-08, D-21)
+// -----------------------------------------------------------------------------
+
+/**
+ * The two synthetic account roots of the overlap fixture.
+ *
+ * `600000001` and `600000002` rather than an existing pair, because this fixture
+ * is about MERGE arithmetic and nothing else: no `User_Info` shape, no repeated
+ * file name with a differing header, no unsupported folder. The only thing the
+ * two roots share is playtime, and they share it by overlapping.
+ *
+ * Both accounts' first activity year TIES on 2024, so the D-16 account
+ * ordering falls to the account id in code-unit order, which makes A first and
+ * B second. That is what makes "whichever account's rows arrive first" a real
+ * question for the merge rather than a formality.
+ */
+export const MA_OVERLAP_ROOT_A = '600000001';
+export const MA_OVERLAP_ROOT_B = '600000002';
+
+/** Synthetic nicknames, so the two rows in the identity list read as two people. */
+export const MA_OVERLAP_NICKNAME_A = 'Overlap Captain A';
+export const MA_OVERLAP_NICKNAME_B = 'Overlap Captain B';
+
+/**
+ * Account A's session files.
+ *
+ * Three WOT rows on three different days and one WOWS row. Every row carries
+ * its own address, so the login half of this archive (Plan 10-04) is a
+ * five-address shape too.
+ */
+const OVERLAP_SESSIONS_A: readonly SessionFileSpec[] = [
+  {
+    name: 'WOT_Game_Sessions.csv',
+    rows: [
+      ['04.03.2024 10:00', '04.03.2024 11:00', '192.0.2.10'],
+      ['05.03.2024 20:00', '05.03.2024 21:00', '192.0.2.10'],
+      ['08.03.2024 09:00', '08.03.2024 10:00', '192.0.2.11'],
+    ],
+  },
+  {
+    name: 'WOWS_Game_Sessions.csv',
+    rows: [['06.03.2024 18:00', '06.03.2024 19:00', '192.0.2.12']],
+  },
+];
+
+/**
+ * Account B's session files.
+ *
+ * Every row here is one of the three interesting shapes, which is the point of
+ * the archive: `04.03 10:30-11:30` OVERLAPS A's WOT row, `05.03 21:00-22:00`
+ * TOUCHES A's WOT row at its end, and `10.03 12:00-12:30` is DISJOINT from
+ * everything. The WOTB file then holds a session wholly INSIDE two WOT
+ * sessions, and one that overlaps A's WOWS row across games.
+ */
+const OVERLAP_SESSIONS_B: readonly SessionFileSpec[] = [
+  {
+    name: 'WOT_Game_Sessions.csv',
+    rows: [
+      ['04.03.2024 10:30', '04.03.2024 11:30', '192.0.2.10'],
+      // Touches A's 05.03 20:00-21:00 exactly at 21:00. Under v1.0 counting
+      // this stays TWO sessions and the day's seconds are the two lengths
+      // summed, which is what makes D-07's rule observable.
+      ['05.03.2024 21:00', '05.03.2024 22:00', '192.0.2.20'],
+      ['10.03.2024 12:00', '10.03.2024 12:30', '192.0.2.20'],
+    ],
+  },
+  {
+    name: 'WOTB_Game_Sessions.csv',
+    rows: [
+      // Wholly inside A's 04.03 WOT row AND inside B's own 04.03 WOT row.
+      ['04.03.2024 10:45', '04.03.2024 11:15', '192.0.2.21'],
+      // Overlaps A's WOWS row by half an hour.
+      ['06.03.2024 18:30', '06.03.2024 19:30', '192.0.2.12'],
+    ],
+  },
+];
+
+/**
+ * TWO accounts whose sessions OVERLAP each other, across accounts and across
+ * games — the fixture success criterion 1 is checked against (D-06, D-08).
+ *
+ * Every expected number is in {@link MA_OVERLAP_EXPECTED} as a LITERAL,
+ * derived by hand from the interval union and never read back from the code
+ * under test. The archive is synthetic and every address is from the
+ * documentation-only TEST-NET-1 block (`tests/fixtures/README.md`).
+ *
+ * `reversed: true` inserts the same entries in reverse zip order, so a test can
+ * prove that neither the entry order nor the account order moves a number.
+ */
+export function buildOverlapTwoAccountExport(options: { reversed?: boolean } = {}): Uint8Array {
+  return assemble(
+    [
+      {
+        root: MA_OVERLAP_ROOT_A,
+        identity: true,
+        nickname: MA_OVERLAP_NICKNAME_A,
+        noSharedPlayerStats: true,
+        sessions: OVERLAP_SESSIONS_A,
+      },
+      {
+        root: MA_OVERLAP_ROOT_B,
+        identity: true,
+        nickname: MA_OVERLAP_NICKNAME_B,
+        noSharedPlayerStats: true,
+        sessions: OVERLAP_SESSIONS_B,
+      },
+    ],
+    { reverse: options.reversed === true },
+  );
+}
+
+/**
+ * The answer key, computed BY HAND from {@link OVERLAP_SESSIONS_A} and
+ * {@link OVERLAP_SESSIONS_B} by taking the union of the intervals per day.
+ * Nothing here is produced by the aggregator.
+ *
+ * ## All games — 23,400 s (6 h 30 m), 9 sessions, 5 active days
+ *
+ * Union of all nine intervals, day by day:
+ *   - 04.03: 10:00-11:00, 10:30-11:30, 10:45-11:15 (WOTB)
+ *     -> 10:00-11:30 = 5,400 s. The WOTB session is wholly inside, so it adds
+ *        a session and no seconds.
+ *   - 05.03: 20:00-21:00 and 21:00-22:00 TOUCH -> 20:00-22:00 = 7,200 s, and
+ *        they remain TWO sessions (D-07 amended: a session is a usable row and
+ *        only the hours dedupe).
+ *   - 06.03: 18:00-19:00 (WOWS) and 18:30-19:30 (WOTB)
+ *     -> 18:00-19:30 = 5,400 s.
+ *   - 08.03: 09:00-10:00 = 3,600 s.
+ *   - 10.03: 12:00-12:30 = 1,800 s.
+ *   Sum 5,400 + 7,200 + 5,400 + 3,600 + 1,800 = 23,400 s over 5 days,
+ *   9 usable sessions, 0 excluded rows.
+ *
+ * ## Per game — only that game's intervals are unioned
+ *   - WOT (6 rows, two accounts): 04.03 10:00-11:30 = 5,400; 05.03
+ *     20:00-22:00 = 7,200; 08.03 3,600; 10.03 1,800 -> 18,000 s, 4 days,
+ *     6 sessions.
+ *   - WOTB (2 rows, one account): 04.03 10:45-11:15 = 1,800; 06.03
+ *     18:30-19:30 = 3,600 -> 5,400 s, 2 days, 2 sessions.
+ *   - WOWS (1 row, one account): 06.03 18:00-19:00 -> 3,600 s, 1 day, 1 session.
+ *
+ * ## Why the per-game sum is LARGER than All
+ *
+ * 18,000 + 5,400 + 3,600 = 27,000 s, which is 3,600 s MORE than All. Each
+ * per-game scope merges overlap among its OWN sessions only, so playtime that
+ * two accounts spent in DIFFERENT games at the same time is counted once under
+ * All and twice under the two games. That is the documented shape (D-06), and
+ * it is the number the UI explains rather than a discrepancy to reconcile.
+ */
+export const MA_OVERLAP_EXPECTED = {
+  /** All nine usable sessions, ungrouped, merged across accounts and games. */
+  all: { seconds: 23_400, sessions: 9, days: 5, excluded: 0 },
+  /** The WOT sessions of BOTH accounts, merged among themselves. */
+  wot: { seconds: 18_000, sessions: 6, days: 4, excluded: 0 },
+  /** The WOTB sessions, both from account B. */
+  wotb: { seconds: 5_400, sessions: 2, days: 2, excluded: 0 },
+  /** The WOWS session, from account A. */
+  wows: { seconds: 3_600, sessions: 1, days: 1, excluded: 0 },
+  /** The stored token list, code-unit ascending. */
+  games: ['WOT', 'WOTB', 'WOWS'] as const,
+  /** The sum of the per-game seconds — deliberately GREATER than `all.seconds`. */
+  sumOfGames: 27_000,
+  /** The 05.03 touching pair: continuous time, still two sessions. */
+  touchingDay: {
+    day: '05.03.2024',
+    seconds: 7_200,
+    sessions: 2,
+  },
+} as const;
+
+/**
+ * The login addresses this archive produces, in the order the login aggregate
+ * stores them: logins DESCENDING, then the numeric address ASCENDING.
+ *
+ * Hand-written here for Plan 10-04 rather than read off the worker, for the same
+ * reason {@link MA_OVERLAP_EXPECTED} is: an expected value computed by the code
+ * under test asserts only that the code agrees with itself.
+ *
+ *   192.0.2.10 — 3 logins: A on 04.03 and 05.03, B on 04.03.
+ *   192.0.2.12 — 2 logins: A's WOWS row and B's WOTB row, both on 06.03.
+ *   192.0.2.20 — 2 logins: B's two March rows.
+ *   192.0.2.11 — 1 login:  A's 08.03 WOT row.
+ *   192.0.2.21 — 1 login:  B's 04.03 WOTB row.
+ *
+ * `games` lists the tokens of the sessions that carried the address, ascending
+ * — note `192.0.2.12` carries one session of each game.
+ */
+export const MA_OVERLAP_ADDRESSES = [
+  {
+    address: '192.0.2.10',
+    logins: 3,
+    accounts: [MA_OVERLAP_ROOT_A, MA_OVERLAP_ROOT_B],
+    games: ['WOT'],
+  },
+  {
+    address: '192.0.2.12',
+    logins: 2,
+    accounts: [MA_OVERLAP_ROOT_A, MA_OVERLAP_ROOT_B],
+    games: ['WOTB', 'WOWS'],
+  },
+  { address: '192.0.2.20', logins: 2, accounts: [MA_OVERLAP_ROOT_B], games: ['WOT'] },
+  { address: '192.0.2.11', logins: 1, accounts: [MA_OVERLAP_ROOT_A], games: ['WOT'] },
+  { address: '192.0.2.21', logins: 1, accounts: [MA_OVERLAP_ROOT_B], games: ['WOTB'] },
+] as const;
+
+// -----------------------------------------------------------------------------
+// The LARGE three-account export (10-06, D-16, D-17, SCALE-01)
+// -----------------------------------------------------------------------------
+
+/**
+ * The three synthetic roots of the large archive.
+ *
+ * Their CODE-UNIT order (`720000001` < `720000005` < `720000009`) is the REVERSE
+ * of the D-16 order (first activity year ascending: 2012, 2016, 2019), on purpose:
+ * a reader that kept the storage order, or sorted the roots as numbers, would
+ * letter the accounts the wrong way round and every tag would be a lie.
+ *
+ * Letters, as the identity header prints them: A is `720000009` (2012), B is
+ * `720000005` (2016) and C is `720000001` (2019).
+ */
+export const MA_LARGE_ROOT_A = '720000009';
+export const MA_LARGE_ROOT_B = '720000005';
+export const MA_LARGE_ROOT_C = '720000001';
+
+/** The roots in D-16 order, which is the order the identity header lists them. */
+export const MA_LARGE_ROOTS_D16_ORDER: readonly string[] = [
+  MA_LARGE_ROOT_A,
+  MA_LARGE_ROOT_B,
+  MA_LARGE_ROOT_C,
+];
+
+/** The roots in code-unit order, which is the order the archive stores them. */
+export const MA_LARGE_ROOTS_CODE_UNIT_ORDER: readonly string[] = [
+  MA_LARGE_ROOT_C,
+  MA_LARGE_ROOT_B,
+  MA_LARGE_ROOT_A,
+];
+
+/** The three synthetic nicknames, in D-16 order. */
+export const MA_LARGE_NICKNAMES: readonly string[] = [
+  'Large Captain A',
+  'Large Captain B',
+  'Large Captain C',
+];
+
+/** First activity year per root: the oldest account is 2012, then 2016, then 2019. */
+const LARGE_FIRST_YEARS: readonly number[] = [2012, 2016, 2019];
+
+/** Last day (UTC) any generated session may start on: 30 September 2026. */
+const LARGE_LAST_START_MS = Date.UTC(2026, 8, 30);
+
+/**
+ * How many vehicle rows each account carries, in D-16 order: 5,000 + 1,500 + 500
+ * = 7,000 (D-17).
+ */
+export const MA_LARGE_VEHICLE_COUNTS: readonly number[] = [5_000, 1_500, 500];
+
+/**
+ * Sessions per account and game file, in D-16 order: the oldest account WOT 9,000,
+ * WOTB 3,000, WOWS 1,000; the second WOT 3,000, WOTB 1,500; the third WOTB 2,000,
+ * WOWS 500 — 20,000 in all (D-17). The counts are NOT shrunk: the unit file ran
+ * inside its budget on the development machine (see the unit test's header).
+ */
+const LARGE_SESSION_PLAN: readonly (readonly (readonly [string, number])[])[] = [
+  [
+    ['WOT_Game_Sessions.csv', 9_000],
+    ['WOTB_Game_Sessions.csv', 3_000],
+    ['WOWS_Game_Sessions.csv', 1_000],
+  ],
+  [
+    ['WOT_Game_Sessions.csv', 3_000],
+    ['WOTB_Game_Sessions.csv', 1_500],
+  ],
+  [
+    ['WOTB_Game_Sessions.csv', 2_000],
+    ['WOWS_Game_Sessions.csv', 500],
+  ],
+];
+
+/** The currency presets, in D-16 order: 54,000, 2,000 and 500 rows. */
+const LARGE_CURRENCY_SPECS = [CURRENCY_54K_SPEC, CURRENCY_2K_SPEC, CURRENCY_500_SPEC] as const;
+
+/** Seeds for the vehicle files and the session generators, one per account. */
+const LARGE_VEHICLE_SEEDS: readonly number[] = [1_061, 1_062, 1_063];
+const LARGE_SESSION_SEEDS: readonly number[] = [10_601, 10_602, 10_603];
+
+/**
+ * ONE pool of 600 documentation addresses shared by all three accounts, so the
+ * same address recurs across accounts: 192.0.2.1-200 (TEST-NET-1),
+ * 198.51.100.1-200 (TEST-NET-2) and 203.0.113.1-200 (TEST-NET-3), RFC 5737.
+ */
+const LARGE_ADDRESS_POOL: readonly string[] = (() => {
+  const pool: string[] = [];
+  for (const prefix of ['192.0.2', '198.51.100', '203.0.113']) {
+    for (let host = 1; host <= 200; host++) pool.push(`${prefix}.${host}`);
+  }
+  return pool;
+})();
+
+/** A `[startSeconds, endSeconds]` pair, in wall-clock Unix seconds. */
+export type LargeSessionPair = readonly [number, number];
+
+/** What {@link buildLargeThreeAccountExport} says the archive holds. */
+export interface LargeThreeAccountExpected {
+  /** The roots in D-16 order (A, B, C). */
+  roots: readonly string[];
+  /** The three currency CSV texts, in D-16 order (54,000 / 2,000 / 500 rows). */
+  currencyCsvs: readonly string[];
+  /** Every generated session as a second pair, per game and for all games. */
+  sessions: {
+    all: readonly LargeSessionPair[];
+    WOT: readonly LargeSessionPair[];
+    WOTB: readonly LargeSessionPair[];
+    WOWS: readonly LargeSessionPair[];
+  };
+  /** Vehicle rows per root. */
+  vehicleCounts: Readonly<Record<string, number>>;
+  /** Every distinct address any session row carries, ascending as text. */
+  addresses: readonly string[];
+}
+
+/** `DD.MM.YYYY HH:MM` of a UTC millisecond instant, as the export writes it. */
+function exportStamp(ms: number): string {
+  const d = new Date(ms);
+  const two = (n: number): string => (n < 10 ? `0${n}` : String(n));
+  return (
+    `${two(d.getUTCDate())}.${two(d.getUTCMonth() + 1)}.${d.getUTCFullYear()} ` +
+    `${two(d.getUTCHours())}:${two(d.getUTCMinutes())}`
+  );
+}
+
+/**
+ * Build the LARGE three-account archive and the facts about it that a test can
+ * check an aggregation against (Phase 10, D-17, SCALE-01).
+ *
+ * ## What is in it
+ *
+ * Three accounts in code-unit order `720000001`, `720000005`, `720000009`
+ * (D-16 order is the reverse): a 54,000-row `Virtual_Currencies_Operations.csv`
+ * on the oldest, 2,000 and 500 rows on the others; 5,000 + 1,500 + 500 = 7,000
+ * `WOT_Vehicle_Statistics.csv` rows; and 20,000 sessions over WoT, WoT Blitz and
+ * Warships whose IP cells draw from ONE shared pool of 600 documentation
+ * addresses. Every account also carries the hand Orders file, so the per-account
+ * Payments split has three contributors.
+ *
+ * ## Why it never touches disk
+ *
+ * The bytes are built in memory from seeds and returned. There is no real export
+ * anywhere in the repository (T-10-19) and every address is an RFC 5737
+ * documentation address.
+ *
+ * ## Independence
+ *
+ * Stamps are converted to Unix seconds here with `Date.UTC`, not through a
+ * calendar helper from the app or from `export-fixtures.ts`, so the oracle a
+ * test builds from `expected` shares no code with the parser it checks.
+ *
+ * ## Counts
+ *
+ * Sessions 20,000 (WOT 12,000, WOTB 6,500, WOWS 1,500); vehicles 7,000
+ * (5,000 / 1,500 / 500); currency 54,000 + 2,000 + 500 rows.
+ */
+export function buildLargeThreeAccountExport(): {
+  bytes: Uint8Array;
+  expected: LargeThreeAccountExpected;
+} {
+  const sessionPairs: Record<'all' | 'WOT' | 'WOTB' | 'WOWS', LargeSessionPair[]> = {
+    all: [],
+    WOT: [],
+    WOTB: [],
+    WOWS: [],
+  };
+  const addresses = new Set<string>();
+  const specs: RootSpec[] = [];
+  const currencyCsvs: string[] = [];
+
+  MA_LARGE_ROOTS_D16_ORDER.forEach((root, account) => {
+    const rand = mulberry32(LARGE_SESSION_SEEDS[account]!);
+    const firstYear = LARGE_FIRST_YEARS[account]!;
+    const rangeStart = Date.UTC(firstYear, 0, 1);
+    const spanMinutes = Math.floor((LARGE_LAST_START_MS - rangeStart) / 60_000);
+    let pinned = false;
+
+    const sessions: SessionFileSpec[] = [];
+    for (const [name, count] of LARGE_SESSION_PLAN[account]!) {
+      const game = name.slice(0, name.indexOf('_')) as 'WOT' | 'WOTB' | 'WOWS';
+      const rows: RealShapeRow[] = [];
+      for (let i = 0; i < count; i++) {
+        let startMs: number;
+        let lengthMinutes: number;
+        if (!pinned) {
+          // One session pinned to 15 January of the account's first year, so
+          // its first-activity year (D-16) cannot drift with the random draws.
+          pinned = true;
+          startMs = Date.UTC(firstYear, 0, 15, 12, 0);
+          lengthMinutes = 60;
+        } else {
+          startMs = rangeStart + Math.floor(rand() * spanMinutes) * 60_000;
+          lengthMinutes = 1 + Math.floor(rand() * 240);
+        }
+        const endMs = startMs + lengthMinutes * 60_000;
+        const ip = LARGE_ADDRESS_POOL[Math.floor(rand() * LARGE_ADDRESS_POOL.length)]!;
+        rows.push([exportStamp(startMs), exportStamp(endMs), ip]);
+        const pair: LargeSessionPair = [startMs / 1000, endMs / 1000];
+        sessionPairs.all.push(pair);
+        sessionPairs[game].push(pair);
+        addresses.add(ip);
+      }
+      sessions.push({ name, rows });
+    }
+
+    const currency = generateCurrencyOpsCsv(LARGE_CURRENCY_SPECS[account]!);
+    currencyCsvs.push(currency);
+
+    specs.push({
+      root,
+      identity: true,
+      nickname: MA_LARGE_NICKNAMES[account],
+      noSharedPlayerStats: true,
+      payment: true,
+      sessions,
+      files: {
+        [`${F_FINANCIAL}/Virtual_Currencies_Operations.csv`]: currency,
+        [`${F_PLAYER}/WOT_Vehicle_Statistics.csv`]: generateVehicleMainCsv({
+          seed: LARGE_VEHICLE_SEEDS[account]!,
+          count: MA_LARGE_VEHICLE_COUNTS[account]!,
+        }),
+      },
+    });
+  });
+
+  const vehicleCounts: Record<string, number> = {};
+  MA_LARGE_ROOTS_D16_ORDER.forEach((root, account) => {
+    vehicleCounts[root] = MA_LARGE_VEHICLE_COUNTS[account]!;
+  });
+
+  return {
+    // The archive stores its roots in code-unit order, the reverse of D-16.
+    bytes: assemble([...specs].reverse()),
+    expected: {
+      roots: MA_LARGE_ROOTS_D16_ORDER,
+      currencyCsvs,
+      sessions: sessionPairs,
+      vehicleCounts,
+      addresses: [...addresses].sort(),
+    },
+  };
 }

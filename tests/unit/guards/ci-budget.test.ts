@@ -164,6 +164,27 @@ import config from '../../../playwright.config';
 // floor of 1739.4 s — 0.6 s of slack under the old 1740 s globalTimeout — which
 // is exactly why two multi-minute tests cannot be credited at 5 s each.
 //
+// Phase 10 (the merged dashboard across accounts) added TWO more listed tests, both
+// in `shell/multi-account-scale.spec.ts`: the large three-account import and its
+// game-filter flow. They share ONE import of a 1.4 MB archive (a 54,000-row
+// currency file, 20,000 sessions, 7,000 vehicle rows), so they are priced as a
+// block like the three scale specs, and the block also carries the growth of
+// Phase 9's two long tests, which gained steps in plans 10-02 to 10-05. The
+// count, MEASURED at the end of 10-06 Task 3:
+//
+//   L = 260 tests in 29 files
+//
+//   E = 330 + 5 * (260 - 86 - 5 - 5 - 5 - 2 - 2) + 120 + 90 + 13 + 32 + 49
+//     = 330 + 775 + 255 + 49
+//     = 1409 s
+//   1.3 * E = 1831.7 s, past the 1800 s that 30 min gave
+//
+// so G = 31 min (1860 s), W = 33 min (1980 s) and J = 41 min (2460 s): all THREE
+// moved together, the same G + 2 and W + 8 relationship every raise before them
+// used, and 31 min holds up to 264 listed tests (264 project 1429 s and a floor
+// of 1857.7 s). The research estimate for the allowance was 30 s, which would have
+// held up to 268; the measurement came out higher, so the ceiling is 264.
+//
 // Every constant below is either MEASURED in this repository or an ESTIMATE
 // carried forward from an earlier phase, and is labelled as such. The
 // estimation lives here, not in a comment, because `globalTimeout` is
@@ -288,6 +309,38 @@ const MULTI_ACCOUNT_LONG_TEST_COUNT = 2;
  */
 const MULTI_ACCOUNT_LONG_SECONDS = 32;
 
+/**
+ * The listed count at which Phase 10's two scale tests entered the suite —
+ * MEASURED with `playwright test --list` at the end of 10-06 Task 3 (260 in 29
+ * files). Gated for the reason MULTI_ACCOUNT_LONG_TESTS_FROM is: below 260 those
+ * tests are not in the suite, so there is nothing to hold back and every earlier
+ * pin must keep the value the phase that measured it recorded.
+ */
+const MULTI_ACCOUNT_SCALE_TESTS_FROM = 260;
+
+/** The two listed tests of `shell/multi-account-scale.spec.ts` — MEASURED. */
+const MULTI_ACCOUNT_SCALE_TEST_COUNT = 2;
+
+/**
+ * Allowance for the large three-account scale spec and for the growth of
+ * Phase 9's two long tests — MEASURED at the end of 10-06 Task 3, on this
+ * machine, one worker, slowest of three runs of each, with the app built:
+ *
+ *   multi-account-scale.spec.ts, whole file (the 1.4 MB import, both tests):
+ *                                                          8.1 s
+ *   Phase 9's three-account test (a): 3.6 s then, 10.1 s now  -> +6.5 s
+ *   Phase 9's lifecycle test (b):     5.7 s then,  7.2 s now  -> +1.5 s
+ *   computed:                      (8.1 + 6.5 + 1.5) = 16.1 s * 3 = 48.4 s
+ *   rounded up:                                              49 s
+ *
+ * The research estimate was 30 s. The runner factor is the ~3x this file already
+ * uses, and there is deliberately NO floor for the same reason as
+ * MULTI_ACCOUNT_LONG_SECONDS: this block pays for one import, not for a second
+ * browser context. If the first CI run measures more, this is the number to
+ * replace.
+ */
+const MULTI_ACCOUNT_SCALE_SECONDS = 49;
+
 /** Per-test increment for a browser-backed test — ESTIMATE from the phase. */
 const SECONDS_PER_NEW_TEST = 5;
 
@@ -308,9 +361,12 @@ const LIST_TIMEOUT_MS = 60_000;
 
 function projectedE2eSeconds(listedTests: number): number {
   // Phase 9's two long tests are held back only once the suite is large enough
-  // to contain them — see MULTI_ACCOUNT_LONG_TESTS_FROM, which says why.
+  // to contain them — see MULTI_ACCOUNT_LONG_TESTS_FROM, which says why. Phase
+  // 10's two scale tests follow the same rule from MULTI_ACCOUNT_SCALE_TESTS_FROM.
   const longTestsHeldBack =
     listedTests >= MULTI_ACCOUNT_LONG_TESTS_FROM ? MULTI_ACCOUNT_LONG_TEST_COUNT : 0;
+  const scaleTestsHeldBack =
+    listedTests >= MULTI_ACCOUNT_SCALE_TESTS_FROM ? MULTI_ACCOUNT_SCALE_TEST_COUNT : 0;
   const newTests = Math.max(
     0,
     listedTests -
@@ -318,7 +374,8 @@ function projectedE2eSeconds(listedTests: number): number {
       SCALE_SPEC_TEST_COUNT -
       FINANCE_SCALE_TEST_COUNT -
       LOGIN_SCALE_SPEC_TEST_COUNT -
-      longTestsHeldBack,
+      longTestsHeldBack -
+      scaleTestsHeldBack,
   );
   return (
     PRE_PHASE_SECONDS +
@@ -326,7 +383,8 @@ function projectedE2eSeconds(listedTests: number): number {
     SCALE_SPEC_SECONDS +
     FINANCE_SCALE_SECONDS +
     LOGIN_SCALE_SPEC_SECONDS +
-    (longTestsHeldBack > 0 ? MULTI_ACCOUNT_LONG_SECONDS : 0)
+    (longTestsHeldBack > 0 ? MULTI_ACCOUNT_LONG_SECONDS : 0) +
+    (scaleTestsHeldBack > 0 ? MULTI_ACCOUNT_SCALE_SECONDS : 0)
   );
 }
 
@@ -431,6 +489,15 @@ describe('CI e2e budget', () => {
     // pin above is unchanged: at a count below 258 those two tests are not in the
     // suite (MULTI_ACCOUNT_LONG_TESTS_FROM).
     expect(projectedE2eSeconds(258)).toBe(1360);
+    // The 259-test shape (10-06 Task 2, before the second scale test and the raise)
+    // is still the Phase 9 formula: 330 + 5 * (259 - 86 - 5 - 5 - 5 - 2) + 120 + 90
+    // + 13 + 32 = 1365, a floor of 1774.5 s that the old 1800 s covered.
+    expect(projectedE2eSeconds(259)).toBe(1365);
+    // The 260-test shape MEASURED at the end of 10-06 Task 3, with Phase 10's two
+    // scale tests held back and priced as one allowance: 330 + 5 * (260 - 86 - 5
+    // - 5 - 5 - 2 - 2) + 120 + 90 + 13 + 32 + 49 = 1409. The floor is 1831.7 s,
+    // which is past the 1800 s that 30 min gave, so this is the raise 10-06 made.
+    expect(projectedE2eSeconds(260)).toBe(1409);
     // One test beyond the baseline and ALL THREE scale specs is worth exactly
     // one increment; the projection never falls below the baseline + the three
     // allowances, even when a caller passes a count below the baseline.
@@ -459,23 +526,23 @@ describe('CI e2e budget', () => {
     ).toBeGreaterThanOrEqual(e * MIN_GLOBAL_MARGIN);
   });
 
-  test('phase 9 raised all three limits together to 30 / 32 / 40 min', () => {
+  test('phase 10 raised all three limits together to 31 / 33 / 41 min', () => {
     const { wrapperSeconds, jobSeconds } = workflowTimeouts();
     const raiseRule =
-      'Phase 9 raised G = 1800 s, W = 1920 s and J = 2400 s together (Phase 8 held 1740 / 1860 / ' +
-      '2340). A listed count above 262 needs all three raised again (G + 2 min, W + 8 min per the ' +
+      'Phase 10 raised G = 1860 s, W = 1980 s and J = 2460 s together (Phase 9 held 1800 / 1920 / ' +
+      '2400). A listed count above 264 needs all three raised again (G + 2 min, W + 8 min per the ' +
       'rule in this file), never one.';
 
-    expect(globalTimeoutSeconds(), raiseRule).toBe(1800);
-    expect(wrapperSeconds, raiseRule).toBe(1920);
-    expect(jobSeconds, raiseRule).toBe(2400);
+    expect(globalTimeoutSeconds(), raiseRule).toBe(1860);
+    expect(wrapperSeconds, raiseRule).toBe(1980);
+    expect(jobSeconds, raiseRule).toBe(2460);
 
     const { total } = listedTestTotal();
     expect(
       total,
-      `${total} listed tests is above the 262-test ceiling of a 1800 s globalTimeout ` +
+      `${total} listed tests is above the 264-test ceiling of a 1860 s globalTimeout ` +
         `(E = ${projectedE2eSeconds(total)} s, floor ${projectedE2eSeconds(total) * MIN_GLOBAL_MARGIN} s). ${raiseRule}`,
-    ).toBeLessThanOrEqual(262);
+    ).toBeLessThanOrEqual(264);
   });
 
   test('the shell wrapper outlives globalTimeout by at least 90 s', () => {

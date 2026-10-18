@@ -7,7 +7,11 @@
   import { acceptDataOutcome, deriveFinanceState } from './finance-state.ts';
   import { parseUnitsString } from '../../core/decimal.ts';
   import ExcludedNotice from '../../shell/ExcludedNotice.svelte';
+  import AccountTag from '../../shell/AccountTag.svelte';
+  import { accountCountOf, accountTagsFor, tagLabel } from '../../shell/identity-model.ts';
   import {
+    FINANCE_COMBINED_NOTE,
+    HEADER_ACCOUNT,
     SPEND_BLANK_GAME,
     SPEND_BREAKDOWN_DISCLOSURE,
     SPEND_BREAKDOWN_HEADERS,
@@ -22,6 +26,7 @@
     SPEND_LABEL_OTHER,
     SPEND_LOADING,
     SPEND_NO_USABLE,
+    SPEND_PER_ACCOUNT_SUMMARY,
     SPEND_UNKNOWN_YEAR,
     UNKNOWN_CURRENCY_CAPTION,
     UNKNOWN_CURRENCY_HEADING,
@@ -66,6 +71,16 @@
   let { result, client }: Props = $props();
 
   const importedAt = $derived(result?.importedAt ?? null);
+
+  /**
+   * The account tags, or `null` for one account (D-10, D-14).
+   *
+   * The same `accountTagsFor` gate every tagged pane asks, so `null` is the ONE
+   * condition under which no tag, no disclosure and no whitespace text node
+   * appears — which is what keeps the single-account DOM byte-identical to
+   * Phase 9 rather than merely free of visible content.
+   */
+  const tags = $derived(accountTagsFor(result));
 
   /**
    * The answer, held WITH the dataset it answers for.
@@ -195,6 +210,61 @@
   const HEADER_TOTAL = SPEND_BREAKDOWN_HEADERS[3] ?? '';
   const HEADER_GAME = SPEND_BREAKDOWN_HEADERS[1] ?? '';
 
+  /**
+   * One row of the per-account split, resolved to what the table draws.
+   *
+   * The tag rides along rather than just a letter, because the row's identity
+   * IS a tag: rendering the letter on its own would print `B` in a column whose
+   * header says `Account`, with nothing naming whose account that is. The
+   * visually-hidden phrase the tag carries is the accessible name (D-19).
+   */
+  interface PerAccountRow {
+    letter: string;
+    label: string;
+    paid: string;
+    total: string;
+  }
+
+  /**
+   * The per-account rows of ONE card, in IDENTITY-HEADER ORDER.
+   *
+   * ## The ordering rule, which is the whole of this function's subtlety
+   *
+   * `SpendCard.byAccount` arrives in code-unit ascending ROOT order — that is a
+   * STORAGE order, right for a reproducible record and wrong for a reader,
+   * because the identity header directly above this pane publishes A, B, C and a
+   * table drawn as `C, B, A` makes every row a lookup. So the rows are re-sorted
+   * here by walking `tags`, which is the header's own order, rather than by
+   * sorting the array with a second comparator that could disagree with it.
+   * Plan 10-04 found exactly this bug in the Login chips (`C, A, B` under a
+   * legend reading `A, B, C`) and fixed it there; this is that rule copied, not
+   * a new one.
+   *
+   * An account with no entry in this currency contributes no row: a row of
+   * zeros would claim it spent nothing here, which is a different claim from
+   * "its rows were not counted" (D-21).
+   *
+   * `rowMoney` rather than a code of its own, so a unit-less card's split
+   * carries no currency code for exactly the same reason its headline does not
+   * (D-24).
+   */
+  function perAccountRows(card: SpendCard): PerAccountRow[] {
+    if (tags === null) return [];
+    const entries = new Map(card.byAccount.map((entry) => [entry.account, entry]));
+    const rows: PerAccountRow[] = [];
+    for (const tag of tags.values()) {
+      const entry = entries.get(tag.root);
+      if (entry === undefined) continue;
+      rows.push({
+        letter: tag.letter,
+        label: tagLabel(tag),
+        paid: formatPaidOrders(entry.paid),
+        total: rowMoney(card.code, entry.units),
+      });
+    }
+    return rows;
+  }
+
   /** The status counts a card shows, in the order the UI-SPEC lists them. */
   function statusFigures(card: SpendCard): { label: string; count: number; hook: string }[] {
     return [
@@ -244,7 +314,15 @@
       nothing is converted or added across currencies. Its second sentence is
       why the no-blended e2e test asserts the intro carries no DIGIT — a
       headline figure in the preamble would be a figure outside a card.
+
+      Above it, for two or more accounts only (Phase 10, D-14): the one line that
+      says the amounts are added per currency and never converted. The `{#if}`
+      sits flush against the `<p>` after it so a single account leaves no
+      whitespace text node here (the DOM stays Phase 9's).
     -->
+    {#if accountCountOf(result) >= 2}<p class="body" data-testid="finance-combined-note">
+        {FINANCE_COMBINED_NOTE}
+      </p>{/if}
     <p class="caption">{SPEND_INTRO}</p>
 
     <ul>
@@ -358,6 +436,42 @@
               </table>
             </div>
           </details>
+
+          <!--
+            The per-account split, CLOSED (Phase 10, D-14, D-10). It is a
+            disclosure rather than a second table on the card because D-14 puts
+            the division in detail ONLY: the headline above is the figure, and a
+            table of per-account figures in the open would compete with it.
+
+            Absent for one account (`tags === null`, so no node at all) and for a
+            card no account ordered in — and flush against the `</details>` above
+            and the notice below, so a single account leaves no whitespace text
+            node between them either.
+          -->
+          {#if tags !== null && perAccountRows(card).length > 0}
+            <details class="breakdown" data-testid="spend-per-account">
+              <summary>{SPEND_PER_ACCOUNT_SUMMARY}</summary>
+              <table>
+                <caption class="sr-only">{SPEND_PER_ACCOUNT_SUMMARY}</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">{HEADER_ACCOUNT}</th>
+                    <th scope="col" class="numeric">{HEADER_PAID}</th>
+                    <th scope="col" class="numeric">{HEADER_TOTAL}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each perAccountRows(card) as row, rowIndex (rowIndex)}
+                    <tr>
+                      <td><AccountTag letter={row.letter} label={row.label} /></td>
+                      <td class="numeric">{row.paid}</td>
+                      <td class="numeric">{row.total}</td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </details>
+          {/if}
 
           <!--
             The excluded pill, LAST in the card and inside it. Inside because
@@ -525,6 +639,33 @@
     gap: 16px;
     margin-top: 8px;
     min-width: 0;
+  }
+
+  /* The per-account split's table sits directly under its own summary rather
+     than in the two-table `.tables` wrapper: there is one table, so the
+     wrapper's column stack and 16px gap would be a rule describing nothing. The
+     8px is the `.tables` gap's, so the two disclosures open to the same
+     indentation. */
+  details > table {
+    margin-top: 8px;
+  }
+
+  /* The clip pattern (`AccountTag.svelte`, `LoginTable.svelte`), NOT the visible
+     `caption` rule above: the visible caption exists because two tables share
+     one summary and a reader must know which one they are reading. The split has
+     one table whose every column says what it is, so its caption is a name for a
+     screen reader and nothing a reader sees — and the name is the summary's own
+     string, so the two cannot drift. */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 
   table {

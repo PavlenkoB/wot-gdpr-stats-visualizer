@@ -291,6 +291,56 @@ describe('a post that throws', () => {
 });
 
 // -----------------------------------------------------------------------------
+// The game dimension (Phase 10, D-01/D-21)
+// -----------------------------------------------------------------------------
+
+describe('the game dimension on the query', () => {
+  test('a query with no game posts NO game key at all', () => {
+    // Absent, not null: the message type declares every field a channel does not
+    // use as absent rather than null so the worker's validator can reject a
+    // malformed shape (T-05-18). `toEqual` is the assertion that proves it — a
+    // `game: null` would pass a looser check and change every pinned message
+    // above.
+    const { posts, post } = recordingPost();
+    const client = new PlaytimeClient(post);
+
+    void client.query(null);
+
+    expect(posts).toEqual([{ type: 'playtime-query', queryId: 1, valueIndex: null }]);
+    expect('game' in (posts[0] as object), 'the key is absent, not null').toBe(false);
+  });
+
+  test('a query with a game posts that game, and still supersedes like any other', async () => {
+    const { posts, post } = recordingPost();
+    const client = new PlaytimeClient(post);
+
+    const first = client.query(null);
+    void client.query(0, 'WOT');
+
+    expect(await settleOrMarker(first)).toEqual({ kind: 'superseded', queryId: 1 });
+    expect(posts).toEqual([
+      { type: 'playtime-query', queryId: 1, valueIndex: null },
+      { type: 'playtime-query', queryId: 2, valueIndex: 0, game: 'WOT' },
+    ]);
+  });
+
+  test('the game travels with a value index and is not merged into it', () => {
+    // A chip click carries `valueIndex: null` and a game; a split change on a
+    // filtered view carries both. Neither replaces the other.
+    const { posts, post } = recordingPost();
+    const client = new PlaytimeClient(post);
+
+    void client.query(null, 'WOWS');
+    void client.query(2, 'WOWS');
+
+    expect(posts).toEqual([
+      { type: 'playtime-query', queryId: 1, valueIndex: null, game: 'WOWS' },
+      { type: 'playtime-query', queryId: 2, valueIndex: 2, game: 'WOWS' },
+    ]);
+  });
+});
+
+// -----------------------------------------------------------------------------
 // failPending — the worker-died path, direct
 // -----------------------------------------------------------------------------
 

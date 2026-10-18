@@ -4,9 +4,13 @@ import { componentPath } from '../../helpers/components.ts';
 import {
   accountCountOf,
   accountRows,
+  accountTagsFor,
+  accountTagsOf,
   earliestCreated,
   hasMultipleRoots,
+  letterOf,
   rootCountOf,
+  tagLabel,
 } from '../../../src/lib/shell/identity-model.ts';
 import { IDENTITY_NO_ACTIVITY, UNKNOWN_VALUE, formatAccountId } from '../../../src/lib/ui-copy.ts';
 import type {
@@ -264,6 +268,168 @@ describe('accountRows', () => {
 
   test('an empty list gives no rows, not a blank row', () => {
     expect(accountRows([])).toEqual([]);
+  });
+});
+
+// =============================================================================
+// Phase 10, D-10 — the account tag: its letter, its order and its visibility
+// =============================================================================
+//
+// The letter is DERIVED from the position in the worker's published list, which
+// is what makes the identity header's legend and a Vehicles row's chip agree
+// without either of them storing a letter. These tests therefore pin three
+// things at once: the letter sequence (including past Z), that the projection
+// never re-sorts, and that a root named `__proto__` is an ordinary key (T-10-09).
+
+describe('letterOf', () => {
+  test('zero is A and twenty-five is Z — bijective base-26, not plain base-26', () => {
+    expect(letterOf(0)).toBe('A');
+    expect(letterOf(1)).toBe('B');
+    expect(letterOf(25)).toBe('Z');
+  });
+
+  test('twenty-six is AA and twenty-seven is AB, not BA', () => {
+    // Plain base-26 would put twenty-six at `BA` and leave `AA` after `Z` with
+    // nothing before it; the chip row would then read A..Z, BA, BB, which is
+    // not a count the reader can check.
+    expect(letterOf(26)).toBe('AA');
+    expect(letterOf(27)).toBe('AB');
+  });
+
+  test('the thirty-second account is AF — the import cap ends here', () => {
+    // `MAX_ACCOUNT_ROOTS` is 32, so AF is the longest letter a real archive can
+    // produce; the test says so rather than trusting the constant to stay put.
+    expect(letterOf(31)).toBe('AF');
+    expect(letterOf(51)).toBe('AZ');
+    expect(letterOf(52)).toBe('BA');
+  });
+
+  test('a negative index is the empty string, not a throw', () => {
+    // The value comes from a list this module walks, so a negative index is a
+    // bug elsewhere — and an empty chip draws nothing rather than taking the
+    // page down on a render.
+    expect(letterOf(-1)).toBe('');
+  });
+});
+
+describe('accountTagsOf', () => {
+  test('letters follow the GIVEN order, and the given order is never re-sorted', () => {
+    // Deliberately NOT in D-16 order (NA first, then RU, then EU). The letters
+    // are positions in the list the worker gave, so a re-sort here would put a
+    // different letter on the same account than the header row above it does.
+    const tags = accountTagsOf([
+      account({ root: '1000000003' }),
+      account({ root: '2000002', identity: null }),
+      account({ root: '500000001' }),
+    ]);
+    expect([...tags.values()].map((tag) => tag.letter)).toEqual(['A', 'B', 'C']);
+    expect([...tags.keys()]).toEqual(['1000000003', '2000002', '500000001']);
+  });
+
+  test('the same list yields the same letters the header rows use (D-10, D-16)', () => {
+    // The real fixture's D-16 order: RU 2012, EU 2018, NA 2021.
+    const tags = accountTagsOf([
+      account({ root: '2000002', identity: null }),
+      account({ root: '500000001' }),
+      account({ root: '1000000003' }),
+    ]);
+    expect(tags.get('2000002')?.letter).toBe('A');
+    expect(tags.get('500000001')?.letter).toBe('B');
+    expect(tags.get('1000000003')?.letter).toBe('C');
+  });
+
+  test('a root named __proto__ or constructor is an ordinary key (T-10-09)', () => {
+    // The key is a zip folder name. An object would drop `__proto__` on
+    // assignment and answer `tags.get('constructor')` from the prototype chain;
+    // a Map makes both ordinary, and `get` cannot walk a chain.
+    const tags = accountTagsOf([
+      account({ root: '__proto__', identity: null }),
+      account({ root: 'constructor', identity: null }),
+    ]);
+    expect(tags.size, 'both hostile roots are stored').toBe(2);
+    expect(tags.get('__proto__')?.letter).toBe('A');
+    expect(tags.get('constructor')?.letter).toBe('B');
+    expect(Object.prototype.hasOwnProperty.call(tags, '__proto__')).toBe(false);
+  });
+
+  test('a missing, null or blank nickname is null — never the Unknown placeholder', () => {
+    const tags = accountTagsOf([
+      account({ root: '1', identity: null }),
+      account({ root: '2', identity: { nickname: null, region: null, createdAt: null } }),
+      account({ root: '3', identity: { nickname: '   ', region: null, createdAt: null } }),
+      account({ root: '4', identity: { nickname: 'Real', region: null, createdAt: null } }),
+    ]);
+    expect(tags.get('1')?.nickname).toBeNull();
+    expect(tags.get('2')?.nickname).toBeNull();
+    expect(tags.get('3')?.nickname).toBeNull();
+    expect(tags.get('4')?.nickname).toBe('Real');
+    // `Unknown` is the visible HEADING's word; repeating it inside a hidden
+    // phrase would announce an absence as though it were a value.
+    expect(tagLabel(tags.get('2')!)).not.toContain(UNKNOWN_VALUE);
+  });
+
+  test('a repeated root keeps its FIRST letter', () => {
+    // A malformed result, not an expected one: the answer has to be stable
+    // rather than "whatever the last entry said".
+    const tags = accountTagsOf([account({ root: 'dup' }), account({ root: 'dup' })]);
+    expect(tags.size).toBe(1);
+    expect(tags.get('dup')?.letter).toBe('A');
+  });
+
+  test('an empty list is an empty map, not a tag', () => {
+    expect(accountTagsOf([]).size).toBe(0);
+  });
+});
+
+describe('accountTagsFor', () => {
+  test('null with no export at all', () => {
+    expect(accountTagsFor(null)).toBeNull();
+  });
+
+  test('null for a one-account result, in both published shapes', () => {
+    // The v1.0 shape carries no `accounts` field at all and counts as one
+    // account; the one-account list is the other published shape.
+    expect(accountTagsFor(result(undefined))).toBeNull();
+    expect(accountTagsFor(result([account({ root: 'only' })]))).toBeNull();
+  });
+
+  test('null for a two-folder archive in which no folder stored data', () => {
+    // `accountCountOf` is zero here — the published list is empty and the folder
+    // count is two — so there is no account to letter and no legend to draw.
+    expect(accountTagsFor(result([], { rootCount: 2 }))).toBeNull();
+  });
+
+  test('the map for two accounts or more', () => {
+    const tags = accountTagsFor(
+      result([account({ root: '2000002', identity: null }), account({ root: '500000001' })]),
+    );
+    expect(tags).not.toBeNull();
+    expect(tags!.size).toBe(2);
+    expect(tags!.get('500000001')?.letter).toBe('B');
+  });
+
+  test('the tag phrase names the letter, the ID and the nickname — as TEXT', () => {
+    const tags = accountTagsOf([
+      account({
+        root: '500000001',
+        identity: { nickname: 'Synthetic EU Captain', region: null, createdAt: null },
+      }),
+      account({ root: '2000002', identity: null }),
+    ]);
+    expect(tagLabel(tags.get('500000001')!)).toBe(
+      'Account A, ID 500000001, nickname Synthetic EU Captain',
+    );
+    expect(tagLabel(tags.get('2000002')!)).toBe('Account B, ID 2000002');
+  });
+
+  test('a hostile nickname passes through unchanged (T-09-18)', () => {
+    const hostile = '<b onclick="x">nick</b>';
+    const tags = accountTagsOf([
+      account({ root: '1', identity: { nickname: hostile, region: null, createdAt: null } }),
+    ]);
+    // Concatenated, never escaped or trimmed: escaping is Svelte's job at the
+    // interpolation, which does it for every string in this app.
+    expect(tagLabel(tags.get('1')!)).toBe(`Account A, ID 1, nickname ${hostile}`);
   });
 });
 

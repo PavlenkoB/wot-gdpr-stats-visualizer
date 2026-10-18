@@ -212,6 +212,16 @@ export interface OracleLogins {
     first: number | null;
     last: number | null;
     games: string[];
+    /**
+     * Phase 10, D-18: always `[]` here, and that is a DERIVED value rather than
+     * a convenience. Every source this oracle is fed is a scale fixture built
+     * from `parseCsvFile`, which carries no account because a ROW has no owner —
+     * so an oracle that invented a root here would be asserting something the
+     * spec does not say. The field's presence is still worth the oracle, because
+     * an implementation that emitted a root for an unstamped source would then
+     * fail this comparison rather than pass unnoticed.
+     */
+    accounts: string[];
   }[];
 }
 
@@ -322,6 +332,9 @@ export function oracleLogins(spec: LoginsScaleSpec, options: OracleOptions): Ora
       first: entry.first,
       last: entry.last,
       games: [...entry.games].sort(),
+      // See the field's doc: these sources carry no owner, so the answer is no
+      // owner, and the comparison is what says so.
+      accounts: [],
     })),
   };
 }

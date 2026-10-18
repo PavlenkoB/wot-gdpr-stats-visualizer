@@ -214,6 +214,25 @@ export interface SpendGame {
 }
 
 /**
+ * One account's share of a currency card (Phase 10, D-10, D-14).
+ *
+ * A split of the card's OWN rows and nothing else: it is the same card,
+ * divided by who paid, and every `units` string here is exact. There is no
+ * per-account headline anywhere — this array crosses the message boundary and
+ * is drawn only inside the collapsed 'Per account' disclosure, so a reader sees
+ * one combined figure per currency and can open the division if they want it
+ * (D-14's "any per-account split of a total lives in detail only").
+ */
+export interface SpendAccount {
+  /** The account ROOT exactly as the worker stored it; `null` never appears here. */
+  account: string;
+  /** This account's INCLUDED paid orders in this currency. */
+  paid: number;
+  /** The exact sum of those orders' micro-units, as a decimal string. */
+  units: string;
+}
+
+/**
  * One currency's spend card.
  *
  * **No field here may ever combine two currencies** (FINANCE-03, D-24). Every
@@ -238,6 +257,23 @@ export interface SpendCard {
   excluded: number;
   byYear: SpendYear[];
   byGame: SpendGame[];
+  /**
+   * One entry per account that has at least one INCLUDED paid order in THIS
+   * currency, code-unit ascending by root (Phase 10, D-14).
+   *
+   * Two facts about the ordering, and they are deliberately not the same rule:
+   * this is a STORAGE order (a stable record order, which is what makes an
+   * aggregate reproducible), while the ROWS a reader sees are re-sorted on the
+   * main thread by account LETTER, because the identity header above the pane
+   * publishes that order and a table that disagreed with the legend would make
+   * every row a lookup. 10-04 hit that bug in Logins; this field is the same
+   * trap with the same answer.
+   *
+   * An account with only FAILED or NEW orders in this currency has NO entry —
+   * a row of zero paid orders would be a claim that the account spent nothing
+   * here, which is not what "nothing counted" means (D-21).
+   */
+  byAccount: SpendAccount[];
 }
 
 /** The spend view. There is no `not-in-export`: a missing Orders file is `no-usable`. */

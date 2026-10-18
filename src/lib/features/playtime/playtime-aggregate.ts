@@ -59,6 +59,7 @@ import {
 } from './playtime-shared';
 import type {
   PlaytimeAggregates,
+  PlaytimeScope,
   PlaytimeSlice,
   PlaytimeView,
 } from '../../core/types/worker-messages';
@@ -632,7 +633,68 @@ export function buildPlaytimeFromSources(
       usable.push({ start, end, ...values });
     }
   }
-  return rankAggregates(usable, excludedRows, sessionsFileSeen);
+  return {
+    ...rankAggregates(usable, excludedRows, sessionsFileSeen),
+    ...buildGameScopes(usable, excludedRows, sessionsFileSeen),
+  };
+}
+
+/**
+ * One complete per-game scope beside the all-games one, so a game filter is a
+ * single-key read rather than a row scan (D-21).
+ *
+ * The all-games aggregate is computed FIRST and this adds only what is new, so
+ * nothing in the v1.0 path changes: the same `usable` list is grouped by the
+ * game each session's FILE named, and each group runs through the SAME
+ * {@link rankAggregates}. Two accounts playing the same game are one group, which
+ * is the whole point — a session's account is never read, so overlap across
+ * accounts merges (D-06, D-08).
+ *
+ * Why the per-game totals can sum to MORE than All: each scope merges overlap
+ * among ITS OWN sessions only. A WOTB session that falls inside a WOT interval
+ * is inside it under All and beside it under WOTB, so the three per-game totals
+ * add up to more than the all-games total. That is the documented shape of the
+ * numbers, not a defect.
+ *
+ * The token list is cut at `MAX_SPLIT_VALUES` BEFORE any scope is built, so a
+ * crafted archive of thousands of session file names costs the same as one of
+ * fifty (T-10-03).
+ */
+export function buildGameScopes(
+  usable: readonly SplitSession[],
+  excludedRows: readonly SplitValues[],
+  sessionsFileSeen: boolean,
+): { games: string[]; byGame: { game: string; scope: PlaytimeScope }[] } {
+  // T-04-10 again, for a token rather than a cell: a `Map`, never an object, so
+  // a file genuinely named `__proto__` or `constructor` is a key like any other
+  // and writes nothing onto `Object.prototype`. Only USABLE sessions create a
+  // token, so a game the account opened and never played a row in is not a
+  // chip — the same rule `chooseSplit` applies to a split value.
+  const groups = new Map<string, SplitSession[]>();
+  for (const session of usable) {
+    if (session.game === null) continue;
+    const group = groups.get(session.game);
+    if (group === undefined) groups.set(session.game, [session]);
+    else group.push(session);
+  }
+  // Code-unit ascending, never `localeCompare`, for the reason
+  // `compareSplitEntries` gives: a locale-aware comparison would make the
+  // stored chip order differ between two people looking at one export.
+  const games = [...groups.keys()].sort().slice(0, MAX_SPLIT_VALUES);
+  return {
+    games,
+    byGame: games.map((game) => ({
+      game,
+      // The excluded rows carrying this game, counted in this game's scope and
+      // in no other — the same per-value excluded rule `rankAggregates` applies
+      // to a split value.
+      scope: rankAggregates(
+        groups.get(game)!,
+        excludedRows.filter((row) => row.game === game),
+        sessionsFileSeen,
+      ),
+    })),
+  };
 }
 
 /**
@@ -743,36 +805,79 @@ function rankAggregates(
  * to disagree: an out-of-range request answers `selected: null` over the All
  * slice, and the selector shows All rather than a value the view is not
  * holding.
+ *
+ * ## The game dimension (D-21)
+ *
+ * `game` is null for All. A token selects ONE stored scope, and the `split`
+ * that comes back belongs to THAT scope — its `values`, its `byValue` and its
+ * own `all.seconds` — because a server index is only meaningful against the
+ * list the user was shown. `games` on the answer is always the ALL-games list,
+ * so the chip row is the same set whatever is selected.
+ *
+ * A token with no scope answers `no-game-sessions` and nothing else: no empty
+ * `ready` a reader would have to know to special-case, and no slice made of
+ * zeros that would read as "you played this game for no time".
+ *
+ * A `null`/absent `games` on the aggregate is treated as an EMPTY list, not as
+ * an error: the version bump means the worker never hands out an aggregate
+ * without it, and a hand-built literal in a test is allowed to omit it.
  */
 export function viewFromAggregates(
   aggregates: PlaytimeAggregates,
   valueIndex: number | null,
+  game: string | null = null,
 ): PlaytimeView {
   if (!aggregates.sessionsFileSeen) return { status: 'no-session-file' };
   if (aggregates.all.sessions === 0)
     return { status: 'no-usable-sessions', excluded: aggregates.all.excluded };
+
+  const games = aggregates.games ?? [];
+  if (game !== null) {
+    const entry = aggregates.byGame?.find((candidate) => candidate.game === game);
+    if (entry === undefined) return { status: 'no-game-sessions', game, games };
+    return readyView(entry.scope, valueIndex, games, game);
+  }
+  return readyView(aggregates, valueIndex, games, null);
+}
+
+/**
+ * The `ready` view for ONE scope, with the game's tokens attached.
+ *
+ * Split out of {@link viewFromAggregates} so the all-games answer and a
+ * per-game answer are built by the same code: the shape of a `ready` view is
+ * then one thing, and a scope can never answer with a `split` taken from a
+ * different scope than its `byValue`.
+ */
+function readyView(
+  scope: PlaytimeScope,
+  valueIndex: number | null,
+  games: readonly string[],
+  game: string | null,
+): PlaytimeView {
   const split =
-    aggregates.splitColumn === null
+    scope.splitColumn === null
       ? null
       : {
-          column: aggregates.splitColumn,
-          values: aggregates.values.map((value, index) => ({
+          column: scope.splitColumn,
+          values: scope.values.map((value, index) => ({
             value: value ?? '',
-            seconds: aggregates.byValue[index]?.seconds ?? 0,
+            seconds: scope.byValue[index]?.seconds ?? 0,
           })),
-          allSeconds: aggregates.all.seconds,
+          allSeconds: scope.all.seconds,
         };
   const selected =
     valueIndex !== null &&
     Number.isInteger(valueIndex) &&
     valueIndex >= 0 &&
-    valueIndex < aggregates.byValue.length
+    valueIndex < scope.byValue.length
       ? valueIndex
       : null;
   return {
     status: 'ready',
     split,
     selected,
-    slice: selected === null ? aggregates.all : aggregates.byValue[selected]!,
+    slice: selected === null ? scope.all : scope.byValue[selected]!,
+    games: [...games],
+    game,
   };
 }

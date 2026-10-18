@@ -1801,6 +1801,27 @@ describe('05-08 spend copy', () => {
     expect(playtimeCopy.SPEND_BLANK_GAME).toBe('(not recorded)');
   });
 
+  test('the finance note says the sums are per currency and nothing is converted', () => {
+    // Phase 10, D-14: said once per pane, verbatim, because both halves matter —
+    // "added across all accounts" is what the figure is, "never converted" is
+    // what it is not.
+    expect(playtimeCopy.FINANCE_COMBINED_NOTE).toBe(
+      'Amounts in the same currency are added across all accounts. Currencies are never converted.',
+    );
+  });
+
+  test('the per-account split copy names a division, not a total', () => {
+    // Phase 10, D-14: the disclosure holds the DIVISION of a figure already on
+    // screen, so its name says "per account" rather than repeating "total" —
+    // two tables both called a total would invite the reader to compare them as
+    // if they were peers. `Account` is the one header the split adds; the Paid
+    // orders and Total columns are the breakdown's own vocabulary, reused rather
+    // than restated so one word never means two things in one pane.
+    expect(playtimeCopy.SPEND_PER_ACCOUNT_SUMMARY).toBe('Per account');
+    expect(playtimeCopy.HEADER_ACCOUNT).toBe('Account');
+    expect(playtimeCopy.SPEND_BREAKDOWN_HEADERS).not.toContain('Account');
+  });
+
   test('the excluded-row explanation and the unknown-currency copy', () => {
     // UI-SPEND Spend excluded pill and explanation / Unknown currency. A
     // missing code is stated as a reason the total is unreliable, never
@@ -1930,6 +1951,9 @@ describe('05-08 export inventory', () => {
     'SPEND_BREAKDOWN_HEADERS',
     'SPEND_UNKNOWN_YEAR',
     'SPEND_BLANK_GAME',
+    'SPEND_PER_ACCOUNT_SUMMARY',
+    'HEADER_ACCOUNT',
+    'FINANCE_COMBINED_NOTE',
     'formatPaidExcludedPill',
     'SPEND_EXCLUDED_EXPLANATION',
     'UNKNOWN_CURRENCY_HEADING',
@@ -2050,10 +2074,64 @@ describe('08-06 About-this disclosure copy', () => {
     ['ABOUT_NAME_CURRENCY', 'chart'],
     ['ABOUT_NAME_MAP', 'map'],
     ['ABOUT_NAME_LOGIN_TABLE', 'table'],
+    // Phase 10: the merged totals' disclosure reads "About this summary".
+    ['ABOUT_NAME_PLAYTIME_TOTALS', 'summary'],
   ] as const;
 
   test.each(NAME_ROWS)('%s is the UI-SPEC name', (name, literal) => {
     expect(playtimeCopy[name]).toBe(literal);
+  });
+});
+
+// =============================================================================
+// Phase 10 — the shared game filter's words (10-02 Task 2)
+//
+// These three strings are the whole of the filter's user-visible copy, and two
+// of them make CLAIMS about how numbers were counted. `PLAYTIME_MERGE_ABOUT`
+// is pinned verbatim rather than loosely, and the negative assertions below it
+// are the reason: the UI-SPEC's first draft said "hours, sessions and active
+// days all come from those stretches", which is false — sessions are usable
+// rows and active days are distinct start days; only hours take the union. A
+// wording that can drift into a false claim about the reader's own data is a
+// wording this file must fail on.
+// =============================================================================
+describe('10-02 the game filter and the merge explanation', () => {
+  test('the filter label and the All option are the UI-SPEC strings', () => {
+    expect(playtimeCopy.GAME_FILTER_LABEL).toBe('Filter by game');
+    expect(playtimeCopy.GAME_FILTER_ALL).toBe('All games');
+  });
+
+  test('the empty-game line names the game and the way out', () => {
+    expect(playtimeCopy.formatNoGameSessions('WOWS')).toBe(
+      'No Warships sessions in this export. Choose All games to see all of your playtime.',
+    );
+    expect(playtimeCopy.formatNoGameSessions('WOT')).toBe(
+      'No WoT sessions in this export. Choose All games to see all of your playtime.',
+    );
+    // A token with no name of its own is announced as the token (T-06-05).
+    expect(playtimeCopy.formatNoGameSessions('XYZ')).toBe(
+      'No XYZ sessions in this export. Choose All games to see all of your playtime.',
+    );
+  });
+
+  test('the merge explanation is the corrected wording, verbatim', () => {
+    expect(playtimeCopy.PLAYTIME_MERGE_ABOUT).toBe(
+      'Playtime is counted once. When sessions overlap, whether on different accounts or in different games, ' +
+        'the overlap counts as a single stretch of play, so hours are the time covered by at least one session. ' +
+        'Sessions and active days are counted from the sessions recorded. ' +
+        "A game's hours are worked out from that game alone, so All games can show fewer hours than the games added together.",
+    );
+  });
+
+  test('it claims nothing the counting rule does not support (D-07 as amended)', () => {
+    const about = playtimeCopy.PLAYTIME_MERGE_ABOUT;
+    // The withdrawn sentence, and the phrase that carried it.
+    expect(about).not.toContain('merged stretches');
+    expect(about).not.toMatch(/all come from those stretches/i);
+    // And the three rules, each stated on its own.
+    expect(about).toContain('Sessions and active days are counted from the sessions recorded');
+    expect(about).toContain('the time covered by at least one session');
+    expect(about).toContain('All games can show fewer hours than the games added together');
   });
 });
 
@@ -2236,8 +2314,8 @@ describe('Phase 9: the multi-account identity header copy', () => {
   });
 
   test('the combined caption names what the PANE is showing, not the dataset', () => {
-    expect(playtimeCopy.formatCombinedCaption(2)).toBe('2 accounts combined');
-    expect(playtimeCopy.formatCombinedCaption(3)).toBe('3 accounts combined');
+    expect(playtimeCopy.formatCombinedCaption(2)).toBe('All 2 accounts combined');
+    expect(playtimeCopy.formatCombinedCaption(3)).toBe('All 3 accounts combined');
     // Distinct from the header's title: a pane that read "3 accounts" would be
     // indistinguishable from the header above it.
     expect(playtimeCopy.formatCombinedCaption(3)).not.toBe(playtimeCopy.formatAccountCount(3));
@@ -2309,5 +2387,91 @@ describe('Phase 9: the multi-account identity header copy', () => {
     expect(playtimeCopy.formatGameName('WOT')).toBe('WoT');
     expect(playtimeCopy.formatGameName('WOWS')).toBe('Warships');
     expect(playtimeCopy.formatGames(['WOT', 'WOWS'])).toBe('WoT, Warships');
+  });
+});
+
+// =============================================================================
+// Phase 10 — the account tag's words (D-10, D-19)
+// =============================================================================
+//
+// The tag chip shows one letter and says everything else in a visually-hidden
+// span. These two formatters are the ONLY place that sentence is written, so
+// the wording is pinned here rather than in whichever component renders it.
+
+describe('the account tag label', () => {
+  test('letter, ID and nickname, in that order', () => {
+    expect(playtimeCopy.formatAccountTagLabel('B', '500000001', 'Synthetic EU Captain')).toBe(
+      'Account B, ID 500000001, nickname Synthetic EU Captain',
+    );
+  });
+
+  test('an account with no nickname gets no nickname clause', () => {
+    // Not "Account A, ID 2000002, nickname" — an absent value is omitted
+    // rather than named and then left empty, which is the identity header's
+    // own rule for its ID line.
+    expect(playtimeCopy.formatAccountTagLabel('A', '2000002', null)).toBe('Account A, ID 2000002');
+  });
+
+  test('a BLANK nickname is an absent nickname', () => {
+    // The user's own RU account has no `User_Info` row at all, and an account
+    // whose `NAME` cell is whitespace is the same situation as far as the label
+    // is concerned.
+    expect(playtimeCopy.formatAccountTagLabel('A', '2000002', '   ')).toBe('Account A, ID 2000002');
+    expect(playtimeCopy.formatAccountTagLabel('A', '2000002', '')).toBe('Account A, ID 2000002');
+  });
+
+  test('a two-letter chip reads as well as a one-letter one', () => {
+    // Past the import cap's Z, the letter grows; the phrase has to carry it
+    // unchanged rather than clipping the chip's own text.
+    expect(playtimeCopy.formatAccountTagLabel('AA', '500000001', null)).toBe(
+      'Account AA, ID 500000001',
+    );
+  });
+
+  test('untrusted text is concatenated, never transformed (T-03-07, T-09-18)', () => {
+    const hostile = '<b onclick="x">nick</b>';
+    expect(playtimeCopy.formatAccountTagLabel('A', '../../etc', hostile)).toBe(
+      'Account A, ID ../../etc, nickname <b onclick="x">nick</b>',
+    );
+  });
+
+  test('the header legend says the letter and nothing else', () => {
+    // The header row already SHOWS the nickname and the ID, so the hidden
+    // phrase repeats neither — that is what keeps D-21's once-per-row rule and
+    // the e2e's occurrence count intact.
+    expect(playtimeCopy.formatAccountLegendLabel('A')).toBe('Account A');
+    expect(playtimeCopy.formatAccountLegendLabel('AA')).toBe('Account AA');
+  });
+
+  test('the overflow count reads as a count of accounts, not as another letter', () => {
+    // D-18: the cells beside it are the chips, so a chip-shaped `+2` would be
+    // read as an account named `+2`. It is a plain `+N` and nothing else.
+    expect(playtimeCopy.formatAccountOverflow(1)).toBe('+1');
+    expect(playtimeCopy.formatAccountOverflow(2)).toBe('+2');
+    expect(playtimeCopy.formatAccountOverflow(29)).toBe('+29');
+  });
+});
+
+describe('the Vehicles search hint', () => {
+  test('the sentence is exactly what the UI-SPEC Copywriting Contract names', () => {
+    expect(playtimeCopy.VEHICLE_SEARCH_ACCOUNT_HINT).toBe(
+      'Also matches account letters and account IDs.',
+    );
+  });
+
+  test('it names BOTH things the search really matches on', () => {
+    // D-11: the letter and the account ID. A hint that mentioned only one would
+    // leave the other discoverable only by accident.
+    expect(playtimeCopy.VEHICLE_SEARCH_ACCOUNT_HINT).toMatch(/letters/i);
+    expect(playtimeCopy.VEHICLE_SEARCH_ACCOUNT_HINT).toMatch(/IDs/i);
+  });
+
+  test('it is a sentence, not a fragment, and claims nothing about sorting', () => {
+    // There is no sort-by-account and no account picker (D-11), so a hint that
+    // implied either would describe a control that does not exist.
+    expect(playtimeCopy.VEHICLE_SEARCH_ACCOUNT_HINT.endsWith('.')).toBe(true);
+    expect(playtimeCopy.VEHICLE_SEARCH_ACCOUNT_HINT).not.toMatch(
+      /sort|order|picker|choose an account/i,
+    );
   });
 });

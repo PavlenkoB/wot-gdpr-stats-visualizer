@@ -1321,6 +1321,60 @@ export const CURRENCY_50K_SPEC: CurrencyOpsSpec = {
 };
 
 /**
+ * 54,000 rows over the same span, codes and bad-row counts as the 50K preset
+ * (Phase 10, plan 10-06, D-17).
+ *
+ * The oldest account of the large three-account archive carries this file, so
+ * the 54,000-row `Virtual_Currencies_Operations.csv` passes through the merged
+ * code paths. The seed differs from the 50K preset's, so the two files share no
+ * rows by accident.
+ */
+export const CURRENCY_54K_SPEC: CurrencyOpsSpec = {
+  seed: 5_003,
+  rows: 54_000,
+  firstMonth: monthIndexOf(2013, 1),
+  lastMonth: monthIndexOf(2021, 10),
+  monthAssignment: 'uniform',
+  codes: SCALE_CODES,
+  unknownTypeRows: 40,
+  nonNumericAmountRows: 25,
+  outOfWindowDateRows: 0,
+};
+
+/**
+ * 2,000 rows over the same span and codes, a different seed, proportionally
+ * small bad-row counts (Phase 10, plan 10-06).
+ *
+ * Together with the 500-row preset below it gives the other two accounts of the
+ * large archive currency rows of their OWN, so a same-currency sum across
+ * accounts really combines three distinct streams.
+ */
+export const CURRENCY_2K_SPEC: CurrencyOpsSpec = {
+  seed: 5_004,
+  rows: 2_000,
+  firstMonth: monthIndexOf(2013, 1),
+  lastMonth: monthIndexOf(2021, 10),
+  monthAssignment: 'uniform',
+  codes: SCALE_CODES,
+  unknownTypeRows: 4,
+  nonNumericAmountRows: 3,
+  outOfWindowDateRows: 0,
+};
+
+/** 500 rows, the third account's currency file (see {@link CURRENCY_2K_SPEC}). */
+export const CURRENCY_500_SPEC: CurrencyOpsSpec = {
+  seed: 5_005,
+  rows: 500,
+  firstMonth: monthIndexOf(2013, 1),
+  lastMonth: monthIndexOf(2021, 10),
+  monthAssignment: 'uniform',
+  codes: SCALE_CODES,
+  unknownTypeRows: 1,
+  nonNumericAmountRows: 1,
+  outOfWindowDateRows: 0,
+};
+
+/**
  * 2,000 rows of ONE code across all 240 months from 2001-01 to 2020-12.
  *
  * The round-robin month assignment guarantees every one of the 240 months has

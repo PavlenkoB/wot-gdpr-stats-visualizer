@@ -1,7 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { SCROLLER_MAX_PX, windowRange } from '../../core/windowing.ts';
+  import AccountTag from '../../shell/AccountTag.svelte';
+  import { tagLabel, type AccountTagModel } from '../../shell/identity-model.ts';
+  import { formatAccountOverflow } from '../../ui-copy.ts';
   import {
+    accountChipsOf,
     loginCells,
     type LoginCell,
     type LoginCells,
@@ -57,9 +61,28 @@
      * mask keeps the scroll position.
      */
     resetKey: unknown;
+    /**
+     * The account tags, or `null` for a single-account dataset (D-18).
+     *
+     * `null` is the zero case and it renders the first cell EXACTLY as Phase 9
+     * did — no chip, no wrapper, no hidden phrase and no whitespace text node —
+     * which is why the conditionals below sit flush against their neighbours
+     * rather than inside a wrapper element.
+     */
+    tags?: ReadonlyMap<string, AccountTagModel> | null;
   }
 
-  let { columns, rows, revealed, sort, onSort, account, regionName, resetKey }: Props = $props();
+  let {
+    columns,
+    rows,
+    revealed,
+    sort,
+    onSort,
+    account,
+    regionName,
+    resetKey,
+    tags = null,
+  }: Props = $props();
 
   /** The scroll offset, the one piece of DOM state this table reads. */
   let scrollTop = $state(0);
@@ -153,12 +176,38 @@
   });
 </script>
 
-{#snippet cellView(cell: LoginCell, column: LoginColumn, columnIndex: number)}
+{#snippet cellView(
+  cell: LoginCell,
+  column: LoginColumn,
+  columnIndex: number,
+  row: LoginRow | null = null,
+)}
   {#if columnIndex === 0}
     <!-- The address wraps inside an inner block and is never ellipsised; the
-         cell carries no `title`, so an address is never in an attribute. -->
-    <td class="{column.widthClass} sticky-first">
-      <span class="ip" class:muted-cell={cell.muted}>
+         cell carries no `title`, so an address is never in an attribute.
+
+         D-18's account chips go BEFORE it, and the whole conditional sits flush
+         against the `<span class="ip">` with no whitespace between: a newline
+         here would put a whitespace text node inside every single-account cell,
+         and this cell's text is read by `tests/e2e/logins/login-table.spec.ts`.
+         `row` is null for the pinned Account record row, which is never given
+         chips — with two or more accounts that row does not exist at all (D-13),
+         and with one account there are no tags to draw.
+    -->
+    <td class="{column.widthClass} sticky-first" class:first-tagged={tags !== null}>
+      {#if tags !== null && row !== null}{@const chips = accountChipsOf(
+          row.accounts,
+          tags,
+        )}{#each chips.shown as tag, tagIndex (tagIndex)}<AccountTag
+            letter={tag.letter}
+            label={tagLabel(tag)}
+          />{/each}{#each chips.hiddenTags as tag, tagIndex (tagIndex)}<AccountTag
+            letter={tag.letter}
+            label={tagLabel(tag)}
+            visual={false}
+          />{/each}{#if chips.extra > 0}<span class="more"
+            >{formatAccountOverflow(chips.extra)}</span
+          >{/if}{/if}<span class="ip" class:muted-cell={cell.muted}>
         {cell.text}
         {#if cell.hidden !== null}<span class="visually-hidden">{cell.hidden}</span>{/if}
       </span>
@@ -241,7 +290,7 @@
           aria-rowindex={index + 1 + leadingRows}
         >
           {#each columns as column, columnIndex (column.key)}
-            {@render cellView(cells[column.key], column, columnIndex)}
+            {@render cellView(cells[column.key], column, columnIndex, row)}
           {/each}
         </tr>
       {/each}
@@ -439,9 +488,47 @@
     line-height: 1.4;
   }
 
+  /* The tagged first cell (D-18): one nowrap flex row of chips and then the
+     address. `first-tagged` rather than `.w-ip-tagged` because the LAYOUT is a
+     separate question from the WIDTH — a cell can be `w-ip` and tagged if the
+     geometry records ever disagree, and the two must not be one class.
+     `align-items: center` keeps the 18px chip and the 40px row's text on one
+     optical line, and the row height stays the 40px `windowRange` divides by. */
+  td.first-tagged {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+  }
+
+  /* The address takes what the chips left and can shrink to nothing: a long
+     IPv6 beside three chips wraps into the remaining width's two lines rather
+     than widening the sticky column (which is what would push the page sideways
+     at 375px). */
+  td.first-tagged .ip {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  /* The overflow count. Muted, plain text and never a chip: a third chip-shaped
+     thing reading `+2` would be read as an account named `+2`. */
+  .more {
+    flex-shrink: 0;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.4;
+  }
+
   /* Column widths from the UI-SPEC as classes, never inline styles (CSP). */
   .w-ip {
     width: 160px;
+  }
+  /* D-18: 160 plus 64 for three chips and their gaps. Declared HERE beside
+     `.w-ip` because the minimum width the table's `$effect` writes is the sum of
+     the same numbers from `visibleLoginColumns` — the stylesheet's half and the
+     model's half of one record, which is how a wrong width shipped once. */
+  .w-ip-tagged {
+    width: 224px;
   }
   .w-country {
     width: 136px;

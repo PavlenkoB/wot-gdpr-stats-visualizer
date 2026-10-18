@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 2
+open_count: 3
 waived_count: 2
-fixed_count: 9
-total_count: 13
-last_updated: 2026-10-18T06:11:32.205Z
+fixed_count: 10
+total_count: 15
+last_updated: 2026-10-18T12:56:43.837Z
 ---
 
 # Broken Windows Ledger
@@ -28,6 +28,8 @@ last_updated: 2026-10-18T06:11:32.205Z
 | 11 | 09 | deviation | src/lib/shell/DashboardSection.svelte | 162 | Rule 1 fix: the caption's {#if} introduced a whitespace text node that changed a v1.0 DOM's text content and broke master-detail-nav's toHaveText(/^From .../) | fixed |  | 2026-10-17T03:36:43.585Z | 2026-10-17T03:37:29.139Z |
 | 12 | 09 | unrun-verify | .planning/phases/09-multi-account-import-account-identity/09-VALIDATION.md |  | 09-06 optional real-export check not run: environment data-handling permission denied reading the private 3-account archive | open |  | 2026-10-17T17:34:58.778Z |  |
 | 13 | 09 | deviation | .planning/phases/09-multi-account-import-account-identity/09-10-SUMMARY.md |  | 09-10 fixture correction: the data-less root initially still received the three shared Player_statistics files (a supported category), so it held data and the fixture did not describe its claimed shape | fixed |  | 2026-10-18T06:10:56.957Z | 2026-10-18T06:11:32.205Z |
+| 14 | 10 | deviation | tests/unit/playtime/playtime.test.ts |  | 10-01 flipped a stored-aggregate KEY-SET pin the plan did not list: adding games/byGame failed the T-04-01 'never the IP' key assertion, and it was fixed rather than left red | fixed |  | 2026-10-18T12:26:02.204Z | 2026-10-18T12:26:28.117Z |
+| 15 | 10 | lint-warning | tests/e2e/shell/chart-fill.spec.ts | 151 | Pre-existing flake: finance charts fill the detail pane fails at 375px under parallel workers (finance-tooltip overflows the pane edge by ~8px); passes standalone and fails identically at the pre-10-02 commit | open |  | 2026-10-18T12:56:43.837Z |  |
 
 ````json
 [
@@ -193,6 +195,32 @@ last_updated: 2026-10-18T06:11:32.205Z
     "reason": "",
     "recorded_at": "2026-10-18T06:10:56.957Z",
     "resolved_at": "2026-10-18T06:11:32.205Z",
+    "milestone": "v1.1"
+  },
+  {
+    "id": 14,
+    "kind": "deviation",
+    "phase": "10",
+    "file": "tests/unit/playtime/playtime.test.ts",
+    "line": null,
+    "description": "10-01 flipped a stored-aggregate KEY-SET pin the plan did not list: adding games/byGame failed the T-04-01 'never the IP' key assertion, and it was fixed rather than left red",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-10-18T12:26:02.204Z",
+    "resolved_at": "2026-10-18T12:26:28.117Z",
+    "milestone": "v1.1"
+  },
+  {
+    "id": 15,
+    "kind": "lint-warning",
+    "phase": "10",
+    "file": "tests/e2e/shell/chart-fill.spec.ts",
+    "line": 151,
+    "description": "Pre-existing flake: finance charts fill the detail pane fails at 375px under parallel workers (finance-tooltip overflows the pane edge by ~8px); passes standalone and fails identically at the pre-10-02 commit",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-10-18T12:56:43.837Z",
+    "resolved_at": null,
     "milestone": "v1.1"
   }
 ]

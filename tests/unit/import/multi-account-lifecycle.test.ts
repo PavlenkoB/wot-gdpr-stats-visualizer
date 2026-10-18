@@ -445,7 +445,7 @@ describe('Phase 9 lifecycle: readers and the Account record', () => {
     expect(result.view.rows.length).toBe(stored.length);
   });
 
-  it('answers the battle-type summary from the merged rows, over the roots that carry the file', async () => {
+  it('answers the battle-type summary with ONE row per code, summing the stored rows', async () => {
     await ingestDone(buildRealShapeThreeAccountExport(), 'three.zip');
     const result = await askData(13, { channel: 'vehicles', title: 'wotb', battleType: null });
     if (result.channel !== 'vehicles') throw new Error('expected the vehicles channel');
@@ -464,12 +464,41 @@ describe('Phase 9 lifecycle: readers and the Account record', () => {
 
     expect(result.view.title).toBe('wotb');
     expect(result.view.battleTypes.length).toBeGreaterThan(0);
-    // ONE summary row per stored battle-type row, so the two roots' identical
-    // codes appear twice. That is the D-11 merge and it is correct for Phase 9:
-    // the pane reads every account's rows, and de-duplicating two accounts'
-    // battle types into one row would be a claim about which of them won more —
-    // the merged-correctness question Phase 10 owns (D-12).
-    expect(result.view.summary.length).toBe(stored.length);
+
+    // Phase 10, D-09 — this assertion FLIPPED on purpose and its name says so.
+    // Phase 9 emitted one summary row per stored battle-type row, so the two
+    // roots' identical codes appeared twice; that was the correct Phase 9
+    // behaviour and the merged-correctness question Phase 10 owns. The answer
+    // now is ONE row per DISTINCT code, with the figures added up — and the
+    // expectation below is computed from the STORED rows rather than from a
+    // typed literal, so it is an independent sum and not a restatement of the
+    // builder's own arithmetic.
+    const distinctCodes = new Set(stored.map((row) => row.data['TYPE']?.trim() ?? ''));
+    expect(result.view.summary.length).toBe(distinctCodes.size);
+
+    let summedCodes = 0;
+    for (const summaryRow of result.view.summary) {
+      const mine = stored.filter((row) => (row.data['TYPE']?.trim() ?? '') === summaryRow.code);
+      expect(mine.length, `${summaryRow.code} is stored by at least one account`).toBeGreaterThan(
+        0,
+      );
+      let expectedBattles = 0;
+      for (const row of mine) {
+        const raw = row.data['BATTLES_COUNT']?.trim() ?? '';
+        const value = Number(raw);
+        if (raw !== '' && Number.isFinite(value)) expectedBattles += value;
+      }
+      if (summaryRow.battles.t === 'n') {
+        expect(summaryRow.battles.v, `${summaryRow.code}'s battles are the stored sum`).toBe(
+          expectedBattles,
+        );
+        summedCodes += 1;
+      }
+    }
+    // The control that keeps the loop above from passing vacuously: a fixture
+    // whose every battle figure were `N/A` would make it compare nothing.
+    expect(summedCodes, 'at least one code has a numeric battle figure to sum').toBeGreaterThan(0);
+
     // Every code any contributing root declared is in the filter list, so no
     // account's battle types were dropped on the way in.
     const codes = new Set(result.view.battleTypes);

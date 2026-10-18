@@ -4,6 +4,7 @@ import type { PlaytimeView } from '../../core/types/worker-messages';
 import {
   PLAYTIME_LOADING,
   PLAYTIME_UPDATING,
+  formatGameName,
   formatSelectionAnnouncement,
   formatSplitValue,
 } from '../../ui-copy';
@@ -51,7 +52,13 @@ import {
 
 /** The six states of the 04-UI-SPEC "Playtime state matrix", plus nothing. */
 export type PlaytimeState =
-  'loading' | 'ready' | 'updating' | 'no-session-file' | 'no-usable-sessions' | 'error';
+  | 'loading'
+  | 'ready'
+  | 'updating'
+  | 'no-session-file'
+  | 'no-usable-sessions'
+  | 'no-game-sessions'
+  | 'error';
 
 /** A slice the block asked for, remembered with the dataset it was asked for. */
 export interface RequestedSlice {
@@ -59,6 +66,14 @@ export interface RequestedSlice {
   importedAt: string;
   /** The requested value index; null means All. */
   valueIndex: number | null;
+  /**
+   * The requested game token, or null for All games (Phase 10, D-01).
+   *
+   * OPTIONAL and compared as `(a ?? null) !== (b ?? null)` everywhere: absent
+   * and null mean the same thing here, so a caller written against the pre-game
+   * contract keeps behaving exactly as it did.
+   */
+  game?: string | null;
 }
 
 /**
@@ -67,11 +82,20 @@ export interface RequestedSlice {
  * Two variants and no third: a view that can be rendered, or a failure that
  * cannot. A `view` holds the whole `PlaytimeView` including its own
  * `selected` index, so the component never re-derives which slice it is
- * showing from the request it happens to still be holding.
+ * showing from the request it happens to still be holding. `game` is the ask's
+ * own token, for the same reason the index is the ask's: `awaiting` compares
+ * the two, and a comparison against a value the reply reported about itself
+ * could never settle.
  */
 export type ShownPlaytime =
-  | { kind: 'view'; importedAt: string; valueIndex: number | null; view: PlaytimeView }
-  | { kind: 'failed'; importedAt: string; valueIndex: number | null };
+  | {
+      kind: 'view';
+      importedAt: string;
+      valueIndex: number | null;
+      game?: string | null;
+      view: PlaytimeView;
+    }
+  | { kind: 'failed'; importedAt: string; valueIndex: number | null; game?: string | null };
 
 /** Everything the state derivation reads, and nothing it has to compute. */
 export interface PlaytimeStateInput {
@@ -100,8 +124,12 @@ export interface PlaytimeStateInput {
  *      and can never null a view).
  *   3. Is the answer asking for a DIFFERENT slice of THIS dataset? That is
  *      `updating`, and it is the only route to it — a request stamped with
- *      another dataset cannot produce it, and a request for the index already
- *      displayed cannot either.
+ *      another dataset cannot produce it, and a request for the slice already
+ *      displayed cannot either. A slice is the PAIR (value index, game), and
+ *      comparing only the index was correct until Phase 10: a chip click always
+ *      carries `valueIndex: null`, so a request that differed only by game
+ *      compared equal to the All slice on screen and a stale slice looked
+ *      final (D-03, T-10-06).
  *   4. Otherwise the view's own status, which is a claim about the export and
  *      is taken at face value.
  */
@@ -121,7 +149,17 @@ export function derivePlaytimeState({
   const awaiting =
     requested !== null &&
     requested.importedAt === importedAt &&
-    requested.valueIndex !== shown.valueIndex;
+    (requested.valueIndex !== shown.valueIndex ||
+      (requested.game ?? null) !== (shown.game ?? null));
+
+  // An empty GAME is a settled answer about a game, not about the export, so it
+  // is its own state rather than a `ready` with no numbers — the tiles and the
+  // charts are replaced by one body line and the chips stay. `updating` still
+  // wins while a request for something else is in flight, exactly as it does
+  // for `ready`, so the same comparison serves both (D-03).
+  if (shown.view.status === 'no-game-sessions') {
+    return awaiting ? 'updating' : 'no-game-sessions';
+  }
   return awaiting ? 'updating' : 'ready';
 }
 
@@ -152,7 +190,12 @@ export function acceptOutcome(
   if (outcome.kind === 'error') {
     // The worker's `detail` is deliberately not carried: it names worker
     // internals and belongs in the console, never in the DOM (T-04-24, D-21).
-    return { kind: 'failed', importedAt: ask.importedAt, valueIndex: ask.valueIndex };
+    return {
+      kind: 'failed',
+      importedAt: ask.importedAt,
+      valueIndex: ask.valueIndex,
+      game: ask.game ?? null,
+    };
   }
 
   if (outcome.importedAt === null || outcome.importedAt !== ask.importedAt) return null;
@@ -167,6 +210,7 @@ export function acceptOutcome(
     kind: 'view',
     importedAt: ask.importedAt,
     valueIndex: ask.valueIndex,
+    game: ask.game ?? null,
     view: outcome.view,
   };
 }
@@ -229,14 +273,29 @@ export function isCacheClearedElsewhere(
  * An index the view does not hold cannot be named, so it is announced as All
  * rather than as a value that may be somebody else's. The worker answers
  * `selected: null` for any index outside its own list, so this is defensive.
+ *
+ * A GAME is part of the subject from Phase 10 (D-03), and this is the only
+ * feedback a screen-reader user gets that the numbers under them changed: a
+ * chip click that reported only hours and sessions would announce the same
+ * sentence for WoT and for WoT Blitz. The game is joined with a comma and a
+ * space when a split value is selected too, and the two are ordered
+ * game-first because the game is the coarser of the two choices and the one the
+ * reader just made.
  */
 export function selectionAnnouncement(view: PlaytimeView): string {
   if (view.status !== 'ready') return '';
   const { split, selected, slice } = view;
-  const subject =
+  const value =
     selected === null || split === null
       ? null
       : formatSplitValue(splitValue(split.values[selected]?.value ?? ''));
+  const game = view.game ?? null;
+  const subject =
+    game === null
+      ? value
+      : value === null
+        ? formatGameName(game)
+        : `${formatGameName(game)}, ${value}`;
   return formatSelectionAnnouncement(subject, slice.seconds, slice.sessions, slice.dayIndex.length);
 }
 
@@ -249,6 +308,13 @@ export function selectionAnnouncement(view: PlaytimeView): string {
  * selection and is cleared when the dataset changes — so the paragraph exists
  * in the DOM at all times (a live region created together with its content is
  * not announced) and says nothing rather than repeating itself.
+ *
+ * `no-game-sessions` is one of those "every other" states, and deliberately so:
+ * the answer carries no slice, so `selectionAnnouncement` returns '' for it and
+ * the line says nothing. The empty-game BODY is the message there, not the live
+ * region — a chip click is announced by "Updating charts..." and settled by the
+ * body the reader can see, and adding a third sentence would mean two live
+ * regions saying the same thing.
  */
 export function statusLine(state: PlaytimeState, announcement: string): string {
   if (state === 'loading') return PLAYTIME_LOADING;

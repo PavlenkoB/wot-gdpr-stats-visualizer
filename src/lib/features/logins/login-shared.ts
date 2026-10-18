@@ -26,8 +26,17 @@
  * A mismatch is a REBUILD, not a refusal and never a cast — the rows still
  * carry the `IP` column, so `buildLogins` can re-derive the aggregate exactly
  * as the import did. Refusing would show a user an error for data the app holds.
+ *
+ * What each version added:
+ *   1 - the original shape: one row per distinct canonical address.
+ *   2 - the expanded-mapped-IPv6 spelling is resolved, so an address that v1
+ *       refused is now an address and a nine-group key can no longer be stored.
+ *   3 - addresses name the ACCOUNTS that logged in from them (Phase 10, D-13,
+ *       D-18). A v2 cache rebuilds from the rows, which still carry every
+ *       source's owning root, so the upgrade is silent and the rebuilt
+ *       aggregate is identical to the one a fresh import produces.
  */
-export const LOGINS_VERSION = 2;
+export const LOGINS_VERSION = 3;
 
 /**
  * Cap on distinct addresses the stored aggregate lists, so a crafted archive
@@ -131,6 +140,26 @@ export interface LoginAddress {
    * one.
    */
   games: string[];
+  /**
+   * The account roots that contributed AT LEAST ONE COUNTED ROW to this address,
+   * code-unit ascending (Phase 10, D-13, D-18).
+   *
+   * A login row is one distinct IP, and on a multi-account export one address can
+   * be the whole of two accounts' login history — so the address names its
+   * accounts rather than being split into a row per account, which would inflate
+   * the distinct-address count and break the one-address-one-row rule (D-05).
+   *
+   * OPTIONAL rather than `string[]`, and absent means what an aggregate written
+   * before version 3 looks like: `LOGINS_VERSION` forces a rebuild from the rows,
+   * and a rebuild fills this in. It is optional rather than defaulted so a
+   * hand-built address in a test is not silently claiming an empty account list
+   * is a fact about the export.
+   *
+   * A source that carries no account — a legacy archive, a hand-built row — adds
+   * nothing here, and the address is still listed: unreadable provenance is
+   * never a reason to drop a login the export recorded.
+   */
+  accounts?: string[];
 }
 
 /** One country's rollup, for the world map and the ranked country list. */

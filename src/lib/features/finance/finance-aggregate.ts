@@ -88,6 +88,7 @@ import {
   type FinanceRow,
   type OtherCurrency,
   type PremiumMonth,
+  type SpendAccount,
   type SpendCard,
   type SpendGame,
   type SpendView,
@@ -735,6 +736,15 @@ interface SpendBucket {
   excluded: number;
   years: Map<string | null, { paid: number; units: bigint }>;
   games: Map<string | null, { paid: number; units: bigint }>;
+  /**
+   * Per-ROOT split of the included paid rows (Phase 10, D-14).
+   *
+   * A `Map`, never an object, for the reason every other root-keyed map in this
+   * app is one: the key is a zip FOLDER NAME, so a root literally called
+   * `__proto__` is an ordinary account to a Map and a prototype member to an
+   * object (T-10-09, and the same shape `accountTagsOf` refuses to build).
+   */
+  accounts: Map<string, { paid: number; units: bigint }>;
 }
 
 /**
@@ -833,6 +843,15 @@ function compareSpendCards(
  * `ORDER_UUID`, `PAY_COUPON_NAME`, `PAY_AGGREGATOR_DESC`, `PAY_ITEM_TYPE_NAME`
  * and `AA_PACKAGE_LIST` are personal identifiers and are never resolved here, so
  * they cannot reach a view even by accident (T-05-11).
+ *
+ * ## Two accounts of one currency are ONE card (Phase 10, D-14)
+ *
+ * Every group folds into the SAME currency buckets, so two accounts' orders of
+ * one currency read as exactly double — added in whole units, never converted
+ * and never blended with another currency. `byAccount` is the SAME sum divided
+ * by the group that contributed each row, accumulated in the one branch that
+ * decides a row is an included paid order, so the split adds up to the headline
+ * because they are the same addition rather than two that happen to agree.
  */
 export function buildSpend(groups: FinanceGroups): SpendView {
   const cards = new Map<string | typeof UNIT_LESS, SpendBucket>();
@@ -866,6 +885,7 @@ export function buildSpend(groups: FinanceGroups): SpendView {
         excluded: 0,
         years: new Map(),
         games: new Map(),
+        accounts: new Map(),
       };
       cards.set(key, bucket);
 
@@ -897,6 +917,18 @@ export function buildSpend(groups: FinanceGroups): SpendView {
 
       bucket.paid += 1;
       bucket.units += amount;
+      // The per-account split, accumulated INSIDE this branch rather than in a
+      // pass of its own (D-14, T-10-18). It is the only place in the function
+      // where a row is known to be an included paid order, so adding to it here
+      // is what makes "the split adds up to the headline" true BY CONSTRUCTION
+      // rather than by two independent readings of the same rows agreeing. A
+      // second pass would be a second definition of "included", and the day the
+      // two disagreed the split would quietly stop summing to the total.
+      const accountBucket = bucket.accounts.get(group.account) ?? { paid: 0, units: 0n };
+      accountBucket.paid += 1;
+      accountBucket.units += amount;
+      bucket.accounts.set(group.account, accountBucket);
+
       if (parseGiftFlag(cell(row, columns.IS_GIFT))) {
         bucket.gifts += 1;
         bucket.giftUnits += amount;
@@ -955,6 +987,18 @@ export function buildSpend(groups: FinanceGroups): SpendView {
             b.paid - a.paid ||
             compareCodeUnits(a.code ?? UNKNOWN_GAME_LABEL, b.code ?? UNKNOWN_GAME_LABEL),
         ),
+      // Code-unit ascending by ROOT, which is a STORAGE order: it makes the
+      // record reproducible from the same rows. The rows a reader sees are
+      // re-sorted on the main thread by account letter, because the identity
+      // header publishes that order — the two are named apart rather than
+      // quietly assumed to be the same thing (see `SpendCard.byAccount`).
+      byAccount: [...bucket.accounts.entries()]
+        .map(([account, values]): SpendAccount => ({
+          account,
+          paid: values.paid,
+          units: values.units.toString(),
+        }))
+        .sort((a, b) => compareCodeUnits(a.account, b.account)),
     })),
   };
 }

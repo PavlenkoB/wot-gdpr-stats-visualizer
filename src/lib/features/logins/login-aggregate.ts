@@ -80,8 +80,15 @@ import {
  * playtime source holds — pushed alongside it in the import loop, never copied
  * — so a second aggregation over a 71,000-row export costs a second pass, not
  * a second copy of every row.
+ *
+ * `account` is the zip folder the file came from, stamped by the WORKER at
+ * import and by the rebuild reader beside it (Phase 10, D-13, D-18). It is
+ * OPTIONAL because a source handed to this pure function by a test — or by a
+ * caller that predates multi-account import — carries none, and a source without
+ * one contributes no account to an address rather than throwing or inventing a
+ * root. Nothing here reads an account off a CELL; it comes from the file's owner.
  */
-export type LoginSource = SessionSource & { kind: 'sessions' | 'logins' };
+export type LoginSource = SessionSource & { kind: 'sessions' | 'logins'; account?: string };
 
 /**
  * The time column's accepted spellings, in the order they are preferred.
@@ -188,6 +195,11 @@ const NO_COLUMNS: LoginColumns = { ip: null, time: null };
  * The `Set` of game tokens is what makes "the titles this address appeared in"
  * a SET rather than a count: the same address in three files contributes one
  * token, and the ordering rule for the finished array is stated at the sort.
+ *
+ * `accounts` is the same idea for OWNERSHIP (D-18): one address shared by two
+ * accounts contributes both roots, in a `Set` so a third row from the same
+ * account cannot make it look like three accounts. It is a set of ROOTS and
+ * never a row count — an address is not split per account (D-05, D-13).
  */
 interface CountingAddress {
   /** Kept so the lookup runs on the parsed form and never re-parses a string. */
@@ -196,6 +208,8 @@ interface CountingAddress {
   first: number | null;
   last: number | null;
   games: Set<string>;
+  /** The owning roots that contributed a counted row; empty for a sourceless one. */
+  accounts: Set<string>;
   /** Filled by the single post-walk lookup pass; unset until then. */
   resolvedCc?: string | null;
 }
@@ -272,7 +286,14 @@ export function buildLogins(
 
       let entry = counting.get(parsed.canonical);
       if (entry === undefined) {
-        entry = { parsed, logins: 0, first: null, last: null, games: new Set<string>() };
+        entry = {
+          parsed,
+          logins: 0,
+          first: null,
+          last: null,
+          games: new Set<string>(),
+          accounts: new Set<string>(),
+        };
         counting.set(parsed.canonical, entry);
       }
       entry.logins += 1;
@@ -283,6 +304,10 @@ export function buildLogins(
       // names no game — the legacy `Sessions.csv`, an invented `Logins.csv` —
       // contributes no token rather than a fabricated one.
       if (source.game !== null) entry.games.add(source.game);
+      // The OWNER, from the file the row came from and never from a cell
+      // (Phase 10, D-18). An undefined account contributes none: a legacy or
+      // hand-built source still lists its logins, it just cannot name an owner.
+      if (source.account !== undefined) entry.accounts.add(source.account);
     }
     if (contributed) filesWithRows += 1;
   }
@@ -337,6 +362,12 @@ export function buildLogins(
     first: entry.first,
     last: entry.last,
     games: [...entry.games].sort(),
+    // Code-unit sort, never a locale one: the ORDER IS STORED, and a
+    // locale-dependent comparator would give two people reading one export two
+    // different chip orders for the same row. The letter each root wears comes
+    // from the published account order at render time, so this is only the
+    // stable storage order, not the reader-facing one.
+    accounts: [...entry.accounts].sort(),
   }));
 
   return {

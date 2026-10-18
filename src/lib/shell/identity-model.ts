@@ -5,6 +5,7 @@ import {
   UNKNOWN_VALUE,
   formatAccountGames,
   formatAccountId,
+  formatAccountTagLabel,
   formatActivityYears,
 } from '../ui-copy.ts';
 
@@ -146,6 +147,116 @@ export function accountRows(accounts: readonly AccountSummary[]): AccountRowMode
         years === null ? IDENTITY_NO_ACTIVITY : formatActivityYears(years, account.lastYear),
     };
   });
+}
+
+/**
+ * One account's tag (Phase 10, D-10): the letter, the root it belongs to and the
+ * nickname it may be named by.
+ *
+ * `nickname` is `null` for an account with no `User_Info` row or a blank `NAME`,
+ * which is what lets the phrase omit the clause rather than render "nickname"
+ * followed by nothing. It is never the `Unknown` placeholder
+ * {@link accountRows} shows as a heading: that string is for a VISIBLE heading,
+ * and repeating it inside a hidden phrase would announce an absence as a value.
+ */
+export interface AccountTagModel {
+  /** The account root this tag names — the `Map` key and `VehicleRow.account`. */
+  root: string;
+  /** `A`, `B`, … `Z`, `AA`, `AB`. Derived from the order, never stored. */
+  letter: string;
+  nickname: string | null;
+}
+
+/**
+ * The account tag letters, in BIJECTIVE base-26 (D-10).
+ *
+ * Zero is `A` and twenty-five is `Z`, so twenty-six is `AA` rather than `BA`:
+ * the letters name POSITIONS in an ordered list the reader can count, and `BA`
+ * at twenty-six would leave `AA` at the end of the list with nothing before it.
+ *
+ * The loop is written as the research's version rather than as a `String.fromCharCode`
+ * with a base-26 carry, because the carry for a bijective base is `floor(n/26) - 1`
+ * and getting that off by one is invisible at `A` and wrong at `AA`.
+ *
+ * A negative index returns `''` rather than throwing: the function is called
+ * from a template on a value this module itself produced, so a negative index
+ * would be a bug elsewhere — and an empty chip renders as nothing rather than
+ * taking the page down.
+ */
+export function letterOf(index: number): string {
+  let n = index;
+  let text = '';
+  if (n < 0) return text;
+  do {
+    text = String.fromCharCode(65 + (n % 26)) + text;
+    n = Math.floor(n / 26) - 1;
+  } while (n >= 0);
+  return text;
+}
+
+/**
+ * One tag per account, keyed by root, IN THE ORDER GIVEN (D-10, D-16).
+ *
+ * A `Map`, never an object: the key is a zip folder name, so a root literally
+ * called `__proto__` or `constructor` is a hostile string that an object would
+ * either drop or answer with a prototype member (T-10-09). `Map` makes both
+ * ordinary keys, and `Map.get` cannot walk a prototype chain.
+ *
+ * A projection, not a sort, for exactly the reason {@link accountRows} is one:
+ * the worker's `sortAccounts` is the only D-16 comparator, and a second one here
+ * would be a second thing that can disagree with the header's own row order.
+ * The letters therefore match the header's row order by construction rather than
+ * by two comparators agreeing.
+ *
+ * A duplicate root keeps its FIRST letter: the list is expected to be one entry
+ * per account, and a repeated root is a malformed result for which showing the
+ * first is the stable answer rather than the last.
+ */
+export function accountTagsOf(accounts: readonly AccountSummary[]): Map<string, AccountTagModel> {
+  const tags = new Map<string, AccountTagModel>();
+  accounts.forEach((account, index) => {
+    if (tags.has(account.root)) return;
+    const nickname = account.identity?.nickname ?? null;
+    tags.set(account.root, {
+      root: account.root,
+      letter: letterOf(index),
+      nickname: nickname === null || nickname.trim() === '' ? null : nickname,
+    });
+  });
+  return tags;
+}
+
+/**
+ * The tags to draw, or `null` when there are none (D-10, UI-SPEC zero-one-many).
+ *
+ * `null` and not an empty map is the whole rule: every call site asks
+ * `tags !== null`, so one account renders no node, no wrapper and no extra
+ * column width, and the v1.0 DOM stays byte-identical.
+ *
+ * The count is {@link accountCountOf} rather than `accounts.length`, because
+ * that is the figure the caption and the header title already use — a tag row
+ * that disagrees with the count above it would be two answers to one question.
+ * An archive whose folders all stored data has an empty list and therefore no
+ * tags, which is why the published list is checked as well.
+ */
+export function accountTagsFor(
+  result: ClassifyResult | null,
+): ReadonlyMap<string, AccountTagModel> | null {
+  if (result === null || accountCountOf(result) < 2) return null;
+  const accounts = result.accounts ?? [];
+  if (accounts.length < 2) return null;
+  return accountTagsOf(accounts);
+}
+
+/**
+ * A tag's phrase in a DATA ROW (D-10, D-19).
+ *
+ * Exported beside {@link accountTagsOf} rather than left to each caller, so the
+ * one function that builds a phrase containing the ID and the nickname is the
+ * one that goes through `formatAccountTagLabel`.
+ */
+export function tagLabel(tag: AccountTagModel): string {
+  return formatAccountTagLabel(tag.letter, tag.root, tag.nickname);
 }
 
 /**
