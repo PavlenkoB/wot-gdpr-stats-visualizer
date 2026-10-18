@@ -1,48 +1,33 @@
 {
   "contract": "1.0.0",
   "flavor": "core",
-  "milestone": null,
+  "milestone": "v1.1 — Multi-account & new data",
   "phases": [
     {
-      "number": "1",
-      "name": "Ingest Foundation & Zero-Network Guard",
+      "number": "9",
+      "name": "Multi-account Import & Account Identity",
       "status": "complete"
     },
     {
-      "number": "2",
-      "name": "Defensive Parsing & Persistent Dataset",
-      "status": "complete"
+      "number": "10",
+      "name": "Merged Dashboard Across Accounts",
+      "status": "pending"
     },
     {
-      "number": "3",
-      "name": "Dashboard Shell & Account Identity",
-      "status": "complete"
+      "number": "11",
+      "name": "New Game Data",
+      "status": "pending"
     },
     {
-      "number": "4",
-      "name": "Activity Time Dashboards",
-      "status": "in_progress"
-    },
-    {
-      "number": "5",
-      "name": "Vehicle Stats & Financial Dashboards",
-      "status": "complete"
-    },
-    {
-      "number": "6",
-      "name": "Login-IP History & Offline Geolocation",
-      "status": "complete"
-    },
-    {
-      "number": "7",
-      "name": "Mobile Layout & Public Deploy",
-      "status": "in_progress"
+      "number": "12",
+      "name": "Account Timeline & Perks",
+      "status": "pending"
     }
   ],
   "next": {
-    "command": "/gsd:progress",
-    "label": "Show progress",
-    "reason": "Unsure of state — showing progress"
+    "command": "/gsd-progress --next",
+    "label": "Advance to the next step (plan phase 10)",
+    "reason": "Phase 2 of 4 — needs a plan"
   },
-  "updated_at": "2026-10-12T04:06:14.009Z"
+  "updated_at": "2026-10-18T08:23:11.463Z"
 }

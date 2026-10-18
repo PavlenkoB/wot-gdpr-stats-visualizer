@@ -482,6 +482,168 @@ export function formatIdentityFallbackTitle(root: string): string {
 }
 
 // =============================================================================
+// Phase 9 — the multi-account identity header (09-04; D-13 … D-17)
+// =============================================================================
+//
+// UI-SPEC Surface 1 ("Identity header, several accounts") and its Copywriting
+// Contract. The header's zero-one-many rule is that ONE account renders exactly
+// as v1.0 did and TWO or more render this list, so every string below belongs to
+// the multi branch only and none of it is on the single-account path.
+//
+// The strings the Overview card and the Account list row use (Surface 3) are
+// defined HERE on purpose even though plan 09-05 renders them: `ui-copy.ts` is
+// the one file that owns user-visible wording, and one plan owning the file is
+// cheaper than two plans sharing it.
+// =============================================================================
+
+/**
+ * The multi-account list's accessible name (UI-SPEC Surface 1, item 3;
+ * Copywriting Contract "List accessible name").
+ *
+ * The list's NAME, not a per-row name: `role="list"` is explicit because the
+ * list-style reset drops list semantics in some engines, and a name says what
+ * the reader is walking through. It is static, and deliberately NOT a nickname
+ * (D-21, restated per row).
+ */
+export const IDENTITY_MULTI_LIST_LABEL = 'Accounts in this export';
+
+/** The `dt` for an account row's games (UI-SPEC Surface 1, item 4). */
+export const IDENTITY_GAMES_LABEL = 'Games';
+
+/** The `dt` for an account row's activity years (UI-SPEC Surface 1, item 4). */
+export const IDENTITY_ACTIVITY_LABEL = 'Activity';
+
+/**
+ * What an account with no usable session shows in the Activity slot (D-15).
+ *
+ * A sentence rather than a dash or an empty `<dd>`: "no activity recorded" is
+ * a claim about the account's own history, and the value column carries all
+ * state as text — no tint, dot or badge encodes it.
+ */
+export const IDENTITY_NO_ACTIVITY = 'No activity recorded';
+
+/**
+ * The Account list row's summary when the dataset holds two or more accounts
+ * (UI-SPEC Surface 3, Copywriting Contract).
+ *
+ * Replaces the single-account "Location code and creation date", which would be
+ * false here: neither the location code nor one account's creation date stands
+ * for several. A per-row region and creation date are deliberately not shown
+ * either (D-13).
+ */
+export const ACCOUNT_ROW_MULTI_SUMMARY = "Each account's ID, games and activity years";
+
+/** The en dash that joins two years, written as an escape so it cannot be
+ * silently replaced by a hyphen in a refactor. */
+const EN_DASH = '–';
+
+/**
+ * `{N} account(s)` — the multi-account title, the Overview card title and the
+ * Account list row headline (UI-SPEC Copywriting Contract).
+ *
+ * Singular for exactly one, plural for every other count, zero included. One is
+ * reachable since plan 09-11: an archive of several folders in which only one
+ * stores data keeps the multi variant and is titled "1 account"; zero is
+ * reachable when none does. It is a branch inside this formatter, not a new
+ * constant, and rendering is still gated on the folder count, never on this
+ * function.
+ */
+export function formatAccountCount(count: number): string {
+  return count === 1 ? '1 account' : `${count} accounts`;
+}
+
+/**
+ * The "{N} accounts combined" caption a pane shows when it merges every
+ * account's rows (D-11; UI-SPEC Surface 2, Copywriting Contract).
+ *
+ * Distinct from {@link formatAccountCount} on purpose: one names the dataset
+ * ("3 accounts"), the other names what a PANE is showing ("3 accounts
+ * combined"). A pane that said only "3 accounts" would be indistinguishable
+ * from the header above it.
+ */
+export function formatCombinedCaption(count: number): string {
+  return `${count} accounts combined`;
+}
+
+/**
+ * An account's activity years: `{first}`, or `{first}–{last}` (D-15).
+ *
+ * A null `last` falls back to the first, so a dataset that recorded a start but
+ * no end still shows one year rather than a dangling dash. Only the first and
+ * last year ever reach here, which is what keeps the value a short fixed string
+ * however long the account's history is.
+ */
+export function formatActivityYears(first: number, last: number | null): string {
+  if (last === null || last === first) return String(first);
+  return `${first}${EN_DASH}${last}`;
+}
+
+/**
+ * The Overview Account card's summary when several accounts are present
+ * (UI-SPEC Surface 3): "Earliest account created {date}", or the unknown-date
+ * sentence when no account's `createdAt` parses.
+ *
+ * "Earliest" rather than any one account's date, because one account's creation
+ * date does not describe an export holding several.
+ */
+export function formatEarliestCreated(date: string | null): string {
+  if (date === null) return 'Earliest account creation date unknown';
+  return `Earliest account created ${date}`;
+}
+
+/**
+ * The six game tokens of the identity list, by their LONG display names
+ * (UI-SPEC Copywriting Contract; D-14).
+ *
+ * A separate table from `GAME_NAMES` on purpose: the existing panes read the
+ * short labels ("WoT", "Warships") in a column headed "Game", where the long
+ * names would wrap, and only the identity list has the width for them. WOWP is
+ * here although D-14 lists five names, so a Warplanes session shows a name
+ * rather than a raw token; that is the UI-SPEC's recorded choice.
+ */
+const GAME_LONG_NAMES: Record<string, string> = {
+  WOT: 'World of Tanks',
+  WOTB: 'WoT Blitz',
+  WOWS: 'World of Warships',
+  WOTC: 'WoT Console',
+  HEAT: 'World of Tanks HEAT',
+  WOWP: 'World of Warplanes',
+};
+
+/** The fixed order the identity list shows game names in (D-14). */
+const GAME_LONG_ORDER: readonly string[] = ['WOT', 'WOTB', 'WOWS', 'WOTC', 'HEAT', 'WOWP'];
+
+/**
+ * One game token as its LONG name, or the token unchanged if unknown.
+ *
+ * Same no-error-path rule as `formatGameName` (T-06-05): the token arrives from
+ * an archive FILE NAME inside an untrusted zip, and it is already bounded to
+ * letters, digits and underscores by the session file-name rule before it gets
+ * here, so returning it unchanged is the whole of the mitigation.
+ */
+export function formatGameLongName(token: string): string {
+  return GAME_LONG_NAMES[token] ?? token;
+}
+
+/**
+ * One account's games as a single string, for the identity row's Games slot.
+ *
+ * De-duplicated, in the FIXED order WOT, WOTB, WOWS, WOTC, HEAT, WOWP, then any
+ * unknown token in code-unit order, joined with ", " — the same shape as
+ * `formatGames` and for the same two reasons: a re-sorted list must not shuffle
+ * text that did not change, and `localeCompare` would make the order depend on
+ * the VIEWER's locale.
+ *
+ * An empty list gives `''`, and the CALLER omits the whole Games row rather
+ * than rendering an empty `<dd>` (UI-SPEC, empty/identity header/Games row).
+ */
+export function formatAccountGames(tokens: readonly string[]): string {
+  const known = GAME_LONG_ORDER.filter((token) => tokens.includes(token));
+  const unknown = [...new Set(tokens.filter((token) => !GAME_LONG_ORDER.includes(token)))].sort();
+  return [...known, ...unknown].map(formatGameLongName).join(', ');
+}
+
+// =============================================================================
 // Phase 4 — Playtime copy (04-02-PLAN Task 1)
 // =============================================================================
 //

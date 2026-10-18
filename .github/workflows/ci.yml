@@ -91,7 +91,16 @@ jobs:
     # `globalTimeout`, because the phone-width sweep and the touch-target specs
     # took the count to 251 in 25 files: 1303 s projected, a floor of 1693.9 s,
     # so G = 29 min, W = 31 min and J = 39 min.
-    timeout-minutes: 39
+    #
+    # Raised from 39 to 40 in plan 09-06, together with the wrapper and
+    # `globalTimeout`, for the two multi-account e2e tests. Both run far longer
+    # than the 5 s a browser test is credited with, so they are held back from
+    # the per-test count and priced as one block with the stage the Phase 5
+    # zero-network test gained. 258 tests in 28 files project 1360 s and a
+    # floor of 1768 s, so G = 30 min, W = 32 min and J = 40 min; 30 min covers
+    # up to 262 tests. All three move together — see
+    # tests/unit/guards/ci-budget.test.ts for the arithmetic.
+    timeout-minutes: 40
 
     steps:
       - name: Checkout
@@ -169,12 +178,13 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
 
       # The middle of the three e2e limits: the shell wrapper around
-      # Playwright's own `globalTimeout` (27 min). It must outlast that
+      # Playwright's own `globalTimeout` (30 min). It must outlast that
       # globalTimeout by at least 90 s, or the wrapper fires first and the
       # run dies with "operation canceled" and no test context — the failure
       # mode traced in .planning/debug/resolved/ci-e2e-cancel.md.
-      # 29 min = 1620 + 120 s, against the rule's 1620 + 90 s floor. The
-      # 234 tests project to 1218 s; see tests/unit/guards/ci-budget.test.ts for the
+      # 32 min = 1800 + 120 s, against the rule's 1800 + 90 s floor. The
+      # 258 tests in 28 files project to 1360 s; see
+      # tests/unit/guards/ci-budget.test.ts for the
       # arithmetic and 04-13-SUMMARY.md for what is measured and what is
       # still estimated.
       #
@@ -192,8 +202,23 @@ jobs:
       # the job timeout, because the sweep and touch-target specs took the
       # count to 251 in 25 files: 1303 s projected and a 1.3x floor of
       # 1693.9 s, which 29 min is the smallest whole number to clear.
+      #
+      # The present-tense paragraph ABOVE was still naming 27 min / 29 min /
+      # 234 tests after plan 09-06 moved the three limits to 30 / 32 / 40, so
+      # the sentence an operator reads when a run is cancelled described a
+      # timeout the workflow had not used for four plans. Checked and corrected
+      # in plan 09-09 (IN-04): no limit moved here — G = 1800 s, W = 1920 s and
+      # J = 2400 s stand exactly as 09-06 left them, and 258 tests in 28 files
+      # still project 1360 s against a 1768 s floor, under the 262-test
+      # ceiling. Only the summary sentence was corrected; the paragraphs above
+      # it are an append-only log and every one of them stays as it was
+      # written. A new guard now reads this block RAW and fails if the named
+      # minutes and playwright.config.ts disagree — it reads the file a second
+      # time on purpose, because the reader that parses the three CONFIGURED
+      # limits strips every comment line, which is the text under assertion.
+      # See tests/unit/guards/ci-budget.test.ts for the arithmetic.
       - name: E2E and zero-network guard
-        run: pnpm exec timeout 31m playwright test
+        run: pnpm exec timeout 32m playwright test
 
       - name: Upload Playwright report
         if: failure()

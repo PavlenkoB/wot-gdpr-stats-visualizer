@@ -10,6 +10,16 @@ A browser-only, zero-backend tool that turns a Wargaming GDPR personal-data expo
 
 Your data never leaves your machine. Every other decision — architecture, library choices, feature scope — is subordinate to keeping this verifiably true (zero network requests post-load, with one sanctioned exception: the opt-in city-level file; enforced by CI and an ESLint network ban, with a CSP as defence in depth).
 
+## Current Milestone: v1.1 Multi-account & new data
+
+**Goal:** Accept a real multi-account export (several account-ID folders from region migrations and extra accounts) and show it as one merged dashboard, then surface the data categories the app still ignores.
+
+**Target features:**
+- Multi-account zips: detect N account roots, classify and parse each, store all in one dataset, render a single merged dashboard (no picker)
+- New games: HEAT, WoT Console, World of Warplanes sessions and stats; WoWS crews and storage
+- Account timeline: name history, external services, language/country history, bans, authorized third parties
+- Subscriptions, personal coupons, bonus codes, surveys
+
 ## Requirements
 
 ### Validated
@@ -34,7 +44,10 @@ Your data never leaves your machine. Every other decision — architecture, libr
 
 ### Active
 
-(None — next milestone not yet defined; run `/gsd-new-milestone`)
+- [ ] A zip with several account-ID folders imports instead of failing, and all accounts are shown merged in one dashboard
+- [ ] New game data (HEAT, WoT Console, World of Warplanes, WoWS crews/storage) is shown
+- [ ] Account timeline categories are shown (name history, external services, language/country, bans, authorized third parties)
+- [ ] Subscriptions, personal coupons, bonus codes and surveys are shown
 
 ### Out of Scope
 
@@ -120,4 +133,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-10-12 after v1.0 milestone (live Pages deploy and WR-04 runner exposure still open)*
+*Last updated: 2026-10-16 after v1.1 milestone start*

@@ -505,7 +505,14 @@ export function buildNoRecognizedCategoryZip(): Uint8Array {
 }
 
 /**
- * Two root folders side-by-side. Triggers no-single-root.
+ * The minimal TWO-ROOT shape: two account folders side by side, each holding
+ * one `User_Info` file.
+ *
+ * v1.0 read this as `no-single-root` and showed the generic failure banner.
+ * Phase 9 (D-01) accepts it: a top-level folder that directly holds a
+ * recognised category IS an account root, so this archive is a two-account
+ * export. The builder and its bytes are unchanged — only the assertions moved,
+ * and they now say in their own titles that the flip is deliberate.
  */
 export function buildMultiRootZip(): Uint8Array {
   const data = new TextEncoder().encode('ID;NAME\n1;x\n');
@@ -816,17 +823,27 @@ export function buildMojibakeExport(): Uint8Array {
 export const MALFORMED_ROW_EXPECTED_SKIPPED_COUNT = 1;
 export const MALFORMED_ROW_EXPECTED_ROW_COUNT = 3;
 
+/**
+ * The malformed `Bans.csv` body, as its own constant.
+ *
+ * Exported since Phase 9 (D-18) because the worker no longer STORES rows of an
+ * unknown category: it parses them for the counts and drops them. A test that
+ * still wants to assert the parser's per-row behaviour — which records survive,
+ * in what order — must therefore call the function the worker calls
+ * (`parseCsvFile`) on the very same text, and re-typing the four records in the
+ * test would be a second copy of the fixture that could drift from this one.
+ */
+export const MALFORMED_BANS_CSV = renderCsv(BANS_HEADER, [
+  ['2020-09-01 00:00:00', 'reason_alpha', '2020-09-08 00:00:00'],
+  // BAN_REASON `"unterminated` has no closing quote.
+  ['2020-09-04 00:00:00', '"unterminated', '2020-09-11 00:00:00'],
+  ['2020-09-02 00:00:00', 'reason_beta', '2020-09-09 00:00:00'],
+  ['2020-09-03 00:00:00', 'reason_gamma', '2020-09-10 00:00:00'],
+]);
+
 export function buildMalformedRowsExport(): Uint8Array {
   const entries = sampleEntries(SAMPLE_ACCOUNT_ROOT);
-  entries[`${SAMPLE_ACCOUNT_ROOT}/Bans/Bans.csv`] = new TextEncoder().encode(
-    renderCsv(BANS_HEADER, [
-      ['2020-09-01 00:00:00', 'reason_alpha', '2020-09-08 00:00:00'],
-      // BAN_REASON `"unterminated` has no closing quote.
-      ['2020-09-04 00:00:00', '"unterminated', '2020-09-11 00:00:00'],
-      ['2020-09-02 00:00:00', 'reason_beta', '2020-09-09 00:00:00'],
-      ['2020-09-03 00:00:00', 'reason_gamma', '2020-09-10 00:00:00'],
-    ]),
-  );
+  entries[`${SAMPLE_ACCOUNT_ROOT}/Bans/Bans.csv`] = new TextEncoder().encode(MALFORMED_BANS_CSV);
   return zipSync(entries);
 }
 
@@ -1312,6 +1329,10 @@ export function buildLongTextExport(): Uint8Array {
  * PapaParse files this value under `__parsed_extra`. A row with no deny-listed
  * header must keep that bucket (plan 01-13, T-01-49): the value is how a test
  * tells "the strip was narrowed to the header" from "every row is sanitised".
+ *
+ * The row lives in the SUPPORTED `Activity_history` folder since Phase 9
+ * (D-18) — see the note on `buildMisfiledAccountInfoExport` for why a control in
+ * an unknown folder could no longer be read back at all.
  */
 export const RAGGED_OVERFLOW_MARKER = 'CANARY-RAGGED-OVERFLOW-CELL';
 
@@ -1335,9 +1356,19 @@ export const RAGGED_OVERFLOW_MARKER = 'CANARY-RAGGED-OVERFLOW-CELL';
  * trailing CRLF), so its LOGIN, BIRTH_DATE and BIRTH_DATE_SRC cells hold the
  * fixture's synthetic values and IP holds `SAMPLE_IP`.
  *
- * `Misc/Ragged.csv` is the control: header `ID;NAME`, one row of three cells
- * whose third is `RAGGED_OVERFLOW_MARKER`. It has no deny-listed header, so it
- * must come out of the import exactly as before, overflow bucket included.
+ * `Activity_history/Ragged.csv` is the control: header `ID;NAME`, one row of
+ * three cells whose third is `RAGGED_OVERFLOW_MARKER`. It has no deny-listed
+ * header, so it must come out of the import exactly as before, overflow bucket
+ * included.
+ *
+ * WHY IT MOVED from `Misc/` in Phase 9 (D-18): the worker now parses rows of
+ * an unknown category for their COUNTS and never stores them, so a control
+ * parked in `Misc` could no longer be read back at all — the assertion it
+ * exists for ("the strip is narrowed to the header, not applied to every row")
+ * would have become vacuous rather than false. `Activity_history` is a
+ * SUPPORTED category, so the row is stored exactly as before. The
+ * counted-but-not-stored half of the same rule is covered separately, against
+ * `UserInfo/` and `Weird/` in this same fixture.
  */
 export function buildMisfiledAccountInfoExport(): Uint8Array {
   const accountInfo = CRLF + ACCOUNT_INFO_HEADER + CRLF + ACCOUNT_INFO_ROW + CRLF;
@@ -1346,7 +1377,9 @@ export function buildMisfiledAccountInfoExport(): Uint8Array {
       'UserInfo/Account_Info.csv': accountInfo,
       'Weird/User_Info/Account_Info.csv': accountInfo,
       'Activity_history/Account_Info.csv': accountInfo,
-      'Misc/Ragged.csv': renderCsv('ID;NAME', [['1', 'Ragged Row', RAGGED_OVERFLOW_MARKER]]),
+      'Activity_history/Ragged.csv': renderCsv('ID;NAME', [
+        ['1', 'Ragged Row', RAGGED_OVERFLOW_MARKER],
+      ]),
     },
   });
 }

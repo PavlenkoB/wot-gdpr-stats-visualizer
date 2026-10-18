@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { SAMPLE_NICKNAME, buildSampleExport } from '../../fixtures/export-fixtures.ts';
 import { buildLoginsScaleExport, buildLoginsScaleSpec } from '../../fixtures/logins-fixtures.ts';
+import { buildRealShapeThreeAccountExport } from '../../fixtures/multi-account-fixtures.ts';
 import {
   SYNTHETIC_ZIP_NAME,
   countryList,
@@ -11,6 +12,7 @@ import {
   startOver,
   waitForImported,
 } from '../_support/helpers.ts';
+import { PANE_IDS } from '../../../src/lib/shell/selection-state.ts';
 import { SCALE_5K_SPEC, buildSessionsExport } from '../../fixtures/sessions-fixtures.ts';
 
 /**
@@ -230,15 +232,17 @@ test.describe('zero-network and CSP', () => {
     expect(violations, `violated CSP directives: ${violations.join(', ')}`).toEqual([]);
   });
 
-  test('no network request, no second worker and no CSP violation through every Phase 5 flow', async ({
+  test('no network request, no second worker and no CSP violation through every Phase 5 flow and the Phase 9 multi-account import', async ({
     page,
     context,
   }) => {
     // Explicit rather than inherited: this test sweeps two selectors value by
     // value, sorts, searches, toggles a column, interacts with two charts by
-    // pointer AND by keyboard, opens three disclosures and replaces the whole
-    // dataset. A timeout here would look like a network failure.
-    test.setTimeout(180_000);
+    // pointer AND by keyboard, opens three disclosures, replaces the whole
+    // dataset, replaces it AGAIN with a three-account export and walks every
+    // pane on that one (09-06). A timeout here would look like a network
+    // failure.
+    test.setTimeout(300_000);
 
     // The same observer as the playtime test, installed before navigation so a
     // violation raised by the first application script is caught too, not only
@@ -441,6 +445,30 @@ test.describe('zero-network and CSP', () => {
     await openSection(page, 'payments');
     await expect(spend).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
 
+    // --- 11. the Phase 9 three-account replace, then every pane ---------------
+    // The multi-account import is the phase's biggest new code path: it resolves
+    // N account roots, tags every row with its owner and merges the categories
+    // across them. It runs entirely inside the worker and IndexedDB, so it must
+    // be no more network-hungry than the single-account import — and saying so
+    // is only worth anything if the panes are OPENED on that dataset, because a
+    // pane nobody opened is a pane nobody proved. Reload is deliberately NOT in
+    // this stage: a reload starts a new document and a new worker, which the
+    // single-worker assertion below would read as a second one.
+    await page.getByTestId('file-input').setInputFiles({
+      name: 'three-account-export.zip',
+      mimeType: 'application/zip',
+      buffer: Buffer.from(buildRealShapeThreeAccountExport()),
+    });
+    await expect(panel).toBeVisible();
+    await panel.getByTestId('confirm-commit').click();
+    await expect(panel).toHaveCount(0);
+    await waitForImported(page);
+    await expect(page.getByTestId('identity-multi-title')).toBeVisible({ timeout: 30_000 });
+
+    for (const pane of PANE_IDS) {
+      await openSection(page, pane);
+    }
+
     // The same short settle the other two tests use, so a request queued by the
     // last interaction has reached the network stack before the count is read.
     await page.waitForTimeout(500);
@@ -458,7 +486,7 @@ test.describe('zero-network and CSP', () => {
     }
 
     // The half that counting requests cannot see: nothing was even ATTEMPTED,
-    // by any of the ten flows above.
+    // by any of the eleven flows above.
     const violations = await page.evaluate(
       () => (window as unknown as { __cspViolations: string[] }).__cspViolations,
     );

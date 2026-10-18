@@ -354,7 +354,8 @@ a:focus-visible {
 
   .shell [data-testid='identity-header'] .nickname,
   .shell [data-testid='identity-header'] .skeleton-title,
-  .shell [data-testid='identity-header'] .fallback-title {
+  .shell [data-testid='identity-header'] .fallback-title,
+  .shell [data-testid='identity-header'] .multi-title {
     font-size: 18px;
   }
 

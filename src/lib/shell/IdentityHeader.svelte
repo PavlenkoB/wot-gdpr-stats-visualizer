@@ -1,32 +1,50 @@
 <script lang="ts">
   import type { AccountIdentity, ClassifyResult } from '../core/types/worker-messages.ts';
+  import { accountRows, hasMultipleRoots } from './identity-model.ts';
   import {
+    IDENTITY_ACTIVITY_LABEL,
     IDENTITY_ARIA_LABEL,
     IDENTITY_CAPTION,
     IDENTITY_CREATED_LABEL,
+    IDENTITY_GAMES_LABEL,
+    IDENTITY_MULTI_LIST_LABEL,
     IDENTITY_REGION_LABEL,
     IDENTITY_SKELETON_PROMPT,
     IDENTITY_SKELETON_TITLE,
     UNKNOWN_VALUE,
+    formatAccountCount,
     formatAccountId,
     formatCreatedDate,
     formatIdentityFallbackTitle,
   } from '../ui-copy.ts';
 
   /**
-   * The account identity header (D-12 … D-17, D-21, D-24).
+   * The account identity header (D-12 … D-17, D-21, D-24; multi: D-13 … D-17).
    *
-   * One card with three variants, derived from what the worker published —
+   * ONE card with four variants, derived from what the worker published —
    * nothing here re-derives identity, because the worker already stripped the
    * email and the birth data before publishing the three fields this renders
    * (D-18, D-20). The component therefore has nothing sensitive to leak, and
    * `tests/e2e/shell/identity-privacy.spec.ts` proves that end to end.
    *
-   * Every untrusted value (nickname, region, account root) is rendered as
-   * plain text through Svelte's normal interpolation, which escapes it. There
-   * is deliberately no markup-building directive, no tooltip, no `title` and
-   * no per-element accessible name anywhere in this file: D-21 requires the
-   * nickname to appear exactly once in the document, as the visible heading.
+   * `multi` is the only variant Phase 9 added, and it renders when the ARCHIVE
+   * held two or more account folders (09-11), even if only one of them stores
+   * data; ONE folder still renders byte-identically to v1.0, including its
+   * four test ids. Every decision about what a row shows lives in
+   * `./identity-model.ts` as a pure function, because `vitest.config.ts` runs in
+   * Node with no Svelte plugin and a component cannot be rendered in a unit test
+   * at all.
+   *
+   * Every untrusted value (nickname, account root) is rendered as plain text
+   * through Svelte's normal interpolation, which escapes it. There is
+   * deliberately no markup-building directive, no tooltip, no `title` and no
+   * per-element accessible name anywhere in this file.
+   *
+   * D-21 RESTATED PER ROW: with one account the nickname appears exactly once in
+   * the document; with several, it appears once in ITS OWN row and nowhere else.
+   * Two accounts may share a nickname, so the rule is "once per row" rather than
+   * "once in the document", and the single-account DOM and its assertions are
+   * unchanged.
    */
   interface Props {
     /** The last known dataset, or `null` when no export is loaded. */
@@ -36,28 +54,49 @@
   let { result }: Props = $props();
 
   /**
-   * `skeleton` — nothing loaded; `fallback` — an export is loaded but it
-   * yielded no User_Info row, so the account ID stands in as the title
-   * (D-16); `loaded` — a row was parsed and its three fields are shown.
+   * `skeleton` — nothing loaded; `multi` — two or more account folders (D-13);
+   * `fallback` — one account that yielded no User_Info row, so the account ID
+   * stands in as the title (D-16); `loaded` — one account whose row was parsed
+   * and whose three fields are shown.
    *
    * The two absences the worker can send are deliberately NOT conflated: a
    * parsed row with blank columns is `loaded` and renders "Unknown" per
    * field, while no parsed row at all is `fallback` and renders the ID.
+   *
+   * `multi` is checked BEFORE the legacy identity, because the legacy field is
+   * the FIRST folder's: letting it decide would render one account as though it
+   * were the whole dataset (T-09-20). It follows the ARCHIVE's folder count, not
+   * the published list: a data-less sibling folder is absent from the list, and
+   * must not turn the header into a single-account one (09-11, T-09-33).
    */
-  const variant = $derived<'skeleton' | 'fallback' | 'loaded'>(
-    result === null ? 'skeleton' : result.identity ? 'loaded' : 'fallback',
+  const variant = $derived<'skeleton' | 'multi' | 'fallback' | 'loaded'>(
+    result === null
+      ? 'skeleton'
+      : hasMultipleRoots(result)
+        ? 'multi'
+        : result.identity
+          ? 'loaded'
+          : 'fallback',
   );
 
-  /** The parsed identity, or `null` for both non-loaded variants. */
+  /** The parsed identity, or `null` for every non-`loaded` variant. */
   const identity = $derived<AccountIdentity | null>(
     result?.identity === undefined ? null : (result.identity ?? null),
   );
 
   /**
-   * D-16: an absent OR empty value shows "Unknown" in its slot, so a
-   * half-populated row never renders a blank line. The worker's `pick()`
-   * already trims, so the value is shown exactly as it was read.
+   * The rows the multi variant renders, in the order the worker stored (D-16).
+   *
+   * Keyed by INDEX in the template rather than by nickname, root or year: two
+   * accounts may share all three, and a key that could repeat would make the
+   * list throw or silently reuse a node. The order is never re-sorted here — the
+   * worker's `sortAccounts` is the only comparator.
    */
+  const rows = $derived(accountRows(result?.accounts ?? []));
+
+  /** D-16: an absent OR empty value shows "Unknown" in its slot, so a
+   * half-populated row never renders a blank line. The worker's `pick()`
+   * already trims, so the value is shown exactly as it was read. */
   function valueOrUnknown(value: string | null): string {
     return value === null || value.trim() === '' ? UNKNOWN_VALUE : value;
   }
@@ -75,6 +114,54 @@
          make that assertion lie. -->
     <h2 class="skeleton-title" data-testid="identity-title">{IDENTITY_SKELETON_TITLE}</h2>
     <p class="skeleton-prompt">{IDENTITY_SKELETON_PROMPT}</p>
+  {:else if variant === 'multi'}
+    <!-- D-13 / UI-SPEC Surface 1. The title is the COUNT, not a nickname: with
+         several accounts no single one stands for the export. The caption is
+         the existing IDENTITY_CAPTION, reused as is — D-12's "as of export"
+         qualifies the whole list, and the import-time dates are not per-row
+         anyway. -->
+    <h2 class="multi-title" data-testid="identity-multi-title">
+      {formatAccountCount(rows.length)}
+    </h2>
+
+    <p class="caption">{IDENTITY_CAPTION}</p>
+
+    <!-- `role="list"` is explicit because the list-style reset drops list
+         semantics in some engines. The accessible name is the STATIC
+         IDENTITY_MULTI_LIST_LABEL: a row carries no aria-label, no title and no
+         describedby, so its text content is its name and a screen reader reads
+         "name, Account ID: …, Games, Activity, years" in order. -->
+    <ol
+      class="multi-list"
+      role="list"
+      aria-label={IDENTITY_MULTI_LIST_LABEL}
+      data-testid="identity-multi-list"
+    >
+      {#each rows as row, index (index)}
+        <li
+          class="multi-row"
+          data-testid="identity-multi-row"
+          data-user-info={row.idOnly ? 'absent' : undefined}
+        >
+          <h3 class="multi-name" class:id-only={row.idOnly} data-testid="identity-multi-name">
+            {row.name}
+          </h3>
+
+          {#if row.idLine !== null}
+            <p class="account-id" data-testid="identity-multi-id">{row.idLine}</p>
+          {/if}
+
+          <dl>
+            {#if row.games !== null}
+              <dt>{IDENTITY_GAMES_LABEL}</dt>
+              <dd data-testid="identity-multi-games">{row.games}</dd>
+            {/if}
+            <dt>{IDENTITY_ACTIVITY_LABEL}</dt>
+            <dd data-testid="identity-multi-years">{row.activity}</dd>
+          </dl>
+        </li>
+      {/each}
+    </ol>
   {:else if variant === 'fallback'}
     <!-- D-16: no User_Info row, so the account ID is the title. No caption,
          no value list and no ID line: the ID line would repeat the title,
@@ -134,7 +221,8 @@
      Heading size at phone width, in the phone block of `src/app.css`. */
   .nickname,
   .skeleton-title,
-  .fallback-title {
+  .fallback-title,
+  .multi-title {
     margin: 0;
     font-size: 26px;
     font-weight: 600;
@@ -179,7 +267,17 @@
     overflow-wrap: anywhere;
   }
 
-  .account-id {
+  /* The Label-role ID line, 14/600/1.4 in `--muted`.
+
+     D-17 / T-09-28: `.multi-name.id-only` shares THIS rule rather than
+     restating the values. An account root with no User_Info is an absence, and
+     an absence must not wear the row's most prominent type: its number takes
+     the same Label role an ID line already takes, so the demotion is a change
+     of TYPE only. The text, the `h3` and the row's accessible name are
+     untouched — a rootless account keeps the only identifier it has. Sharing
+     the selector means the two cannot drift apart in a later edit. */
+  .account-id,
+  .multi-name.id-only {
     margin: 0;
     font-size: 14px;
     font-weight: 600;
@@ -199,5 +297,49 @@
     font-weight: 400;
     line-height: 1.5;
     color: var(--muted);
+  }
+
+  /* ---------------------------------------------------------------------
+     The multi-account list (D-13, UI-SPEC Surface 1).
+
+     A stack of compact rows, all visible with no interaction: no "show more",
+     no collapse, no pagination, and nothing focusable in the header at all.
+     The desktop list pane already scrolls internally, so the list grows with
+     the account count (up to the import cap) and costs the pane nothing.
+     ----- */
+
+  /* The list-style reset drops list semantics in some engines, which is why the
+     template also carries an explicit `role="list"`. */
+  .multi-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    min-width: 0;
+  }
+
+  /* A hairline above each row rather than a card per account: several accounts
+     read as one list, and the Day 10 chrome uses hairlines for exactly this. */
+  .multi-row {
+    border-top: 1px solid var(--border);
+    padding: 8px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  /* Heading role, for a row that HAS a nickname. `--ink`, and `overflow-wrap:
+     anywhere` for a long nickname or a 20-digit account root: both are
+     untrusted, so their length is not knowable in advance and neither may
+     widen the 320px pane. The id-only case opts out of this role above and
+     takes the Label role instead, so an absence never looks like a presence. */
+  .multi-name {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--ink);
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 </style>

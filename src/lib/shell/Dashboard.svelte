@@ -15,6 +15,7 @@
   import DeviceInfo from '../features/device-info/DeviceInfo.svelte';
   import FinancialData from '../features/finance/FinancialData.svelte';
   import ListPane from './ListPane.svelte';
+  import { accountCountOf } from './identity-model.ts';
   import LoginHistory from '../features/logins/LoginHistory.svelte';
   import Overview from './Overview.svelte';
   import PlayerStats from '../features/vehicles/PlayerStats.svelte';
@@ -211,6 +212,11 @@
       status: sectionStatus(id, result),
       counts: sectionCounts(section.folder, result),
       note: id === 'user-info' ? SECTION_NOTE_USER_INFO : SECTION_NOTE_PENDING,
+      // D-11: every pane whose rows are merged across accounts says so. The
+      // Account section is the ONE exception and gets a fixed one, because that
+      // pane IS the list of accounts — "3 accounts combined" there would repeat
+      // the header above it rather than qualify anything (UI-SPEC Surface 2).
+      accountCount: id === 'user-info' ? 1 : accountCountOf(result),
     };
   }
 

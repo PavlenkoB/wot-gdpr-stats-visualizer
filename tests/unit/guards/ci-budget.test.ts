@@ -115,6 +115,55 @@ import config from '../../../playwright.config';
 // slack against the 1740 s globalTimeout), and 258 listed tests remains the
 // ceiling. A count above 258 needs all three raised together, never one.
 //
+// That figure was measured at 08-19 Task 1 and the suite has grown since: D-23
+// re-counted it at Phase 9 planning as 256 tests in 27 files, and 09-06 Task 3
+// found even THAT to predate plan 09-04's spec file (the 28th file and one of
+// its two tests), so the count this phase actually started from is 257 in 28
+// files — see the Phase 9 paragraph below. The arithmetic above and every pin
+// it carries are left exactly as Phase 8 wrote them, because they pin the FORMULA
+// and not the suite size.
+//
+// Phase 9 (multi-account import and account identity) added TWO listed tests and
+// priced them as a BLOCK, because each runs far longer than the 5 s a browser
+// test is credited with. The count, MEASURED at the end of 09-06 Task 3:
+//
+//   L = 258 tests in 28 files
+//
+// (D-23 recorded 256 in 27 files at Phase 9 planning. That count predates plan
+// 09-04's spec file — `shell/multi-account.spec.ts`, the 28th file, which added
+// one of its two tests — so the baseline this phase started from is 257 in 28
+// files, and 258 is the ceiling the phase was planned against.)
+//
+// The two tests are the three-account test (09-04, extended by 09-05) and the
+// lifecycle test (09-06 Task 1). The Phase 5 zero-network test also grew by one
+// stage — a three-account replace plus a walk of every pane — which is priced
+// into the SAME allowance, because it is not a new listed test and the per-test
+// credit cannot see it. Measured on this machine, one test at a time, slowest
+// run of each:
+//
+//   (a) three-account test:                             3.6 s
+//   (b) lifecycle test:                                 5.7 s
+//   Phase 5 zero-network test: 5.3 s after the stage,
+//                              4.0 s before  ->  +1.3 s
+//   computed:                              10.6 s * 3 = 31.8 s
+//   rounded up:                                          32 s
+//
+// The runner factor is the ~3x this file already uses (see
+// LOGIN_SCALE_SPEC_SECONDS), and there is deliberately NO floor: these tests pay
+// for a second and a third import, not for a multi-megabyte archive and a second
+// browser context, which is what the finance block's 90 s floor stands for.
+//
+//   E = 330 + 5 * (258 - 86 - 5 - 5 - 5 - 2) + 120 + 90 + 13 + 32
+//     = 330 + 775 + 255
+//     = 1360 s
+//   1.3 * E = 1768 s, and ceil(1768 / 60) = 30 min
+//
+// so G = 30, W = 32 and J = 40: all THREE moved together, the same G + 2 and
+// W + 8 relationship every raise before them used, and 30 min holds up to 262
+// listed tests. Left unpriced, the same count would have projected 1338 s and a
+// floor of 1739.4 s — 0.6 s of slack under the old 1740 s globalTimeout — which
+// is exactly why two multi-minute tests cannot be credited at 5 s each.
+//
 // Every constant below is either MEASURED in this repository or an ESTIMATE
 // carried forward from an earlier phase, and is labelled as such. The
 // estimation lives here, not in a comment, because `globalTimeout` is
@@ -196,6 +245,49 @@ const LOGIN_SCALE_SPEC_TEST_COUNT = 5;
  */
 const LOGIN_SCALE_SPEC_SECONDS = 13;
 
+/**
+ * The listed count at which Phase 9's two long tests entered the suite —
+ * MEASURED (D-23 at Phase 9 planning; 258 in 28 files re-measured at the end of
+ * 09-06 Task 3).
+ *
+ * The gate below, NOT the other three counts. Those three held-back blocks are
+ * unconditional because their files have existed since their own phase, so every
+ * count at or above the pre-phase baseline has always included them. Phase 9's
+ * two tests are new: below 258 they are not in the suite, there is nothing to
+ * hold back and nothing to allow for, and gating the adjustment on the count at
+ * which they appeared keeps EVERY historical pin of `projectedE2eSeconds` at the
+ * exact value the phase that measured it recorded. Do not "simplify" this into
+ * an unconditional subtraction: it would silently rewrite the 184 / 234 / 239 /
+ * 242 / 251 / 252 pins and their worked arithmetic.
+ */
+const MULTI_ACCOUNT_LONG_TESTS_FROM = 258;
+
+/** Phase 9's two long listed tests — MEASURED with `playwright test --list`:
+ * the three-account test (09-04, extended by 09-05) and the lifecycle test
+ * (09-06 Task 1). */
+const MULTI_ACCOUNT_LONG_TEST_COUNT = 2;
+
+/**
+ * Allowance for Phase 9's long tests and for the stage added to the Phase 5
+ * zero-network test — MEASURED at the end of 09-06 Task 3, on this machine, one
+ * test at a time, slowest run of each:
+ *
+ *   (a) three-account test:                             3.6 s
+ *   (b) lifecycle test:                                 5.7 s
+ *   Phase 5 zero-network test: 5.3 s after the stage,
+ *                              4.0 s before  ->  +1.3 s
+ *   computed:                              10.6 s * 3 = 31.8 s
+ *   rounded up:                                          32 s
+ *
+ * The runner factor is the ~3x this file already uses (see
+ * LOGIN_SCALE_SPEC_SECONDS) and there is deliberately NO floor: these tests pay
+ * for a second and a third import, not for a multi-megabyte archive and a second
+ * browser context, which is what the finance block's 90 s floor stands for. A
+ * floor that overstated this block would raise all three limits further than the
+ * evidence supports.
+ */
+const MULTI_ACCOUNT_LONG_SECONDS = 32;
+
 /** Per-test increment for a browser-backed test — ESTIMATE from the phase. */
 const SECONDS_PER_NEW_TEST = 5;
 
@@ -215,20 +307,26 @@ const MIN_JOB_OVERHEAD_SECONDS = 300;
 const LIST_TIMEOUT_MS = 60_000;
 
 function projectedE2eSeconds(listedTests: number): number {
+  // Phase 9's two long tests are held back only once the suite is large enough
+  // to contain them — see MULTI_ACCOUNT_LONG_TESTS_FROM, which says why.
+  const longTestsHeldBack =
+    listedTests >= MULTI_ACCOUNT_LONG_TESTS_FROM ? MULTI_ACCOUNT_LONG_TEST_COUNT : 0;
   const newTests = Math.max(
     0,
     listedTests -
       PRE_PHASE_TEST_COUNT -
       SCALE_SPEC_TEST_COUNT -
       FINANCE_SCALE_TEST_COUNT -
-      LOGIN_SCALE_SPEC_TEST_COUNT,
+      LOGIN_SCALE_SPEC_TEST_COUNT -
+      longTestsHeldBack,
   );
   return (
     PRE_PHASE_SECONDS +
     SECONDS_PER_NEW_TEST * newTests +
     SCALE_SPEC_SECONDS +
     FINANCE_SCALE_SECONDS +
-    LOGIN_SCALE_SPEC_SECONDS
+    LOGIN_SCALE_SPEC_SECONDS +
+    (longTestsHeldBack > 0 ? MULTI_ACCOUNT_LONG_SECONDS : 0)
   );
 }
 
@@ -326,6 +424,13 @@ describe('CI e2e budget', () => {
     // The 184-test shape of 05-16 under THIS function, which now also holds the
     // login block back: 330 + 5 * (184 - 86 - 5 - 5 - 5) + 120 + 90 + 13 = 968.
     expect(projectedE2eSeconds(184)).toBe(968);
+    // The 258-test shape MEASURED at the end of 09-06 Task 3, with Phase 9's two
+    // long tests held back and priced as one allowance: 330 + 5 * (258 - 86 - 5 -
+    // 5 - 5 - 2) + 120 + 90 + 13 + 32 = 1360. The floor is 1768 s, which is past
+    // the 1740 s that 29 min gave, so this is the raise 09-06 predicted. Every
+    // pin above is unchanged: at a count below 258 those two tests are not in the
+    // suite (MULTI_ACCOUNT_LONG_TESTS_FROM).
+    expect(projectedE2eSeconds(258)).toBe(1360);
     // One test beyond the baseline and ALL THREE scale specs is worth exactly
     // one increment; the projection never falls below the baseline + the three
     // allowances, even when a caller passes a count below the baseline.
@@ -354,22 +459,23 @@ describe('CI e2e budget', () => {
     ).toBeGreaterThanOrEqual(e * MIN_GLOBAL_MARGIN);
   });
 
-  test('phase 8 holds all three limits', () => {
+  test('phase 9 raised all three limits together to 30 / 32 / 40 min', () => {
     const { wrapperSeconds, jobSeconds } = workflowTimeouts();
     const raiseRule =
-      'Phase 8 held G = 1740 s, W = 1860 s and J = 2340 s. A listed count above 258 needs all ' +
-      'three raised together (G + 2 min, W + 8 min per the rule in this file), never one.';
+      'Phase 9 raised G = 1800 s, W = 1920 s and J = 2400 s together (Phase 8 held 1740 / 1860 / ' +
+      '2340). A listed count above 262 needs all three raised again (G + 2 min, W + 8 min per the ' +
+      'rule in this file), never one.';
 
-    expect(globalTimeoutSeconds(), raiseRule).toBe(1740);
-    expect(wrapperSeconds, raiseRule).toBe(1860);
-    expect(jobSeconds, raiseRule).toBe(2340);
+    expect(globalTimeoutSeconds(), raiseRule).toBe(1800);
+    expect(wrapperSeconds, raiseRule).toBe(1920);
+    expect(jobSeconds, raiseRule).toBe(2400);
 
     const { total } = listedTestTotal();
     expect(
       total,
-      `${total} listed tests is above the 258-test ceiling of a 1740 s globalTimeout ` +
+      `${total} listed tests is above the 262-test ceiling of a 1800 s globalTimeout ` +
         `(E = ${projectedE2eSeconds(total)} s, floor ${projectedE2eSeconds(total) * MIN_GLOBAL_MARGIN} s). ${raiseRule}`,
-    ).toBeLessThanOrEqual(258);
+    ).toBeLessThanOrEqual(262);
   });
 
   test('the shell wrapper outlives globalTimeout by at least 90 s', () => {
@@ -393,5 +499,35 @@ describe('CI e2e budget', () => {
         `(${wrapperSeconds + MIN_JOB_OVERHEAD_SECONDS} s), or the job is cancelled while the e2e ` +
         `step is still running.`,
     ).toBeGreaterThanOrEqual(wrapperSeconds + MIN_JOB_OVERHEAD_SECONDS);
+  });
+
+  test('the CI comment names the SAME globalTimeout the workflow is configured with', () => {
+    // RAW read, deliberately, and NOT through `activeWorkflowLines()`: that
+    // helper drops every line whose first non-space character is `#`, which is
+    // the entire comment block under assertion here. Reusing it would make this
+    // test a tautology — the configured limits keep the filtered reader, the
+    // prose gets its own read of the same file, because the two concerns need
+    // OPPOSITE filters (09-09, IN-04).
+    const raw = readFileSync(WORKFLOW, 'utf8');
+
+    // The anchored literal, not a bare `(\d+) min` scan: this block's history
+    // mentions 27, 28, 29 and 31 minutes in other phrasings, and a dated
+    // "Raised from …" paragraph is not allowed to change when the limits move.
+    const named = [...raw.matchAll(/Playwright's own `globalTimeout` \((\d+) min\)/g)];
+
+    expect(
+      named.length,
+      "The wrapper comment in .github/workflows/ci.yml must name Playwright's own `globalTimeout` " +
+        '(N min) exactly once, so the sentence an operator reads cannot drift from the value the ' +
+        'workflow sets and cannot silently match a historical line instead.',
+    ).toBe(1);
+
+    const minutes = Number(named[0]![1]);
+    expect(
+      minutes * 60,
+      `The comment says Playwright's own globalTimeout is ${minutes} min, but ` +
+        `playwright.config.ts sets ${globalTimeoutSeconds()} s. Correct the PRESENT-TENSE sentence ` +
+        'and append a new "Raised from …" paragraph — never rewrite a dated one.',
+    ).toBe(globalTimeoutSeconds());
   });
 });

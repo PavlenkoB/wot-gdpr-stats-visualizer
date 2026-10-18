@@ -23,9 +23,10 @@
  *    else is shown as written, clamped to 200 characters.
  *
  * 3. **A builder reads the columns it resolved, and no others.** The PC and
- *    Blitz tables resolve their columns by name from the FIRST row's keys in
- *    one walk and read values through those keys, so no value is read by a
- *    guessed name.
+ *    Blitz tables resolve their columns by name from EACH ACCOUNT GROUP's FIRST
+ *    row in one walk, and every row is read through the keys resolved for the
+ *    group it belongs to — so no value is read by a guessed name, and no value
+ *    is read through another account's key (CR-01).
  *
  * ## Hostile input
  *
@@ -38,7 +39,7 @@
  * string and finite-number values count.
  */
 
-import { cell, headerKey } from '../../worker/csv-columns.ts';
+import { cell, headerKey, type AccountRowGroup } from '../../worker/csv-columns.ts';
 import {
   ASSISTANT_COLUMNS,
   ASSISTANT_STORED_HEADERS,
@@ -251,9 +252,17 @@ export function reduceBlobRow(raw: DeviceStoredRow): Record<string, string | und
 // The builder
 // ---------------------------------------------------------------------------
 
-/** One source's rows and whether its file was in the archive. */
+/**
+ * One source's rows — grouped per ACCOUNT — and whether its file was in the
+ * archive.
+ *
+ * The grouping is load-bearing, not bookkeeping (CR-01): two accounts' same-named
+ * `WOT_Device_Info.csv` carry their own headers, and each group's columns are
+ * resolved from that group's OWN first row. A single flat row list would resolve
+ * one account's keys and read every other account's cells as absent.
+ */
 export interface DeviceSourceInput {
-  readonly rows: readonly DeviceStoredRow[];
+  readonly groups: readonly AccountRowGroup<DeviceStoredRow>[];
   readonly seen: boolean;
 }
 
@@ -264,47 +273,85 @@ export interface DeviceInfoInput {
   readonly assistant: DeviceSourceInput;
 }
 
-/** The status of a source with no rows. */
+/** The status of a source with no rows at all. */
 function emptyTable(input: DeviceSourceInput): DeviceTableView<never> {
   return input.seen ? { status: 'no-rows' } : { status: 'not-in-export' };
 }
 
+/** Every group's rows, in group order and stored order within a group. */
+function rowsOfGroups(groups: readonly AccountRowGroup<DeviceStoredRow>[]): DeviceStoredRow[] {
+  const rows: DeviceStoredRow[] = [];
+  for (const group of groups) rows.push(...group.rows);
+  return rows;
+}
+
 /**
- * A PC or Blitz table: columns resolved once from the first row's keys through
- * `headerKey`, values read through the resolved keys only.
+ * One group's column keys: one walk over ITS first row's keys through
+ * `headerKey`, the first spelling of a header winning.
+ *
+ * A `Map`, so a `__proto__` header is an ordinary key. Resolving per group is
+ * the whole of the CR-01 fix — a key is never taken from another account's row.
+ */
+function resolveKeysOf<C extends string>(
+  group: AccountRowGroup<DeviceStoredRow>,
+  columns: readonly C[],
+  headers: Readonly<Record<C, string>>,
+): readonly (string | null)[] {
+  const first = group.rows[0];
+  const keyOf = new Map<string, string>();
+  if (first !== undefined) {
+    for (const key of Object.keys(first)) {
+      const folded = headerKey(key);
+      if (!keyOf.has(folded)) keyOf.set(folded, key);
+    }
+  }
+  return columns.map((id) => keyOf.get(headers[id]) ?? null);
+}
+
+/**
+ * A PC or Blitz table: columns resolved PER GROUP from that group's own first
+ * row, and every row read through the keys resolved for the row's OWN group.
  */
 function headerKeyedTable<C extends string>(
   columns: readonly C[],
   headers: Readonly<Record<C, string>>,
   input: DeviceSourceInput,
 ): DeviceTableView<C> {
-  const { rows } = input;
-  if (rows.length === 0) return emptyTable(input);
+  const { groups } = input;
+  const rowCount = rowsOfGroups(groups).length;
+  if (rowCount === 0) return emptyTable(input);
 
-  // One walk over the first row's keys; a Map, so a `__proto__` header is an
-  // ordinary key. The first spelling of a header wins.
-  const keyOf = new Map<string, string>();
-  for (const key of Object.keys(rows[0]!)) {
-    const folded = headerKey(key);
-    if (!keyOf.has(folded)) keyOf.set(folded, key);
-  }
-  const resolved = columns.map((id) => keyOf.get(headers[id]) ?? null);
-  if (resolved.every((key) => key === null)) {
-    return { status: 'no-usable', rowCount: rows.length, unreadable: rows.length };
+  // `no-usable` is answered only when EVERY group's first row resolves no usable
+  // column: one account whose header this app can read makes the table ready,
+  // and the account that renamed every column is reported on its own rows as
+  // `null` cells rather than hiding the whole table.
+  const resolvedByGroup = groups.map((group) => resolveKeysOf(group, columns, headers));
+  if (resolvedByGroup.every((resolved) => resolved.every((key) => key === null))) {
+    return { status: 'no-usable', rowCount, unreadable: rowCount };
   }
 
-  const listed = rows.slice(0, MAX_DEVICE_ROWS);
-  const cells: DeviceRow[] = listed.map((row) =>
-    columns.map((id, i) =>
-      deviceCell(cell(row, resolved[i] ?? null), DEVICE_MEMORY_COLUMNS.has(id)),
-    ),
-  );
+  // The cap is on the FLATTENED concatenation — groups in order, rows in stored
+  // order within a group — never a per-group cap and never an interleaving, so
+  // the listed rows are a prefix of the rows the reader returned.
+  const cells: DeviceRow[] = [];
+  for (let g = 0; g < groups.length && cells.length < MAX_DEVICE_ROWS; g++) {
+    const group = groups[g]!;
+    const resolved = resolvedByGroup[g]!;
+    for (const row of group.rows) {
+      if (cells.length >= MAX_DEVICE_ROWS) break;
+      cells.push(
+        columns.map((id, i) =>
+          deviceCell(cell(row, resolved[i] ?? null), DEVICE_MEMORY_COLUMNS.has(id)),
+        ),
+      );
+    }
+  }
   return {
     status: 'ready',
     columns: [...columns],
     rows: cells,
-    rowCount: rows.length,
-    more: rows.length - listed.length,
+    rowCount,
+    more: rowCount - cells.length,
     unreadable: 0,
   };
 }
@@ -332,9 +379,12 @@ function assistantFieldsOf(row: DeviceStoredRow): AssistantFields | null {
 
 /** The Assistant table: per-row reads, unreadable rows counted and not listed. */
 function assistantTable(input: DeviceSourceInput): DeviceTableView<AssistantColumnId> {
-  const { rows } = input;
+  const rows = rowsOfGroups(input.groups);
   if (rows.length === 0) return emptyTable(input);
 
+  // Every Assistant read is PER ROW already (`assistantFieldsOf` walks that
+  // row's own keys, whether it is a reduced row or a legacy blob), so grouping
+  // costs this path nothing: it only fixes the ORDER and the rowCount.
   const readable: DeviceRow[] = [];
   let unreadable = 0;
   for (const row of rows) {

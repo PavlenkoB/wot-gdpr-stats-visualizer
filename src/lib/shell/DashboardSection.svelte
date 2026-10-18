@@ -2,7 +2,7 @@
   import type { Snippet } from 'svelte';
   import type { SectionCounts, SectionStatus } from './dashboard-status.ts';
   import type { GreyedSectionStatus } from '../ui-copy.ts';
-  import { formatProvenanceFrom, formatSectionStatus } from '../ui-copy.ts';
+  import { formatCombinedCaption, formatProvenanceFrom, formatSectionStatus } from '../ui-copy.ts';
   import ImportSummary from './ImportSummary.svelte';
 
   /**
@@ -21,6 +21,26 @@
    *      visible status line, and the greyed look adds a dashed border as a
    *      shape cue on top of the surface tint. A user who cannot see the
    *      tint can still read why the section is empty (D-10, DATA-04).
+   *
+   * ## The combined caption (D-11)
+   *
+   *   `accountCount` defaults to one, which renders NO caption node at all —
+   *   not an empty one and not a hidden one. The caption appears only when the
+   *   dataset holds two or more accounts, because a pane whose numbers merge
+   *   every account's rows must say so rather than presenting a combined figure
+   *   as if one account produced it (UI-SPEC Surface 2).
+   *
+   *   Two consequences worth stating, both structural rather than remembered:
+   *
+   *     - **No provenance block, no caption.** The caption is the FIRST child
+   *       of that block, so a `muted` or loading pane — which shows no
+   *       provenance at all — shows no caption either. There is nothing on
+   *       screen for it to qualify.
+   *
+   *     - **The Account section never carries it**, because `Dashboard.svelte`
+   *       passes a count of one for `user-info`: that pane IS the list of
+   *       accounts, so "3 accounts combined" there would say nothing the header
+   *       above it has not already said.
    */
   interface Props {
     /** Anchor id — also the `data-testid` suffix. */
@@ -44,11 +64,26 @@
      * a single category.
      */
     statusText?: string;
+    /**
+     * How many accounts the dataset holds. One — the default, and therefore
+     * every pre-Phase-9 caller — renders no combined caption (D-11).
+     */
+    accountCount?: number;
     /** The `ready` body. Phases 4 to 6 supply it; until then it is absent. */
     children?: Snippet;
   }
 
-  let { id, title, folder, status, counts, note, statusText, children }: Props = $props();
+  let {
+    id,
+    title,
+    folder,
+    status,
+    counts,
+    note,
+    statusText,
+    accountCount = 1,
+    children,
+  }: Props = $props();
 
   /** The name the provenance line and the greyed sentences use for this section. */
   const source = $derived(folder ?? title);
@@ -76,6 +111,15 @@
    * already the status line's meaning.
    */
   const emptySkip = $derived(status === 'empty' && counts !== null && counts.skippedRowCount > 0);
+
+  /**
+   * The "{N} accounts combined" line, or `null` for one account.
+   *
+   * Derived rather than tested twice in the template, so the "two or more"
+   * threshold exists in exactly one place — the same reason `statusLine` is
+   * computed here instead of inline.
+   */
+  const combinedCaption = $derived(accountCount >= 2 ? formatCombinedCaption(accountCount) : null);
 </script>
 
 <section
@@ -97,10 +141,27 @@
     that used to sit below the content, so `importLine` still resolves to exactly
     one element. An `empty` section shows only the skip tag after the "From"
     text, because "0 files" is already the status line's meaning.
+
+    D-11's combined caption is inside this block and is its FIRST child on
+    purpose: the caption is a statement about the pane's numbers, so it belongs
+    ABOVE the source line rather than after a "From …" that would read as if it
+    were about that line. `flex-basis: 100%` gives it its own line, and the
+    source line and import counts follow on the next one. It is static text and
+    NOT a live region: the import notice slot already announces the change.
+
+    The `{#if}` and its `<p>` sit flush against the `<div>` and the "From" span
+    with NO whitespace between them, which is deliberate and load-bearing. A
+    newline there would put a whitespace TEXT NODE between the div and its first
+    element, so a one-account dataset's provenance would begin with a space —
+    which the `toHaveText(/^From …/)` in `master-detail-nav.spec.ts` rightly
+    fails. A conditional element cannot avoid that whitespace; only the
+    conditional TAG being adjacent to its neighbours can.
   -->
   {#if counts !== null && (status === 'pending' || status === 'ready' || emptySkip)}
     <div class="provenance" data-testid="provenance">
-      <span class="from">{formatProvenanceFrom(source)}</span>
+      {#if combinedCaption !== null}<p class="combined" data-testid="combined-caption">
+          {combinedCaption}
+        </p>{/if}<span class="from">{formatProvenanceFrom(source)}</span>
       <ImportSummary
         {counts}
         variant={status === 'pending' ? 'summary' : 'caption'}
@@ -146,12 +207,22 @@
     overflow-wrap: anywhere;
   }
 
-  /* The provenance line: one 14px/400 line that wraps on a phone. */
+  /* The provenance line: one 14px/400 line that wraps on a phone.
+
+     The 4px ROW gap is why: D-11's combined caption takes `flex-basis: 100%`,
+     so it becomes its own flex line, and with a zero row gap the 600-weight
+     caption sat exactly one line-height from the 400-weight line it
+     introduces. This is the only block in the phase where two lines of
+     different weight sit adjacent, so it is also the only place the 4px
+     block rhythm had to be added by hand. The 4px COLUMN gap is unchanged:
+     it is what makes the inline "From … · N files" run read as one line, and
+     widening or removing it would change that run, which is not the fix. */
   .provenance {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 0 4px;
+    column-gap: 4px;
+    row-gap: 4px;
     min-width: 0;
     font-size: 14px;
     font-weight: 400;
@@ -162,6 +233,24 @@
   .from {
     min-width: 0;
     overflow-wrap: anywhere;
+  }
+
+  /*
+    The combined caption: the Label role (14 / 600 / 1.4) in `--muted`, which
+    is the measured text colour that already passes 4.5:1 on both surfaces. No
+    new colour, no media query, no transition, no `aria-live` — the tokens and
+    the roles are the ones the single-account header labels already use, so the
+    line reads as part of the provenance block rather than as an alert.
+  */
+  .combined {
+    flex-basis: 100%;
+    margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--muted);
   }
 
   .status {

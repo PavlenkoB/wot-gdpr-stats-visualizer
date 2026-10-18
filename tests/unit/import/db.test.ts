@@ -6,6 +6,7 @@ import {
   checkCache,
   clearData,
   db,
+  purgeUnsupportedCategoryRows,
   readSessionRowData,
   writeDataset,
   writePlaytimeIfCurrent,
@@ -15,7 +16,7 @@ import type {
   CategoryEntry,
   PlaytimeAggregates,
 } from '../../../src/lib/core/types/worker-messages.ts';
-import type { DatasetRow } from '../../../src/lib/worker/db.ts';
+import type { AccountMeta, DatasetRow } from '../../../src/lib/worker/db.ts';
 import type { LoginAggregates } from '../../../src/lib/features/logins/login-shared.ts';
 
 // =============================================================================
@@ -904,5 +905,274 @@ describe('06-01 — the v1 wipe is still the ONLY upgrader (checkpoint option-a)
     } finally {
       await upgraded.close();
     }
+  });
+});
+
+// =============================================================================
+// Phase 9 (09-03) — `account` / `accounts` round-trip, clearData across
+// accounts, and the D-21 purge
+// =============================================================================
+//
+// D-07/D-08 added two fields and NO schema version. This block pins that
+// claim at the storage layer, where it is decided, and pins the D-21 purge's
+// matrix — the casing rule, the meta-untouched rule and the idempotence — by
+// calling the function DIRECTLY, which is the only way to assert the return
+// value and the "an empty database" branch. The worker-level proof that the
+// purge actually runs on load lives in
+// `tests/unit/import/multi-account-lifecycle.test.ts`.
+// =============================================================================
+
+/** One account's entry for the `accounts` argument, with distinct values. */
+function accountMeta(root: string, rows: number): AccountMeta {
+  return {
+    root,
+    categories: [{ name: 'Activity_history', status: 'supported', fileCount: 1, rowCount: rows }],
+    identity: null,
+    files: [
+      { category: 'Player_statistics', sourceFile: `${root}.csv`, rowCount: rows, account: root },
+    ],
+    games: ['WOT'],
+    firstYear: 2012,
+    lastYear: 2026,
+  };
+}
+
+/** One stored row owned by `account`. */
+function ownedRow(category: string, sourceFile: string, account?: string): DatasetRow {
+  return {
+    category,
+    sourceFile,
+    rowIndex: 0,
+    ...(account === undefined ? {} : { account }),
+    data: { ID: account ?? 'legacy' },
+  };
+}
+
+describe('09-03 — account and accounts round-trip with NO version bump (D-07, D-08)', () => {
+  beforeEach(async () => {
+    await db.delete();
+    await db.open();
+  });
+
+  afterAll(async () => {
+    await db.close();
+  });
+
+  test('the installed schema version is still 2 — account is a non-indexed field', () => {
+    expect(db.verno).toBe(2);
+  });
+
+  test('rows and the accounts list round-trip through writeDataset and checkCache', async () => {
+    const accounts = [accountMeta('2000002', 5), accountMeta('500000001', 3)];
+    await writeDataset(
+      'multi-hash'.padEnd(64, 'm'),
+      // D-08: the legacy field is the FIRST account in D-16 order.
+      '2000002',
+      CATEGORIES,
+      [
+        ownedRow('Activity_history', 'WOT_Game_Sessions.csv', '2000002'),
+        ownedRow('Player_statistics', 'WOTB_Vehicle_Statistics.csv', '2000002'),
+        ownedRow('Player_statistics', 'WOTB_Vehicle_Statistics.csv', '500000001'),
+      ],
+      null,
+      null,
+      null,
+      null,
+      accounts,
+    );
+
+    const meta = await checkCache();
+    expect(meta?.accountRoot).toBe('2000002');
+    expect(meta?.accounts).toEqual(accounts);
+    expect(meta?.accounts?.map((a) => a.root)).toEqual(['2000002', '500000001']);
+
+    const rows = await db.rows.toArray();
+    expect(rows).toHaveLength(3);
+    // The SAME file name from two accounts is two stored rows, never one.
+    const shared = rows.filter((r) => r.sourceFile === 'WOTB_Vehicle_Statistics.csv');
+    expect(shared.map((r) => r.account).sort()).toEqual(['2000002', '500000001']);
+  });
+
+  test('a write without the accounts argument leaves meta.accounts null (a v1.0-shaped write)', async () => {
+    // The four-argument call every pre-Phase-9 caller makes must keep
+    // compiling AND keep its meaning: D-22 normalises it into a one-account
+    // list at read time, so nothing downstream branches on the difference.
+    await writeDataset('legacy-shaped'.padEnd(64, 'l'), '123456789', CATEGORIES, makeRows(2));
+    expect((await checkCache())?.accounts).toBeNull();
+  });
+
+  test('clearData removes the rows of EVERY account and the meta record', async () => {
+    await writeDataset(
+      'clear-all'.padEnd(64, 'c'),
+      '2000002',
+      CATEGORIES,
+      [
+        ownedRow('Activity_history', 'WOT_Game_Sessions.csv', '2000002'),
+        ownedRow('Activity_history', 'WOT_Game_Sessions.csv', '500000001'),
+        ownedRow('Player_statistics', 'WOTB_Vehicle_Statistics.csv', '1000000003'),
+      ],
+      null,
+      null,
+      null,
+      null,
+      [accountMeta('2000002', 1), accountMeta('500000001', 1)],
+    );
+    expect(await db.rows.count()).toBe(3);
+
+    await clearData();
+
+    expect(await db.rows.count()).toBe(0);
+    expect(await db.meta.get('active')).toBeUndefined();
+    expect(await checkCache()).toBeNull();
+  });
+});
+
+describe('09-03 — purgeUnsupportedCategoryRows (D-21)', () => {
+  beforeEach(async () => {
+    await db.delete();
+    await db.open();
+  });
+
+  afterAll(async () => {
+    await db.close();
+  });
+
+  /**
+   * Every spelling a SUPPORTED category may carry in the index, and the two
+   * known-deferred ones plus an unknown folder.
+   *
+   * The casing list is the load-bearing half: `classifyFolder` compares
+   * case-insensitively and each distinct spelling is its OWN index key, so
+   * every one of these is judged on its own. A purge that compared a
+   * case-SENSITIVELY against `SUPPORTED` would delete `Activity_HISTORY` rows
+   * and silently shrink a real dataset's playtime.
+   */
+  const SUPPORTED_SPELLINGS = [
+    'Activity_history',
+    'Activity_HISTORY',
+    'activity_history',
+    'FINANCIAL_DATA',
+    'financial_data',
+    'user_info',
+    'USER_INFO',
+    'Player_Statistics',
+  ];
+  const UNSUPPORTED_SPELLINGS = [
+    'Chat_history',
+    'CHAT_HISTORY',
+    'chat_history',
+    'CLANS',
+    'Bans',
+    'Game_Forums',
+    'game_forums',
+    'Some_Folder_This_Build_Never_Heard_Of',
+  ];
+
+  test('deletes the unsupported categories and keeps every supported spelling', async () => {
+    const rows: DatasetRow[] = [
+      ...SUPPORTED_SPELLINGS.map((category, i) =>
+        ownedRow(category, `keep-${i}.csv`, i % 2 === 0 ? '2000002' : undefined),
+      ),
+      ...UNSUPPORTED_SPELLINGS.map((category, i) =>
+        ownedRow(category, `drop-${i}.csv`, i % 2 === 0 ? '2000002' : undefined),
+      ),
+    ];
+    await writeDataset(
+      'purge-matrix'.padEnd(64, 'p'),
+      '2000002',
+      CATEGORIES,
+      rows,
+      null,
+      null,
+      null,
+      null,
+      [accountMeta('2000002', rows.length)],
+    );
+    expect(await db.rows.count()).toBe(rows.length);
+
+    const deleted = await purgeUnsupportedCategoryRows();
+
+    // The returned number IS the deleted row count, not a category count.
+    expect(deleted).toBe(UNSUPPORTED_SPELLINGS.length);
+    const remaining = await db.rows.toArray();
+    expect(remaining.map((r) => r.category).sort()).toEqual([...SUPPORTED_SPELLINGS].sort());
+    for (const category of UNSUPPORTED_SPELLINGS) {
+      expect(remaining.filter((r) => r.category === category)).toHaveLength(0);
+    }
+  });
+
+  test('judges a row by its CATEGORY alone, never by its account stamp', async () => {
+    // Rows with an `account` and rows without one are both judged on category:
+    // the field is Phase 9's provenance, not a filter. A purge that skipped
+    // unstamped rows would leave a whole v1.0 cache's forum rows in place —
+    // which is precisely the population D-21 exists to remove.
+    await writeDataset('purge-stamp'.padEnd(64, 's'), '2000002', CATEGORIES, [
+      ownedRow('Game_Forums', 'stamped.csv', '2000002'),
+      ownedRow('Game_Forums', 'unstamped.csv'),
+      ownedRow('Activity_history', 'stamped-keep.csv', '2000002'),
+      ownedRow('Activity_history', 'unstamped-keep.csv'),
+    ]);
+
+    expect(await purgeUnsupportedCategoryRows()).toBe(2);
+    const remaining = await db.rows.toArray();
+    expect(remaining.map((r) => r.category)).toEqual(['Activity_history', 'Activity_history']);
+  });
+
+  test('leaves the meta record EXACTLY as written', async () => {
+    const accounts = [accountMeta('2000002', 4)];
+    await writeDataset(
+      'purge-meta'.padEnd(64, 'm'),
+      '2000002',
+      CATEGORIES,
+      [ownedRow('Game_Forums', 'forum.csv'), ownedRow('Activity_history', 'keep.csv')],
+      IDENTITY,
+      null,
+      null,
+      STUB_LOGINS,
+      accounts,
+    );
+    const before = (await checkCache())!;
+
+    await purgeUnsupportedCategoryRows();
+
+    // Every field, deep-equal: the category rowCounts the "Not yet supported"
+    // banners render, the skipped counts, the aggregates and the identity.
+    expect(await checkCache()).toEqual(before);
+  });
+
+  test('is idempotent — a second call returns 0 and changes nothing', async () => {
+    await writeDataset('purge-again'.padEnd(64, 'g'), '2000002', CATEGORIES, [
+      ownedRow('Game_Forums', 'forum.csv'),
+      ownedRow('Chat_history', 'chat.csv'),
+      ownedRow('Activity_history', 'keep.csv'),
+    ]);
+
+    expect(await purgeUnsupportedCategoryRows()).toBe(2);
+    const afterFirst = await db.rows.toArray();
+    expect(await purgeUnsupportedCategoryRows()).toBe(0);
+    expect(await db.rows.toArray()).toEqual(afterFirst);
+  });
+
+  test('an empty database returns 0 without throwing', async () => {
+    expect(await db.rows.count()).toBe(0);
+    await expect(purgeUnsupportedCategoryRows()).resolves.toBe(0);
+    expect(await db.meta.count()).toBe(0);
+  });
+
+  test('a database with no unsupported rows is a no-op that keeps every row', async () => {
+    await writeDataset(
+      'purge-none'.padEnd(64, 'n'),
+      '2000002',
+      CATEGORIES,
+      SUPPORTED_SPELLINGS.map((category, i) => ownedRow(category, `keep-${i}.csv`)),
+    );
+    const before = await db.rows.toArray();
+
+    expect(await purgeUnsupportedCategoryRows()).toBe(0);
+    expect(await db.rows.toArray()).toEqual(before);
+  });
+
+  test('the installed schema version is still 2 — a purge is not a migration', () => {
+    expect(db.verno).toBe(2);
   });
 });

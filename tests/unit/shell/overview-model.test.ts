@@ -9,10 +9,16 @@ import {
   IDENTITY_CREATED_LABEL,
   PANE_TITLES,
   ROW_HEADLINE_NONE,
+  ACCOUNT_ROW_MULTI_SUMMARY,
+  ACCOUNT_ROW_SUMMARY,
+  formatAccountCount,
+  formatCreatedDate,
+  formatEarliestCreated,
   formatSectionStatus,
 } from '../../../src/lib/ui-copy.ts';
 import type {
   AccountIdentity,
+  AccountSummary,
   CategoryEntry,
   CategoryStatus,
   ClassifyResult,
@@ -38,7 +44,12 @@ type EntrySpec = [
 
 function resultOf(
   entries: EntrySpec[],
-  extra: { importedAt?: string; identity?: AccountIdentity | null } = {},
+  extra: {
+    importedAt?: string;
+    identity?: AccountIdentity | null;
+    accounts?: AccountSummary[];
+    rootCount?: number;
+  } = {},
 ): ClassifyResult {
   const categories: CategoryEntry[] = entries.map(
     ([name, status, fileCount, rowCount, skippedRowCount]) => ({
@@ -229,5 +240,252 @@ describe('overviewCards', () => {
     )!;
     expect(account.available).toBe(false);
     expect(account.summary).toBe('Not in this export');
+  });
+});
+
+// =============================================================================
+// Phase 9, plan 09-05 — the Account card for two or more accounts
+// =============================================================================
+//
+// "Account created {date}" is a claim about ONE account, so on a dataset
+// holding several it becomes "Earliest account created {date}": the MINIMUM
+// across accounts, never the legacy first-account field. The card title becomes
+// the account count so the Overview says the same thing the header and the list
+// row say.
+//
+// The three account shapes carry ISO, dotted and absent creation dates, so the
+// minimum is one a string comparison would get wrong (`02.03.2015` sorts after
+// every ISO value) and one a `Date` round-trip could shift a day.
+function accountOf(
+  root: string,
+  identity: AccountSummary['identity'],
+  overrides: Partial<AccountSummary> = {},
+): AccountSummary {
+  return { root, identity, games: ['WOT'], firstYear: 2015, lastYear: 2026, ...overrides };
+}
+
+const THREE_ACCOUNTS: AccountSummary[] = [
+  accountOf('2000002', null, { firstYear: null, lastYear: null }),
+  accountOf('500000001', {
+    nickname: 'EU Tanker',
+    region: 'EU',
+    createdAt: '2018-02-14 18:00:00',
+  }),
+  // The dotted shape, and the earliest of the three — a lexicographic
+  // comparison would pick 2018-02-14 instead and name the wrong day.
+  accountOf('1000000003', {
+    nickname: 'NA Commander',
+    region: 'NA',
+    createdAt: '02.03.2015 09:00:00',
+  }),
+];
+
+const MULTI = (): ClassifyResult =>
+  resultOf([...FULL_SUPPORTED, ...UNSUPPORTED], {
+    importedAt: 'stamp-1',
+    identity: IDENTITY,
+    accounts: THREE_ACCOUNTS,
+  });
+
+describe('overviewCards: the Account card with two or more accounts', () => {
+  test('three accounts: the title is the count and the summary is the EARLIEST date', () => {
+    const account = overviewCards(MULTI()).find((card) => card.id === 'account')!;
+    expect(account.available).toBe(true);
+    expect(account.title).toBe('3 accounts');
+    expect(account.summary).toBe('Earliest account created 02.03.2015');
+    // And the summary is the formatter's, not a literal built here.
+    expect(account.summary).toBe(formatEarliestCreated('02.03.2015'));
+  });
+
+  test('the minimum is the earliest, not the legacy identity and not the first account', () => {
+    // `IDENTITY.createdAt` on this fixture is 2015-03-11 and the FIRST account
+    // has no identity at all, so a model that read either of those would name a
+    // different day than the third account's dotted date.
+    const account = overviewCards(MULTI()).find((card) => card.id === 'account')!;
+    expect(account.summary).not.toContain('2015-03-11');
+    expect(account.summary).not.toContain(IDENTITY_CREATED_LABEL);
+  });
+
+  test('two accounts is already multi, and one is byte-identical to v1.0', () => {
+    const two = overviewCards(
+      resultOf([...FULL_SUPPORTED, ...UNSUPPORTED], {
+        importedAt: 'stamp-1',
+        identity: IDENTITY,
+        accounts: THREE_ACCOUNTS.slice(0, 2),
+      }),
+    ).find((card) => card.id === 'account')!;
+    expect(two.title).toBe('2 accounts');
+    expect(two.summary).toBe('Earliest account created 2018-02-14');
+
+    const one = overviewCards(
+      resultOf([...FULL_SUPPORTED, ...UNSUPPORTED], {
+        importedAt: 'stamp-1',
+        identity: IDENTITY,
+        accounts: [THREE_ACCOUNTS[1]!],
+      }),
+    ).find((card) => card.id === 'account')!;
+    expect(one.title).toBe(PANE_TITLES.account);
+    expect(one.summary).toBe(`${IDENTITY_CREATED_LABEL} 2015-03-11`);
+  });
+
+  test("no account's creation date is shown as THE export's date", () => {
+    const account = overviewCards(MULTI()).find((card) => card.id === 'account')!;
+    expect(account.summary).not.toContain('2018-02-14');
+    expect(account.summary).not.toContain('2021-05-10');
+  });
+
+  test('no nickname and no per-account region reaches the card', () => {
+    const account = overviewCards(MULTI()).find((card) => card.id === 'account')!;
+    const rendered = JSON.stringify(account);
+    expect(rendered).not.toContain('EU Tanker');
+    expect(rendered).not.toContain('NA Commander');
+    expect(rendered).not.toContain('Tanker');
+    expect(account.headline).not.toBe('EU');
+    expect(account.headline).not.toBe('NA');
+  });
+
+  test('a multi dataset whose dates all fail to parse says the date is unknown', () => {
+    // The unknown sentence rather than a guess: a card that named a day nobody
+    // wrote would be a statement about the user's own account the data does not
+    // support.
+    const unparseable = [
+      accountOf('2000002', { nickname: 'A', region: 'EU', createdAt: 'not a date' }),
+      accountOf('500000001', { nickname: 'B', region: 'NA', createdAt: null }),
+    ];
+    const account = overviewCards(
+      resultOf([...FULL_SUPPORTED, ...UNSUPPORTED], {
+        importedAt: 'stamp-1',
+        identity: IDENTITY,
+        accounts: unparseable,
+      }),
+    ).find((card) => card.id === 'account')!;
+    expect(account.summary).toBe('Earliest account creation date unknown');
+    expect(account.summary).toBe(formatEarliestCreated(null));
+  });
+
+  test('an UNAVAILABLE account card keeps the row wording, multi or not', () => {
+    const account = overviewCards(
+      resultOf(
+        without('User_Info').map((spec): EntrySpec => spec),
+        { accounts: THREE_ACCOUNTS },
+      ),
+    ).find((card) => card.id === 'account')!;
+    expect(account.available).toBe(false);
+    expect(account.summary).toBe('Not in this export');
+    expect(account.summary).not.toContain('Earliest');
+  });
+
+  test('every other card is unchanged by the account count', () => {
+    const single = overviewCards(SAMPLE());
+    const multi = overviewCards(MULTI());
+    for (const id of OVERVIEW_CARD_IDS) {
+      if (id === 'account') continue;
+      expect(
+        multi.find((card) => card.id === id),
+        `${id} is unchanged`,
+      ).toEqual(single.find((card) => card.id === id));
+    }
+  });
+});
+
+// =============================================================================
+// Phase 9, plan 09-11 — the Account row and card follow the root count
+// =============================================================================
+//
+// An archive of two folders of which one stores nothing publishes ONE account
+// beside `rootCount: 2`. The legacy `identity` is the first folder's, so the
+// row headline (a location code) and the card summary ("Account created ...")
+// must not present it as the export's. The legacy identity here is region `CA`
+// created 2015-03-11, while the one published account is created 2018-02-14, so
+// a card that read the wrong field shows the wrong date instead of passing by
+// coincidence.
+describe('the Account row and card under the root-count rule (09-11)', () => {
+  const PUBLISHED_EU = accountOf('500000001', {
+    nickname: 'EU Tanker',
+    region: 'EU',
+    createdAt: '2018-02-14 18:00:00',
+  });
+  const entries = [...FULL_SUPPORTED, ...UNSUPPORTED];
+  const rowOf = (result: ClassifyResult) =>
+    paneEntries(result).find((entry) => entry.id === 'account')!;
+  const cardOf = (result: ClassifyResult) =>
+    overviewCards(result).find((card) => card.id === 'account')!;
+
+  test('rootCount 2 beside one account: the row is the multi row, never the region', () => {
+    const result = resultOf(entries, {
+      importedAt: 'stamp-1',
+      identity: IDENTITY,
+      accounts: [PUBLISHED_EU],
+      rootCount: 2,
+    });
+    const row = rowOf(result);
+    expect(row.headline).toBe(formatAccountCount(1));
+    expect(row.headline).not.toBe(IDENTITY.region);
+    expect(row.summary).toBe(ACCOUNT_ROW_MULTI_SUMMARY);
+  });
+
+  test('rootCount 2 beside one account: the card names the earliest date, not the legacy one', () => {
+    const result = resultOf(entries, {
+      importedAt: 'stamp-1',
+      identity: IDENTITY,
+      accounts: [PUBLISHED_EU],
+      rootCount: 2,
+    });
+    const card = cardOf(result);
+    expect(card.title).toBe(formatAccountCount(1));
+    expect(card.summary).toBe(formatEarliestCreated('2018-02-14'));
+    expect(card.summary).not.toContain('2015-03-11');
+    expect(card.summary).not.toContain(IDENTITY_CREATED_LABEL);
+  });
+
+  test('rootCount 2 and an empty published list: zero accounts, unknown date', () => {
+    const result = resultOf(entries, {
+      importedAt: 'stamp-1',
+      identity: IDENTITY,
+      accounts: [],
+      rootCount: 2,
+    });
+    expect(rowOf(result).headline).toBe(formatAccountCount(0));
+    const card = cardOf(result);
+    expect(card.title).toBe(formatAccountCount(0));
+    expect(card.summary).toBe(formatEarliestCreated(null));
+  });
+
+  test('rootCount 1 beside one account keeps the v1.0 wording', () => {
+    const result = resultOf(entries, {
+      importedAt: 'stamp-1',
+      identity: IDENTITY,
+      accounts: [PUBLISHED_EU],
+      rootCount: 1,
+    });
+    expect(rowOf(result).headline).toBe('CA');
+    expect(rowOf(result).summary).toBe(ACCOUNT_ROW_SUMMARY);
+    expect(cardOf(result).title).toBe(PANE_TITLES.account);
+    expect(cardOf(result).summary).toBe(
+      `${IDENTITY_CREATED_LABEL} ${formatCreatedDate('2015-03-11 08:30:00')}`,
+    );
+  });
+
+  test('no rootCount beside one account keeps the v1.0 wording', () => {
+    const result = resultOf(entries, {
+      importedAt: 'stamp-1',
+      identity: IDENTITY,
+      accounts: [PUBLISHED_EU],
+    });
+    expect(rowOf(result).headline).toBe('CA');
+    expect(cardOf(result).title).toBe(PANE_TITLES.account);
+  });
+
+  test('no rootCount beside two or three accounts keeps the existing multi wording', () => {
+    const three = cardOf(MULTI());
+    expect(three.title).toBe('3 accounts');
+    expect(rowOf(MULTI()).headline).toBe('3 accounts');
+    const two = resultOf(entries, {
+      importedAt: 'stamp-1',
+      identity: IDENTITY,
+      accounts: THREE_ACCOUNTS.slice(0, 2),
+    });
+    expect(rowOf(two).headline).toBe('2 accounts');
+    expect(cardOf(two).title).toBe('2 accounts');
   });
 });

@@ -32,6 +32,13 @@ import { describe, expect, it } from 'vitest';
 
 import * as fixtures from '../../fixtures/player-stats-fixtures';
 import * as oracle from '../../helpers/vehicle-oracle';
+import {
+  MA_DIVERGENT_VEHICLE_CANONICAL,
+  MA_DIVERGENT_VEHICLE_HEADER,
+  MA_DIVERGENT_VEHICLE_RENAMED,
+} from '../../fixtures/multi-account-fixtures';
+import { WOT_MAIN_HEADER } from '../../fixtures/player-stats-fixtures';
+import { oneAccount } from '../../helpers/row-groups';
 import { parseCsvFile } from '../../../src/lib/worker/csv-parse';
 // Namespace imports on purpose: a symbol that does not exist yet fails the ONE
 // test that uses it instead of crashing the whole file at module resolution,
@@ -87,7 +94,10 @@ function filesFrom(names: readonly string[]): Map<string, VehicleFileFacts> {
   const files = new Map<string, VehicleFileFacts>();
   for (const name of names) {
     const parsed = parseCsvFile(fixtures.PLAYER_STATS_SAMPLE_FILES[name], CATEGORY, name);
-    files.set(name.toLowerCase(), { rows: parsed.rows.map((row) => row.data), seen: true });
+    files.set(name.toLowerCase(), {
+      groups: oneAccount(parsed.rows.map((row) => row.data)),
+      seen: true,
+    });
   }
   return files;
 }
@@ -314,7 +324,7 @@ describe('05-05 tracer: WoT All battles view through the production parser', () 
     // The file WAS in the zip and parsed to no data rows: the table is empty
     // and the header is still real, because the account file still has a row.
     const seenButEmpty = new Map(wotFiles());
-    seenButEmpty.set('wot_vehicle_statistics.csv', { rows: [], seen: true });
+    seenButEmpty.set('wot_vehicle_statistics.csv', { groups: [], seen: true });
     const empty = vehicleStats.buildVehicleView(seenButEmpty, { title: 'wot', battleType: null });
     expect(empty.titleState).toBe('no-rows');
     expect(empty.rows).toEqual([]);
@@ -618,7 +628,7 @@ describe('05-05 the Warplanes view and the 20-file note', () => {
     expect(numberOf(fromNineteen.header?.battles ?? { t: 'x', v: 'missing' })).toBe(4);
 
     const withoutNineteen = new Map(allFiles());
-    withoutNineteen.set('wowp_19_account_statistics.csv', { rows: [], seen: true });
+    withoutNineteen.set('wowp_19_account_statistics.csv', { groups: [], seen: true });
     const fromTwenty = vehicleStats.buildVehicleView(withoutNineteen, {
       title: 'wowp',
       battleType: null,
@@ -637,7 +647,7 @@ describe('05-05 the default title and the title states', () => {
     // WoT's files are there but hold no rows, so the pick moves to the next
     // title that has some.
     const noWotRows = new Map(allFiles());
-    noWotRows.set('wot_vehicle_statistics.csv', { rows: [], seen: true });
+    noWotRows.set('wot_vehicle_statistics.csv', { groups: [], seen: true });
     expect(vehicleStats.buildVehicleView(noWotRows, { title: null, battleType: null }).title).toBe(
       'wotb',
     );
@@ -683,7 +693,7 @@ describe('05-05 the default title and the title states', () => {
     expect(absent.header).toBeNull();
 
     const noRows = new Map(allFiles());
-    noRows.set('wows_ship_statistics.csv', { rows: [], seen: true });
+    noRows.set('wows_ship_statistics.csv', { groups: [], seen: true });
     const empty = vehicleStats.buildVehicleView(noRows, { title: 'wows', battleType: null });
     expect(empty.titleState).toBe('no-rows');
     expect(empty.rows).toEqual([]);
@@ -717,20 +727,22 @@ function watchFiles(
     if (facts === undefined) continue;
     const reads = new Set<string>();
     const listings: number[] = [];
-    const rows = facts.rows.map((row, index) => {
-      listings[index] = 0;
-      return new Proxy(row, {
-        get(target, property, receiver) {
-          if (typeof property === 'string') reads.add(property);
-          return Reflect.get(target, property, receiver);
-        },
-        ownKeys(target) {
-          listings[index] = (listings[index] ?? 0) + 1;
-          return Reflect.ownKeys(target);
-        },
+    const rows = facts.groups
+      .flatMap((group) => group.rows)
+      .map((row, index) => {
+        listings[index] = 0;
+        return new Proxy(row, {
+          get(target, property, receiver) {
+            if (typeof property === 'string') reads.add(property);
+            return Reflect.get(target, property, receiver);
+          },
+          ownKeys(target) {
+            listings[index] = (listings[index] ?? 0) + 1;
+            return Reflect.ownKeys(target);
+          },
+        });
       });
-    });
-    watched.set(name, { rows, seen: facts.seen });
+    watched.set(name, { groups: oneAccount(rows), seen: facts.seen });
     readsByFile.set(name, reads);
     listingsByFile.set(name, listings);
   }
@@ -759,8 +771,10 @@ describe('05-05 the account NAME canary and the one-listing rule', () => {
     // A Blitz account file with three rows, so "only the first row is listed"
     // is a claim about rows 2 and 3 rather than a vacuous one.
     files.set('wotb_account_statistics.csv', {
-      rows: parseCsvFile(MULTI_ROW_ACCOUNT_CSV, CATEGORY, 'WOTB_Account_Statistics.csv').rows.map(
-        (row) => row.data,
+      groups: oneAccount(
+        parseCsvFile(MULTI_ROW_ACCOUNT_CSV, CATEGORY, 'WOTB_Account_Statistics.csv').rows.map(
+          (row) => row.data,
+        ),
       ),
       seen: true,
     });
@@ -807,7 +821,7 @@ describe('05-05 the account NAME canary and the one-listing rule', () => {
 
   it('proves the canary is live by reading the nickname on purpose', () => {
     const watched = watchFiles(allFiles(), ['wot_account_statistics.csv']);
-    const first = watched.files.get('wot_account_statistics.csv')?.rows[0];
+    const first = watched.files.get('wot_account_statistics.csv')?.groups[0]?.rows[0];
 
     // If the trap were dead the assertions above would be vacuous, so the same
     // instrument is pointed at the value it is meant to catch.
@@ -841,7 +855,9 @@ describe('05-05 defensive parsing over drifted headers', () => {
   function withMainFile(csv: string): VehicleFiles {
     const files = filesFrom(['WOT_Account_Statistics.csv']);
     files.set('wot_vehicle_statistics.csv', {
-      rows: parseCsvFile(csv, CATEGORY, 'WOT_Vehicle_Statistics.csv').rows.map((row) => row.data),
+      groups: oneAccount(
+        parseCsvFile(csv, CATEGORY, 'WOT_Vehicle_Statistics.csv').rows.map((row) => row.data),
+      ),
       seen: true,
     });
     return files;
@@ -955,8 +971,10 @@ describe('05-05 hostile ids, clamps and the 5,000-row ceiling', () => {
     ]);
     const files = allFiles();
     files.set('wot_vehicle_statistics_by_type.csv', {
-      rows: parseCsvFile(csv, CATEGORY, 'WOT_Vehicle_Statistics_by_Type.csv').rows.map(
-        (row) => row.data,
+      groups: oneAccount(
+        parseCsvFile(csv, CATEGORY, 'WOT_Vehicle_Statistics_by_Type.csv').rows.map(
+          (row) => row.data,
+        ),
       ),
       seen: true,
     });
@@ -993,8 +1011,125 @@ describe('05-05 hostile ids, clamps and the 5,000-row ceiling', () => {
 function withRaggedMain(csv: string): VehicleFiles {
   const files = filesFrom(['WOT_Account_Statistics.csv']);
   files.set('wot_vehicle_statistics.csv', {
-    rows: parseCsvFile(csv, CATEGORY, 'WOT_Vehicle_Statistics.csv').rows.map((row) => row.data),
+    groups: oneAccount(
+      parseCsvFile(csv, CATEGORY, 'WOT_Vehicle_Statistics.csv').rows.map((r) => r.data),
+    ),
     seen: true,
   });
   return files;
 }
+
+// =============================================================================
+// 09-07 CR-01 — two accounts, one file name, two different headers
+// =============================================================================
+//
+// Written against the MERGED shape on purpose: one flat row list whose second
+// half is spelled differently from its first half is exactly what the pre-09-07
+// reader handed over, and it fails here for the reason the verification report
+// names — `resolveFields(rows[0], ...)` resolves off the first account's header,
+// so the second account's `VEHICLE_NAME` reads as absent and
+// `splitVehicleId(undefined)` yields an empty id.
+// =============================================================================
+
+describe('09-07 CR-01: a file two accounts contribute under different headers', () => {
+  /**
+   * Two groups of one file name, the way the reader hands them over.
+   *
+   * The FIRST group writes `GAMES_PLAYED` where the export writes
+   * `BATTLES_COUNT`. Both spellings are accepted, so resolving off the MERGED
+   * bucket's first row read every canonical row through this account's key and
+   * found nothing — which is how a real value became a "not in export" cell.
+   */
+  function divergentFiles(): VehicleFiles {
+    const renamed = parseCsvFile(
+      fixtures.renderStatsCsv(MA_DIVERGENT_VEHICLE_HEADER, [
+        [
+          MA_DIVERGENT_VEHICLE_RENAMED,
+          '2021-09-30 18:00:00',
+          '100',
+          '55',
+          '120000',
+          '150',
+          '90000',
+        ],
+      ]),
+      CATEGORY,
+      'WOT_Vehicle_Statistics.csv',
+    ).rows.map((row) => row.data);
+    const canonical = parseCsvFile(
+      fixtures.renderStatsCsv(WOT_MAIN_HEADER, [
+        [
+          MA_DIVERGENT_VEHICLE_CANONICAL,
+          '2021-08-01 12:00:00',
+          '100',
+          '55',
+          '120000',
+          '150',
+          '90000',
+        ],
+      ]),
+      CATEGORY,
+      'WOT_Vehicle_Statistics.csv',
+    ).rows.map((row) => row.data);
+
+    const files = filesFrom(['WOT_Account_Statistics.csv']);
+    files.set('wot_vehicle_statistics.csv', {
+      groups: [
+        { account: 'renamed', rows: renamed },
+        { account: 'canonical', rows: canonical },
+      ],
+      seen: true,
+    });
+    return files;
+  }
+
+  it('gives each account its own name and its own battle count', () => {
+    const view = vehicleStats.buildVehicleView(divergentFiles(), {
+      title: 'wot',
+      battleType: null,
+    });
+    expect(view.rows).toHaveLength(2);
+    const byId = new Map(view.rows.map((row) => [row.id, row]));
+
+    // No row of a file that is in the archive carries the empty name
+    // `splitVehicleId(undefined)` produces.
+    expect(view.rows.map((row) => row.id)).not.toContain('');
+    expect(byId.get('SynthDivergentTank-Canonical')!.battles).toBe(100);
+    expect(byId.get('SynthDivergentTank-Renamed')!.battles).toBe(100);
+  });
+
+  it('never blanks one account rows because another account header lacks its columns', () => {
+    // The first group declares NO vehicle column at all — a by_Type-shaped
+    // header under the main file's name, which is the shape that produced the
+    // empty-name bug. Its OWN rows are honestly unnamed; the SECOND account's
+    // rows, which do declare `VEHICLE_NAME`, must keep their names.
+    const files = filesFrom(['WOT_Account_Statistics.csv']);
+    files.set('wot_vehicle_statistics.csv', {
+      groups: [
+        {
+          account: 'headerless',
+          rows: [{ TYPE: '1', BATTLES_COUNT: '7' }],
+        },
+        {
+          account: 'canonical',
+          rows: [
+            {
+              VEHICLE_NAME: MA_DIVERGENT_VEHICLE_CANONICAL,
+              BATTLES_COUNT: '12',
+              WINS_COUNT: '3',
+              DAMAGE_DEALT: '900',
+              FRAGS_COUNT: '4',
+              XP_AMOUNT: '1500',
+            },
+          ],
+        },
+      ],
+      seen: true,
+    });
+
+    const view = vehicleStats.buildVehicleView(files, { title: 'wot', battleType: null });
+    const canonical = view.rows.find((row) => row.id === 'SynthDivergentTank-Canonical');
+    expect(canonical, 'the account that declares the column is not blanked').toBeDefined();
+    expect(canonical!.battles).toBe(12);
+  });
+});

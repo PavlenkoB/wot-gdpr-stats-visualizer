@@ -60,6 +60,83 @@ export interface ClassifyResult {
    * alone never computes it), same convention as `importedAt`.
    */
   identity?: AccountIdentity | null;
+  /**
+   * One entry per account in the export, present on every `ok` result.
+   *
+   * Phase 9 (ACCOUNT-01 / D-08): an export may hold SEVERAL account folders,
+   * so the single `accountRoot` / `identity` pair became one list. The list is
+   * filled in two steps — `analyzeExport` writes one pre-parse entry per root
+   * (`identity: null`, no games, no years, because the classifier never reads a
+   * cell), and the ingest worker replaces those fields once it has parsed.
+   *
+   * ORDER: `analyzeExport` writes code-unit order of the root names, because
+   * D-16 ordering (first activity year ascending) cannot be known at classify
+   * time — years exist only after parsing. The worker re-orders the list in
+   * D-16 order and it is stored that way; a caller that renders the list must
+   * use the order it is given, never re-sort by name.
+   *
+   * Absent on a hand-built `ClassifyResult` (a test fixture or a v1.0 replay
+   * that predates this field), so every consumer must tolerate its absence —
+   * the single-account header and every v1.0 reader keep working without it.
+   *
+   * PRIVACY: nothing in this contract may carry an e-mail address, a birth
+   * date, or any other raw row cell. It is a derived summary of one account,
+   * exactly like {@link AccountIdentity}.
+   */
+  accounts?: AccountSummary[];
+  /**
+   * The number of account folders the archive held, INCLUDING folders that
+   * stored nothing (plan 09-11).
+   *
+   * This is NOT `accounts.length`: the published list counts only the accounts
+   * that hold data (09-10 option-a), so an archive of two folders of which one
+   * stores nothing publishes `rootCount: 2` beside a list of one. The header,
+   * the Account list row and the Overview card decide their VARIANT from this
+   * number, because the legacy `identity` is the first folder's and must never
+   * be presented as the export's; the title, rows and captions keep the
+   * published count.
+   *
+   * Derived at publish time from the stored account list and never persisted.
+   * Absent on a pre-parse result, a hand-built result and a cache read by an
+   * older build, so consumers read it only through `rootCountOf`. It is an
+   * integer: no row cell and no identity rides on it.
+   */
+  rootCount?: number;
+}
+
+/**
+ * One account's derived summary (Phase 9, ACCOUNT-05).
+ *
+ * Filled by the ingest worker at import time and stored on the dataset meta,
+ * so a return visit needs no row scan — the same precedent as
+ * {@link AccountIdentity}. Every field is derived from rows the worker has
+ * already stripped, so no e-mail address, birth date or raw cell can appear
+ * here by construction.
+ */
+export interface AccountSummary {
+  /** The account folder name as the archive spells it (the account id). */
+  root: string;
+  /**
+   * The three-field identity, or `null` when this root parsed NO `User_Info`
+   * row (folder absent, or present but empty). The two absences stay distinct:
+   * `null` is "no identity row exists", while a field that is `null` inside an
+   * object is "the row exists but that column is missing or blank" (D-16).
+   */
+  identity: AccountIdentity | null;
+  /**
+   * The game tokens of this account's `*_Game_Sessions.csv` files that hold at
+   * least one row (D-14), upper-case and code-unit ascending. A game with no
+   * pane yet (HEAT, WOTC) is still listed; an unknown token is listed raw.
+   * `Game_Active_Sessions.csv` names no game and never appears.
+   */
+  games: string[];
+  /**
+   * First and last activity year from this account's session starts (D-15).
+   * Both `null` for an account with no usable sessions, which the UI renders
+   * as "no activity recorded" rather than as a blank.
+   */
+  firstYear: number | null;
+  lastYear: number | null;
 }
 
 /**

@@ -45,6 +45,16 @@ function row(category: string, sourceFile: string, index: number): DatasetRow {
   return { category, sourceFile, rowIndex: index, data: { IDX: String(index) } };
 }
 
+/** The same row, stamped with the account root that owns it (09-07). */
+function accountRow(
+  category: string,
+  sourceFile: string,
+  index: number,
+  account: string,
+): DatasetRow {
+  return { ...row(category, sourceFile, index), account };
+}
+
 beforeEach(reset);
 afterEach(async () => {
   await db.delete();
@@ -84,7 +94,10 @@ describe('readRowsByFile returns only what was asked for', () => {
       'wot_vehicle_statistics.csv',
       'wotb_vehicle_statistics.csv',
     ]);
-    expect(snapshot.rows.get('wot_vehicle_statistics.csv')).toHaveLength(2);
+    // One group per ACCOUNT, each holding that account's rows — so a single
+    // account's file is one group of its own length (09-07).
+    expect(snapshot.rows.get('wot_vehicle_statistics.csv')).toHaveLength(1);
+    expect(snapshot.rows.get('wot_vehicle_statistics.csv')![0]!.rows).toHaveLength(2);
     expect(snapshot.rows.get('wotb_vehicle_statistics.csv')).toHaveLength(1);
   });
 
@@ -106,7 +119,8 @@ describe('readRowsByFile returns only what was asked for', () => {
     const snapshot = await readRowsByFile(new Set(['operations_with_premium_days.csv']), [
       'financial_data',
     ]);
-    expect(snapshot?.rows.get('operations_with_premium_days.csv')).toHaveLength(2);
+    expect(snapshot?.rows.get('operations_with_premium_days.csv')).toHaveLength(1);
+    expect(snapshot?.rows.get('operations_with_premium_days.csv')?.[0]?.rows).toHaveLength(2);
 
     const wrongChannel = await readRowsByFile(new Set(['operations_with_premium_days.csv']), [
       'payment_history',
@@ -127,13 +141,61 @@ describe('readRowsByFile returns only what was asked for', () => {
       'player_statistics',
     ]);
     // A builder that renders "the first row" or numbers rows positionally must
-    // see them in the order the import produced.
-    expect(snapshot?.rows.get('wot_vehicle_statistics.csv')?.map((r) => r.IDX)).toEqual([
-      '0',
-      '1',
-      '2',
-      '3',
+    // see them in the order the import produced: one group, and its rows in
+    // stored order (09-07).
+    const groups = snapshot?.rows.get('wot_vehicle_statistics.csv');
+    expect(groups).toHaveLength(1);
+    expect(groups![0]!.rows.map((r) => r.IDX)).toEqual(['0', '1', '2', '3']);
+  });
+
+  test('groups per account in first-seen order, rows in stored order inside each', async () => {
+    // Two accounts contributing the SAME file name, written out of code-unit
+    // order so the grouping cannot be right by accident: the reader must report
+    // the accounts in the order it FIRST SAW their rows, not sorted (09-07).
+    await writeDataset(
+      'hash-3b',
+      'root',
+      CATEGORIES,
+      [
+        accountRow('Player_statistics', 'WOT_Vehicle_Statistics.csv', 0, 'zzz'),
+        accountRow('Player_statistics', 'WOT_Vehicle_Statistics.csv', 1, 'aaa'),
+        accountRow('Player_statistics', 'WOT_Vehicle_Statistics.csv', 2, 'zzz'),
+      ],
+      null,
+      null,
+    );
+    const snapshot = await readRowsByFile(new Set(['wot_vehicle_statistics.csv']), [
+      'player_statistics',
     ]);
+    const groups = snapshot?.rows.get('wot_vehicle_statistics.csv');
+    expect(groups, 'two accounts, one file name, two groups').toHaveLength(2);
+    expect(groups!.map((group) => group.account)).toEqual(['zzz', 'aaa']);
+    // Rows inside a group keep the order the import produced, so a builder that
+    // renders "the first row" or numbers rows positionally still sees it.
+    expect(groups![0]!.rows.map((r) => r.IDX)).toEqual(['0', '2']);
+    expect(groups![1]!.rows.map((r) => r.IDX)).toEqual(['1']);
+  });
+
+  test('a legacy row with no account falls back to the dataset account root', async () => {
+    // The account-or-legacy rule, stated once in `accountOf` and asserted here:
+    // a v1.0 cache holds no `account`, so every row belongs to the one root.
+    await writeDataset(
+      'hash-3c',
+      'legacy-root',
+      CATEGORIES,
+      [
+        row('Player_statistics', 'WOT_Vehicle_Statistics.csv', 0),
+        accountRow('Player_statistics', 'WOT_Vehicle_Statistics.csv', 1, 'other-root'),
+      ],
+      null,
+      null,
+    );
+    const snapshot = await readRowsByFile(new Set(['wot_vehicle_statistics.csv']), [
+      'player_statistics',
+    ]);
+    const groups = snapshot?.rows.get('wot_vehicle_statistics.csv');
+    expect(groups!.map((group) => group.account)).toEqual(['legacy-root', 'other-root']);
+    expect(groups![0]!.rows).toHaveLength(1);
   });
 
   test('returns the snapshot importedAt and its files list, and null with no dataset', async () => {
@@ -192,7 +254,7 @@ describe('readRowsByFile stays inside its cost ceiling', () => {
 
     expect(snapshot?.rows.size).toBe(4);
     for (const name of names) {
-      expect(snapshot?.rows.get(name)).toHaveLength(250);
+      expect(snapshot?.rows.get(name)?.[0]?.rows).toHaveLength(250);
     }
     expect(elapsed).toBeLessThan(1_000);
   });

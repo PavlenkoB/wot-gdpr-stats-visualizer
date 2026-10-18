@@ -12,6 +12,11 @@ import {
   buildSampleExport,
 } from '../../fixtures/export-fixtures.ts';
 import { analyzeExport, sortCategoryEntries } from '../../../src/lib/worker/classify.ts';
+import {
+  MA_ROOT_EU,
+  MA_ROOT_NA,
+  buildTwoAccountExport,
+} from '../../fixtures/multi-account-fixtures.ts';
 import type { CategoryEntry } from '../../../src/lib/core/types/worker-messages.ts';
 import {
   deleteActiveDatabase,
@@ -336,6 +341,78 @@ describe('05-03 tracer: Financial_data supported on import and on replay', () =>
     await ingestExport(postSpy, buildFinancialExport(), 'financial.zip');
     const meta = await db.meta.get('active');
     expect(meta!.categories.find((c) => c.name === 'Financial_data')).toBeDefined();
+    expect(db.verno).toBe(2);
+  });
+
+  // ---------------------------------------------------------------------------
+  // (Phase 9) the same replay contract, with TWO accounts
+  // ---------------------------------------------------------------------------
+  //
+  // The twin of the two cases above, over the one dataset shape Phase 9 added.
+  // D-20's claim is that `resultFromMeta` is the ONE builder of a `ClassifyResult`
+  // for BOTH replay paths, and a claim proved only on a one-account dataset
+  // would still hold if the account list were built by a second literal on one
+  // of the two paths — which is exactly the drift the helper exists to
+  // prevent. So the equality below is over the accounts list and the merged
+  // category list together, on a two-root archive.
+
+  test('two roots: duplicate and cache-status carry EQUAL categories, counts and accounts', async () => {
+    const bytes = buildTwoAccountExport();
+    const imported = await ingestExport(postSpy, bytes, 'two.zip');
+    expect(imported.type).toBe('done');
+    if (imported.type !== 'done') return;
+
+    postSpy.mockClear();
+    postRequest({ type: 'check-cache', jobId: 7 });
+    const fromCache = await waitForMessage(postSpy, 'cache-status');
+    if (fromCache.type !== 'cache-status') throw new Error('expected cache-status');
+
+    postSpy.mockClear();
+    const duplicate = await ingestExport(postSpy, bytes, 'two-again.zip');
+    expect(duplicate.type).toBe('duplicate');
+    if (fromCache.cached === null || duplicate.type !== 'duplicate') return;
+
+    // Both replay paths, one object: the accounts, the merged categories with
+    // their per-status counts, and the legacy single-account field.
+    expect(duplicate.result.accounts).toEqual(fromCache.cached.accounts);
+    expect(duplicate.result.categories).toEqual(fromCache.cached.categories);
+    expect(duplicate.result.counts).toEqual(fromCache.cached.counts);
+    expect(duplicate.result.accountRoot).toBe(fromCache.cached.accountRoot);
+
+    // And both equal what the IMPORT published, which is the whole of the
+    // replay contract: a page reloaded after a multi-account import shows what
+    // the import showed.
+    expect(fromCache.cached.accounts).toEqual(imported.result.accounts);
+    expect(fromCache.cached.categories).toEqual(imported.result.categories);
+    expect(fromCache.cached.accountRoot).toBe(imported.result.accountRoot);
+
+    // Two accounts, D-16 ordered, so this is not a one-account case in disguise.
+    expect(fromCache.cached.accounts?.map((a) => a.root)).toEqual([MA_ROOT_EU, MA_ROOT_NA]);
+  });
+
+  test('two roots: the D-21 purge does not disturb the replay it precedes', async () => {
+    // The check-cache path now opens a rows-only transaction before reading
+    // meta. This asserts the two do not interfere: the replay still reports
+    // every category with its counts, so a cache's "Not yet supported" banners
+    // keep their numbers after a load.
+    await ingestExport(postSpy, buildTwoAccountExport(), 'two-purge.zip');
+
+    postSpy.mockClear();
+    postRequest({ type: 'check-cache', jobId: 7 });
+    const first = await waitForMessage(postSpy, 'cache-status');
+    if (first.type !== 'cache-status' || first.cached === null) {
+      throw new Error('expected a cached result');
+    }
+
+    postSpy.mockClear();
+    postRequest({ type: 'check-cache', jobId: 8 });
+    const second = await waitForMessage(postSpy, 'cache-status');
+    if (second.type !== 'cache-status' || second.cached === null) {
+      throw new Error('expected a cached result');
+    }
+
+    expect(second.cached).toEqual(first.cached);
+    const { db } = await importWorkerDb();
     expect(db.verno).toBe(2);
   });
 });

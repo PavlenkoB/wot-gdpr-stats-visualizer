@@ -16,12 +16,14 @@ import {
   type PaneId,
 } from '../../../src/lib/shell/selection-state.ts';
 import {
+  ACCOUNT_ROW_MULTI_SUMMARY,
   ACCOUNT_ROW_SUMMARY,
   OVERVIEW_ROW_SUMMARY,
   PANE_TITLES,
   ROW_HEADLINE_NONE,
   UNKNOWN_VALUE,
   UNSUPPORTED_NONE_DETECTED,
+  formatAccountCount,
   formatFolderCount,
   formatRowCount,
   formatRowSummary,
@@ -29,6 +31,7 @@ import {
 } from '../../../src/lib/ui-copy.ts';
 import type {
   AccountIdentity,
+  AccountSummary,
   CategoryEntry,
   CategoryStatus,
   ClassifyResult,
@@ -55,7 +58,11 @@ type EntrySpec = [
 
 function resultOf(
   entries: EntrySpec[],
-  extra: { importedAt?: string; identity?: AccountIdentity | null } = {},
+  extra: {
+    importedAt?: string;
+    identity?: AccountIdentity | null;
+    accounts?: AccountSummary[];
+  } = {},
 ): ClassifyResult {
   const categories: CategoryEntry[] = entries.map(
     ([name, status, fileCount, rowCount, skippedRowCount]) => ({
@@ -279,6 +286,124 @@ describe('paneEntries', () => {
     );
     expect(rowOf(entries, 'playtime').summary).toBe('Activity_history · 1 file');
     expect(JSON.stringify(entries)).not.toContain('USER_INFO');
+  });
+});
+
+// =============================================================================
+// Phase 9, plan 09-05 — the Account row for two or more accounts (D-13)
+// =============================================================================
+//
+// The single-account row says "30 / Location code and creation date", and both
+// halves of that are FALSE of a dataset holding several accounts: no single
+// location code is the dataset's, and no single creation date is. The multi
+// row names the count and describes what the header actually lists instead.
+//
+// Three account shapes are used on purpose, and the differences between them
+// are the point: ISO vs dotted vs absent `createdAt`, distinct regions, one
+// account with no identity at all. A nickname is planted in every one of them,
+// because the row must not read it — the nickname's only home is the header's
+// own per-account row (v1.0 D-21, T-09-20).
+// =============================================================================
+
+/** One account summary, with every field overridable so a shape can be hostile. */
+function accountOf(
+  root: string,
+  identity: AccountSummary['identity'],
+  overrides: Partial<AccountSummary> = {},
+): AccountSummary {
+  return { root, identity, games: ['WOT'], firstYear: 2015, lastYear: 2026, ...overrides };
+}
+
+const TWO_ACCOUNTS: AccountSummary[] = [
+  accountOf('2000002', null, { firstYear: null, lastYear: null }),
+  accountOf('500000001', {
+    nickname: 'EU Tanker',
+    region: 'EU',
+    createdAt: '2018-02-14 18:00:00',
+  }),
+];
+
+const THREE_ACCOUNTS: AccountSummary[] = [
+  ...TWO_ACCOUNTS,
+  accountOf('1000000003', {
+    nickname: 'NA Commander',
+    region: 'NA',
+    createdAt: '2021-05-10 15:00:00',
+  }),
+];
+
+describe('paneEntries: the Account row with two or more accounts', () => {
+  test('three accounts: the headline is the count and the summary names what the header lists', () => {
+    const entries = paneEntries(
+      resultOf(SAMPLE, { importedAt: 'a', identity: IDENTITY, accounts: THREE_ACCOUNTS }),
+    );
+    const account = rowOf(entries, 'account');
+    expect(account.headline).toBe(formatAccountCount(3));
+    expect(account.headline).toBe('3 accounts');
+    expect(account.summary).toBe(ACCOUNT_ROW_MULTI_SUMMARY);
+  });
+
+  test('two accounts is already the multi wording — the threshold is two, not three', () => {
+    const entries = paneEntries(
+      resultOf(SAMPLE, { importedAt: 'a', identity: IDENTITY, accounts: TWO_ACCOUNTS }),
+    );
+    expect(rowOf(entries, 'account').headline).toBe(formatAccountCount(2));
+    expect(rowOf(entries, 'account').summary).toBe(ACCOUNT_ROW_MULTI_SUMMARY);
+  });
+
+  test('an EMPTY accounts list is not multi — it is the v1.0 shape, byte for byte', () => {
+    // `accountCountOf` answers one for an empty list, deliberately: a
+    // hand-built result that predates the field must render exactly as v1.0.
+    const entries = paneEntries(
+      resultOf(SAMPLE, { importedAt: 'a', identity: IDENTITY, accounts: [] }),
+    );
+    expect(rowOf(entries, 'account').headline).toBe('30');
+    expect(rowOf(entries, 'account').summary).toBe(ACCOUNT_ROW_SUMMARY);
+  });
+
+  test('one account is unchanged, headline and summary alike', () => {
+    const entries = paneEntries(
+      resultOf(SAMPLE, { importedAt: 'a', identity: IDENTITY, accounts: [TWO_ACCOUNTS[1]!] }),
+    );
+    expect(rowOf(entries, 'account').headline).toBe('30');
+    expect(rowOf(entries, 'account').summary).toBe(ACCOUNT_ROW_SUMMARY);
+  });
+
+  test("no single account's REGION is presented as the dataset's region", () => {
+    const entries = paneEntries(
+      resultOf(SAMPLE, { importedAt: 'a', identity: IDENTITY, accounts: THREE_ACCOUNTS }),
+    );
+    const account = rowOf(entries, 'account');
+    expect(account.headline).not.toBe('EU');
+    expect(account.headline).not.toBe('NA');
+    // The legacy `identity.region` is '30' on this fixture and must not surface
+    // either, for the same reason: it is ONE account's field.
+    expect(account.headline).not.toBe('30');
+  });
+
+  test('no nickname is read into the row, however the accounts are named', () => {
+    const entries = paneEntries(
+      resultOf(SAMPLE, { importedAt: 'a', identity: IDENTITY, accounts: THREE_ACCOUNTS }),
+    );
+    const rendered = JSON.stringify(rowOf(entries, 'account'));
+    expect(rendered).not.toContain('EU Tanker');
+    expect(rendered).not.toContain('NA Commander');
+  });
+
+  test('every other row is unchanged by the account count', () => {
+    // The same dataset read with and without an account list must differ in the
+    // Account row and NOWHERE else — the caption work must not have moved a
+    // row count, a summary or a muted state.
+    const single = paneEntries(resultOf(SAMPLE, { importedAt: 'a', identity: IDENTITY }));
+    const multi = paneEntries(
+      resultOf(SAMPLE, { importedAt: 'a', identity: IDENTITY, accounts: THREE_ACCOUNTS }),
+    );
+    for (const id of PANE_IDS) {
+      if (id === 'account') continue;
+      expect(rowOf(multi, id), `${id} is unchanged by the account count`).toEqual(
+        rowOf(single, id),
+      );
+    }
   });
 });
 

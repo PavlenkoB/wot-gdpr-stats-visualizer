@@ -159,7 +159,16 @@
           selector or a concatenation (T-05-42). It is the same clamped string
           the view holds, not a lookup and not a name.
         -->
-        {#each summary as row (row.code)}
+        <!--
+          KEYED BY POSITION, not by `row.code` (D-12).
+
+          `WOTB_Battle_Types_Statistics.csv` exists in more than one account
+          root, so the same code arrives once per account and `row.code` is a
+          REPEATED key on a multi-account dataset. A keyed `{#each}` cannot
+          render one. Summing or de-duplicating the codes across accounts is
+          Phase 10's work; until then the two rows are two rows.
+        -->
+        {#each summary as row, index (index)}
           <tr data-testid="battle-type-row" data-code={row.code}>
             <td class="label">{formatBattleTypeLabel(row.code)}</td>
             <td>{cell(row.battles, 'count')}</td>

@@ -17,6 +17,7 @@ import {
   LONG_NICKNAME,
   LONG_UNKNOWN_FOLDER,
   MALFORMED_ROW_EXPECTED_ROW_COUNT,
+  MALFORMED_BANS_CSV,
   MALFORMED_ROW_EXPECTED_SKIPPED_COUNT,
   RAGGED_OVERFLOW_MARKER,
   SAMPLE_ROW_COUNTS,
@@ -81,6 +82,7 @@ import type {
   WorkerScopeLike,
 } from '../../../src/lib/core/types/worker-messages.ts';
 import type { DatasetRow } from '../../../src/lib/worker/db.ts';
+import { parseCsvFile } from '../../../src/lib/worker/csv-parse.ts';
 import { MAX_ENTRY_BYTES } from '../../../src/lib/worker/inflate-bounds.ts';
 
 /** The two worker replies the client bridge routes; both existed at RED. */
@@ -2503,6 +2505,21 @@ describe('01-11 — CR-01: an ambiguous root fails closed through the real worke
 // from "User_Info only" to "any row carrying the header"; T-01-48).
 // =============================================================================
 
+// Phase 9 (D-18) rewrote the three tests in this describe. The worker now
+// parses rows of an unknown category for their COUNTS and does not store them,
+// so a test that asserted "the misfiled copy under `UserInfo/` was persisted
+// with its sensitive columns removed" had nothing left to assert against. Each
+// test keeps its own question and its non-vacuity, restated for the new rule:
+//
+//   - `UserInfo/` and `Weird/` are UNKNOWN categories: their row counts must
+//     still be reported (that is the sentence the UI shows), and zero rows of
+//     theirs may be stored;
+//   - `Activity_history/` is SUPPORTED: its copy is stored and stripped, which
+//     is where the header-keyed strip is now exercised end to end.
+//
+// The whole-dump value scans are unchanged and still carry the weight — a
+// leak is a leak whether the row was dropped by the strip or by D-18, and the
+// tests must not become satisfied by a rule that stops storing rows at all.
 describe('01-13 — CR-01 layer 2: the strip is keyed on the header, not the folder', () => {
   let postSpy: ReturnType<typeof vi.fn>;
   let savedSelf: unknown;
@@ -2531,30 +2548,34 @@ describe('01-13 — CR-01 layer 2: the strip is keyed on the header, not the fol
       buildMisfiledAccountInfoExport(),
       'misfiled-account-info.zip',
     );
-    // Classification accepts the shape: UserInfo, Weird and Misc are unknown
+    // Classification accepts the shape: UserInfo and Weird are unknown
     // categories under the real account root, so the export is not refused.
     expect(terminal.type).toBe('done');
+    if (terminal.type !== 'done') return;
+
+    // Non-vacuity (D-18): the unknown folders are still PARSED, so their counts
+    // are still reported — the sentence the "Not yet supported" pane shows is
+    // not affected by the rows not being stored.
+    for (const name of ['UserInfo', 'Weird']) {
+      const entry = terminal.result.categories.find((c) => c.name === name);
+      expect(entry, `category ${name}`).toBeDefined();
+      expect(entry!.rowCount ?? 0, `rowCount of ${name}`).toBeGreaterThan(0);
+    }
 
     const { db } = await importWorkerDb();
     const all = await db.rows.toArray();
-    const misfiled = {
-      renamedFolder: all.filter((r) => r.category === 'UserInfo'),
-      nestedUnderUnknown: all.filter(
-        (r) => r.category === 'Weird' && r.sourceFile === 'User_Info/Account_Info.csv',
-      ),
-      supportedNotUserInfo: all.filter(
-        (r) => r.category === 'Activity_history' && r.sourceFile === 'Account_Info.csv',
-      ),
-    };
+    // D-18: nothing of an unknown category reaches storage, under either
+    // folder spelling.
+    expect(all.filter((r) => r.category === 'UserInfo')).toHaveLength(0);
+    expect(all.filter((r) => r.category === 'Weird')).toHaveLength(0);
 
-    // Non-vacuity: every misfiled shape produced rows, so the key scan below
-    // has something to scan.
-    expect(misfiled.renamedFolder.length).toBeGreaterThan(0);
-    expect(misfiled.nestedUnderUnknown.length).toBeGreaterThan(0);
-    expect(misfiled.supportedNotUserInfo.length).toBeGreaterThan(0);
-
-    const misfiledRows = Object.values(misfiled).flat();
-    for (const row of misfiledRows) {
+    // The supported-folder copy IS stored, and the header-keyed strip is what
+    // stands between it and IndexedDB — unchanged and root-agnostic (D-19).
+    const supported = all.filter(
+      (r) => r.category === 'Activity_history' && r.sourceFile === 'Account_Info.csv',
+    );
+    expect(supported.length).toBeGreaterThan(0);
+    for (const row of supported) {
       for (const key of Object.keys(row.data)) {
         expect(SENSITIVE_KEY.test(key.trim().toUpperCase()), `key ${key}`).toBe(false);
         expect(key).not.toBe('__parsed_extra');
@@ -2566,9 +2587,7 @@ describe('01-13 — CR-01 layer 2: the strip is keyed on the header, not the fol
     expect(dump).not.toContain(SAMPLE_BIRTH_DATE);
 
     // The strip narrows three columns only: IP is still stored.
-    expect(misfiled.renamedFolder[0]!.data['IP']).toBe(SAMPLE_IP);
-    expect(misfiled.nestedUnderUnknown[0]!.data['IP']).toBe(SAMPLE_IP);
-    expect(misfiled.supportedNotUserInfo[0]!.data['IP']).toBe(SAMPLE_IP);
+    expect(supported[0]!.data['IP']).toBe(SAMPLE_IP);
   });
 
   test('(b) a rootless archive whose User_Info sits beyond the 01-11 depth bound persists without LOGIN or birth columns', async () => {
@@ -2581,19 +2600,17 @@ describe('01-13 — CR-01 layer 2: the strip is keyed on the header, not the fol
     // MAX_WRAPPER_DEPTH), so reaching 'done' documents that only the
     // header-keyed strip stands between the file and IndexedDB.
     expect(terminal.type).toBe('done');
+    if (terminal.type !== 'done') return;
+
+    // Non-vacuity: the account file was parsed under the unknown category, and
+    // D-18 keeps the count even though it keeps none of the rows.
+    const wrapper = terminal.result.categories.find((c) => c.name === 'Wrapper');
+    expect(wrapper, 'category Wrapper').toBeDefined();
+    expect(wrapper!.rowCount ?? 0).toBeGreaterThan(0);
 
     const { db } = await importWorkerDb();
     const all = await db.rows.toArray();
-    const nested = all.filter((r) => r.category === 'Wrapper');
-    // Non-vacuity: the account file was parsed under the unknown category.
-    expect(nested.length).toBeGreaterThan(0);
-
-    for (const row of nested) {
-      for (const key of Object.keys(row.data)) {
-        expect(SENSITIVE_KEY.test(key.trim().toUpperCase()), `key ${key}`).toBe(false);
-      }
-    }
-    expect(nested[0]!.data['IP']).toBe(SAMPLE_IP);
+    expect(all.filter((r) => r.category === 'Wrapper')).toHaveLength(0);
 
     const dump = JSON.stringify({ rows: all, meta: await db.meta.toArray() });
     expect(dump).not.toContain(SAMPLE_LOGIN_DOMAIN);
@@ -2626,12 +2643,28 @@ describe('01-13 — CR-01 layer 2: the strip is keyed on the header, not the fol
 
     // No deny-listed header, outside User_Info: stored exactly as before,
     // overflow bucket included (T-01-49). Sanitising every row would drop it.
-    const ragged = all.filter((r) => r.category === 'Misc' && r.sourceFile === 'Ragged.csv');
+    // The file sits in the SUPPORTED `Activity_history` folder since Phase 9
+    // (D-18) — a control in an unknown folder would no longer be stored at all,
+    // and the assertion would go quiet rather than fail.
+    const ragged = all.filter(
+      (r) => r.category === 'Activity_history' && r.sourceFile === 'Ragged.csv',
+    );
     expect(ragged.length).toBeGreaterThan(0);
     for (const row of ragged) {
       expect((row.data as Record<string, unknown>)['__parsed_extra']).toEqual([
         RAGGED_OVERFLOW_MARKER,
       ]);
+    }
+
+    // The other half of the same rule (D-18): the UNKNOWN folders of this same
+    // fixture are counted and not stored.
+    for (const name of ['UserInfo', 'Weird']) {
+      const entry = terminal.result.categories.find((c) => c.name === name);
+      expect(entry!.rowCount ?? 0, `rowCount of ${name}`).toBeGreaterThan(0);
+      expect(
+        all.filter((r) => r.category === name),
+        `stored rows of ${name}`,
+      ).toHaveLength(0);
     }
 
     // The sample's real User_Info rows are stripped exactly as before.
@@ -2752,22 +2785,37 @@ describe('02-05 -- CR-03: a ragged LOGIN;BIRTH_DATE file persists no sensitive v
 
   test('a User_Info file and a misfiled copy both persist without the email or the birth date', async () => {
     const csv = raggedSensitiveCsv();
+    // The misfiled copy moved from `Weird/` to the SUPPORTED
+    // `Activity_history/` folder in Phase 9 (D-18): a copy under an unknown
+    // folder is counted and dropped now, so the assertion that it is persisted
+    // *stripped* — which is the point of this test — would have nothing to
+    // look at. A second copy stays in `Weird/` as the D-18 control.
     const bytes = buildCustomExport({
       overrides: {
         'User_Info/Account_Info.csv': csv,
+        'Activity_history/Contacts.csv': csv,
         'Weird/Contacts.csv': csv,
       },
     });
     const terminal = await ingestWith(postSpy, bytes, 'ragged-sensitive.zip');
     expect(terminal.type).toBe('done');
+    if (terminal.type !== 'done') return;
 
     const { db } = await importWorkerDb();
     const all = await db.rows.toArray();
 
-    // Non-vacuity: both files produced rows, so the scans below have something
-    // to scan.
+    // Non-vacuity: both SUPPORTED files produced rows, so the scans below have
+    // something to scan.
     expect(all.filter((r) => r.category === 'User_Info').length).toBeGreaterThan(0);
-    expect(all.filter((r) => r.category === 'Weird').length).toBeGreaterThan(0);
+    expect(
+      all.filter((r) => r.category === 'Activity_history' && r.sourceFile === 'Contacts.csv')
+        .length,
+    ).toBeGreaterThan(0);
+    // The unknown folder is counted and not stored.
+    const weird = terminal.result.categories.find((c) => c.name === 'Weird');
+    expect(weird, 'category Weird').toBeDefined();
+    expect(weird!.rowCount ?? 0).toBeGreaterThan(0);
+    expect(all.filter((r) => r.category === 'Weird')).toHaveLength(0);
 
     const dump = JSON.stringify({ rows: all, meta: await db.meta.toArray() });
     expect(dump).not.toContain(SAMPLE_LOGIN_DOMAIN);
@@ -2829,10 +2877,18 @@ describe('02-05 -- CR-01/CR-02: the real-shape malformed Bans file through the r
       expect(entry.skippedRowCount ?? 0, `category ${entry.name} skippedRowCount`).toBe(0);
     }
 
-    // The three surviving rows are the valid ones, in source order.
+    // Phase 9 (D-18): `Bans` is an unknown category, so its rows are parsed for
+    // these counts and never stored. The counts above are therefore read from
+    // the WORKER result — the only place they now exist — and the per-row
+    // values are asserted on the function the worker calls, on the same bytes.
     const { db } = await importWorkerDb();
-    const rows = (await db.rows.toArray()).filter((r) => r.category === 'Bans');
-    expect(rows.map((r) => r.data['BAN_REASON'])).toEqual([
+    expect((await db.rows.toArray()).filter((r) => r.category === 'Bans')).toHaveLength(0);
+
+    const parsed = parseCsvFile(MALFORMED_BANS_CSV, 'Bans', 'Bans.csv');
+    expect(parsed.rows.length).toBe(MALFORMED_ROW_EXPECTED_ROW_COUNT);
+    expect(parsed.skippedCount).toBe(MALFORMED_ROW_EXPECTED_SKIPPED_COUNT);
+    // The three surviving rows are the valid ones, in source order.
+    expect(parsed.rows.map((r) => r.data['BAN_REASON'])).toEqual([
       'reason_alpha',
       'reason_beta',
       'reason_gamma',
@@ -2903,21 +2959,39 @@ describe('02-06 -- W-1: a lookalike LOGIN / BIRTH_DATE header persists no sensit
   for (const c of STRIPPED) {
     test(`stripped: ${c.label} -- User_Info and a misfiled folder persist exactly [ID, NAME]`, async () => {
       const csv = lookalikeCsv(c.login, c.birth);
+      // Phase 9 (D-18): the misfiled copy lives in the SUPPORTED
+      // `Activity_history/` folder, so it is stored and the assertion below has
+      // rows to inspect; a copy in the unknown `Weird/` folder is counted and
+      // dropped, and is asserted as that instead.
       const bytes = buildCustomExport({
-        overrides: { 'User_Info/Account_Info.csv': csv, 'Weird/Contacts.csv': csv },
+        overrides: {
+          'User_Info/Account_Info.csv': csv,
+          'Activity_history/Contacts.csv': csv,
+          'Weird/Contacts.csv': csv,
+        },
       });
       const terminal = await ingestWith(postSpy, bytes, 'lookalike.zip');
       expect(terminal.type).toBe('done');
+      if (terminal.type !== 'done') return;
 
       const { db } = await importWorkerDb();
       const all = await db.rows.toArray();
-      for (const category of ['User_Info', 'Weird']) {
-        const persisted = all.filter((r) => r.category === category);
+      for (const [category, sourceFile] of [
+        ['User_Info', 'Account_Info.csv'],
+        ['Activity_history', 'Contacts.csv'],
+      ]) {
+        const persisted = all.filter((r) => r.category === category && r.sourceFile === sourceFile);
         expect(persisted, `${category} rows`).toHaveLength(8);
         for (const row of persisted) {
           expect(Object.keys(row.data), `${category} key list`).toEqual(['ID', 'NAME']);
         }
       }
+
+      // The D-18 half: counted, reported, not stored.
+      const weird = terminal.result.categories.find((entry) => entry.name === 'Weird');
+      expect(weird, 'Weird category present').toBeDefined();
+      expect(weird!.rowCount ?? 0).toBe(8);
+      expect(all.filter((r) => r.category === 'Weird')).toHaveLength(0);
 
       const dump = JSON.stringify({ rows: all, meta: await db.meta.toArray() });
       expect(dump).not.toContain(SAMPLE_LOGIN_DOMAIN);
@@ -2945,9 +3019,17 @@ describe('02-06 -- W-1: a lookalike LOGIN / BIRTH_DATE header persists no sensit
       expect(weird!.rowCount).toBe(0);
       expect(weird!.skippedRowCount).toBe(8);
 
+      // The SUPPORTED folder's copy is withheld by the 02-05 rule, so it is
+      // stored zero rows too \u2014 which is a DIFFERENT reason from D-18 and is
+      // what keeps this test honest about the withhold itself.
+      const userInfo = terminal.result.categories.find((entry) => entry.name === 'User_Info');
+      expect(userInfo!.rowCount).toBe(0);
+      expect(userInfo!.skippedRowCount).toBe(8);
+
       const { db } = await importWorkerDb();
       const all = await db.rows.toArray();
       expect(all.filter((r) => r.category === 'Weird')).toHaveLength(0);
+      expect(all.filter((r) => r.category === 'User_Info')).toHaveLength(0);
       const dump = JSON.stringify({ rows: all, meta: await db.meta.toArray() });
       expect(dump).not.toContain(SAMPLE_LOGIN_DOMAIN);
       expect(dump).not.toContain(SAMPLE_BIRTH_DATE);
@@ -3017,13 +3099,18 @@ describe('02-06 -- W-2: mixed terminators through the real worker', () => {
 
     expect(bans.rowCount).toBe(4);
     expect(bans.skippedRowCount).toBe(0);
-    expect(rows.map((r) => r.data['BAN_REASON'])).toEqual([
+    // D-18: `Bans` is unknown, so none of those rows is stored. The per-record
+    // assertions move to the function the worker calls, on the same text.
+    expect(rows).toHaveLength(0);
+
+    const parsed = parseCsvFile(text, 'Bans', 'Bans.csv');
+    expect(parsed.rows.map((r) => r.data['BAN_REASON'])).toEqual([
       'reason_1',
       'reason_2',
       'reason_3',
       'reason_4',
     ]);
-    for (const row of rows) {
+    for (const row of parsed.rows) {
       expect(Object.keys(row.data)).toEqual(['BAN_DT', 'BAN_REASON', 'BAN_EXPIRES_AT']);
       for (const value of Object.values(row.data)) {
         expect(String(value)).not.toMatch(/[\r\n]/);
@@ -3048,6 +3135,13 @@ describe('02-06 -- W-2: mixed terminators through the real worker', () => {
 
     expect(bans.rowCount).toBe(3);
     expect(bans.skippedRowCount).toBe(1);
-    expect(rows.map((r) => r.data['BAN_REASON'])).toEqual(['reason_1', 'reason_3', 'reason_4']);
+    expect(rows).toHaveLength(0);
+
+    const parsed = parseCsvFile(text, 'Bans', 'Bans.csv');
+    expect(parsed.rows.map((r) => r.data['BAN_REASON'])).toEqual([
+      'reason_1',
+      'reason_3',
+      'reason_4',
+    ]);
   });
 });

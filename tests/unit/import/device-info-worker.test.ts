@@ -14,6 +14,13 @@ import {
   SAMPLE_EXPECTED_COUNTS,
 } from '../../fixtures/export-fixtures.ts';
 import {
+  buildDivergentHeaderTwoAccountExport,
+  MA_DIVERGENT_CANONICAL_ROOT,
+  MA_DIVERGENT_OS_CANONICAL,
+  MA_DIVERGENT_OS_RENAMED,
+  MA_DIVERGENT_RENAMED_ROOT,
+} from '../../fixtures/multi-account-fixtures.ts';
+import {
   DEVICE_ASSISTANT_CSV,
   DEVICE_ASSISTANT_HEADER_ONLY_CSV,
   DEVICE_BLITZ_CSV,
@@ -51,6 +58,9 @@ import type { DataQuery, IngestResponse } from '../../../src/lib/core/types/work
 
 const RED_TIMEOUT_MS = 1_500;
 
+/** The account a single-account export stamps its rows with (09-07). */
+const SAMPLE_ACCOUNT = '500000001';
+
 const DEVICE_QUERY: DataQuery = { channel: 'device-info' };
 
 let post: WorkerPostSpy;
@@ -69,12 +79,26 @@ function parsed(text: string, sourceFile: string): Record<string, string | undef
   return parseCsvFile(text, 'Device_info', sourceFile).rows.map((r) => r.data);
 }
 
-/** The view the pure builder gives over the fixtures' own parsed rows. */
+/** One account's rows, as the grouped shape the builder now takes (09-07). */
+function oneAccount(
+  text: string,
+  sourceFile: string,
+): { groups: { account: string; rows: Record<string, string | undefined>[] }[]; seen: true } {
+  return { groups: [{ account: SAMPLE_ACCOUNT, rows: parsed(text, sourceFile) }], seen: true };
+}
+
+/**
+ * The view the pure builder gives over the fixtures' own parsed rows.
+ *
+ * One account, one group — the sample export is single-account, so this is the
+ * shape the reader hands over for it and the answer must be byte-identical to
+ * what it was before the grouping (09-07).
+ */
 function expectedView(): DeviceInfoView {
   return buildDeviceInfo({
-    pc: { rows: parsed(DEVICE_PC_CSV, DEVICE_FILE_NAMES.pc), seen: true },
-    blitz: { rows: parsed(DEVICE_BLITZ_CSV, DEVICE_FILE_NAMES.blitz), seen: true },
-    assistant: { rows: parsed(DEVICE_ASSISTANT_CSV, DEVICE_FILE_NAMES.assistant), seen: true },
+    pc: oneAccount(DEVICE_PC_CSV, DEVICE_FILE_NAMES.pc),
+    blitz: oneAccount(DEVICE_BLITZ_CSV, DEVICE_FILE_NAMES.blitz),
+    assistant: oneAccount(DEVICE_ASSISTANT_CSV, DEVICE_FILE_NAMES.assistant),
   });
 }
 
@@ -86,6 +110,16 @@ async function ask(queryId: number): Promise<{ importedAt: string | null; view: 
   if (reply.result === null) throw new Error('expected a result');
   expect(reply.result.channel).toBe('device-info');
   return { importedAt: reply.importedAt, view: reply.result.view as DeviceInfoView };
+}
+
+/** Ask a non-device channel through the same harness. */
+async function askChannel(query: DataQuery): Promise<unknown> {
+  post.mockClear();
+  postRequest({ type: 'data-query', queryId: 41, query });
+  const reply = await waitForMessage(post, 'data-result', RED_TIMEOUT_MS);
+  if (reply.type !== 'data-result') throw new Error('expected data-result');
+  if (reply.result === null) throw new Error('expected a result');
+  return reply.result.view;
 }
 
 describe('261012-bog tracer: Device_info through the real worker and Dexie snapshot', () => {
@@ -282,5 +316,121 @@ describe('261012-bog validation and replay', () => {
     const byName = new Map(status.cached!.categories.map((c) => [c.name, c.status]));
     expect(byName.get('Device_info')).toBe('supported');
     expect(byName.get('Bans')).toBe('unknown');
+  });
+});
+
+// =============================================================================
+// 09-07 tracer (CR-01) — a DIVERGENT per-account header
+// =============================================================================
+//
+// `buildDivergentHeaderTwoAccountExport` writes the same three file NAMES under
+// two roots, and the two copies of each file carry DIFFERENT headers: the first
+// root writes `OS` as `OPERATING_SYSTEM`, `VEHICLE_NAME` as `VEHICLE_ID` and
+// `AMOUNT` as `AMOUNT_VALUE`, while the second root writes the canonical
+// spellings.
+//
+// The renamed root's file is stored FIRST, so a reader that resolved columns
+// from the merged bucket's first row resolved the RENAMED header and reported
+// the second account's values as absent — while its file was plainly in the
+// archive. That is CR-01, and it is a false statement about the user's own data
+// (DATA-04), not a rendering nicety.
+//
+// These cases are driven through the real worker and Dexie rather than at the
+// builder, because the defect was invisible at the builder: a builder handed one
+// account's rows resolves its columns correctly. It is the SEAM that lost the
+// other account.
+// =============================================================================
+
+describe('09-07 CR-01: two accounts whose same-named files disagree on a header', () => {
+  it('shows the second account own values, not the first account header keys', async () => {
+    const terminal = await ingestExport(
+      post,
+      buildDivergentHeaderTwoAccountExport(),
+      'divergent.zip',
+    );
+    expect(terminal.type).toBe('done');
+    if (terminal.type !== 'done') throw new Error('expected done');
+    // Two accounts, or the fixture is not testing what its name says.
+    expect(terminal.result.accounts).toHaveLength(2);
+
+    const { view } = await ask(31);
+    expect(view.pc.status).toBe('ready');
+    if (view.pc.status !== 'ready') throw new Error('pc not ready');
+
+    // The second account's `OS` cell, which the posted view must carry. On the
+    // pre-change reader the canonical root's rows were read through the renamed
+    // root's keys, so this was `null` for BOTH rows.
+    const osIndex = view.pc.columns.indexOf('os');
+    const osCells = view.pc.rows.map((row) => row[osIndex]);
+    expect(osCells).toContain(MA_DIVERGENT_OS_CANONICAL);
+    expect(osCells).not.toContain(MA_DIVERGENT_OS_RENAMED);
+
+    // And the account that DID rename the column is reported honestly: its own
+    // header declares no column the app reads, so its cell is `null` rather
+    // than the other account's value read through the wrong key.
+    const renamedRows = view.pc.rows.filter((_, i) => osCells[i] !== MA_DIVERGENT_OS_CANONICAL);
+    expect(renamedRows).toHaveLength(1);
+    expect(renamedRows[0]![osIndex]).toBeNull();
+
+    // rowCount counts EVERY group's rows, so a per-group resolution never
+    // drops a row off the table.
+    expect(view.pc.rowCount).toBe(2);
+    expect(view.pc.rows).toHaveLength(2);
+  });
+
+  it('carries the second account vehicles and currency through the real channels too', async () => {
+    await ingestExport(post, buildDivergentHeaderTwoAccountExport(), 'divergent.zip');
+
+    const vehicles = (await askChannel({
+      channel: 'vehicles',
+      title: 'wot',
+      battleType: null,
+    })) as {
+      rows: { id: string; battles: number | null }[];
+    };
+    // Both accounts' rows, and NEITHER of them blanked by the other's header.
+    const ids = vehicles.rows.map((row) => row.id);
+    expect(ids).not.toContain('');
+    expect(ids).toContain('SynthDivergentTank-Canonical');
+    expect(ids).toContain('SynthDivergentTank-Renamed');
+    expect(vehicles.rows.every((row) => row.battles === 100)).toBe(true);
+
+    const currency = (await askChannel({ channel: 'currency' })) as {
+      status: string;
+      excluded: number;
+      charts: { code: string; inUnits: string }[];
+      others: { code: string; inUnits: string }[];
+    };
+    expect(currency.status).toBe('ready');
+    const crystal = [...currency.charts, ...currency.others].filter(
+      (entry) => entry.code === 'ru.wot.crystal',
+    );
+    // The canonical account's amount survived its own `AMOUNT` key. On the
+    // pre-change reader the renamed root's first row resolved `AMOUNT` to null
+    // and BOTH operations were excluded, so the currency answered `no-usable`.
+    expect(crystal, 'the shared currency is answered').toHaveLength(1);
+    expect(BigInt(crystal[0]!.inUnits)).toBeGreaterThanOrEqual(BigInt('4000000'));
+  });
+
+  it('the reader returns one group per account, each carrying its own first-row keys', async () => {
+    await ingestExport(post, buildDivergentHeaderTwoAccountExport(), 'divergent.zip');
+    const { readRowsByFile } = await importWorkerDb();
+
+    const snapshot = await readRowsByFile(new Set(['wot_device_info.csv']), ['device_info']);
+    expect(snapshot).not.toBeNull();
+    if (snapshot === null) return;
+
+    const groups = snapshot!.rows.get('wot_device_info.csv');
+    // TWO groups for one file name — the merged single array is the defect.
+    expect(groups).toHaveLength(2);
+    // In first-seen account order, and each group's first row carries its OWN
+    // header key rather than the other account's.
+    expect(groups!.map((group) => group.account)).toEqual([
+      MA_DIVERGENT_RENAMED_ROOT,
+      MA_DIVERGENT_CANONICAL_ROOT,
+    ]);
+    expect(Object.keys(groups![0]!.rows[0]!)).toContain('OPERATING_SYSTEM');
+    expect(Object.keys(groups![1]!.rows[0]!)).toContain('OS');
+    expect(groups![1]!.rows[0]!.OS).toBe(MA_DIVERGENT_OS_CANONICAL);
   });
 });

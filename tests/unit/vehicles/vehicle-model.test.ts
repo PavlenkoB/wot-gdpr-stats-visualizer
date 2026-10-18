@@ -27,6 +27,7 @@ import { describe, expect, it } from 'vitest';
 import * as fixtures from '../../fixtures/player-stats-fixtures';
 import * as oracle from '../../helpers/vehicle-oracle';
 import { parseCsvFile } from '../../../src/lib/worker/csv-parse';
+import { oneAccount } from '../../helpers/row-groups';
 // Namespace imports on purpose: a symbol that does not exist yet fails the ONE
 // test that uses it instead of crashing the whole file at module resolution,
 // which is what makes the RED run readable.
@@ -69,7 +70,10 @@ function filesFrom(names: readonly string[]): Map<string, VehicleFileFacts> {
   const files = new Map<string, VehicleFileFacts>();
   for (const name of names) {
     const parsed = parseCsvFile(fixtures.PLAYER_STATS_SAMPLE_FILES[name], CATEGORY, name);
-    files.set(name.toLowerCase(), { rows: parsed.rows.map((row) => row.data), seen: true });
+    files.set(name.toLowerCase(), {
+      groups: oneAccount(parsed.rows.map((row) => row.data)),
+      seen: true,
+    });
   }
   return files;
 }
@@ -95,7 +99,9 @@ function rawIdOf(row: VehicleRow): string {
 function withMain(csv: string): VehicleFiles {
   const files = filesFrom(['WOT_Account_Statistics.csv']);
   files.set('wot_vehicle_statistics.csv', {
-    rows: parseCsvFile(csv, CATEGORY, 'WOT_Vehicle_Statistics.csv').rows.map((row) => row.data),
+    groups: oneAccount(
+      parseCsvFile(csv, CATEGORY, 'WOT_Vehicle_Statistics.csv').rows.map((r) => r.data),
+    ),
     seen: true,
   });
   return files;

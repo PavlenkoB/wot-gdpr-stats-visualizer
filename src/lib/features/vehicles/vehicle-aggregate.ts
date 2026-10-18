@@ -69,7 +69,7 @@
  * Threats: T-05-12..T-05-15.
  */
 
-import { cell, headerKey } from '../../worker/csv-columns.ts';
+import { cell, headerKey, type AccountRowGroup } from '../../worker/csv-columns.ts';
 import { parseSessionTimestamp } from '../playtime/playtime-aggregate';
 import {
   MAX_BATTLE_TYPE_CODES,
@@ -174,15 +174,21 @@ export const VEHICLE_FILE_NAMES: ReadonlySet<string> = new Set(
 
 /**
  * What the reader knows about one file: whether it was in the zip at all, and
- * the rows the production parser produced.
+ * the rows the production parser produced — grouped per ACCOUNT.
  *
- * `seen` is separate from `rows.length` on purpose, and the difference is a
+ * `seen` is separate from the row count on purpose, and the difference is a
  * title state (D-05): a file that was never in the zip is `not-in-export`, a
  * file that was in it and parsed to no data rows is `no-rows`, and only the
  * second one has a header worth showing.
+ *
+ * The grouping is load-bearing, not bookkeeping (CR-01). Every resolution in
+ * this module walks the FIRST row's keys, and two accounts' same-named files
+ * carry their own headers — resolving off one account's row made the other's
+ * `VEHICLE_NAME` read as absent and `splitVehicleId(undefined)` produce the
+ * empty name for every row.
  */
 export interface VehicleFileFacts {
-  rows: readonly VehicleRowData[];
+  groups: readonly AccountRowGroup<VehicleRowData>[];
   seen: boolean;
 }
 
@@ -197,12 +203,61 @@ export interface VehicleViewRequest {
 
 /** The facts of one file, or an UNSEEN stand-in when the zip had none. */
 function factsOf(files: VehicleFiles, name: string): VehicleFileFacts {
-  return files.get(name) ?? { rows: [], seen: false };
+  return files.get(name) ?? { groups: [], seen: false };
 }
 
-/** The rows of one file, or an empty list when the zip had no such file. */
-function rowsOf(files: VehicleFiles, name: string | null): readonly VehicleRowData[] {
-  return name === null ? [] : factsOf(files, name).rows;
+/** The per-account groups of one file, or none when the zip had no such file. */
+function groupsOf(
+  files: VehicleFiles,
+  name: string | null,
+): readonly AccountRowGroup<VehicleRowData>[] {
+  return name === null ? [] : factsOf(files, name).groups;
+}
+
+/** How many rows a file holds across EVERY account's group (D-11 adds them up). */
+function rowCountOf(groups: readonly AccountRowGroup<VehicleRowData>[]): number {
+  let total = 0;
+  for (const group of groups) total += group.rows.length;
+  return total;
+}
+
+/**
+ * Each group's resolved field keys, from that group's OWN first row.
+ *
+ * One key enumeration per group rather than per row, which keeps the T-05-12
+ * Proxy canary honest — the count grew with the number of ACCOUNTS, never with
+ * the number of rows.
+ */
+function resolvedByGroup(
+  groups: readonly AccountRowGroup<VehicleRowData>[],
+  fields: readonly RawField[],
+): Map<string, string | null>[] {
+  return groups.map((group) => resolveFields(group.rows[0], fields));
+}
+
+/**
+ * What the accounts resolved BETWEEN them: a field counts as resolved when ANY
+ * group resolved it, so a column only the second account's header carries is
+ * still listed.
+ *
+ * The VALUES here are never used to read a cell — {@link mapRow} takes the
+ * group's OWN map — and {@link listColumns} only tests for null. That is what
+ * makes a union the right shape for the COLUMN LIST and the wrong one for a
+ * cell: a key taken from another account's header is absent from this account's
+ * rows, which is exactly the defect one layer down.
+ */
+function unionResolved(maps: readonly Map<string, string | null>[]): Map<string, string | null> {
+  const union = new Map<string, string | null>();
+  // Seeded from the FIRST map, NULLS INCLUDED: `resolveFields` gives every field
+  // an entry, and `listColumns` asks `fields.get(id) !== null`, so an id left
+  // absent would read as resolved rather than as not-in-export.
+  for (const [id, key] of maps[0] ?? []) union.set(id, key);
+  for (const map of maps) {
+    for (const [id, key] of map) {
+      if (key !== null && union.get(id) === null) union.set(id, key);
+    }
+  }
+  return union;
 }
 
 // ---------------------------------------------------------------------------
@@ -719,17 +774,24 @@ function compareCodes(a: string, b: string): number {
  * them, which bounds both the `<select>` and the work a corrupt file can cost.
  * The codes are read as strings, never named (D-07): the export contains no
  * document that says what code 3 is.
+ *
+ * The list is the UNION of the accounts' code lists, each read through its own
+ * group's resolved `type` key (CR-01), de-duplicated and then sorted by the same
+ * comparator a single account's list has always been sorted by — so a
+ * same-header fixture produces a byte-identical list.
  */
 function battleTypeCodes(
-  rows: readonly VehicleRowData[],
-  fields: Map<string, string | null>,
+  groups: readonly AccountRowGroup<VehicleRowData>[],
+  maps: readonly Map<string, string | null>[],
 ): string[] {
-  const key = fields.get('type') ?? null;
-  if (key === null) return [];
   const distinct = new Set<string>();
-  for (const row of rows) {
-    if (distinct.size >= MAX_BATTLE_TYPE_CODES) break;
-    distinct.add(codeOf(row[key]));
+  for (let g = 0; g < groups.length && distinct.size < MAX_BATTLE_TYPE_CODES; g++) {
+    const key = maps[g]?.get('type') ?? null;
+    if (key === null) continue;
+    for (const row of groups[g]!.rows) {
+      if (distinct.size >= MAX_BATTLE_TYPE_CODES) break;
+      distinct.add(codeOf(row[key]));
+    }
   }
   return [...distinct].sort(compareCodes);
 }
@@ -757,14 +819,23 @@ function buildSummary(
   // A title with no codes has no battle-type table to summarise, and the
   // summary and the filter are shown and hidden together (UI-SPEC section 3).
   if (codes.length === 0) return [];
-  const rows = rowsOf(files, TITLE_FILES[title].battleTypes);
-  const fields = resolveFields(rows[0], [TYPE_FIELD, BATTLES_FIELD, WINS_FIELD, DAMAGE_FIELD]);
-  const summary = rows.map((row) => ({
-    code: codeOf(cell(row, fields.get('type') ?? null)),
-    battles: readNumber(row, fields.get('battles') ?? null),
-    wins: readNumber(row, fields.get('wins') ?? null),
-    damage: readNumber(row, fields.get('damage') ?? null),
-  }));
+  const groups = groupsOf(files, TITLE_FILES[title].battleTypes);
+  const fields = [TYPE_FIELD, BATTLES_FIELD, WINS_FIELD, DAMAGE_FIELD];
+  // Per group, from that group's own first row (CR-01). The rows of every group
+  // are then sorted together, which is what keeps a code two accounts both
+  // wrote ONE summary row with rather than two (D-12).
+  const summary: BattleTypeSummaryRow[] = [];
+  for (const group of groups) {
+    const keys = resolveFields(group.rows[0], fields);
+    for (const row of group.rows) {
+      summary.push({
+        code: codeOf(cell(row, keys.get('type') ?? null)),
+        battles: readNumber(row, keys.get('battles') ?? null),
+        wins: readNumber(row, keys.get('wins') ?? null),
+        damage: readNumber(row, keys.get('damage') ?? null),
+      });
+    }
+  }
   summary.sort((a, b) => {
     const usableA = a.battles.t === 'n';
     const usableB = b.battles.t === 'n';
@@ -788,16 +859,20 @@ function buildSummary(
  * would be indistinguishable from a real zero battle.
  */
 function buildWowp20Note(files: VehicleFiles): Warplanes20Note | null {
-  const rows = rowsOf(files, 'wowp_20_plane_statistics.csv');
-  if (rows.length === 0) return null;
-  const fields = resolveFields(rows[0], [WOWP20_BATTLES_FIELD]);
-  const key = fields.get('battles') ?? null;
+  const groups = groupsOf(files, 'wowp_20_plane_statistics.csv');
+  const records = rowCountOf(groups);
+  if (records === 0) return null;
+  // Per group, from that group's own first row (CR-01), and the totals add up
+  // across accounts (D-11) exactly as the rows themselves do.
   let battles = 0;
-  for (const row of rows) {
-    const cellOfRow = readNumber(row, key);
-    if (cellOfRow.t === 'n') battles += cellOfRow.v;
+  for (const group of groups) {
+    const key = resolveFields(group.rows[0], [WOWP20_BATTLES_FIELD]).get('battles') ?? null;
+    for (const row of group.rows) {
+      const cellOfRow = readNumber(row, key);
+      if (cellOfRow.t === 'n') battles += cellOfRow.v;
+    }
   }
-  return { records: rows.length, battles };
+  return { records, battles };
 }
 
 /** Build one row's cell for a direct column, by its kind. */
@@ -867,16 +942,22 @@ function mapRow(
  */
 function buildHeader(files: VehicleFiles, title: VehicleTitleId): VehicleHeader | null {
   for (const name of TITLE_FILES[title].accounts) {
-    const facts = factsOf(files, name);
-    const first = facts.rows[0];
-    // A file that was in the zip but holds no row is not a header, and the
-    // next account file in the list gets its turn.
-    if (first === undefined) continue;
-    const fields = resolveFields(first, [BATTLES_FIELD, PREMIUM_EXPIRY_FIELD]);
-    return {
-      battles: readNumber(first, fields.get('battles') ?? null),
-      premiumExpires: expiryCell(first, fields.get('premiumExpires') ?? null),
-    };
+    // The FIRST account's header, not a merge of them: the header is one
+    // account's lifetime figure rather than a table (D-13), and Phase 10 owns
+    // whatever a per-account header should say. What matters here is only that
+    // the row is read through ITS OWN group's keys (CR-01) — which, for one
+    // account, is the row the pre-fix reader read.
+    for (const group of factsOf(files, name).groups) {
+      const first = group.rows[0];
+      // A file that was in the zip but holds no row is not a header, and the
+      // next account file in the list gets its turn.
+      if (first === undefined) continue;
+      const fields = resolveFields(first, [BATTLES_FIELD, PREMIUM_EXPIRY_FIELD]);
+      return {
+        battles: readNumber(first, fields.get('battles') ?? null),
+        premiumExpires: expiryCell(first, fields.get('premiumExpires') ?? null),
+      };
+    }
   }
   return null;
 }
@@ -912,7 +993,7 @@ function buildOverview(files: VehicleFiles): TitleOverview[] {
     // because each of them is a fact the selector's "(not in this export)"
     // suffix would otherwise contradict (D-05).
     present: ownedFiles(title).some((name) => factsOf(files, name).seen),
-    rows: rowsOf(files, TITLE_FILES[title].main).length,
+    rows: rowCountOf(groupsOf(files, TITLE_FILES[title].main)),
   }));
 }
 
@@ -970,19 +1051,29 @@ export function buildVehicleView(files: VehicleFiles, request: VehicleViewReques
     };
   }
 
-  // The by_Type file is resolved ONCE whether or not a code is applied: the
-  // filter's code list comes out of the same first row the table would read, so
-  // a file costs one key listing rather than one per view (T-05-12).
-  const byTypeRows = rowsOf(files, names.byType);
-  const byTypeFields = resolveFields(byTypeRows[0], [...TITLE_SPECS[title].raw, TYPE_FIELD]);
-  const codes = battleTypeCodes(byTypeRows, byTypeFields);
+  // The by_Type file is resolved ONCE PER GROUP whether or not a code is applied:
+  // the filter's code list comes out of the same first row the table would read,
+  // so a file costs one key listing per ACCOUNT rather than one per view
+  // (T-05-12), and each account resolves its own spelling (CR-01).
+  const byTypeGroups = groupsOf(files, names.byType);
+  const byTypeMaps = resolvedByGroup(byTypeGroups, [...TITLE_SPECS[title].raw, TYPE_FIELD]);
+  const codes = battleTypeCodes(byTypeGroups, byTypeMaps);
   const applied =
     request.battleType !== null && codes.includes(request.battleType) ? request.battleType : null;
 
   if (applied !== null) {
     const spec = TITLE_SPECS[title];
-    const listed = listColumns(spec, byTypeFields);
-    const typeKey = byTypeFields.get('type') ?? null;
+    // The COLUMN LIST is the union of what the accounts resolved, so a column
+    // only the second account's header carries is still shown; each row is then
+    // read through its OWN group's keys.
+    const listed = listColumns(spec, unionResolved(byTypeMaps));
+    const rows: VehicleRow[] = [];
+    for (let g = 0; g < byTypeGroups.length; g++) {
+      const typeKey = byTypeMaps[g]!.get('type') ?? null;
+      for (const row of byTypeGroups[g]!.rows) {
+        if (codeOf(cell(row, typeKey)) === applied) rows.push(mapRow(row, byTypeMaps[g]!, listed));
+      }
+    }
     return {
       overview,
       title,
@@ -994,16 +1085,18 @@ export function buildVehicleView(files: VehicleFiles, request: VehicleViewReques
       wowp20: null,
       allBattlesOnly: false,
       columns: listed.map(toColumn),
-      rows: byTypeRows
-        .filter((row) => codeOf(cell(row, typeKey)) === applied)
-        .map((row) => mapRow(row, byTypeFields, listed)),
+      rows,
     };
   }
 
   const spec = allBattlesSpec(title);
-  const mainRows = rowsOf(files, names.main);
-  const fields = resolveFields(mainRows[0], spec.raw);
-  const columns = listColumns(spec, fields);
+  const mainGroups = groupsOf(files, names.main);
+  const mainMaps = resolvedByGroup(mainGroups, spec.raw);
+  const columns = listColumns(spec, unionResolved(mainMaps));
+  const rows: VehicleRow[] = [];
+  for (let g = 0; g < mainGroups.length; g++) {
+    for (const row of mainGroups[g]!.rows) rows.push(mapRow(row, mainMaps[g]!, columns));
+  }
 
   return {
     overview,
@@ -1019,6 +1112,6 @@ export function buildVehicleView(files: VehicleFiles, request: VehicleViewReques
     wowp20: title === 'wowp' ? buildWowp20Note(files) : null,
     allBattlesOnly: title === 'wows',
     columns: columns.map(toColumn),
-    rows: mainRows.map((row) => mapRow(row, fields, columns)),
+    rows,
   };
 }

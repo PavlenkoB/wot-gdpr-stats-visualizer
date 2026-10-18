@@ -2195,3 +2195,119 @@ describe('261012-bog Device info copy', () => {
     expect(playtimeCopy.formatDeviceTableLabel('PC hardware')).toBe('PC hardware table');
   });
 });
+
+// =============================================================================
+// Phase 9, plan 09-04 — the multi-account identity header's copy
+// =============================================================================
+//
+// Every string the multi variant shows, pinned to the UI-SPEC Surface 1 /
+// Copywriting Contract wording, and every formatter's edge: the empty games
+// list, the one-year range, the unknown token, the duplicate token.
+//
+// The file is the ONE owner of user-visible wording, so a paraphrase is a
+// deliberate edit to one of these assertions rather than a silent change to a
+// sentence a user reads. The `namespace` import (`playtimeCopy`) is what makes
+// a RED run report a failing value rather than a module-load link error.
+describe('Phase 9: the multi-account identity header copy', () => {
+  test('the list label, the two fact labels and the no-activity sentence', () => {
+    expect(playtimeCopy.IDENTITY_MULTI_LIST_LABEL).toBe('Accounts in this export');
+    expect(playtimeCopy.IDENTITY_GAMES_LABEL).toBe('Games');
+    expect(playtimeCopy.IDENTITY_ACTIVITY_LABEL).toBe('Activity');
+    expect(playtimeCopy.IDENTITY_NO_ACTIVITY).toBe('No activity recorded');
+  });
+
+  test('the Account list row summary names what a row carries, not a region', () => {
+    expect(playtimeCopy.ACCOUNT_ROW_MULTI_SUMMARY).toBe(
+      "Each account's ID, games and activity years",
+    );
+    // The single-account summary is a location code and a date; showing either
+    // here would present one account's facts as the export's (UI-SPEC Surface 3).
+    expect(playtimeCopy.ACCOUNT_ROW_MULTI_SUMMARY).not.toContain('Location');
+    expect(playtimeCopy.ACCOUNT_ROW_MULTI_SUMMARY).not.toContain('creation date');
+  });
+
+  test('the account count has a singular for exactly one and a plural for the rest', () => {
+    // One is reachable since 09-11: an archive of several folders in which only
+    // one stores data. Zero is reachable when none does.
+    expect(playtimeCopy.formatAccountCount(0)).toBe('0 accounts');
+    expect(playtimeCopy.formatAccountCount(1)).toBe('1 account');
+    expect(playtimeCopy.formatAccountCount(2)).toBe('2 accounts');
+    expect(playtimeCopy.formatAccountCount(3)).toBe('3 accounts');
+  });
+
+  test('the combined caption names what the PANE is showing, not the dataset', () => {
+    expect(playtimeCopy.formatCombinedCaption(2)).toBe('2 accounts combined');
+    expect(playtimeCopy.formatCombinedCaption(3)).toBe('3 accounts combined');
+    // Distinct from the header's title: a pane that read "3 accounts" would be
+    // indistinguishable from the header above it.
+    expect(playtimeCopy.formatCombinedCaption(3)).not.toBe(playtimeCopy.formatAccountCount(3));
+  });
+
+  test('the year range joins with an en dash and no spaces', () => {
+    // The dash is written as U+2013 in ui-copy.ts; a plain hyphen would read as
+    // a minus sign and be announced as one.
+    expect(playtimeCopy.formatActivityYears(2014, 2026)).toBe('2014–2026');
+    expect(playtimeCopy.formatActivityYears(2014, 2026)).not.toContain(' ');
+    expect(playtimeCopy.formatActivityYears(2014, 2026)).not.toContain('-');
+  });
+
+  test('one year reads alone, and a null last year falls back to the first', () => {
+    expect(playtimeCopy.formatActivityYears(2021, 2021)).toBe('2021');
+    expect(playtimeCopy.formatActivityYears(2021, null)).toBe('2021');
+  });
+
+  test('the earliest-created summary has an unknown-date sentence', () => {
+    expect(playtimeCopy.formatEarliestCreated(null)).toBe('Earliest account creation date unknown');
+    expect(playtimeCopy.formatEarliestCreated('2018-02-14')).toBe(
+      'Earliest account created 2018-02-14',
+    );
+  });
+
+  test('the long game names map the six known tokens', () => {
+    expect(playtimeCopy.formatGameLongName('WOT')).toBe('World of Tanks');
+    expect(playtimeCopy.formatGameLongName('WOTB')).toBe('WoT Blitz');
+    expect(playtimeCopy.formatGameLongName('WOWS')).toBe('World of Warships');
+    expect(playtimeCopy.formatGameLongName('WOTC')).toBe('WoT Console');
+    expect(playtimeCopy.formatGameLongName('HEAT')).toBe('World of Tanks HEAT');
+    // WOWP is in the long table although D-14 lists five names, so a Warplanes
+    // session shows a name rather than a raw token (UI-SPEC recorded choice).
+    expect(playtimeCopy.formatGameLongName('WOWP')).toBe('World of Warplanes');
+  });
+
+  test('an unknown game token is returned unchanged', () => {
+    // The token comes from an untrusted archive FILE NAME and is already
+    // bounded to letters, digits and underscores; there is no error path.
+    expect(playtimeCopy.formatGameLongName('XYZ')).toBe('XYZ');
+    expect(playtimeCopy.formatGameLongName('WOWP_19')).toBe('WOWP_19');
+  });
+
+  test('an account list orders known games by the fixed order, de-duplicated, unknowns last', () => {
+    expect(playtimeCopy.formatAccountGames(['HEAT', 'WOT', 'XYZ', 'WOTB', 'WOT'])).toBe(
+      'World of Tanks, WoT Blitz, World of Tanks HEAT, XYZ',
+    );
+  });
+
+  test('the account list puts WOTC and WOWP in the declared positions', () => {
+    expect(playtimeCopy.formatAccountGames(['WOWP', 'WOTC', 'WOWS'])).toBe(
+      'World of Warships, WoT Console, World of Warplanes',
+    );
+  });
+
+  test('two unknown tokens sort in code-unit order, never by locale', () => {
+    // `localeCompare` would make the order depend on the viewer's locale, so
+    // two people could read one export's rows in a different order.
+    expect(playtimeCopy.formatAccountGames(['ZZ', 'AA', 'MM'])).toBe('AA, MM, ZZ');
+  });
+
+  test('an empty games list is the empty string, and the caller omits the row', () => {
+    expect(playtimeCopy.formatAccountGames([])).toBe('');
+  });
+
+  test('the existing short labels are unchanged', () => {
+    // The existing panes read GAME_NAMES in a column headed "Game"; a long name
+    // there would wrap, which is why there are two tables.
+    expect(playtimeCopy.formatGameName('WOT')).toBe('WoT');
+    expect(playtimeCopy.formatGameName('WOWS')).toBe('Warships');
+    expect(playtimeCopy.formatGames(['WOT', 'WOWS'])).toBe('WoT, Warships');
+  });
+});

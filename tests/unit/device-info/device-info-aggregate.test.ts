@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import { oneAccount } from '../../helpers/row-groups';
 import {
   buildDeviceInfo,
   extractAssistantFields,
@@ -265,14 +266,32 @@ describe('reduceBlobRow and hasBlobColumn', () => {
 });
 
 describe('buildDeviceInfo', () => {
+  // One account, one group: the shape the reader hands over for a
+  // single-account export (09-07).
   const input = {
-    pc: { rows: PC_ROWS, seen: true },
-    blitz: { rows: BLITZ_ROWS, seen: true },
-    assistant: { rows: ASSISTANT_ROWS.map((r) => reduceBlobRow(r)), seen: true },
+    pc: { groups: oneAccount(PC_ROWS), seen: true },
+    blitz: { groups: oneAccount(BLITZ_ROWS), seen: true },
+    assistant: { groups: oneAccount(ASSISTANT_ROWS.map((r) => reduceBlobRow(r))), seen: true },
   } as const;
 
+  /**
+   * Build over the shared input with per-source overrides.
+   *
+   * An override may hand its rows as `rows` (a single account's flat list, which
+   * is what most of these cases are about) and it is wrapped into the one group
+   * the builder now takes (09-07) — so a case about N/D cells or a `__proto__`
+   * header keeps stating what it states without restating the shape.
+   */
   function build(overrides: Partial<Record<'pc' | 'blitz' | 'assistant', unknown>> = {}) {
-    return buildDeviceInfo({ ...input, ...overrides } as never);
+    const merged = { ...input, ...overrides } as Record<string, { rows?: unknown; seen?: unknown }>;
+    for (const source of Object.values(merged)) {
+      if (source !== undefined && Array.isArray(source.rows)) {
+        (source as { groups: unknown }).groups = oneAccount(
+          source.rows as Record<string, string | undefined>[],
+        );
+      }
+    }
+    return buildDeviceInfo(merged as never);
   }
 
   test('the contracts name the PD-10 columns and the three lower-cased file names', () => {
@@ -359,16 +378,16 @@ describe('buildDeviceInfo', () => {
   });
 
   test('table statuses: not-in-export, no-rows and no-usable', () => {
-    const notIn = build({ blitz: { rows: [], seen: false } });
+    const notIn = build({ blitz: { groups: [], seen: false } });
     expect(notIn.blitz).toEqual({ status: 'not-in-export' });
     expect(notIn.pc.status).toBe('ready');
 
-    const empty = build({ blitz: { rows: [], seen: true } });
+    const empty = build({ blitz: { groups: [], seen: true } });
     expect(empty.blitz).toEqual({ status: 'no-rows' });
 
     // Rows that carry none of the expected columns.
     const unusable = build({
-      pc: { rows: [{ SOMETHING: 'a' }, { SOMETHING: 'b' }], seen: true },
+      pc: { groups: oneAccount([{ SOMETHING: 'a' }, { SOMETHING: 'b' }]), seen: true },
     });
     expect(unusable.pc).toEqual({ status: 'no-usable', rowCount: 2, unreadable: 2 });
   });
@@ -407,7 +426,7 @@ describe('buildDeviceInfo', () => {
   });
 
   test('every text value is clamped', () => {
-    const view = build({ pc: { rows: [{ PC_TYPE: 'x'.repeat(500) }], seen: true } });
+    const view = build({ pc: { groups: oneAccount([{ PC_TYPE: 'x'.repeat(500) }]), seen: true } });
     if (view.pc.status !== 'ready') throw new Error('pc not ready');
     expect(view.pc.rows[0]![0]).toHaveLength(MAX_DEVICE_TEXT);
   });
@@ -423,8 +442,8 @@ describe('buildDeviceInfo', () => {
       { ROW_STATE: 'unreadable' },
     ];
     const legacy = [{ POST: DEVICE_BLOBS[0]!.blob }, { POST: 'not a blob' }];
-    const a = build({ assistant: { rows: stored, seen: true } }).assistant;
-    const b = build({ assistant: { rows: legacy, seen: true } }).assistant;
+    const a = build({ assistant: { groups: oneAccount(stored), seen: true } }).assistant;
+    const b = build({ assistant: { groups: oneAccount(legacy), seen: true } }).assistant;
     expect(a).toEqual(b);
     if (a.status !== 'ready') throw new Error('assistant not ready');
     expect(a.rows).toEqual([['SynthPhone', 'SynthAssistant', 'SynthDroid', '9.9.1']]);
@@ -433,7 +452,9 @@ describe('buildDeviceInfo', () => {
   });
 
   test('a row with only some stored fields shows the rest as not reported', () => {
-    const view = build({ assistant: { rows: [{ APP: 'SynthAssistant' }], seen: true } });
+    const view = build({
+      assistant: { groups: oneAccount([{ APP: 'SynthAssistant' }]), seen: true },
+    });
     if (view.assistant.status !== 'ready') throw new Error('assistant not ready');
     expect(view.assistant.rows).toEqual([[null, 'SynthAssistant', null, null]]);
   });
@@ -447,10 +468,10 @@ describe('buildDeviceInfo', () => {
   test('a header-only Assistant file is no-rows, and an absent one not-in-export', () => {
     const headerOnly = parse(DEVICE_ASSISTANT_HEADER_ONLY_CSV, 'WOT_Assistant_Device_Info.csv');
     expect(headerOnly).toEqual([]);
-    expect(build({ assistant: { rows: headerOnly, seen: true } }).assistant).toEqual({
+    expect(build({ assistant: { groups: oneAccount(headerOnly), seen: true } }).assistant).toEqual({
       status: 'no-rows',
     });
-    expect(build({ assistant: { rows: [], seen: false } }).assistant).toEqual({
+    expect(build({ assistant: { groups: [], seen: false } }).assistant).toEqual({
       status: 'not-in-export',
     });
   });

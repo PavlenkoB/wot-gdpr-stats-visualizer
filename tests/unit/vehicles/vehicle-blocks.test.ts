@@ -40,6 +40,7 @@ import { describe, expect, test } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import * as fixtures from '../../fixtures/player-stats-fixtures';
 import { parseCsvFile } from '../../../src/lib/worker/csv-parse';
+import { oneAccount } from '../../helpers/row-groups';
 import { buildVehicleView } from '../../../src/lib/features/vehicles/vehicle-aggregate';
 import type { VehicleFileFacts } from '../../../src/lib/features/vehicles/vehicle-aggregate';
 import type { VehicleView } from '../../../src/lib/features/vehicles/vehicle-shared';
@@ -229,7 +230,10 @@ describe('05-12 Task 1 — the windowed table: native semantics, the two spacers
           'Player_statistics',
           name,
         );
-        files.set(name.toLowerCase(), { rows: parsed.rows.map((row) => row.data), seen: true });
+        files.set(name.toLowerCase(), {
+          groups: oneAccount(parsed.rows.map((row) => row.data)),
+          seen: true,
+        });
       }
       const view: VehicleView = buildVehicleView(files, { title: titleId, battleType: null });
 

@@ -5,7 +5,6 @@ import {
   DEVICE_SOURCES,
 } from '../features/device-info/device-info-shared.ts';
 import { buildCurrency, buildPremium, buildSpend } from '../features/finance/finance-aggregate.ts';
-import type { FinanceRow } from '../features/finance/finance-shared.ts';
 import {
   buildVehicleView,
   VEHICLE_FILE_NAMES,
@@ -13,6 +12,7 @@ import {
   type VehicleFiles,
 } from '../features/vehicles/vehicle-aggregate.ts';
 import type { DataQuery, DataResult } from '../core/types/worker-messages.ts';
+import type { AccountRowGroup } from './csv-columns.ts';
 import type { RowsSnapshot } from './db.ts';
 import { MAX_BATTLE_TYPE_LENGTH, VEHICLE_TITLES } from '../features/vehicles/vehicle-shared.ts';
 
@@ -129,12 +129,30 @@ function isPresent(snapshot: RowsSnapshot, name: string, categories: readonly st
     (file) => file.sourceFile.toLowerCase() === name && wanted.has(file.category.toLowerCase()),
   );
   if (listed) return true;
-  // A file can be absent from a CAPPED presence list and still have rows.
-  return (snapshot.rows.get(name)?.length ?? 0) > 0;
+  // A file can be absent from a CAPPED presence list and still have rows. The
+  // count is the sum over every account's group, because the bucket is grouped
+  // per account rather than being one flat row list.
+  return rowCountOf(snapshot.rows.get(name)) > 0;
 }
 
-/** The rows of one channel file, or an empty list when it held none. */
-function rowsOf(snapshot: RowsSnapshot, name: string): readonly FinanceRow[] {
+/** How many rows a grouped file holds, summed over its accounts. */
+function rowCountOf(groups: readonly AccountRowGroup[] | undefined): number {
+  if (groups === undefined) return 0;
+  let total = 0;
+  for (const group of groups) total += group.rows.length;
+  return total;
+}
+
+/**
+ * ONE account's rows of one channel file — the unit every builder resolves
+ * within, and the only way a builder reaches a row.
+ *
+ * This module is the SINGLE seam between the reader and the five builders (CR-01):
+ * no builder may reach `snapshot.rows` itself, because the grouping is what stops
+ * one account's column keys standing in for another's. A builder handed a group
+ * resolves that group's columns from that group's own first row.
+ */
+function groupsOf(snapshot: RowsSnapshot, name: string): readonly AccountRowGroup[] {
   return snapshot.rows.get(name) ?? [];
 }
 
@@ -152,7 +170,7 @@ function vehicleFilesOf(snapshot: RowsSnapshot): VehicleFiles {
   const files = new Map<string, VehicleFileFacts>();
   for (const name of VEHICLE_FILE_NAMES) {
     files.set(name, {
-      rows: snapshot.rows.get(name) ?? [],
+      groups: groupsOf(snapshot, name),
       seen: isPresent(snapshot, name, categories),
     });
   }
@@ -239,7 +257,7 @@ export function answerDataQuery(query: DataQuery, snapshot: RowsSnapshot): DataR
       return {
         channel: 'premium',
         view: buildPremium(
-          rowsOf(snapshot, name),
+          groupsOf(snapshot, name),
           isPresent(snapshot, name, DATA_FILES.premium.categories),
         ),
       };
@@ -249,13 +267,13 @@ export function answerDataQuery(query: DataQuery, snapshot: RowsSnapshot): DataR
       return {
         channel: 'currency',
         view: buildCurrency(
-          rowsOf(snapshot, name),
+          groupsOf(snapshot, name),
           isPresent(snapshot, name, DATA_FILES.currency.categories),
         ),
       };
     }
     case 'spend':
-      return { channel: 'spend', view: buildSpend(rowsOf(snapshot, ORDERS_FILE)) };
+      return { channel: 'spend', view: buildSpend(groupsOf(snapshot, ORDERS_FILE)) };
     case 'vehicles':
       return {
         channel: 'vehicles',
@@ -272,7 +290,7 @@ export function answerDataQuery(query: DataQuery, snapshot: RowsSnapshot): DataR
       // cell, so the blob is not exposed on that path either (PD-03).
       const categories = DATA_FILES['device-info'].categories;
       const source = (id: (typeof DEVICE_SOURCES)[number]) => ({
-        rows: rowsOf(snapshot, DEVICE_FILE_KEYS[id]),
+        groups: groupsOf(snapshot, DEVICE_FILE_KEYS[id]),
         seen: isPresent(snapshot, DEVICE_FILE_KEYS[id], categories),
       });
       return {

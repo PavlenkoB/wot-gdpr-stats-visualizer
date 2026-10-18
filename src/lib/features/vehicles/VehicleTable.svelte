@@ -324,7 +324,22 @@
       <tr class="spacer" aria-hidden="true" bind:this={topSpacerEl}>
         <td colspan={columns.length}></td>
       </tr>
-      {#each drawn as { row, index } (row.id)}
+      <!--
+        KEYED BY POSITION, not by `row.id` (D-12).
+
+        `WOTB_Vehicle_Statistics.csv` exists in EVERY account root, so once the
+        worker's merged view holds two or more accounts the same vehicle id
+        arrives more than once. A keyed `{#each}` cannot render a repeated key:
+        Svelte drops one of the two rows and, in dev, throws. Phase 9 does not
+        sum, merge or de-duplicate across accounts — that is Phase 10 — so the
+        honest shape here is two separate rows for one vehicle, which only a
+        positional key can express.
+
+        The key is the WINDOW's position, not the row's: `drawn` is a slice of
+        the sorted view, so re-sorting produces a new window and every row is
+        rebuilt, which is what keeps the virtualised scroller honest.
+      -->
+      {#each drawn as { row, index } (index)}
         <tr
           data-testid="vehicle-row"
           data-battles={row.battles ?? ''}

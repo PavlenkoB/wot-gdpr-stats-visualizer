@@ -29,9 +29,32 @@ import {
   isOsMetadataEntry,
   normalizeEntryPath,
   resolveCsvFileCategory,
+  resolveCsvFileOwner,
 } from '../../../src/lib/worker/classify.ts';
 import { listEntryPaths } from '../../../src/lib/worker/zip-paths.ts';
 import { classifyFolder } from '../../../src/lib/worker/categories.ts';
+import {
+  MA_LONG_ROOT,
+  MA_README_FILES,
+  MA_ROOT_RU,
+  MA_ROOTS_CODE_UNIT_ORDER,
+  buildCaseCollisionRootsExport,
+  buildCaseVariantUserInfoAcrossRootsExport,
+  buildDuplicateNicknameExport,
+  buildHostileRootNamesExport,
+  buildLongRootNameExport,
+  buildLongTextAccountsExport,
+  buildManyRootsExport,
+  buildNoActivityAccountsExport,
+  buildOneAccountExport,
+  buildRealShapeThreeAccountExport,
+  buildStrayFolderExport,
+  buildTiedYearsExport,
+  buildTopLevelCategoryBesideRootsExport,
+  buildTwoAccountExport,
+  buildWrappedTwoAccountExport,
+  buildWrappedTwoAccountWithLooseFileExport,
+} from '../../fixtures/multi-account-fixtures.ts';
 
 // =============================================================================
 // analyzeExport / classifyExport / detectRoot / categoryFoldersUnder — pure tests
@@ -270,9 +293,17 @@ describe('analyzeExport — failure reasons', () => {
     expect(outcome).toEqual({ ok: false, reason: 'empty-archive' });
   });
 
-  test('buildMultiRootZip → no-single-root', () => {
+  test('buildMultiRootZip → ok with two roots (Phase 9 flips the v1.0 rejection on purpose, D-01)', () => {
+    // Phase 9 flips this on purpose. v1.0 read two top-level account folders as
+    // `no-single-root` and showed the generic banner; the user's own export has
+    // three of them. The name is kept because this builder is the minimal
+    // two-root shape every other assertion below still uses.
     const outcome = analyzeExport(pathsOf(buildMultiRootZip()));
-    expect(outcome).toEqual({ ok: false, reason: 'no-single-root' });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.roots.map((r) => r.root)).toEqual(['123456789', '987654321']);
+    expect(outcome.result.accounts).toHaveLength(2);
+    expect(outcome.result.accountRoot).toBe('123456789');
   });
 
   test('buildSingleFileZip → no-single-root (a lone top-level file is not a root)', () => {
@@ -304,12 +335,15 @@ describe('classifyExport — back-compat wrapper (01-01 compatibility)', () => {
     expect(sample).toEqual(outcome.result);
   });
 
-  test('returns null for every failure case', () => {
+  test('returns null for every failure case, and a result for the multi-root archive Phase 9 accepts', () => {
     expect(classifyExport(pathsOf(buildEmptyZip()))).toBeNull();
-    expect(classifyExport(pathsOf(buildMultiRootZip()))).toBeNull();
     expect(classifyExport(pathsOf(buildSingleFileZip()))).toBeNull();
     expect(classifyExport(pathsOf(buildFilesOnlyUnderRootZip()))).toBeNull();
     expect(classifyExport(pathsOf(buildNoRecognizedCategoryZip()))).toBeNull();
+    // Phase 9, D-01: two sibling account roots are an account set, not a
+    // failure, so the back-compat wrapper returns a result here for the first
+    // time. The four nulls above still are the whole failure surface.
+    expect(classifyExport(pathsOf(buildMultiRootZip()))).not.toBeNull();
   });
 });
 
@@ -540,10 +574,9 @@ describe('analyzeExport — depth-tolerant detection (G-01-20)', () => {
       ok: false,
       reason: 'empty-archive',
     });
-    expect(analyzeExport(pathsOf(buildMultiRootZip()))).toEqual({
-      ok: false,
-      reason: 'no-single-root',
-    });
+    // Phase 9 flips this one on purpose (D-01): a two-account archive is no
+    // longer a failure, so it is asserted HERE rather than among the reasons.
+    expect(analyzeExport(pathsOf(buildMultiRootZip())).ok).toBe(true);
     expect(analyzeExport(pathsOf(buildSingleFileZip()))).toEqual({
       ok: false,
       reason: 'no-single-root',
@@ -683,10 +716,9 @@ describe('analyzeExport — priority inversion + empty-root guard (CR-01 / WR-06
       ok: false,
       reason: 'empty-archive',
     });
-    expect(analyzeExport(pathsOf(buildMultiRootZip()))).toEqual({
-      ok: false,
-      reason: 'no-single-root',
-    });
+    // Phase 9 flips this one on purpose (D-01): a two-account archive is no
+    // longer a failure, so it is asserted HERE rather than among the reasons.
+    expect(analyzeExport(pathsOf(buildMultiRootZip())).ok).toBe(true);
     expect(analyzeExport(pathsOf(buildSingleFileZip()))).toEqual({
       ok: false,
       reason: 'no-single-root',
@@ -846,10 +878,9 @@ describe('analyzeExport — ambiguous root fails closed (CR-01 / W-1, plan 01-11
       ok: false,
       reason: 'empty-archive',
     });
-    expect(analyzeExport(pathsOf(buildMultiRootZip()))).toEqual({
-      ok: false,
-      reason: 'no-single-root',
-    });
+    // Phase 9 flips this one on purpose (D-01): a two-account archive is no
+    // longer a failure, so it is asserted HERE rather than among the reasons.
+    expect(analyzeExport(pathsOf(buildMultiRootZip())).ok).toBe(true);
     expect(analyzeExport(pathsOf(buildFilesOnlyUnderRootZip()))).toEqual({
       ok: false,
       reason: 'no-category-folders',
@@ -885,5 +916,528 @@ describe('analyzeExport — a recognized folder with no CSV data is rejected (wi
 
   test('a real-shape export is unaffected', () => {
     expect(analyzeExport(pathsOf(buildSampleExport())).ok).toBe(true);
+  });
+});
+
+// =============================================================================
+// Phase 9 tracer: several account roots
+// =============================================================================
+//
+// Why this block exists (09-01-PLAN Task 1):
+//   v1.0 rejected the user's own three-account export as `no-single-root`,
+//   because `detectRoot` accepts exactly one distinct first segment. Phase 9
+//   replaces that with an N-root resolver (D-01..D-05) plus a per-file owner
+//   (D-06). The rule is the fail-closed gate that keeps a `User_Info` folder
+//   under a parent the classifier did not recognise as an account root from
+//   skipping the LOGIN / BIRTH_DATE strip, so it is the most expensive thing
+//   in the phase to get wrong and to change later.
+//
+//   These five tests drive the REAL shape end to end, from zip bytes to a
+//   per-file owner: three account folders at the top level with no wrapper,
+//   beside two loose Readme PDFs (D-05), each with directory entries and
+//   repeating the same file names as the real archive does.
+//
+//   The cost bounds (`MAX_ACCOUNT_ROOTS`, `MAX_ROOT_NAME_LENGTH`) and every
+//   reject rule live in the "Phase 9 accept matrix" / "Phase 9 reject matrix"
+//   describes below, in 09-01 Task 2.
+// =============================================================================
+
+describe('Phase 9 tracer: several account roots', () => {
+  /** The real-shape archive's entry names, once, for every test here. */
+  function realShapeEntries(reversed = false): string[] {
+    return listEntryPaths(buildRealShapeThreeAccountExport({ reversed }));
+  }
+
+  test('the real-shape three-account zip classifies ok into three attributed accounts', () => {
+    const outcome = analyzeExport(realShapeEntries());
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    expect(outcome.roots.map((r) => r.root)).toEqual([...MA_ROOTS_CODE_UNIT_ORDER]);
+    expect(outcome.result.accounts?.map((a) => a.root)).toEqual([...MA_ROOTS_CODE_UNIT_ORDER]);
+    // Pre-parse: the classifier never reads a cell, so identity and years are
+    // empty and only the folder names are known. D-16 ordering is applied by
+    // the worker (plan 09-02), because years exist only after parsing.
+    for (const account of outcome.result.accounts ?? []) {
+      expect(account.identity).toBeNull();
+      expect(account.games).toEqual([]);
+      expect(account.firstYear).toBeNull();
+      expect(account.lastYear).toBeNull();
+    }
+    // The legacy single-account field stays the FIRST root in code-unit order.
+    expect(outcome.result.accountRoot).toBe(MA_ROOTS_CODE_UNIT_ORDER[0]);
+  });
+
+  test('merged categories hold each folder name once, with the roots counts summed', () => {
+    const outcome = analyzeExport(realShapeEntries());
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const names = outcome.result.categories.map((c) => c.name);
+    expect(new Set(names).size).toBe(names.length);
+
+    for (const category of outcome.result.categories) {
+      const sum = outcome.roots
+        .map((r) => r.categories.find((c) => c.name === category.name)?.fileCount ?? 0)
+        .reduce((a, b) => a + b, 0);
+      expect(category.fileCount, `merged count for ${category.name}`).toBe(sum);
+      expect(category.fileCount, `${category.name} counts no loose file`).toBeGreaterThan(0);
+    }
+
+    // The two loose PDFs and every directory entry contribute no file: the
+    // file counts above are exactly the roots' own category counts.
+    const resolvedCsvs = realShapeEntries().filter((p) => p.toLowerCase().endsWith('.csv'));
+    const totalFiles = outcome.result.categories.reduce((a, c) => a + c.fileCount, 0);
+    expect(totalFiles).toBe(resolvedCsvs.length);
+  });
+
+  test('every CSV entry resolves to its own root, category and source file', () => {
+    const entries = realShapeEntries();
+    const outcome = analyzeExport(entries);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const recognized = new Set(outcome.result.categories.map((c) => c.name));
+    const roots = new Set(MA_ROOTS_CODE_UNIT_ORDER);
+    const perCategory = new Map<string, number>();
+
+    for (const entry of entries) {
+      const owner = resolveCsvFileOwner(entry, roots, recognized);
+      if (!entry.toLowerCase().endsWith('.csv') || entry.endsWith('/')) {
+        // Loose PDFs and directory entries are never inflated (D-05).
+        expect(owner, `${entry} must not resolve`).toBeNull();
+        continue;
+      }
+      const segments = entry.split('/');
+      expect(owner, `${entry} must resolve`).not.toBeNull();
+      expect(owner?.root).toBe(segments[0]);
+      expect(owner?.category).toBe(segments[1]);
+      expect(owner?.sourceFile).toBe(segments.slice(2).join('/'));
+      perCategory.set(owner!.category, (perCategory.get(owner!.category) ?? 0) + 1);
+    }
+
+    // D-06: the inflate filter and the category counts cannot diverge.
+    for (const category of outcome.result.categories) {
+      expect(perCategory.get(category.name) ?? 0, `rows for ${category.name}`).toBe(
+        category.fileCount,
+      );
+    }
+  });
+
+  test('entry order in the zip does not change the outcome', () => {
+    const forward = analyzeExport(realShapeEntries(false));
+    const reversed = analyzeExport(realShapeEntries(true));
+    expect(forward.ok).toBe(true);
+    expect(reversed.ok).toBe(true);
+    if (!forward.ok || !reversed.ok) return;
+    expect(deepEqual(reversed, forward)).toBe(true);
+  });
+
+  test('the one-root archive is one account and agrees with the one-root resolver', () => {
+    const entries = listEntryPaths(buildOneAccountExport());
+    const outcome = analyzeExport(entries);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    expect(outcome.roots).toHaveLength(1);
+    expect(outcome.result.accounts).toHaveLength(1);
+    const root = outcome.roots[0]!.root;
+    expect(root).toBe(outcome.result.accountRoot);
+
+    const recognized = new Set(outcome.result.categories.map((c) => c.name));
+    for (const entry of entries) {
+      const owner = resolveCsvFileOwner(entry, new Set([root]), recognized);
+      const one = resolveCsvFileCategory(entry, root, recognized);
+      expect(owner?.category).toBe(one?.category);
+      expect(owner?.sourceFile).toBe(one?.sourceFile);
+    }
+
+    // The same shared file names appear in every root, so the repeat is real.
+    expect(entries.filter((p) => p.endsWith('WOTB_Vehicle_Statistics.csv'))).toHaveLength(1);
+  });
+
+  test('the real-shape archive carries the loose Readme PDFs beside the roots', () => {
+    const entries = realShapeEntries();
+    for (const name of MA_README_FILES) expect(entries).toContain(name);
+    // …and the archive still classifies, which is the whole point of D-05.
+    expect(analyzeExport(entries).ok).toBe(true);
+  });
+});
+
+// =============================================================================
+// Phase 9 accept / reject / agreement matrices (09-01 Task 2)
+// =============================================================================
+//
+// The Phase 9 classifier changes ONE assumption the whole pipeline shared: that
+// an export has exactly one account folder. Widening acceptance is therefore
+// the highest-risk edit in the phase, and every widened rule below is paired
+// with the rule that must still reject, because the root rule is the fail-closed
+// gate that keeps a `User_Info` folder under a parent the classifier did not
+// recognise as an account root from skipping the LOGIN / BIRTH_DATE strip.
+//
+//   D-01  a top-level folder is an account root when it DIRECTLY holds a
+//         recognised category; the name is never checked
+//   D-02  a stray unknown FOLDER beside roots fails (no-single-root)
+//   D-03  `personal_data_export/` stays transparent for N roots; any OTHER
+//         wrapper above roots keeps failing
+//   D-04  a recognised category at the top level beside roots fails
+//         (ambiguous-root) — it cannot be attributed to an account
+//   D-05  loose top-level FILES are ignored entirely, never read and never
+//         counted toward the stray-folder rule
+//   D-06  `resolveCsvFileOwner` and the per-category counts cannot diverge
+//
+// Three shapes keep their reason ON PURPOSE, and no test below "fixes" them:
+//   - a lone top-level file, a zip of loose files, and a single root with no
+//     category folders are ZERO-root shapes, so the unchanged v1.0 chain names
+//     them (D-05 is applied inside the N-root resolver, never in `prepare()`);
+//   - an arbitrary wrapper above several roots keeps `no-recognized-category`
+//     (D-03: only Wargaming's own wrapper is transparent, and the reason is
+//     never shown to the user — one generic banner either way);
+//   - `personal_data_export/` sitting directly above recognised categories stays
+//     `accountRoot: ''`, because that shape has no account-folder layer at all.
+// =============================================================================
+
+describe('Phase 9 accept matrix', () => {
+  test('two roots at the top level classify ok, listed in code-unit order', () => {
+    const outcome = analyzeExport(pathsOf(buildTwoAccountExport()));
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    // EU and NA, in code-unit order: '1000000003' < '500000001'.
+    expect(outcome.roots.map((r) => r.root)).toEqual(['1000000003', '500000001']);
+    expect(outcome.result.accounts).toHaveLength(2);
+    expect(outcome.result.accountRoot).toBe('1000000003');
+  });
+
+  test('three roots at the top level with two loose PDFs beside them classify ok (D-05)', () => {
+    const outcome = analyzeExport(pathsOf(buildRealShapeThreeAccountExport()));
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.roots).toHaveLength(3);
+  });
+
+  test('two roots under personal_data_export classify ok, and the wrapper is never the root (D-03)', () => {
+    const outcome = analyzeExport(pathsOf(buildWrappedTwoAccountExport()));
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.roots.map((r) => r.root)).toEqual(['1000000003', '500000001']);
+    expect(outcome.result.accountRoot).toBe('1000000003');
+    expect(outcome.result.accountRoot).not.toContain('personal_data_export');
+  });
+
+  test('a loose file under personal_data_export beside two roots is ignored (D-03 flagged assumption)', () => {
+    expect(analyzeExport(pathsOf(buildWrappedTwoAccountWithLooseFileExport())).ok).toBe(true);
+  });
+
+  test('one root plus a loose Readme beside it classifies ok (D-05; v1.0 rejected it)', () => {
+    const paths = [...pathsOf(buildOneAccountExport()), 'Readme_en.pdf'];
+    const outcome = analyzeExport(paths);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.roots).toHaveLength(1);
+    // The PDF is not filed as a category either.
+    expect(outcome.result.categories.map((c) => c.name)).not.toContain('Readme_en.pdf');
+  });
+
+  test('a root with no User_Info folder still imports, identified by its id', () => {
+    const outcome = analyzeExport(pathsOf(buildRealShapeThreeAccountExport()));
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const ru = outcome.roots.find((r) => r.root === MA_ROOT_RU);
+    expect(ru).toBeDefined();
+    expect(ru?.categories.map((c) => c.name)).not.toContain('User_Info');
+    expect(outcome.result.accounts?.find((a) => a.root === MA_ROOT_RU)?.identity).toBeNull();
+  });
+
+  test('two roots spelling User_Info differently both import, as two entries', () => {
+    const outcome = analyzeExport(pathsOf(buildCaseVariantUserInfoAcrossRootsExport()));
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const names = outcome.result.categories.map((c) => c.name);
+    expect(names).toContain('User_Info');
+    expect(names).toContain('user_info');
+  });
+
+  test('roots named __proto__ and constructor classify and resolve correctly (T-09-04)', () => {
+    const outcome = analyzeExport(pathsOf(buildHostileRootNamesExport()));
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.roots.map((r) => r.root)).toEqual(['__proto__', 'constructor']);
+    const recognized = new Set(outcome.result.categories.map((c) => c.name));
+    const roots = new Set(outcome.roots.map((r) => r.root));
+    expect(
+      resolveCsvFileOwner('constructor/User_Info/Account_Info.csv', roots, recognized)?.root,
+    ).toBe('constructor');
+    expect(
+      resolveCsvFileOwner('__proto__/User_Info/Account_Info.csv', roots, recognized)?.root,
+    ).toBe('__proto__');
+  });
+
+  test('32 roots are accepted and 33 are not (D-20 cap)', () => {
+    const atCap = analyzeExport(pathsOf(buildManyRootsExport(32)));
+    expect(atCap.ok).toBe(true);
+    if (atCap.ok) expect(atCap.roots).toHaveLength(32);
+    expect(analyzeExport(pathsOf(buildManyRootsExport(33)))).toEqual({
+      ok: false,
+      reason: 'too-many-roots',
+    });
+  });
+
+  test('a 128-character root name is accepted and 129 is not (D-20 bound)', () => {
+    expect(analyzeExport(pathsOf(buildLongRootNameExport(128))).ok).toBe(true);
+    expect(analyzeExport(pathsOf(buildLongRootNameExport(129)))).toEqual({
+      ok: false,
+      reason: 'root-name-too-long',
+    });
+  });
+
+  test('the same root-name bound holds under the transparent wrapper', () => {
+    expect(analyzeExport(pathsOf(buildLongRootNameExport(128, { wrapped: true }))).ok).toBe(true);
+    expect(analyzeExport(pathsOf(buildLongRootNameExport(129, { wrapped: true })))).toEqual({
+      ok: false,
+      reason: 'root-name-too-long',
+    });
+  });
+
+  test('two roots sharing one nickname still classify (only the id tells them apart)', () => {
+    const outcome = analyzeExport(pathsOf(buildDuplicateNicknameExport()));
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.roots.map((r) => r.root)).toEqual(['100', '200']);
+  });
+
+  test('tied first-activity years and a no-activity account all classify', () => {
+    expect(analyzeExport(pathsOf(buildTiedYearsExport())).ok).toBe(true);
+    expect(analyzeExport(pathsOf(buildNoActivityAccountsExport())).ok).toBe(true);
+  });
+
+  test('a twenty-digit root carrying a forty-character nickname classifies', () => {
+    const outcome = analyzeExport(pathsOf(buildLongTextAccountsExport()));
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.roots.map((r) => r.root)).toEqual(['1000000002', MA_LONG_ROOT]);
+  });
+});
+
+describe('Phase 9 reject matrix', () => {
+  test('a stray unknown folder beside two roots fails with no-single-root (D-02)', () => {
+    expect(analyzeExport(pathsOf(buildStrayFolderExport()))).toEqual({
+      ok: false,
+      reason: 'no-single-root',
+    });
+  });
+
+  test('a stray folder nested one level deeper beside two roots also fails (D-02)', () => {
+    expect(analyzeExport(pathsOf(buildStrayFolderExport({ nested: true })))).toEqual({
+      ok: false,
+      reason: 'no-single-root',
+    });
+  });
+
+  test('a recognised category at the top level beside two roots fails with ambiguous-root (D-04)', () => {
+    expect(analyzeExport(pathsOf(buildTopLevelCategoryBesideRootsExport()))).toEqual({
+      ok: false,
+      reason: 'ambiguous-root',
+    });
+  });
+
+  test('the stray-folder shape under personal_data_export fails the same way (D-02, D-03)', () => {
+    expect(
+      analyzeExport([
+        'personal_data_export/123/User_Info/Account_Info.csv',
+        'personal_data_export/Misc/x.csv',
+      ]),
+    ).toEqual({ ok: false, reason: 'no-single-root' });
+  });
+
+  test('the top-level-category shape under personal_data_export fails with ambiguous-root (D-04)', () => {
+    expect(
+      analyzeExport([
+        'personal_data_export/123/User_Info/Account_Info.csv',
+        'personal_data_export/Activity_history/a.csv',
+      ]),
+    ).toEqual({ ok: false, reason: 'ambiguous-root' });
+  });
+
+  test('two roots whose names differ only in case fail with ambiguous-root (T-09-03)', () => {
+    expect(analyzeExport(pathsOf(buildCaseCollisionRootsExport()))).toEqual({
+      ok: false,
+      reason: 'ambiguous-root',
+    });
+  });
+
+  test('a SINGLE root whose name is 129 characters fails with root-name-too-long (D-20 narrowing)', () => {
+    // The test title states the narrowing on purpose: v1.0 accepted a single
+    // root with an arbitrarily long folder name. The bound holds for one root
+    // too, because that name is stamped onto every stored row (D-07).
+    expect(analyzeExport(pathsOf(buildLongRootNameExport(129)))).toEqual({
+      ok: false,
+      reason: 'root-name-too-long',
+    });
+  });
+
+  test('an unknown wrapper above two roots keeps no-recognized-category (D-03 regression)', () => {
+    // An arbitrary wrapper is NOT a container of account roots: its candidates
+    // hold other unknown folders, never a recognised category directly.
+    expect(
+      analyzeExport(['2026-10-14/123/User_Info/a.csv', '2026-10-14/456/User_Info/b.csv']),
+    ).toEqual({ ok: false, reason: 'no-recognized-category' });
+    expect(analyzeExport(['w/x/Activity_history/a.csv', 'w/y/Payment_history/b.csv'])).toEqual({
+      ok: false,
+      reason: 'no-recognized-category',
+    });
+  });
+
+  test('roots with no CSV beneath them fail with no-csv-data', () => {
+    expect(analyzeExport(['123/User_Info/', '123/Activity_history/'])).toEqual({
+      ok: false,
+      reason: 'no-csv-data',
+    });
+  });
+
+  test('a zip holding only loose files fails with no-single-root (zero roots, D-05)', () => {
+    expect(analyzeExport(['Readme_en.pdf', 'Readme_ru.pdf'])).toEqual({
+      ok: false,
+      reason: 'no-single-root',
+    });
+  });
+
+  test('an empty archive still fails with empty-archive', () => {
+    expect(analyzeExport(pathsOf(buildEmptyZip()))).toEqual({
+      ok: false,
+      reason: 'empty-archive',
+    });
+  });
+
+  test('every v1.0 zero-root reason is still produced for its own shape', () => {
+    // Inventory rows 2 to 5, 8, 10 to 17 and 19: none of them declares an
+    // account root, so the N-root resolver returns null and the unchanged v1.0
+    // chain names each one exactly as before.
+    expect(analyzeExport(pathsOf(buildSingleFileZip()))).toEqual({
+      ok: false,
+      reason: 'no-single-root',
+    });
+    expect(analyzeExport(pathsOf(buildFilesOnlyUnderRootZip()))).toEqual({
+      ok: false,
+      reason: 'no-category-folders',
+    });
+    expect(analyzeExport(pathsOf(buildNoRecognizedCategoryZip()))).toEqual({
+      ok: false,
+      reason: 'no-recognized-category',
+    });
+    expect(analyzeExport(['Activity_history/a.csv', 'Payment_history/b.csv']).ok).toBe(true);
+    expect(analyzeExport(['personal_data_export/Activity_history/foo.csv']).ok).toBe(true);
+    expect(
+      analyzeExport([
+        '123/User_Info/Account_Info.csv',
+        '123/Activity_history/a.csv',
+        'Clans/b.csv',
+      ]),
+    ).toEqual({ ok: false, reason: 'ambiguous-root' });
+    const rootless = analyzeExport(['Activity_history/a.csv', 'Misc/x.csv']);
+    expect(rootless.ok).toBe(true);
+    if (rootless.ok) expect(rootless.result.accountRoot).toBe('');
+  });
+
+  test('3,000 root-shaped folders fail as too-many-roots after one linear pass (T-09-02)', () => {
+    const paths = pathsOf(buildManyRootsExport(3000));
+    const started = performance.now();
+    expect(analyzeExport(paths)).toEqual({ ok: false, reason: 'too-many-roots' });
+    // A per-candidate re-scan of every entry would be 9,000,000 path walks and
+    // blow this guard; the resolver must decide from its single pass.
+    expect(performance.now() - started).toBeLessThan(2000);
+  });
+
+  test('3,000 stray folders beside one root fail as a stray after one linear pass (T-09-02)', () => {
+    const paths = pathsOf(buildManyRootsExport(3000, { recognised: false, withRoot: true }));
+    const started = performance.now();
+    expect(analyzeExport(paths)).toEqual({ ok: false, reason: 'no-single-root' });
+    expect(performance.now() - started).toBeLessThan(2000);
+  });
+});
+
+describe('Phase 9 agreement', () => {
+  /** Every ok fixture whose entries are all CSV files. */
+  const OK_ALL_CSV_FIXTURES: readonly [string, Uint8Array][] = [
+    ['sample', buildSampleExport()],
+    ['wrapper', buildWrapperExport()],
+    ['rootless', buildRootlessExport()],
+    ['one root', buildOneAccountExport()],
+    ['two roots', buildTwoAccountExport()],
+    ['three roots', buildRealShapeThreeAccountExport()],
+    ['wrapped two roots', buildWrappedTwoAccountExport()],
+  ];
+
+  test('per-category resolutions equal the merged fileCount for every ok fixture (D-06)', () => {
+    for (const [label, bytes] of OK_ALL_CSV_FIXTURES) {
+      const paths = pathsOf(bytes);
+      const outcome = analyzeExport(paths);
+      expect(outcome.ok, `${label} must classify`).toBe(true);
+      if (!outcome.ok) return;
+
+      const recognized = new Set(outcome.result.categories.map((c) => c.name));
+      const roots = new Set(outcome.roots.map((r) => r.root));
+      const perCategory = new Map<string, number>();
+      for (const path of paths) {
+        const owner = resolveCsvFileOwner(path, roots, recognized);
+        if (owner === null) continue;
+        perCategory.set(owner.category, (perCategory.get(owner.category) ?? 0) + 1);
+      }
+      for (const category of outcome.result.categories) {
+        expect(
+          perCategory.get(category.name) ?? 0,
+          `${label}: resolved rows for ${category.name}`,
+        ).toBe(category.fileCount);
+      }
+    }
+  });
+
+  test('a one-root set resolves exactly what resolveCsvFileCategory resolves', () => {
+    for (const [label, bytes] of OK_ALL_CSV_FIXTURES) {
+      const paths = pathsOf(bytes);
+      const outcome = analyzeExport(paths);
+      expect(outcome.ok, `${label} must classify`).toBe(true);
+      if (!outcome.ok) continue;
+      const recognized = new Set(outcome.result.categories.map((c) => c.name));
+      const roots = new Set(outcome.roots.map((r) => r.root));
+      if (roots.size !== 1) continue;
+      const [root] = [...roots];
+      for (const path of paths) {
+        const owner = resolveCsvFileOwner(path, roots, recognized);
+        const one = resolveCsvFileCategory(path, root as string, recognized);
+        expect(owner?.category, `${label}: ${path}`).toBe(one?.category);
+        expect(owner?.sourceFile, `${label}: ${path}`).toBe(one?.sourceFile);
+      }
+    }
+  });
+
+  test('with two roots the rightmost-root fallback is off (the nested-lookalike gate)', () => {
+    const recognized = new Set(['Activity_history', 'Player_statistics']);
+    const twoRoots = new Set(['A', 'B']);
+    // A folder named like another root, nested inside root A, belongs to A.
+    expect(
+      resolveCsvFileOwner('A/Activity_history/B/Player_statistics/x.csv', twoRoots, recognized),
+    ).toEqual({
+      root: 'A',
+      category: 'Activity_history',
+      sourceFile: 'B/Player_statistics/x.csv',
+    });
+    // With ONE root the pre-existing rightmost-root wrapper behaviour stands:
+    // the last occurrence of `/B/` is the prefix that is stripped.
+    expect(
+      resolveCsvFileCategory('A/Activity_history/B/Player_statistics/x.csv', 'B', recognized),
+    ).toEqual({
+      category: 'Player_statistics',
+      sourceFile: 'x.csv',
+    });
+  });
+
+  test('an empty root set resolves nothing, and an OS-metadata entry never resolves', () => {
+    const recognized = new Set(['User_Info']);
+    expect(resolveCsvFileOwner('123/User_Info/Account_Info.csv', new Set(), recognized)).toBeNull();
+    expect(
+      resolveCsvFileOwner('__MACOSX/123/User_Info/._a.csv', new Set(['123']), recognized),
+    ).toBeNull();
+    expect(resolveCsvFileOwner('123/User_Info/', new Set(['123']), recognized)).toBeNull();
+    expect(resolveCsvFileOwner('123/User_Info/notes.txt', new Set(['123']), recognized)).toBeNull();
   });
 });

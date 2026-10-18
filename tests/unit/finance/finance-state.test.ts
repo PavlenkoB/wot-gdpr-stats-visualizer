@@ -37,6 +37,7 @@ import {
 } from '../../../src/lib/features/finance/finance-state';
 import { buildPremium } from '../../../src/lib/features/finance/finance-aggregate';
 import { parseCsvFile } from '../../../src/lib/worker/csv-parse';
+import { oneAccount } from '../../helpers/row-groups';
 import { formatPremiumSummary } from '../../../src/lib/ui-copy';
 import type { DataOutcome } from '../../../src/lib/core/query-client';
 import type {
@@ -61,8 +62,10 @@ import { PREMIUM_HAND_CSV, PREMIUM_HAND_EXPECTED } from '../../fixtures/finance-
  * question the worker already answers.
  */
 const HAND_VIEW: PremiumView = buildPremium(
-  parseCsvFile(PREMIUM_HAND_CSV, 'Financial_data', 'Operations_with_Premium_Days.csv').rows.map(
-    (row) => row.data,
+  oneAccount(
+    parseCsvFile(PREMIUM_HAND_CSV, 'Financial_data', 'Operations_with_Premium_Days.csv').rows.map(
+      (row) => row.data,
+    ),
   ),
   true,
 );
@@ -387,8 +390,10 @@ const MICRO = 1_000_000n;
  * same two steps the import path takes, not a re-implementation.
  */
 const HAND_CURRENCY_VIEW: CurrencyView = buildCurrency(
-  parseCsvFile(CURRENCY_HAND_CSV, 'Financial_data', 'Virtual_Currencies_Operations.csv').rows.map(
-    (row) => row.data,
+  oneAccount(
+    parseCsvFile(CURRENCY_HAND_CSV, 'Financial_data', 'Virtual_Currencies_Operations.csv').rows.map(
+      (row) => row.data,
+    ),
   ),
   true,
 );

@@ -15,6 +15,9 @@ import {
 } from '../features/playtime/playtime-aggregate.ts';
 import { isLoginsFileName, isLoginsRow } from '../features/logins/login-aggregate.ts';
 import type { LoginSource } from '../features/logins/login-aggregate.ts';
+import { classifyFolder } from './categories.ts';
+import type { AccountRowGroup } from './csv-columns.ts';
+import { accountsOfMeta } from './account-summary.ts';
 
 /**
  * Dexie schema + transactional write (RESEARCH.md Pattern 3, DATA-01).
@@ -47,6 +50,23 @@ export interface DatasetRow {
   sourceFile: string;
   rowIndex: number;
   data: Record<string, string | undefined>;
+  /**
+   * The account ROOT that owns this row — the archive folder name this row was
+   * read from (Phase 9, D-07).
+   *
+   * NON-INDEXED, deliberately: the `rows` store keeps its
+   * `++id, category, sourceFile` index definition, so a v1.0 cache survives
+   * untouched and readers keep querying by the existing `category` index and
+   * filtering in memory. Two accounts contributing the same file name are
+   * therefore distinguishable, which they were not before Phase 9 — the reason
+   * D-12 forbids keying, sorting or de-duplicating on `(sourceFile, rowIndex)`
+   * alone, since `rowIndex` restarts per account and category.
+   *
+   * Absent on rows a v1.0 build wrote. A reader must treat absence as "this row
+   * belongs to the dataset's legacy single account", which is exactly what
+   * those rows say.
+   */
+  account?: string;
 }
 
 /**
@@ -63,6 +83,81 @@ export interface DatasetFile {
   category: string;
   sourceFile: string;
   rowCount: number;
+  /**
+   * The account ROOT this file was read from (Phase 9, D-07), for the same
+   * reason and with the same non-indexed shape as {@link DatasetRow.account}:
+   * three accounts can contribute a file of the same name, and a presence fact
+   * with no owner cannot be attributed.
+   *
+   * Absent on facts a v1.0 build recorded, which is every fact of a cache that
+   * predates Phase 9.
+   */
+  account?: string;
+}
+
+/**
+ * One account's slice of the stored dataset (Phase 9, D-08).
+ *
+ * Everything the top-level {@link DatasetMeta} fields hold, scoped to ONE
+ * account: its own category list with its OWN row counts (the top-level list is
+ * merged across accounts by folder name), its own identity (read from that
+ * root's own sanitised User_Info rows and never another root's), its own
+ * presence facts, and the games and activity years the identity header shows.
+ *
+ * ## Why this is a non-indexed field of the meta record and NOT a new store
+ *
+ * Same reasoning as `playtime`, `files` and `logins` above: the rows are the
+ * dataset and this is a derived index over them, so it rides in the same
+ * `meta.put` inside the same transaction as the rows and needs no Dexie version.
+ * A cache written before Phase 9 reads it as absent and is normalised by
+ * `accountsOfMeta`, which is the same single normaliser `done`, `duplicate` and
+ * `cache-status` all go through.
+ *
+ * ## Why `identity` can be null here while the top-level one is the first
+ * account's
+ *
+ * `null` means this root parsed NO User_Info row at all (D-17), which is a
+ * fact about one account and must not be filled in from a sibling's. The
+ * top-level `identity` field stays the FIRST account's for every v1.0 reader
+ * that has no account list at all.
+ */
+export interface AccountMeta {
+  /** The account root, as the archive spells it. `''` for a rootless export. */
+  root: string;
+  /** This account's OWN categories, with this account's OWN counts. */
+  categories: CategoryEntry[];
+  /** This account's identity, from its own sanitised rows, or null (D-17). */
+  identity: AccountIdentity | null;
+  /** This account's own per-file presence facts, tagged with its root. */
+  files: DatasetFile[];
+  /** This account's game tokens, code-unit ascending (D-14). */
+  games: string[];
+  /** First and last activity year, or null when none parses (D-15). */
+  firstYear: number | null;
+  lastYear: number | null;
+  /**
+   * Did this root contribute anything the dataset holds (plan 09-10,
+   * `accountCountSemantics: option-a`)?
+   *
+   * True when the root stored at least one row in a supported category — which
+   * includes a `User_Info` row — and false when every folder it holds is
+   * `known-deferred`, so its rows were counted and never stored (D-18 / D-21).
+   *
+   * OPTIONAL and read as ABSENT-MEANS-DATA. That is the whole back-compat rule:
+   * a record written before this field existed belongs to a build that stored
+   * only roots worth listing, so every such record is published exactly as it
+   * always was. Nothing is lost and nothing is guessed.
+   *
+   * The published list — not the STORE — is what this filters. The stored list
+   * keeps every root, because the Account record gate counts roots: dropping a
+   * root at write time would make a two-root archive look like a one-account
+   * dataset and let one account's address stand for the whole (T-09-13).
+   *
+   * No Dexie version bump for this field: it is a non-indexed property of the
+   * existing `meta` record, so `db.verno` stays 2 and the `version(2)` upgrader
+   * is untouched — the same precedent {@link DatasetMeta.files} sets.
+   */
+  hasData?: boolean;
 }
 
 export interface DatasetMeta {
@@ -147,16 +242,35 @@ export interface DatasetMeta {
    * `version(3)` for a field of the same kind.
    */
   logins?: LoginAggregates | null;
+  /**
+   * One entry per account in the export, in D-16 order (Phase 9, D-08).
+   *
+   * Stored ALREADY ORDERED, so `done`, `duplicate` and `cache-status` can
+   * replay it through `accountsOfMeta` without re-deriving anything, and a
+   * returning visitor sees the same list the import published.
+   *
+   * Absent (and `null`) on a cache written before Phase 9. `accountsOfMeta`
+   * builds a one-entry list from the legacy fields in that case, so no reader
+   * ever has to branch on the difference (D-22).
+   */
+  accounts?: AccountMeta[] | null;
 }
 
 /**
- * The cap on how many presence facts one dataset records (T-05-21).
+ * The cap on how many presence facts one ACCOUNT records (T-05-21).
  *
  * A crafted archive with thousands of files in those three folders must not be
  * able to make the meta record grow without bound. Overflowing the cap costs
  * only the presence facts of the files past it — their rows are still stored
  * and still answer `ready` — so the cap degrades a claim about a file rather
  * than the data behind it.
+ *
+ * PER ACCOUNT since Phase 9. With one account the cap is exactly what it was;
+ * with several it is applied to each account's own list, so a root with 501
+ * `Player_Statistics` files cannot starve a sibling's facts — one noisy
+ * account would otherwise be able to silence the presence claim for every other
+ * account in the same export. The flattened list is bounded by the cap times
+ * the root cap (`MAX_ACCOUNT_ROOTS`).
  */
 export const MAX_PRESENCE_FILES = 500;
 
@@ -241,6 +355,11 @@ export const db = new AppDb();
  * `logins` is the eighth and is OPTIONAL for the same reason (06-01, D-12). It
  * is the login-history aggregate and, like the playtime aggregate, a non-indexed
  * field of the same record in the same `meta.put`.
+ *
+ * `accounts` is the ninth and is OPTIONAL for the same reason (Phase 9, D-08):
+ * the ordered per-account index, written in that SAME `meta.put` so a dataset
+ * is either all rows with their accounts or neither (T-09-10). `null` means the
+ * caller is a v1.0-shaped write, and `accountsOfMeta` normalises it.
  */
 export async function writeDataset(
   hash: string,
@@ -251,6 +370,7 @@ export async function writeDataset(
   playtime: PlaytimeAggregates | null = null,
   files: DatasetFile[] | null = null,
   logins: LoginAggregates | null = null,
+  accounts: AccountMeta[] | null = null,
 ): Promise<{ importedAt: string }> {
   const importedAt = new Date().toISOString();
   await db.transaction('rw', db.rows, db.meta, async () => {
@@ -268,6 +388,7 @@ export async function writeDataset(
       playtime,
       files,
       logins,
+      accounts,
     });
   });
   return { importedAt };
@@ -284,6 +405,34 @@ export async function checkCache(): Promise<DatasetMeta | null> {
 }
 
 /**
+ * A {@link SessionSource} that names the account it was read from.
+ *
+ * Phase 9, D-07/D-12. The field is carried so a reader can be audited against
+ * the account that owns a row; the aggregator itself does not read it, exactly
+ * as it never reads the `IP` column (T-04-01).
+ */
+export interface AccountSessionSource extends SessionSource {
+  readonly account: string;
+}
+
+/** The login-history twin of {@link AccountSessionSource}. */
+export interface AccountLoginSource extends LoginSource {
+  readonly account: string;
+}
+
+/**
+ * The account a stored row belongs to (D-07).
+ *
+ * Absent on a row a v1.0 build wrote, and such a row IS the dataset's legacy
+ * single account — which is exactly what `meta.accountRoot` records. That is
+ * the whole of the account-or-legacy rule, and it is stated once here because
+ * three readers apply it.
+ */
+function accountOf(row: DatasetRow, meta: DatasetMeta): string {
+  return row.account ?? meta.accountRoot;
+}
+
+/**
  * Read ONE atomic snapshot of the active dataset's session rows, for the lazy
  * playtime backfill (04-06, T-04-11, T-04-30).
  *
@@ -297,7 +446,7 @@ export async function checkCache(): Promise<DatasetMeta | null> {
  * transaction is what makes the answer and its data come from the same
  * dataset; `writePlaytimeIfCurrent` is the second half of the guard.
  *
- * ## Why one source per FILE, and not one flat row list
+ * ## Why one source per ACCOUNT, CATEGORY AND FILE, and not one flat row list
  *
  * Every session file has its own HEADER: the synthetic fixture's `Sessions.csv`
  * says `SESSION_START`/`SESSION_END`, a real `WOT_Game_Sessions.csv` says
@@ -306,6 +455,15 @@ export async function checkCache(): Promise<DatasetMeta | null> {
  * file's header to apply to every other one and every row of those would be
  * excluded. Handing back the same grouping the import path used is what keeps
  * the two paths from producing different numbers for one export (D-02).
+ *
+ * Since Phase 9 the ACCOUNT is the outermost level of that grouping (D-12,
+ * RESEARCH Pitfall 3). Two accounts can contribute the same file name — and in
+ * the real-shape export they do, with different headers — so grouping by file
+ * alone would resolve one account's columns against another's and silently
+ * EXCLUDE its sessions. The rebuilt aggregate would then disagree with the one
+ * the import computed, and nothing anywhere would report it. The grouping is
+ * the only change: the transaction, the index walk and the single-key reads
+ * are exactly what they were.
  *
  * ## Why the distinct keys are listed rather than a multi-key query
  *
@@ -328,24 +486,26 @@ export async function checkCache(): Promise<DatasetMeta | null> {
  * file nested one folder deeper — deliberately, because the import path stores
  * only the basename.
  *
- * Rows are grouped per CATEGORY-AND-FILE pair in the order first seen, so a
- * dataset that somehow holds the same name in two folder cases is aggregated
- * with the same grouping the import loop produced.
+ * Rows are grouped per ACCOUNT-AND-CATEGORY-AND-FILE triple in the order first
+ * seen, so a dataset that somehow holds the same name in two folder cases is
+ * aggregated with the same grouping the import loop produced.
  */
 export async function readSessionRowData(): Promise<{
   importedAt: string;
-  sources: SessionSource[];
+  sources: AccountSessionSource[];
 } | null> {
   return db.transaction('r', db.rows, db.meta, async () => {
     const meta = await db.meta.get('active');
     if (meta === undefined) return null;
 
     const keys = await db.rows.orderBy('sourceFile').uniqueKeys();
-    // Grouped per CATEGORY-AND-FILE pair, in the order first seen, as a Map of
-    // Maps rather than a Map keyed by a joined string: a folder name and a file
-    // name can both contain any character a zip entry name can, and a separator
-    // that has to be excluded from both is one more thing to get wrong.
-    const grouped = new Map<string, Map<string, SessionSource>>();
+    // Grouped per ACCOUNT-AND-CATEGORY-AND-FILE triple, in the order first
+    // seen, as a Map of Maps of Maps rather than a Map keyed by a joined
+    // string: a root name, a folder name and a file name can each contain any
+    // character a zip entry name can, and a separator that has to be excluded
+    // from all three is one more thing to get wrong. A root may also be named
+    // `__proto__`, which a plain object could never be trusted with (T-09-04).
+    const grouped = new Map<string, Map<string, Map<string, AccountSessionSource>>>();
     for (const key of keys) {
       // The name-only screen: cheap, index-driven, and the same rule the
       // importer applied. A key it refuses is never read at all.
@@ -354,11 +514,15 @@ export async function readSessionRowData(): Promise<{
       for (const row of matches) {
         // The full predicate, on the row's own category.
         if (!isSessionsRow(row.category, row.sourceFile)) continue;
-        const byFile = grouped.get(row.category) ?? new Map<string, SessionSource>();
-        grouped.set(row.category, byFile);
+        const account = accountOf(row, meta);
+        const byCategory = grouped.get(account) ?? new Map();
+        byCategory.set(row.category, byCategory.get(row.category) ?? new Map());
+        grouped.set(account, byCategory);
+        const byFile = byCategory.get(row.category)!;
         const source = byFile.get(row.sourceFile);
         if (source === undefined) {
           byFile.set(row.sourceFile, {
+            account,
             game: sessionFileGame(row.category, row.sourceFile),
             rows: [row.data],
           });
@@ -369,7 +533,9 @@ export async function readSessionRowData(): Promise<{
         }
       }
     }
-    const sources = [...grouped.values()].flatMap((byFile) => [...byFile.values()]);
+    const sources = [...grouped.values()].flatMap((byCategory) =>
+      [...byCategory.values()].flatMap((byFile) => [...byFile.values()]),
+    );
     return { importedAt: meta.importedAt, sources };
   });
 }
@@ -446,6 +612,39 @@ const ACCOUNT_INFO_SUFFIX = 'account_info.csv';
  * nothing sensitive to filter here and this reader must never add a filter of
  * its own that could disagree with the strip.
  *
+ * ## Why the grouping has an ACCOUNT level too (D-12, RESEARCH Pitfall 3)
+ *
+ * Identical to `readSessionRowData`, for the same reason and with the same
+ * shape: a file name two accounts share is two sources, each resolving its own
+ * columns from its own first row. Grouping by file alone would resolve one
+ * account's login header against another's and drop rows the import counted.
+ *
+ * ## Why the pool is EMPTY for two or more accounts
+ *
+ * An Account record describes ONE account. A dataset with several has no single
+ * "the account", so publishing one account's address as the login pane's
+ * account row would present that account as the whole — which is what the D-11
+ * caption and UI-SPEC Surface 4 exist to prevent. The IMPORT applies the same
+ * rule (`ordered.length === 1` in `ingest.worker.ts`), so the pool is scoped
+ * by that same count here and the rebuild stays EQUAL to the import rather than
+ * merely close to it — which is the whole point of this reader. A rebuild that
+ * added an Account record the import never stored would be a disagreement about
+ * the user's own data, and one that would flip on and off with which query ran.
+ *
+ * The returned `accountRoot` is unchanged: it is the legacy single-account
+ * field, and a v1.0 reader still names the first account in D-16 order.
+ *
+ * ## Why the count comes from the ONE normaliser (D-08, D-22; 09-09 WR-01)
+ *
+ * "How many accounts does this dataset hold?" is asked here and again by
+ * `resultFromMeta`, and the two used to answer it independently — this reader
+ * from a nullish-coalesced read of the stored list's own length, which calls an
+ * EMPTY list zero accounts, while `accountsOfMeta` calls the same shape one. A
+ * one-account dataset whose
+ * meta record carries `accounts: []` therefore published an Account record on
+ * replay and none on rebuild, depending on which query the user happened to run.
+ * Both sides now ask `accountsOfMeta`; the count is no longer a local decision.
+ *
  * ## Why the index walk is the index walk
  *
  * The list form of a `sourceFile` query took 2,243 ms on 3,000 rows in
@@ -457,7 +656,7 @@ const ACCOUNT_INFO_SUFFIX = 'account_info.csv';
  */
 export async function readLoginRowData(): Promise<{
   importedAt: string;
-  sources: LoginSource[];
+  sources: AccountLoginSource[];
   accountPool: Record<string, string | undefined>[];
   accountRoot: string;
 } | null> {
@@ -465,10 +664,11 @@ export async function readLoginRowData(): Promise<{
     const meta = await db.meta.get('active');
     if (meta === undefined) return null;
 
-    // Grouped per CATEGORY-AND-FILE pair, in the order first seen, exactly as
-    // the import loop grouped them and exactly as `readSessionRowData` does —
-    // see that function for why this is a Map of Maps and not a joined key.
-    const grouped = new Map<string, Map<string, LoginSource>>();
+    // Grouped per ACCOUNT-AND-CATEGORY-AND-FILE triple, in the order first
+    // seen, exactly as the import loop grouped them and exactly as
+    // `readSessionRowData` does — see that function for why this is a Map of
+    // Maps of Maps and not a joined key.
+    const grouped = new Map<string, Map<string, Map<string, AccountLoginSource>>>();
     const keys = await db.rows.orderBy('sourceFile').uniqueKeys();
     for (const key of keys) {
       if (typeof key !== 'string') continue;
@@ -482,11 +682,15 @@ export async function readLoginRowData(): Promise<{
         // cannot know which folder the rows came from.
         const isLogins = isLoginsRow(row.category, row.sourceFile);
         if (!isLogins && !isSessionsRow(row.category, row.sourceFile)) continue;
-        const byFile = grouped.get(row.category) ?? new Map<string, LoginSource>();
-        grouped.set(row.category, byFile);
+        const account = accountOf(row, meta);
+        const byCategory = grouped.get(account) ?? new Map();
+        byCategory.set(row.category, byCategory.get(row.category) ?? new Map());
+        grouped.set(account, byCategory);
+        const byFile = byCategory.get(row.category)!;
         const source = byFile.get(row.sourceFile);
         if (source === undefined) {
           byFile.set(row.sourceFile, {
+            account,
             kind: isLogins ? 'logins' : 'sessions',
             // A login file names no title, so it carries no token rather than a
             // fabricated one (T-04-27: the token comes from a file name).
@@ -507,22 +711,48 @@ export async function readLoginRowData(): Promise<{
     // The partition is the import loop's own: Account_Info.csv's rows first,
     // the rest as the fallback, so the record describes the same row the
     // identity does.
+    //
+    // Scoped to ONE account, and empty for two or more — see the doc comment
+    // above. The account count and the single root BOTH come from
+    // `accountsOfMeta`, the ONE normaliser `done`, `duplicate` and `cache-status`
+    // go through (D-08, D-22, 09-09 WR-01): an absent OR an EMPTY `accounts` list
+    // is one legacy account, so this reader cannot answer "zero accounts" where
+    // the replayed result answers one. What the reader DOES with the count is
+    // unchanged — still an empty pool for two or more.
+    // 09-10, restated because it is the trap this plan exists to avoid: this
+    // is `accountsOfMeta`, NOT `accountSummariesOf`. The gate must count ROOTS,
+    // so an archive of two roots whose PUBLISHED list is one account still
+    // builds no Account record — on the import path and on this rebuild alike.
+    const storedAccounts = accountsOfMeta(meta);
+    const accountCount = storedAccounts.length;
+    const onlyRoot = storedAccounts[0]?.root ?? meta.accountRoot;
     const accountPool: Record<string, string | undefined>[] = [];
     const fallbackPool: Record<string, string | undefined>[] = [];
-    const categories = await db.rows.orderBy('category').uniqueKeys();
-    for (const category of categories) {
-      if (typeof category !== 'string' || category.toLowerCase() !== USER_INFO_CATEGORY) continue;
-      const rows = await db.rows.where('category').equals(category).toArray();
-      for (const row of rows) {
-        if (row.sourceFile.toLowerCase().endsWith(ACCOUNT_INFO_SUFFIX)) accountPool.push(row.data);
-        else fallbackPool.push(row.data);
+    if (accountCount === 1) {
+      const categories = await db.rows.orderBy('category').uniqueKeys();
+      for (const category of categories) {
+        if (typeof category !== 'string' || category.toLowerCase() !== USER_INFO_CATEGORY) continue;
+        const rows = await db.rows.where('category').equals(category).toArray();
+        for (const row of rows) {
+          // Scoped by the account-or-legacy rule, so a stray User_Info-shaped
+          // row stamped with another root can never be used to describe the one
+          // account that IS this dataset.
+          if (accountOf(row, meta) !== onlyRoot) continue;
+          if (row.sourceFile.toLowerCase().endsWith(ACCOUNT_INFO_SUFFIX)) {
+            accountPool.push(row.data);
+          } else {
+            fallbackPool.push(row.data);
+          }
+        }
       }
     }
     if (accountPool.length === 0) accountPool.push(...fallbackPool);
 
     return {
       importedAt: meta.importedAt,
-      sources: [...grouped.values()].flatMap((byFile) => [...byFile.values()]),
+      sources: [...grouped.values()].flatMap((byCategory) =>
+        [...byCategory.values()].flatMap((byFile) => [...byFile.values()]),
+      ),
       accountPool,
       accountRoot: meta.accountRoot,
     };
@@ -541,7 +771,15 @@ export async function readLoginRowData(): Promise<{
 export interface RowsSnapshot {
   importedAt: string;
   files: DatasetFile[] | null;
-  rows: Map<string, Record<string, string | undefined>[]>;
+  /**
+   * The rows of each requested file, grouped per ACCOUNT then per file.
+   *
+   * The account is the outermost level for the reason the session and login
+   * readers already carry (09-03, and CR-01 below): every consumer resolves its
+   * columns from the FIRST row's keys, and two accounts' same-named files carry
+   * their own headers.
+   */
+  rows: Map<string, AccountRowGroup[]>;
 }
 
 /**
@@ -556,6 +794,48 @@ export interface RowsSnapshot {
  * rows afterwards could be handed a NEW dataset's date and an OLD dataset's
  * rows, and would then show one export's numbers under another's date — the
  * exact tear the playtime pair had to defend against.
+ *
+ * ## Why rows are grouped per ACCOUNT, and what merging still means (D-11, D-12)
+ *
+ * Rows are grouped per account AND per file, in first-seen account order, with
+ * each group's rows in stored order. The account is the OUTERMOST level for the
+ * reason `readSessionRowData` already carries (09-03, RESEARCH Pitfall 3): every
+ * consumer resolves its columns from the FIRST row's keys and then reads every
+ * row through those keys, so a key may never cross an account boundary. Two
+ * accounts' same-named CSVs carry their OWN headers — a real archive revision
+ * writes `OS` where another wrote `OPERATING_SYSTEM`, `BATTLES_COUNT` where
+ * another wrote `GAMES_PLAYED` — and resolving one account's keys for both
+ * reports the other account's real values as ABSENT while its file is plainly in
+ * the archive. That is CR-01, and it is a false statement about the user's own
+ * data (DATA-04).
+ *
+ * ### What merging still means, because it is NOT this reader's job (D-11, D-12)
+ *
+ * Grouping is not slicing. Every pane fed by this reader still shows ALL
+ * accounts' rows in Phase 9, with the "N accounts combined" caption so none of
+ * them presents one account as the whole. Two consequences are worth naming
+ * because they are correct and will look like bugs:
+ *
+ *   - A file name two accounts contribute is ONE entry here, so a code two
+ *     accounts both wrote is TWO summary rows with the SAME code — asserted
+ *     (D-12), not accidental. De-duplicating them would be a claim about which
+ *     account won more.
+ *   - Presence is an OR fold over the accounts' facts (`isPresent`), so the
+ *     same file recorded by three accounts cannot flip a title's state: a
+ *     repeated fact is idempotent by construction, not by a guard.
+ *
+ * Phase 10 owns the rest: per-account slicing of the panes, merging vehicles by
+ * id rather than by row, and finance totals per currency (D-12).
+ *
+ * ### Why this reader USED not to read `row.account`, in one line
+ *
+ * Because the consumer-side premise was wrong, not because the field was
+ * optional. The comment this section replaces asserted that the vehicles,
+ * finance, payments and device-info channels were "builders over rows that carry
+ * no header to resolve, so merging them changes no parse". Four of them DO
+ * resolve a header, and they resolved it off one account's first row. A wrong
+ * invariant written here is what let that survive code review the first time, so
+ * it is stated above as what the reader does rather than as what it may assume.
  *
  * ## Why the distinct keys are listed rather than the multi-key form
  *
@@ -595,7 +875,7 @@ export async function readRowsByFile(
     // per row: it is consulted once per stored row.
     const wanted = new Set(categories.map((c) => c.toLowerCase()));
     const keys = await db.rows.orderBy('sourceFile').uniqueKeys();
-    const rows = new Map<string, Record<string, string | undefined>[]>();
+    const rows = new Map<string, AccountRowGroup[]>();
     for (const key of keys) {
       if (typeof key !== 'string') continue;
       const name = key.toLowerCase();
@@ -604,18 +884,26 @@ export async function readRowsByFile(
       // were requested rather than the size of the dataset.
       if (!names.has(name)) continue;
       const matches = await db.rows.where('sourceFile').equals(key).toArray();
+      // Grouped per ACCOUNT inside this file, in the order first seen, as a Map
+      // keyed by the root name rather than a joined account-and-file string: a
+      // root may be named `__proto__`, and a joined key is one more collision
+      // to get wrong (T-09-27). The account of a row is `row.account ??
+      // meta.accountRoot` through the SAME `accountOf` helper the session and
+      // login readers call, so the account-or-legacy rule is stated once.
+      const byAccount = new Map<string, AccountRowGroup>();
       for (const row of matches) {
         if (!wanted.has(row.category.toLowerCase())) continue;
-        const bucket = rows.get(name);
-        if (bucket === undefined) {
-          rows.set(name, [row.data]);
+        const account = accountOf(row, meta);
+        const group = byAccount.get(account);
+        if (group === undefined) {
+          byAccount.set(account, { account, rows: [row.data] });
         } else {
-          // The accumulator behind the map's value type, for the same reason
-          // the session reader casts: the map is built inside this function and
-          // handed out as readonly data.
-          (bucket as Record<string, string | undefined>[]).push(row.data);
+          // The accumulator behind the readonly group rows; see the same
+          // pattern in the session reader above.
+          (group.rows as Record<string, string | undefined>[]).push(row.data);
         }
       }
+      if (byAccount.size > 0) rows.set(name, [...byAccount.values()]);
     }
     return { importedAt: meta.importedAt, files: meta.files ?? null, rows };
   });
@@ -702,5 +990,80 @@ export async function clearData(): Promise<void> {
   await db.transaction('rw', db.rows, db.meta, async () => {
     await db.rows.clear();
     await db.meta.delete('active');
+  });
+}
+
+/**
+ * Delete every stored row of a category this build does NOT support, and
+ * return how many rows went (D-21).
+ *
+ * ## Why this exists
+ *
+ * D-18 (plan 09-02) stops NEW imports from writing rows of an unknown or
+ * known-deferred category. It does nothing for a user who already imported
+ * with v1.0: their cache still holds the real `Game_Forums` rows with their
+ * `EMAIL` and `IP_ADDRESS` columns, and their `Chat_History` rows with their
+ * message text — neither of which is on the three-column deny-list, so nothing
+ * ever stripped them. Those rows are unread by every reader, which is exactly
+ * why leaving them is indefensible: data at rest that nothing can use and
+ * nothing can remove. D-21 removes them on load, which is the single point
+ * where a returning user's cache is opened.
+ *
+ * ## Why it is NOT a Dexie version bump
+ *
+ * The obvious alternative — `version(3)` with an `upgrade` callback — would
+ * cost every returning user their WHOLE cached dataset to delete a subset of
+ * it: their rows, their identity, their imported-at, all of which are still
+ * correct. The `version(2)` upgrader already exists and already wipes, for the
+ * Phase-2 caches that held a raw email; the 06-01 precedent is that a purely
+ * derived change costs a re-import and nothing else. So this is a delete
+ * function called from the worker's check-cache path, and `db.verno` stays 2
+ * — a property `tests/unit/import/db.test.ts` pins.
+ *
+ * ## Why the decision is made on the ROW, never on the cached status
+ *
+ * `meta.categories[].status` is a CACHE OF A CLASSIFICATION, and
+ * `resultFromMeta` re-derives every one of them at read time precisely because
+ * a stored status can be stale. Deciding from it here would delete rows a
+ * folder's current classification says are supported. So the rule is
+ * `classifyFolder` on the stored row's OWN category string, which also means
+ * each CASING is its own index key judged on its own: `Activity_HISTORY` and
+ * `financial_data` are supported and survive, while `CHAT_HISTORY` and
+ * `game_forums` are not and go.
+ *
+ * ## Why the transaction's scope is the rows store ALONE
+ *
+ * `db.meta` is deliberately not opened here, so the meta record — every
+ * category's `rowCount` and `skippedRowCount`, the aggregates, the identity
+ * and `importedAt` — stays exactly as written. That is what keeps the "Not yet
+ * supported" banners showing their counts after a purge, identically to what a
+ * fresh D-18 import shows for the same archive.
+ *
+ * ## Idempotence, and what a later promotion costs
+ *
+ * A second run finds no unsupported key and returns 0: the function is a
+ * no-op by construction rather than by a guard. A category a later phase
+ * PROMOTES to supported needs its rows stored again, which means a re-import —
+ * the same price Phase 5 and Phase 6's derived fields paid, and cheaper than
+ * the alternative of keeping rows nobody has consented to.
+ *
+ * An empty database is a no-op too: the index walk returns nothing and the
+ * transaction commits without a write.
+ */
+export async function purgeUnsupportedCategoryRows(): Promise<number> {
+  return db.transaction('rw', db.rows, async () => {
+    // The index walk `readSessionRowData` already uses: index-only, and the
+    // list form of the query must never appear in this file (its cost is a
+    // function of the number of KEYS, not of the rows).
+    const keys = await db.rows.orderBy('category').uniqueKeys();
+    let deleted = 0;
+    for (const key of keys) {
+      if (typeof key !== 'string') continue;
+      if (classifyFolder(key) === 'supported') continue;
+      // One single-key delete per unsupported category, summing the counts
+      // Dexie returns. A category with no rows deletes nothing.
+      deleted += await db.rows.where('category').equals(key).delete();
+    }
+    return deleted;
   });
 }

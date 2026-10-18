@@ -31,15 +31,14 @@ import {
   waitForMessage,
   type WorkerPostSpy,
 } from '../../helpers/worker-harness.ts';
+import { oneAccount } from '../../helpers/row-groups';
 import type {
   CurrencyView,
   PremiumView,
   SpendView,
 } from '../../../src/lib/features/finance/finance-shared.ts';
-import type {
-  VehicleRowData,
-  VehicleView,
-} from '../../../src/lib/features/vehicles/vehicle-shared.ts';
+import type { VehicleView } from '../../../src/lib/features/vehicles/vehicle-shared.ts';
+import type { VehicleFileFacts } from '../../../src/lib/features/vehicles/vehicle-aggregate.ts';
 import type { LoginsView } from '../../../src/lib/features/logins/login-shared.ts';
 import type { DeviceInfoView } from '../../../src/lib/features/device-info/device-info-shared.ts';
 import type {
@@ -136,7 +135,7 @@ describe('05-07 tracer: premium through the real worker and Dexie snapshot', () 
     if (reply.result === null) throw new Error('expected a result');
     expect(reply.result.channel).toBe('premium');
     expect(reply.result.view).toEqual(
-      buildPremium(expectedPremiumRows(), true) as { status: string },
+      buildPremium(oneAccount(expectedPremiumRows()), true) as { status: string },
     );
     const view = reply.result.view as { status: string; grants?: number };
     // The hand fixture's ready shape: 18 rows, 11 of them grants.
@@ -338,7 +337,7 @@ describe('05-07: the currency, spend and vehicles channels', () => {
     const reply = await ask(post, { channel: 'currency' }, 1);
 
     expect(viewOf(reply, 'currency')).toEqual(
-      buildCurrency(rowsOf(CURRENCY_OPS_HEADER, CURRENCY_HAND_ROWS) as never, true),
+      buildCurrency(oneAccount(rowsOf(CURRENCY_OPS_HEADER, CURRENCY_HAND_ROWS) as never), true),
     );
     // Not vacuous: the sample really does chart credits and gold, and lists
     // the rest (D-16), so a builder that returned nothing would fail above.
@@ -354,7 +353,7 @@ describe('05-07: the currency, spend and vehicles channels', () => {
     const reply = await ask(post, { channel: 'spend' }, 1);
 
     expect(viewOf(reply, 'spend')).toEqual(
-      buildSpend(rowsOf(ORDERS_HEADER_12, ORDERS_HAND_ROWS) as never),
+      buildSpend(oneAccount(rowsOf(ORDERS_HEADER_12, ORDERS_HAND_ROWS) as never)),
     );
     // The five cards in order, and no blended total anywhere (D-21, D-24).
     const view = viewOf(reply, 'spend') as SpendView;
@@ -370,10 +369,13 @@ describe('05-07: the currency, spend and vehicles channels', () => {
     // production parser — the same call the import path makes — so the expected
     // view is what the builder would produce from the very rows the worker
     // stored. A hand-typed row list would prove nothing about the wiring.
-    const files = new Map<string, { rows: readonly VehicleRowData[]; seen: boolean }>();
+    const files = new Map<string, VehicleFileFacts>();
     for (const [fileName, text] of Object.entries(PLAYER_STATS_SAMPLE_FILES)) {
       const parsed = parseCsvFile(text, 'Player_statistics', fileName);
-      files.set(fileName.toLowerCase(), { rows: parsed.rows.map((r) => r.data), seen: true });
+      files.set(fileName.toLowerCase(), {
+        groups: oneAccount(parsed.rows.map((r) => r.data)),
+        seen: true,
+      });
     }
 
     for (const [queryId, query] of [

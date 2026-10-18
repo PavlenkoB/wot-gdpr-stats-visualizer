@@ -1,12 +1,15 @@
 import '../_support/pin-locale';
 import { expect, test } from '@playwright/test';
 import {
-  buildMultiRootZip,
   buildNoRecognizedCategoryZip,
   buildNotAZipBytes,
   buildSampleExport,
   buildTruncatedExport,
 } from '../../fixtures/export-fixtures.ts';
+import {
+  buildStrayFolderExport,
+  buildTopLevelCategoryBesideRootsExport,
+} from '../../fixtures/multi-account-fixtures.ts';
 import { SAMPLE_NICKNAME } from '../../fixtures/export-fixtures.ts';
 import { GENERIC_FAILURE_MESSAGE } from '../../../src/lib/ui-copy.ts';
 import { dropFiles } from '../_support/helpers.ts';
@@ -152,10 +155,11 @@ test('(c) a truncated .zip (buildTruncatedExport) shows the banner', async ({ pa
 });
 
 // -----------------------------------------------------------------------------
-// (d) A valid zip with no recognized Wargaming category, then a multi-root zip
+// (d) A valid zip with no recognized Wargaming category, then a stray folder
+//     beside roots, then a top-level category beside roots
 // -----------------------------------------------------------------------------
 
-test('(d) a photos zip with no recognized category shows the banner; then a multi-root zip also shows the banner', async ({
+test('(d) a photos zip, a stray folder beside roots and a top-level category beside roots each show the banner', async ({
   page,
 }) => {
   await page.getByTestId('file-input').setInputFiles({
@@ -169,15 +173,34 @@ test('(d) a photos zip with no recognized category shows the banner; then a mult
   await expect(banner).toHaveText(GENERIC_FAILURE_MESSAGE);
   await expect.poll(() => bannerTextContaining('no-recognized-category')).toBe(true);
 
-  // Reset for the second case: drop another invalid zip.
+  // D-02: a stray unknown FOLDER beside two account roots. Phase 9 made a
+  // MULTI-root zip importable, so the shape that still must fail is the one
+  // whose extra folder cannot be attributed to any account.
   await page.getByTestId('file-input').setInputFiles({
-    name: 'multi-root.zip',
+    name: 'stray-folder.zip',
     mimeType: 'application/zip',
-    buffer: Buffer.from(buildMultiRootZip()),
+    buffer: Buffer.from(buildStrayFolderExport()),
   });
 
   await expect(banner).toBeVisible();
   await expect(banner).toHaveText(GENERIC_FAILURE_MESSAGE);
+  // The banner was ALREADY visible from the photos zip, so its text alone
+  // would pass even if this drop never ran. The logged cause is what proves
+  // each import was attempted and refused for its own reason.
+  await expect.poll(() => bannerTextContaining('no-single-root')).toBe(true);
+
+  // D-04: a RECOGNISED category folder at the top level beside the roots. Its
+  // rows cannot be attributed to an account — exactly the shape that could let
+  // a User_Info file dodge the strip.
+  await page.getByTestId('file-input').setInputFiles({
+    name: 'top-level-category.zip',
+    mimeType: 'application/zip',
+    buffer: Buffer.from(buildTopLevelCategoryBesideRootsExport()),
+  });
+
+  await expect(banner).toBeVisible();
+  await expect(banner).toHaveText(GENERIC_FAILURE_MESSAGE);
+  await expect.poll(() => bannerTextContaining('ambiguous-root')).toBe(true);
 });
 
 // -----------------------------------------------------------------------------

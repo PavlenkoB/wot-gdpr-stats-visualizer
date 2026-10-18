@@ -8,18 +8,21 @@ import {
   type NavMutedReason,
 } from './dashboard-status.ts';
 import {
+  ACCOUNT_ROW_MULTI_SUMMARY,
   ACCOUNT_ROW_SUMMARY,
   OVERVIEW_ROW_SUMMARY,
   PANE_TITLES,
   ROW_HEADLINE_NONE,
   UNKNOWN_VALUE,
   UNSUPPORTED_NONE_DETECTED,
+  formatAccountCount,
   formatFolderCount,
   formatRowCount,
   formatRowSummary,
   formatSectionStatus,
   type GreyedSectionStatus,
 } from '../ui-copy.ts';
+import { accountCountOf, hasMultipleRoots } from './identity-model.ts';
 
 // =============================================================================
 // The pane model of the master-detail shell (Phase 8, plan 08-01)
@@ -47,6 +50,18 @@ import {
 //      ClassifyResult alone. The list is always mounted, and a query issued from
 //      it would compete with the open section's query, because supersede is per
 //      channel.
+//
+// ## Phase 9: what the Account row may read (D-13)
+//
+// The Account row is the one row whose source changes with the archive's
+// FOLDER count, and the rule is a restriction rather than an addition: with two
+// or more folders it reads NEITHER `result.identity.region` NOR any single
+// account's fields. The legacy `identity` block is the FIRST folder's, so
+// reading it here would present one account's region as the export's — exactly
+// what T-09-20 exists to prevent, and whether or not the other folders stored
+// data (09-11). The multi row therefore reads the account COUNT (the accounts
+// that hold data) and nothing else, and the nickname is never read here at all
+// (it belongs to its own row in the header, v1.0 D-21).
 
 /**
  * The nine panes, in the fixed order the list shows them. The ids are the
@@ -179,6 +194,26 @@ export function paneEntries(result: ClassifyResult | null): PaneEntry[] {
 
     const counts = sectionCounts(folder, result);
     if (id === 'account') {
+      // Phase 9, D-13. An archive of two or more FOLDERS is a DIFFERENT row, not
+      // a decorated one: "30 / Location code and creation date" would be false,
+      // because no single account's region or creation date stands for the
+      // export. What the pane actually shows is the header's account list, so the
+      // row says that. The decision is the folder count (09-11): the legacy
+      // `identity` is the first folder's, so the row never reads its region once
+      // the archive held several, even if only one of them stores data. The
+      // headline is still the accounts that hold data, `accountCountOf`.
+      //
+      // The one-folder path below is byte-identical to v1.0 — same region
+      // read, same `Unknown` fallback, same summary.
+      if (hasMultipleRoots(result)) {
+        return {
+          id,
+          muted,
+          reason: null,
+          headline: formatAccountCount(accountCountOf(result)),
+          summary: ACCOUNT_ROW_MULTI_SUMMARY,
+        };
+      }
       const region = result?.identity?.region?.trim() ?? '';
       return {
         id,

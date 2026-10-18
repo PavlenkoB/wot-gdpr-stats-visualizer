@@ -9,7 +9,7 @@ import type {
   ParsingProgress,
   WorkerScopeLike,
 } from '../core/types/worker-messages.ts';
-import { analyzeExport, resolveCsvFileCategory, sortCategoryEntries } from './classify.ts';
+import { analyzeExport, resolveCsvFileOwner, sortCategoryEntries } from './classify.ts';
 import { CATEGORY_STATUS_ORDER, classifyFolder } from './categories.ts';
 import { listEntryPaths } from './zip-paths.ts';
 import { createInflateFilter } from './inflate-bounds.ts';
@@ -68,16 +68,24 @@ import {
   checkCache,
   clearData,
   MAX_PRESENCE_FILES,
+  purgeUnsupportedCategoryRows,
   readLoginRowData,
   readRowsByFile,
   readSessionRowData,
   writeDataset,
   writeLoginsIfCurrent,
   writePlaytimeIfCurrent,
+  type AccountMeta,
   type DatasetFile,
   type DatasetMeta,
   type DatasetRow,
 } from './db.ts';
+import {
+  accountSummariesOf,
+  accountsOfMeta,
+  sortAccounts,
+  summarizeSessionSources,
+} from './account-summary.ts';
 
 const scope = self as unknown as WorkerScopeLike;
 
@@ -633,6 +641,17 @@ async function handleClearData(jobId: number): Promise<void> {
  */
 async function handleCheckCache(jobId: number): Promise<void> {
   try {
+    // D-21, FIRST: a cache written by a build that stored rows of categories
+    // this build does not support is cleaned before the page is told what is
+    // cached, so `cache-status` describes a dataset whose rows are already
+    // clean. The ready handshake posts this on every page load and the duplicate
+    // branch of `handleIngest` only replays a record this handler already read,
+    // so this is the ONE entry for a returning cache.
+    //
+    // No catch of its own, deliberately: a failed purge must route to the same
+    // error channel as a failed cache read rather than report a clean load
+    // while the rows remain.
+    await purgeUnsupportedCategoryRows();
     const existing = await checkCache();
     scope.postMessage({
       type: 'cache-status',
@@ -694,6 +713,9 @@ async function handleCheckCache(jobId: number): Promise<void> {
  * upgrader is untouched (db.ts's two-rules comment still holds).
  */
 function resultFromMeta(meta: DatasetMeta): ClassifyResult {
+  // Bound once: the published list and the root count of one result must come
+  // from one read of the stored list (09-11).
+  const storedAccounts = accountsOfMeta(meta);
   const categories = sortCategoryEntries(
     meta.categories.map((entry) => ({ ...entry, status: classifyFolder(entry.name) })),
   );
@@ -703,6 +725,110 @@ function resultFromMeta(meta: DatasetMeta): ClassifyResult {
     counts: recomputeStatusCounts(categories),
     importedAt: meta.importedAt,
     identity: meta.identity ?? null,
+    // D-08/D-22 + 09-10: the ONE place a replay builds its account list, so
+    // `done`, `duplicate` and `cache-status` cannot drift apart. A cache written
+    // before Phase 9 normalises to a one-entry list here rather than to none,
+    // and the projection is the same one the import's `done` payload uses — the
+    // count the header shows after a reload is the count it showed at import.
+    accounts: accountSummariesOf(storedAccounts),
+    // 09-11: the folders the archive held, data-less ones included, derived from
+    // the same list as `accounts` above. The import's `finalResult` sets the same
+    // figure; edit the pair together.
+    rootCount: storedAccounts.length,
+  };
+}
+
+/**
+ * One inflated CSV entry with the account that OWNS it (Phase 9, D-06).
+ *
+ * The resolution happened once, in the loop that grouped the inflated entries
+ * by category; this is the result of that resolution plus the bytes, so the
+ * parse loop cannot reach a different owner than the inflate filter did.
+ */
+interface OwnedFile {
+  root: string;
+  sourceFile: string;
+  bytes: Uint8Array;
+}
+
+/** One account's running row counts for one category (D-08). */
+interface CategoryCounts {
+  rowCount: number;
+  skippedRowCount: number;
+}
+
+/**
+ * Everything the import collects for ONE account root (Phase 9, D-07 to D-09,
+ * D-17).
+ *
+ * ## Why this exists rather than five parallel arrays
+ *
+ * The import reads every root's files through ONE loop, so each of these needs
+ * a per-account home: the identity pool, the presence facts, the session
+ * sources, and the per-category counts that become that account's stored
+ * category list. Keeping them in one object makes "which account does this row
+ * belong to" a single lookup instead of five parallel keyed structures that
+ * could disagree about the owner.
+ *
+ * ## Why every member is a Map or an array, and none is a plain object
+ *
+ * A root may be named `__proto__` or `constructor` (T-09-04), and a plain
+ * object keyed by a root name would return `Object.prototype` for one of them —
+ * so a root's "session sources" would read as a prototype object and its rows
+ * would be attributed to a sibling, or the import would throw. Maps and arrays
+ * have no such member.
+ */
+interface RootState {
+  /** Sanitised rows of `Account_Info.csv` files, which win the identity pick. */
+  accountInfoRows: Record<string, string | undefined>[];
+  /** Sanitised rows of every OTHER User_Info-family file (the fallback pool). */
+  otherUserInfoRows: Record<string, string | undefined>[];
+  /** This account's own presence facts, capped per account (T-05-21). */
+  presenceFiles: DatasetFile[];
+  /** This account's own session sources, for D-14 games and D-15 years. */
+  sessionSources: SessionSource[];
+  /**
+   * How many rows this account STORED (09-10, `accountCountSemantics: option-a`).
+   *
+   * A count and not a boolean because the rule is "stored at least one row in a
+   * supported category" — and a `User_Info` row is such a row, so the identity
+   * pools need no separate term. It is the one fact about this root that no
+   * summary can answer after the fact: a root whose sessions all failed to parse
+   * looks exactly like a root that was never there.
+   */
+  storedRows: number;
+  /** This account's running counts, per CATEGORY NAME as the archive spells it. */
+  readonly counts: Map<string, CategoryCounts>;
+
+  /**
+   * The running counts for one category of this account, created on first use.
+   *
+   * Created rather than pre-seeded from `analyzeExport`'s category list because
+   * a category can legitimately hold zero files for this root: pre-seeding
+   * would then have to guess 0/0, and a getter would need a null branch on
+   * every read of the parse loop's hot path.
+   */
+  categoryCounts(name: string): CategoryCounts;
+}
+
+/** A fresh, empty per-account state. */
+function newRootState(): RootState {
+  const counts = new Map<string, CategoryCounts>();
+  return {
+    accountInfoRows: [],
+    otherUserInfoRows: [],
+    presenceFiles: [],
+    sessionSources: [],
+    storedRows: 0,
+    counts,
+    categoryCounts(name: string): CategoryCounts {
+      let entry = counts.get(name);
+      if (entry === undefined) {
+        entry = { rowCount: 0, skippedRowCount: 0 };
+        counts.set(name, entry);
+      }
+      return entry;
+    },
   };
 }
 
@@ -737,6 +863,13 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
     // Per-category parse loop (D-01: every category, every status;
     // D-11: per-category progress; IMPORT-01: all in the worker).
     const recognized = new Set(outcome.result.categories.map((c) => c.name));
+    // Phase 9 D-06: the ONE root set every per-entry resolution goes through.
+    // `analyzeExport` already resolved each entry to a root; re-resolving with
+    // the same set is what makes the inflate filter and the per-category counts
+    // agree about WHICH account a file belongs to. A set, because a root may be
+    // named `__proto__` and an object literal would collide with
+    // `Object.prototype` (T-09-04).
+    const rootNames = new Set(outcome.roots.map((r) => r.root));
     // WR-03 / T-01-52: the entries this selects are the ones fflate inflates,
     // and it allocates from the DECLARED size first. The filter therefore
     // enforces the declared-size caps (inflate-bounds.ts) and a rejected archive
@@ -744,25 +877,58 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
     // One filter per import: its running total must not outlive the archive.
     const inflated = unzipSync(bytes, {
       filter: createInflateFilter(
-        (name) => resolveCsvFileCategory(name, outcome.result.accountRoot, recognized) !== null,
+        (name) => resolveCsvFileOwner(name, rootNames, recognized) !== null,
       ),
     });
 
+    // Every inflated entry is resolved EXACTLY ONCE, here, and grouped by the
+    // category it belongs to. The category loop below then reads its own group
+    // instead of re-walking every entry for every category, which is both the
+    // cost bound the plan asks for and the structural reason the filter and the
+    // counts cannot disagree: they are two consumers of one resolution.
+    //
+    // The group preserves INFLATED ORDER within a category, which is the order
+    // the previous `Object.entries(inflated)` scan saw, so row indexes and file
+    // order are unchanged for a one-account export.
+    const filesByCategory = new Map<string, OwnedFile[]>();
+    for (const [rawName, fileBytes] of Object.entries(inflated)) {
+      const resolved = resolveCsvFileOwner(rawName, rootNames, recognized);
+      if (!resolved) continue;
+      const group = filesByCategory.get(resolved.category);
+      const owned: OwnedFile = {
+        root: resolved.root,
+        sourceFile: resolved.sourceFile,
+        bytes: fileBytes,
+      };
+      if (group === undefined) filesByCategory.set(resolved.category, [owned]);
+      else group.push(owned);
+    }
+
     const allRows: DatasetRow[] = [];
     const updatedCategories: CategoryEntry[] = [];
-    // Sanitised User_Info rows kept aside for the identity pick, split by
-    // which file they came from: Account_Info.csv is the file that actually
-    // carries NAME/REGION/CREATED_AT, so its rows win when there are any
-    // (D-17's "prefer the account row" ordering). Both pools are already
-    // sanitised, so extractIdentity cannot see a stripped column.
-    const accountInfoRows: Record<string, string | undefined>[] = [];
-    const otherUserInfoRows: Record<string, string | undefined>[] = [];
+    // Per-root state (Phase 9, D-07/D-08/D-17). A Map keyed by the root name,
+    // never a plain object: a root may be literally `__proto__` or
+    // `constructor` (T-09-04).
+    const byRoot = new Map<string, RootState>();
+    for (const root of rootNames) byRoot.set(root, newRootState());
+    const stateOf = (root: string): RootState => {
+      const existing = byRoot.get(root);
+      // A resolution can only name a root from `rootNames`, so this is the
+      // belt-and-braces branch rather than an expected path — and it fails LOUD
+      // (a throw into the single catch) instead of silently dropping an
+      // account's rows into a shared bucket.
+      if (existing !== undefined) return existing;
+      const created = newRootState();
+      byRoot.set(root, created);
+      return created;
+    };
     // D-02: the session rows go to the playtime aggregator as well as to the
-    // rows table, one SOURCE per session file. The flag is set per FILE, before
-    // the row loop, because a header-only session file parses to zero rows and a
-    // flag set inside the loop would stay false — which would report a file that
-    // exists as an export that has none, and the UI copy treats those
-    // differently.
+    // rows table, one SOURCE per session file, ACROSS every account — playtime
+    // stays ONE aggregate over the whole dataset (D-09). The flag is set per
+    // FILE, before the row loop, because a header-only session file parses to
+    // zero rows and a flag set inside the loop would stay false — which would
+    // report a file that exists as an export that has none, and the UI copy
+    // treats those differently.
     //
     // One source per file, and not one flat list, because each file has its own
     // HEADER: the synthetic `Sessions.csv` says `SESSION_START` while a real
@@ -783,12 +949,6 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
     // is not edited, and its guarantee that the `IP` column is never read
     // (T-04-01) stays true.
     const loginSources: LoginSource[] = [];
-    // 05-07: one presence fact per file of the three categories this phase
-    // reads, pushed BEFORE the row loop for the same reason the session flag
-    // is set there — a header-only file parses to zero rows, and a fact set
-    // inside the loop would never be recorded for exactly the file whose
-    // presence the fact exists to prove (D-02, D-05).
-    const presenceFiles: DatasetFile[] = [];
     const categoryTotal = outcome.result.categories.length;
     for (let i = 0; i < categoryTotal; i++) {
       const entry = outcome.result.categories[i]!;
@@ -820,13 +980,37 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
       // decides one thing: whether a row that carries the Assistant `POST`
       // header is reduced at the choke point below.
       const deviceInfo = isDeviceInfoCategory(entry.name);
+      // Phase 9 D-18: rows of an UNKNOWN or KNOWN-DEFERRED category are parsed
+      // for their counts and never stored. The counts are not decoration — the
+      // "Not yet supported" pane tells the user how many rows a folder they
+      // hold actually has, and that sentence must survive the skip.
+      //
+      // Why it has to be a skip rather than a strip. The real sample's
+      // `Game_Forums/WOT_Forum_User_Info.csv` carries `EMAIL`, `IP_ADDRESS`
+      // and `BDAY_DAY`/`BDAY_MONTH`/`BDAY_YEAR`, and `Chat_History` carries
+      // `MESSAGE_BODY`. None of those columns is on the three-column D-19
+      // deny-list, so a per-column strip would have to grow to hold them — and
+      // a deny-list that grows with every new folder shape is the same
+      // catch-all this rule exists to close. Promoting a category later
+      // (Phase 11 / 12, PRIV-01) stores its rows again behind its OWN
+      // header-level strip, one category at a time.
+      //
+      // Decided from the CATEGORY, not from the file's folder name, so the
+      // classifier's own answer is the single thing both the counts and this
+      // skip read.
+      const storeRows = entry.status === 'supported';
 
       let rowCount = 0;
       let skippedRowCount = 0;
-      for (const [rawName, fileBytes] of Object.entries(inflated)) {
-        const resolved = resolveCsvFileCategory(rawName, outcome.result.accountRoot, recognized);
-        if (!resolved || resolved.category !== entry.name) continue;
-        const text = new TextDecoder('utf-8').decode(fileBytes);
+      for (const file of filesByCategory.get(entry.name) ?? []) {
+        const resolved = { root: file.root, category: entry.name, sourceFile: file.sourceFile };
+        const root = stateOf(resolved.root);
+        // This root's OWN running counts for THIS category. `rowIndex` restarts
+        // per account and category, which is what makes the adjacency case real:
+        // the same source file from several accounts is stored with the same
+        // indexes, so nothing may key on (sourceFile, rowIndex) alone (D-12).
+        const own = root.categoryCounts(entry.name);
+        const text = new TextDecoder('utf-8').decode(file.bytes);
         const parsed = parseCsvFile(text, entry.name, resolved.sourceFile);
         const game = sessionFileGame(entry.name, resolved.sourceFile);
         const isSessions = game !== null || isSessionsRow(entry.name, resolved.sourceFile);
@@ -848,6 +1032,10 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
         if (isSessions) {
           sessionsFileSeen = true;
           sessionSources.push(source);
+          // The owning account's OWN sources, for D-15's per-account years and
+          // D-14's per-account games. The SAME array reference as the global
+          // list, so the aggregate and the summary cannot disagree about a row.
+          root.sessionSources.push(source);
           // The SAME before-the-loop rule, for the same reason: a header-only
           // session file has no rows to build a source from, and it still has to
           // reach the login aggregator as a file that was SEEN — that fact is
@@ -866,18 +1054,26 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
         // matched LOWER-CASED because a folder spelled `player_statistics`
         // classifies as the same supported category (D-18) and its files are
         // exactly the ones these blocks need presence for. The cap bounds a
-        // crafted archive (T-05-21): past it the facts stop, the rows do not.
+        // crafted archive (T-05-21) and is PER ACCOUNT since Phase 9, so one
+        // noisy root cannot starve a sibling's facts: past the cap the facts
+        // stop, the rows do not.
         if (
-          presenceFiles.length < MAX_PRESENCE_FILES &&
+          root.presenceFiles.length < MAX_PRESENCE_FILES &&
           PRESENCE_CATEGORIES.has(entry.name.toLowerCase())
         ) {
-          presenceFiles.push({
+          root.presenceFiles.push({
             category: entry.name,
             sourceFile: resolved.sourceFile,
             rowCount: parsed.rows.length,
+            account: resolved.root,
           });
         }
-        for (let r = 0; r < parsed.rows.length; r++) {
+        // D-18: `storeRows` short-circuits the loop, so an unsupported category's
+        // rows are neither sanitised nor pushed anywhere. The counts at the
+        // foot of this loop still read `parsed.rows.length` and
+        // `parsed.skippedCount`, which is why the sentence the "Not yet
+        // supported" pane shows is unchanged by the skip.
+        for (let r = 0; storeRows && r < parsed.rows.length; r++) {
           // THE single choke point every row passes through. Dropping the
           // three sensitive columns here — rather than at the Dexie write —
           // is what makes the guarantee airtight: a row that is never pushed
@@ -890,7 +1086,8 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
           // BIRTH_DATE_SRC header, because the folder a file is filed under is
           // attacker-controlled and classification can be wrong. A row with
           // neither is stored untouched, `__parsed_extra` included (Phase 2
-          // stores everything outside the three columns).
+          // stores everything outside the three columns). Nothing about it is
+          // account-specific: the same choke point strips every root (D-19).
           //
           // 261012-bog, PD-02: the Assistant blob is reduced HERE, keyed on the
           // folder AND the header. A Device_info row that carries a `POST`
@@ -915,8 +1112,11 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
           allRows.push({
             category: entry.name,
             sourceFile: resolved.sourceFile,
-            rowIndex: rowCount + r,
+            rowIndex: own.rowCount + r,
             data,
+            // D-07: the owning root, stamped on EVERY row, so two accounts
+            // contributing the same file name stay distinguishable at rest.
+            account: resolved.root,
           });
           // The aggregator reads four named columns off this reference and
           // keeps nothing else, so handing it the SAME object costs no copy
@@ -929,13 +1129,25 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
           // only for `isSessions` would hand the login aggregator an EMPTY
           // source and report a file that contributed nothing.
           if (isSessions || isLoginsFile) rows.push(data);
+          // 09-10: one stored row for the owning account. It is counted HERE,
+          // inside the single choke point every stored row passes through, so
+          // "this root stored something" is a fact about rows that really
+          // reached `allRows` and never about folders that merely existed.
+          root.storedRows += 1;
           if (userInfo) {
             const isAccountInfo = resolved.sourceFile.toLowerCase().endsWith('account_info.csv');
-            (isAccountInfo ? accountInfoRows : otherUserInfoRows).push(data);
+            // Into the OWNING ROOT's pools only. A per-root pool is what stops
+            // an account with no User_Info inheriting a sibling's nickname, and
+            // it is applied to the pools themselves rather than to the pick
+            // afterwards — a pick that filtered could still be handed the wrong
+            // pool (RESEARCH Pitfall 1).
+            (isAccountInfo ? root.accountInfoRows : root.otherUserInfoRows).push(data);
           }
         }
         rowCount += parsed.rows.length;
         skippedRowCount += parsed.skippedCount;
+        own.rowCount += parsed.rows.length;
+        own.skippedRowCount += parsed.skippedCount;
       }
       updatedCategories.push({
         ...entry,
@@ -944,12 +1156,43 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
       });
     }
 
-    // D-17/D-20: three fields, or null when no User_Info row parsed at all
-    // (the D-16 fallback trigger). Never logged (D-21).
-    const identity = extractIdentity(
-      accountInfoRows.length > 0 ? accountInfoRows : otherUserInfoRows,
-      outcome.result.accountRoot,
-    );
+    // D-17/D-20: three fields per root, read from that root's OWN sanitised
+    // pool, or null when that root parsed no User_Info row at all (the D-16
+    // fallback trigger). Never logged (D-21).
+    const accounts: AccountMeta[] = outcome.roots.map((analysis) => {
+      const root = stateOf(analysis.root);
+      const pool = root.accountInfoRows.length > 0 ? root.accountInfoRows : root.otherUserInfoRows;
+      const facts = summarizeSessionSources(root.sessionSources);
+      return {
+        root: analysis.root,
+        categories: sortCategoryEntries(
+          analysis.categories.map((category) => {
+            const own = root.categoryCounts(category.name);
+            return {
+              ...category,
+              rowCount: own.rowCount,
+              skippedRowCount: own.skippedRowCount,
+            };
+          }),
+        ),
+        identity: extractIdentity(pool, analysis.root),
+        files: root.presenceFiles,
+        games: facts.games,
+        firstYear: facts.firstYear,
+        lastYear: facts.lastYear,
+        // 09-10: written HERE, in the same `meta.put` the rest of this record
+        // rides in, and never derived at read time — a reader cannot tell a
+        // root that stored nothing from one whose sessions all failed to parse.
+        hasData: root.storedRows > 0,
+      };
+    });
+    // D-16: first activity year ascending, ties and no-activity accounts last,
+    // all broken by root in code-unit order. Applied HERE rather than in the
+    // classifier because years exist only once the rows have been parsed — and
+    // the list is STORED in this order, so a replay is identical to the import.
+    const ordered = sortAccounts(accounts);
+    const primary = ordered[0];
+    const identity = primary?.identity ?? null;
 
     // 06-05, D-02: the one labelled "Account record" row, read from the SAME
     // sanitised pool and with the SAME account root as the identity pick, so
@@ -957,10 +1200,22 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
     // birth date. It is not a login: `buildLogins` stores it and never counts
     // it, so the account's own address is in no total, no country figure and
     // no `unknown` bucket.
-    const account = extractAccountRecord(
-      accountInfoRows.length > 0 ? accountInfoRows : otherUserInfoRows,
-      outcome.result.accountRoot,
-    );
+    //
+    // Built ONLY for a dataset with exactly ONE account (UI-SPEC Surface 4). A
+    // multi-account dataset has no single "the account", so publishing one
+    // account's address as the login pane's account row would present one
+    // account as the whole — exactly the D-11 caption's job to prevent. Per-
+    // account logins are Phase 10's if they need them.
+    const singleRoot = ordered.length === 1 ? ordered[0]! : null;
+    const account =
+      singleRoot === null
+        ? null
+        : extractAccountRecord(
+            stateOf(singleRoot.root).accountInfoRows.length > 0
+              ? stateOf(singleRoot.root).accountInfoRows
+              : stateOf(singleRoot.root).otherUserInfoRows,
+            singleRoot.root,
+          );
 
     scope.postMessage({ type: 'stage', jobId, stage: 'writing' } satisfies IngestResponse);
     // T-04-03: a playtime bug must never cost the user their import. The
@@ -988,19 +1243,26 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
     }
     const { importedAt } = await writeDataset(
       hash,
-      outcome.result.accountRoot,
+      primary?.root ?? '',
       updatedCategories,
       allRows,
       identity,
       playtime,
-      // 05-07: the presence facts ride in the SAME meta.put as the rows, so a
-      // dataset is either all rows with their facts or neither. A fact without
-      // its rows would be exactly the state a `no-rows` claim is made of.
-      presenceFiles,
+      // 05-07 + D-08: the presence facts ride in the SAME meta.put as the rows,
+      // so a dataset is either all rows with their facts or neither. A fact
+      // without its rows would be exactly the state a `no-rows` claim is made
+      // of. The top-level list is the accounts' own facts CONCATENATED, so a
+      // v1.0 reader that knows nothing about accounts still sees every file
+      // this dataset holds.
+      ordered.flatMap((a) => a.files),
       // 06-01: the login aggregate rides in that same `meta.put`, for the same
       // reason — an aggregate without its rows is a claim about data the
       // dataset does not hold.
       logins,
+      // D-08/D-10: the ordered account list rides in that same `meta.put` too,
+      // so a dataset is never rows without their accounts or accounts without
+      // their rows (T-09-10).
+      ordered,
     );
     // 05-07: a successful import REPLACED the dataset, so every remembered
     // answer belongs to a dataset the user is no longer looking at.
@@ -1008,9 +1270,22 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
 
     const finalResult: ClassifyResult = {
       ...outcome.result,
+      // D-08: the legacy single-account fields are the FIRST account's in D-16
+      // order — NOT the classifier's code-unit-first root — so a v1.0 reader
+      // sees the same account the header leads with.
+      accountRoot: primary?.root ?? '',
       categories: updatedCategories,
       importedAt,
       identity,
+      // D-16 + 09-10: the list the main thread renders, in the order it reads as a
+      // migration timeline. Published through the SAME `accountSummariesOf` the
+      // replays use, so `done`, `duplicate` and `cache-status` cannot disagree
+      // and the header's count is the count the store will produce.
+      accounts: accountSummariesOf(ordered),
+      // 09-11: every folder the archive held, including one that stored nothing,
+      // which `accounts` leaves out. `resultFromMeta` sets the same figure from the
+      // stored list; edit the pair together.
+      rootCount: ordered.length,
     };
     scope.postMessage({ type: 'done', jobId, result: finalResult } satisfies IngestResponse);
   } catch (err) {

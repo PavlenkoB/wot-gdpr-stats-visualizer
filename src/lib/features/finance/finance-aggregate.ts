@@ -70,7 +70,7 @@
  * Threats: T-05-07..T-05-11.
  */
 
-import { cell, headerKey } from '../../worker/csv-columns.ts';
+import { cell, headerKey, type AccountRowGroup } from '../../worker/csv-columns.ts';
 import { civilFromDays } from '../../core/civil-date';
 import { parseDecimalUnits } from '../../core/decimal';
 import { parseSessionTimestamp } from '../playtime/playtime-aggregate';
@@ -225,6 +225,24 @@ export function monthOfTimestamp(raw: string | undefined): number | null {
 // ---------------------------------------------------------------------------
 
 /**
+ * One account's rows of one file — the unit every builder here resolves within.
+ *
+ * `AMOUNT`→`AMOUNT_VALUE`, `CURRENCY_CODE`→`GAME_CURRENCY` and so on is drift a
+ * real archive revision carries. Resolving a whole bucket's columns off its first
+ * row therefore resolved ONE account's header and read every other account's
+ * cells as absent, so that account's operations left every chart and every total
+ * while its file was plainly in the archive (CR-01, DATA-04).
+ */
+export type FinanceGroups = readonly AccountRowGroup<FinanceRow>[];
+
+/** How many rows a grouped file holds, summed over its accounts (D-11). */
+function rowCountOf(groups: FinanceGroups): number {
+  let total = 0;
+  for (const group of groups) total += group.rows.length;
+  return total;
+}
+
+/**
  * Resolve column names against the KEYS of one row, first match wins.
  *
  * The key list is walked ONCE for the whole set, which is both the cheaper shape
@@ -352,15 +370,9 @@ function premiumDateColumn(
  * Every excluded value's string is clamped and tracked, so the disclosure in
  * UI-SPEC section 4 can name what could not be read.
  */
-export function buildPremium(rows: readonly FinanceRow[], seen: boolean): PremiumView {
+export function buildPremium(groups: FinanceGroups, seen: boolean): PremiumView {
   if (!seen) return { status: 'not-in-export' };
-  if (rows.length === 0) return { status: 'no-rows' };
-
-  // Resolved ONCE, from the first row: a later row's keys cannot remap a
-  // column, and the key list is read for this row only.
-  const first = rows[0]!;
-  const columns = resolveColumns(first, ['PREMIUM', 'CURR_PREMIUM', 'CREATED']);
-  const dateKey = premiumDateColumn(rows, columns);
+  if (rowCountOf(groups) === 0) return { status: 'no-rows' };
 
   const buckets = new Map<number, PremiumBucket>();
   // T-05-09: a `Map`, so a premium value of `__proto__` is an ordinary entry.
@@ -370,44 +382,53 @@ export function buildPremium(rows: readonly FinanceRow[], seen: boolean): Premiu
   let excluded = 0;
   let totalSeconds = 0;
 
-  for (const row of rows) {
-    // The DATE is read first: a row that cannot be bucketed contributes nothing
-    // to any chart, and saying so is the whole of its exclusion — its premium
-    // text is perfectly fine and is not the thing that went wrong. It is read
-    // from the ONE date column chosen for this file, so an unreadable grant
-    // timestamp is never quietly replaced by the bulk `CREATED` stamp.
-    const month = monthOfTimestamp(cell(row, dateKey));
-    if (month === null) {
-      excluded += 1;
-      continue;
-    }
+  // PER GROUP, from that group's own first row (CR-01), and every group's rows
+  // fold into the SAME accumulators — so a two-account dataset still totals both
+  // accounts' grants (D-11), and two rows landing on the same month share a
+  // bucket whichever account wrote them.
+  for (const group of groups) {
+    const columns = resolveColumns(group.rows[0] ?? {}, ['PREMIUM', 'CURR_PREMIUM', 'CREATED']);
+    const dateKey = premiumDateColumn(group.rows, columns);
 
-    const raw = cell(row, columns.PREMIUM);
-    const parsed = parsePremium(raw);
-    if (parsed.kind !== 'grant') {
-      excluded += 1;
-      const text = (raw ?? '').trim();
-      if (text !== '') {
-        unrecognisedTotal += 1;
-        if (unrecognised.size < MAX_TRACKED_UNRECOGNISED) {
-          const clamped = text.slice(0, MAX_STORED_STRING);
-          unrecognised.set(clamped, (unrecognised.get(clamped) ?? 0) + 1);
-        }
+    for (const row of group.rows) {
+      // The DATE is read first: a row that cannot be bucketed contributes nothing
+      // to any chart, and saying so is the whole of its exclusion — its premium
+      // text is perfectly fine and is not the thing that went wrong. It is read
+      // from the ONE date column chosen for this account's file, so an unreadable
+      // grant timestamp is never quietly replaced by the bulk `CREATED` stamp.
+      const month = monthOfTimestamp(cell(row, dateKey));
+      if (month === null) {
+        excluded += 1;
+        continue;
       }
-      continue;
-    }
 
-    grants += 1;
-    totalSeconds += parsed.seconds;
-    const bucket = buckets.get(month) ?? {
-      seconds: 0,
-      grants: 0,
-      sizes: new Map<number, number>(),
-    };
-    bucket.seconds += parsed.seconds;
-    bucket.grants += 1;
-    bucket.sizes.set(parsed.seconds, (bucket.sizes.get(parsed.seconds) ?? 0) + 1);
-    buckets.set(month, bucket);
+      const raw = cell(row, columns.PREMIUM);
+      const parsed = parsePremium(raw);
+      if (parsed.kind !== 'grant') {
+        excluded += 1;
+        const text = (raw ?? '').trim();
+        if (text !== '') {
+          unrecognisedTotal += 1;
+          if (unrecognised.size < MAX_TRACKED_UNRECOGNISED) {
+            const clamped = text.slice(0, MAX_STORED_STRING);
+            unrecognised.set(clamped, (unrecognised.get(clamped) ?? 0) + 1);
+          }
+        }
+        continue;
+      }
+
+      grants += 1;
+      totalSeconds += parsed.seconds;
+      const bucket = buckets.get(month) ?? {
+        seconds: 0,
+        grants: 0,
+        sizes: new Map<number, number>(),
+      };
+      bucket.seconds += parsed.seconds;
+      bucket.grants += 1;
+      bucket.sizes.set(parsed.seconds, (bucket.sizes.get(parsed.seconds) ?? 0) + 1);
+      buckets.set(month, bucket);
+    }
   }
 
   // The disclosure order: most frequent first, ties by code units, at most
@@ -527,94 +548,96 @@ function compareCurrencyBuckets(
  * (T-05-11). Neither is `CURRENCY_TITLE` a total: it is the first non-blank
  * title seen, used as a label, and never as a key.
  */
-export function buildCurrency(rows: readonly FinanceRow[], seen: boolean): CurrencyView {
+export function buildCurrency(groups: FinanceGroups, seen: boolean): CurrencyView {
   if (!seen) return { status: 'not-in-export' };
-  if (rows.length === 0) return { status: 'no-rows' };
-
-  // Resolved ONCE, from the first row: a later row's keys cannot remap a
-  // column, and the key list is read for this row only (T-05-11).
-  const first = rows[0]!;
-  const columns = resolveColumns(first, [
-    'CREATED',
-    'CURRENCY_CODE',
-    'CURRENCY_TITLE',
-    'AMOUNT',
-    'TYPE',
-  ]);
+  if (rowCountOf(groups) === 0) return { status: 'no-rows' };
 
   // T-05-09: a `Map`, so a code of `__proto__` is an ordinary group and writes
   // nothing onto `Object.prototype`.
-  const groups = new Map<string | null, CurrencyBucket>();
+  const byCode = new Map<string | null, CurrencyBucket>();
   let excluded = 0;
 
-  for (const row of rows) {
-    const direction = (cell(row, columns.TYPE) ?? '').trim().toLowerCase();
-    if (direction !== 'deposit' && direction !== 'income' && direction !== 'withdrawal') {
-      excluded += 1;
-      continue;
-    }
-    const amount = parseDecimalUnits(cell(row, columns.AMOUNT));
-    // A negative amount contradicts its own TYPE: direction comes from TYPE, so
-    // a negative is an export integrity problem rather than money moving the
-    // other way, and a chart that drew a negative deposit downwards would be
-    // worse than a counted exclusion.
-    if (amount === null || amount < 0n) {
-      excluded += 1;
-      continue;
-    }
-    const month = monthOfTimestamp(cell(row, columns.CREATED));
-    if (month === null) {
-      excluded += 1;
-      continue;
-    }
+  // PER GROUP, from that group's own first row (CR-01), folding into the SAME
+  // buckets — so two accounts' operations of one currency combine (D-11) while
+  // neither is read through the other's column keys.
+  for (const group of groups) {
+    const columns = resolveColumns(group.rows[0] ?? {}, [
+      'CREATED',
+      'CURRENCY_CODE',
+      'CURRENCY_TITLE',
+      'AMOUNT',
+      'TYPE',
+    ]);
 
-    const code = currencyCodeOf(cell(row, columns.CURRENCY_CODE));
-    const bucket = groups.get(code) ?? {
-      ops: 0,
-      inUnits: 0n,
-      outUnits: 0n,
-      firstMonth: month,
-      lastMonth: month,
-      title: null,
-      months: new Map(),
-    };
-    bucket.ops += 1;
-    if (month < bucket.firstMonth) bucket.firstMonth = month;
-    if (month > bucket.lastMonth) bucket.lastMonth = month;
-    if (bucket.title === null) {
-      // A title is a LABEL: the export leaves some codes untitled, so the first
-      // non-blank one wins and no code is left without a caption it can carry.
-      const title = (cell(row, columns.CURRENCY_TITLE) ?? '').trim();
-      if (title !== '') bucket.title = title.slice(0, MAX_STORED_STRING);
+    for (const row of group.rows) {
+      const direction = (cell(row, columns.TYPE) ?? '').trim().toLowerCase();
+      if (direction !== 'deposit' && direction !== 'income' && direction !== 'withdrawal') {
+        excluded += 1;
+        continue;
+      }
+      const amount = parseDecimalUnits(cell(row, columns.AMOUNT));
+      // A negative amount contradicts its own TYPE: direction comes from TYPE, so
+      // a negative is an export integrity problem rather than money moving the
+      // other way, and a chart that drew a negative deposit downwards would be
+      // worse than a counted exclusion.
+      if (amount === null || amount < 0n) {
+        excluded += 1;
+        continue;
+      }
+      const month = monthOfTimestamp(cell(row, columns.CREATED));
+      if (month === null) {
+        excluded += 1;
+        continue;
+      }
+
+      const code = currencyCodeOf(cell(row, columns.CURRENCY_CODE));
+      const bucket = byCode.get(code) ?? {
+        ops: 0,
+        inUnits: 0n,
+        outUnits: 0n,
+        firstMonth: month,
+        lastMonth: month,
+        title: null,
+        months: new Map(),
+      };
+      bucket.ops += 1;
+      if (month < bucket.firstMonth) bucket.firstMonth = month;
+      if (month > bucket.lastMonth) bucket.lastMonth = month;
+      if (bucket.title === null) {
+        // A title is a LABEL: the export leaves some codes untitled, so the first
+        // non-blank one wins and no code is left without a caption it can carry.
+        const title = (cell(row, columns.CURRENCY_TITLE) ?? '').trim();
+        if (title !== '') bucket.title = title.slice(0, MAX_STORED_STRING);
+      }
+      const monthBucket = bucket.months.get(month) ?? {
+        inUnits: 0n,
+        outUnits: 0n,
+        inOps: 0,
+        outOps: 0,
+      };
+      if (direction === 'withdrawal') {
+        bucket.outUnits += amount;
+        monthBucket.outUnits += amount;
+        monthBucket.outOps += 1;
+      } else {
+        // `deposit` AND `income` are both up (D-18). The type test above already
+        // refused every other value, so this arm can only ever be one of the two.
+        bucket.inUnits += amount;
+        monthBucket.inUnits += amount;
+        monthBucket.inOps += 1;
+      }
+      // Every usable operation therefore sits in EXACTLY ONE direction, so a
+      // month's `inOps + outOps` adds back to the month's operation count and a
+      // currency's months add back to `ops`. That is what lets a month of nothing
+      // but incomes read as a month with operations rather than an empty one.
+      bucket.months.set(month, monthBucket);
+      byCode.set(code, bucket);
     }
-    const monthBucket = bucket.months.get(month) ?? {
-      inUnits: 0n,
-      outUnits: 0n,
-      inOps: 0,
-      outOps: 0,
-    };
-    if (direction === 'withdrawal') {
-      bucket.outUnits += amount;
-      monthBucket.outUnits += amount;
-      monthBucket.outOps += 1;
-    } else {
-      // `deposit` AND `income` are both up (D-18). The type test above already
-      // refused every other value, so this arm can only ever be one of the two.
-      bucket.inUnits += amount;
-      monthBucket.inUnits += amount;
-      monthBucket.inOps += 1;
-    }
-    // Every usable operation therefore sits in EXACTLY ONE direction, so a
-    // month's `inOps + outOps` adds back to the month's operation count and a
-    // currency's months add back to `ops`. That is what lets a month of nothing
-    // but incomes read as a month with operations rather than an empty one.
-    bucket.months.set(month, monthBucket);
-    groups.set(code, bucket);
   }
 
-  if (groups.size === 0) return { status: 'no-usable', excluded };
+  if (byCode.size === 0) return { status: 'no-usable', excluded };
 
-  const ranked = [...groups.entries()]
+  const ranked = [...byCode.entries()]
     .map(([code, bucket]): { code: string | null; ops: number; bucket: CurrencyBucket } => ({
       code,
       ops: bucket.ops,
@@ -811,94 +834,87 @@ function compareSpendCards(
  * and `AA_PACKAGE_LIST` are personal identifiers and are never resolved here, so
  * they cannot reach a view even by accident (T-05-11).
  */
-export function buildSpend(rows: readonly FinanceRow[]): SpendView {
-  // Resolved ONCE, from the first row (T-05-11).
-  const first = rows[0];
-  const columns =
-    first === undefined
-      ? resolveColumns({}, [
-          'ACTION_DT',
-          'GAME_CODE',
-          'PAYMENT_CURRENCY',
-          'PAYED_IN_CURR_AMT',
-          'IS_GIFT',
-          'PAY_ORDER_STATUS_CODE',
-        ])
-      : resolveColumns(first, [
-          'ACTION_DT',
-          'GAME_CODE',
-          'PAYMENT_CURRENCY',
-          'PAYED_IN_CURR_AMT',
-          'IS_GIFT',
-          'PAY_ORDER_STATUS_CODE',
-        ]);
-
+export function buildSpend(groups: FinanceGroups): SpendView {
   const cards = new Map<string | typeof UNIT_LESS, SpendBucket>();
   let recognisedStatuses = 0;
 
-  for (const row of rows) {
-    const code = spendCurrencyOf(cell(row, columns.PAYMENT_CURRENCY));
-    const key = code === null ? UNIT_LESS : code;
-    const bucket = cards.get(key) ?? {
-      code,
-      paid: 0,
-      units: 0n,
-      failed: 0,
-      new: 0,
-      other: 0,
-      gifts: 0,
-      giftUnits: 0n,
-      excluded: 0,
-      years: new Map(),
-      games: new Map(),
-    };
-    cards.set(key, bucket);
+  // PER GROUP, from that group's own first row (CR-01, T-05-11), folding into
+  // the SAME cards — so two accounts' orders of one currency combine (D-11)
+  // while neither is read through the other's column keys.
+  for (const group of groups) {
+    const columns = resolveColumns(group.rows[0] ?? {}, [
+      'ACTION_DT',
+      'GAME_CODE',
+      'PAYMENT_CURRENCY',
+      'PAYED_IN_CURR_AMT',
+      'IS_GIFT',
+      'PAY_ORDER_STATUS_CODE',
+    ]);
 
-    // Matched exactly as written after trimming: a status the export does not
-    // document is a fact the reader is owed, so it is counted rather than
-    // dropped or folded into "paid".
-    const status = (cell(row, columns.PAY_ORDER_STATUS_CODE) ?? '').trim();
-    if (status === STATUS_FAILED) {
+    for (const row of group.rows) {
+      const code = spendCurrencyOf(cell(row, columns.PAYMENT_CURRENCY));
+      const key = code === null ? UNIT_LESS : code;
+      const bucket = cards.get(key) ?? {
+        code,
+        paid: 0,
+        units: 0n,
+        failed: 0,
+        new: 0,
+        other: 0,
+        gifts: 0,
+        giftUnits: 0n,
+        excluded: 0,
+        years: new Map(),
+        games: new Map(),
+      };
+      cards.set(key, bucket);
+
+      // Matched exactly as written after trimming: a status the export does not
+      // document is a fact the reader is owed, so it is counted rather than
+      // dropped or folded into "paid".
+      const status = (cell(row, columns.PAY_ORDER_STATUS_CODE) ?? '').trim();
+      if (status === STATUS_FAILED) {
+        recognisedStatuses += 1;
+        bucket.failed += 1;
+        continue;
+      }
+      if (status === STATUS_NEW) {
+        recognisedStatuses += 1;
+        bucket.new += 1;
+        continue;
+      }
+      if (status !== STATUS_PAID) {
+        bucket.other += 1;
+        continue;
+      }
       recognisedStatuses += 1;
-      bucket.failed += 1;
-      continue;
-    }
-    if (status === STATUS_NEW) {
-      recognisedStatuses += 1;
-      bucket.new += 1;
-      continue;
-    }
-    if (status !== STATUS_PAID) {
-      bucket.other += 1;
-      continue;
-    }
-    recognisedStatuses += 1;
 
-    const amount = parseDecimalUnits(cell(row, columns.PAYED_IN_CURR_AMT));
-    if (amount === null || amount < 0n) {
-      bucket.excluded += 1;
-      continue;
+      const amount = parseDecimalUnits(cell(row, columns.PAYED_IN_CURR_AMT));
+      if (amount === null || amount < 0n) {
+        bucket.excluded += 1;
+        continue;
+      }
+
+      bucket.paid += 1;
+      bucket.units += amount;
+      if (parseGiftFlag(cell(row, columns.IS_GIFT))) {
+        bucket.gifts += 1;
+        bucket.giftUnits += amount;
+      }
+
+      const year = yearOfActionDt(cell(row, columns.ACTION_DT));
+      const yearBucket = bucket.years.get(year) ?? { paid: 0, units: 0n };
+      yearBucket.paid += 1;
+      yearBucket.units += amount;
+      bucket.years.set(year, yearBucket);
+
+      const gameText = (cell(row, columns.GAME_CODE) ?? '').trim();
+      const game = gameText === '' ? null : gameText.slice(0, MAX_STORED_STRING);
+      const gameBucket = bucket.games.get(game) ?? { paid: 0, units: 0n };
+      gameBucket.paid += 1;
+      gameBucket.units += amount;
+      bucket.games.set(game, gameBucket);
     }
-
-    bucket.paid += 1;
-    bucket.units += amount;
-    if (parseGiftFlag(cell(row, columns.IS_GIFT))) {
-      bucket.gifts += 1;
-      bucket.giftUnits += amount;
-    }
-
-    const year = yearOfActionDt(cell(row, columns.ACTION_DT));
-    const yearBucket = bucket.years.get(year) ?? { paid: 0, units: 0n };
-    yearBucket.paid += 1;
-    yearBucket.units += amount;
-    bucket.years.set(year, yearBucket);
-
-    const gameText = (cell(row, columns.GAME_CODE) ?? '').trim();
-    const game = gameText === '' ? null : gameText.slice(0, MAX_STORED_STRING);
-    const gameBucket = bucket.games.get(game) ?? { paid: 0, units: 0n };
-    gameBucket.paid += 1;
-    gameBucket.units += amount;
-    bucket.games.set(game, gameBucket);
   }
 
   if (recognisedStatuses === 0) return { status: 'no-usable' };

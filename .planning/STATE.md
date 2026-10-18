@@ -1,46 +1,45 @@
 ---
 gsd_state_version: "1.0"
-status: Awaiting next milestone
-stopped_at: Phase 02 complete, ready to plan Phase 07
-last_updated: "2026-10-12T04:06:13.993Z"
-last_activity: 2026-10-12
-last_activity_desc: Quick task 261012-bog completed (Device info pane)
-state_head: b9c892a664656cf528fbbe29a5daae35a44ccf2c
+milestone: v1.1
+milestone_name: Multi-account & new data
+current_phase: 10
+current_phase_name: Merged Dashboard Across Accounts
+status: "Phase 09 shipped — PR #16"
+stopped_at: Phase 09 complete, ready to plan Phase 10
+last_updated: "2026-10-18T10:26:29.867Z"
+last_activity: 2026-10-18
+state_head: 0a7fc613094bbb8defdb0f58626aa9598e45be93
 progress:
-  total_phases: 8
-  completed_phases: 8
-  total_plans: 115
-  completed_plans: 115
-  percent: 100
-last_session_stopped_at: Completed 06-07-PLAN.md
-last_session_resume_file: None
-last_session_06_plan_08: "Phase 06 plan 08 executed — the mask is ONE rune for the whole block and the reset is a pure function of (previous stamp, new importedAt) evaluated in the same effect that issues the query, so there is no second thing to keep in step. A source-contract test asserts the file EXISTS before it asserts anything about its contents, through an expectation rather than a bare read: a missing component then fails as 'this file does not exist' instead of surfacing as an ENOENT, which is a load error rather than a statement about behaviour. A source-contract test that checks DOCUMENT ORDER must index the test id, not the imported symbol, because the symbol also appears in the import block above the elements being ordered"
-last_session_06_plan_05: "Phase 06 plan 05 executed — the worker-side source set: the Logins.csv merges into the login history beside the per-game session files (isLoginsRow, a third LoginSource kind with no game token), Account_Info.csv becomes one labelled Account record read from the already-sanitised pool with readable/unreadable/blank as three facts, and readLoginRowData makes a rebuild deep-equal to the import-time aggregate; the playtime reader is byte-identical"
-current_phase: 07
-current_phase_name: Mobile Layout & Public Deploy
+  total_phases: 4
+  completed_phases: 1
+  total_plans: 11
+  completed_plans: 11
+  percent: 25
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-09-27)
+See: .planning/PROJECT.md (updated 2026-10-16)
 
 **Core value:** Your data never leaves your machine. Zero network requests after page load, enforced by CI and a CSP.
-**Current focus:** Phase 08 — Master-detail UI redesign
+**Current focus:** Phase 09 — Multi-account Import & Account Identity
 
 ## Current Position
 
-Phase: Milestone v1.0 complete
-Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-10-12 — Quick task 261012-bog completed (Device_info supported, Device info pane)
+Phase: 10 — Merged Dashboard Across Accounts
+Plan: Not started
+Status: Phase 09 shipped — PR #16
+Last activity: 2026-10-18
+
+Progress: [███░░░░░░░] 25% (v1.1: 0 of 4 phases)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 102
+- Total plans completed: 113
 - Average duration: -
 - Total execution time: 0.0 hours
 
@@ -55,6 +54,7 @@ Last activity: 2026-10-12 — Quick task 261012-bog completed (Device_info suppo
 | 05 | 19 | - | - |
 | 6 | 17 | - | - |
 | 08 | 22 | - | - |
+| 09 | 11 | - | - |
 
 **Recent Trend:**
 
@@ -138,17 +138,38 @@ Last activity: 2026-10-12 — Quick task 261012-bog completed (Device_info suppo
 | Phase 08 P21 | 25m | 3 tasks | 9 files |
 | Phase 02 P05 | 6 min | 3 tasks | 5 files |
 | Phase 02 P06 | 8 min | 3 tasks | 4 files |
+| Phase 09 P01 | 18m | 2 tasks | 4 files |
+| Phase 09 P02 | 41m | 3 tasks | 8 files |
+| Phase 09 P04 | 22m | 2 tasks | 6 files |
+| Phase 09 P05 | 18 min | 3 tasks | 10 files |
+| Phase 09 P03 | 62m | 3 tasks | 5 files |
+| Phase 09 P06 | 12 min | 3 tasks | 8 files |
+| Phase 09 P07 | 19m | 3 tasks | 16 files |
+| Phase 09 P08 | 22m | 3 tasks | 5 files |
+| Phase 09 P09 | 22m | 3 tasks | 7 files |
+| Phase 09 P10 | 9 min | 3 tasks | 7 files |
+| Phase 09 P11 | 10min | 3 tasks | 13 files |
 
 ## Accumulated Context
 
 ### Roadmap Evolution
 
 - Phase 8 added: Master-detail UI redesign (2026-10-07). Design chosen from sketches 001-021 (winner: sketch 021, light + rows + heatmap; see `.claude/skills/sketch-findings-wot-gdpr-stats-visualizer/`). Depends on Phase 7 finishing, since both rewrite the mobile layout.
+- v1.1 roadmap created (2026-10-16): Phases 9-12 continue numbering from v1.0. Phase 9 Multi-account Import & Account Identity (ACCOUNT-01, 02, 03, 05, 08); Phase 10 Merged Dashboard Across Accounts (ACCOUNT-04, 06, 07, SCALE-01); Phase 11 New Game Data (GAMES-01..04, PRIV-01, PRIV-02); Phase 12 Account Timeline & Perks (TIMELINE-01, 02, PERKS-01..03). Cross-cutting PRIV/SCALE requirements are owned by the phase that first needs them and bind every later phase.
 
 ### Decisions
 
 Decisions are logged in the PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
+
+- [Phase 09]: The multi-account variant is derived BEFORE the legacy identity, and every rule about a row lives in a pure module (09-04). `isMultiAccount(result)` is checked first in `IdentityHeader`'s variant chain because `result.identity` is the FIRST account's: letting it decide would render one account as though it were the whole dataset (T-09-20). The second half is structural rather than a rule someone must remember — `accountRows(accounts)` is handed the LIST and nothing else, so a row cannot read the legacy field even by mistake. That module exists because `vitest.config.ts` runs in Node with no Svelte plugin and a component cannot be rendered in a unit test at all, which is why the ID-only row, the blank `NAME`, the no-games and no-activity shapes and the hostile-text pass-through are all 42 ordinary tests rather than browser assertions.
+- [Phase 09]: The header never re-sorts, and the account list is keyed by INDEX (09-04). The worker stores D-16 order and every producer sorts with `sortAccounts`; `accountRows` is a projection in the order it is given, because a second comparator is a second thing that can disagree with the first. The key is an index rather than a nickname, root or year because two accounts may share all three — `buildDuplicateNicknameExport` and `buildTiedYearsExport` exist for exactly that — and a repeated key makes Svelte's list throw or silently reuse a node.
+- [Phase 09]: Long game names are a SECOND table beside `GAME_NAMES`, and WOWP is in it (09-04). The existing panes read short labels ("WoT", "Warships") in a column headed `Game`, where "World of Warships" would wrap; only the identity list has the width. WOWP is added although D-14 lists five names, so a Warplanes session shows a name rather than a raw token — the UI-SPEC's recorded choice, carried out as written and flagged in the SUMMARY rather than silently.
+- [Phase 09]: The count of accounts in a dataset is asked by TWO code paths and both now ask the ONE normaliser (09-09, WR-01/D-08). `readLoginRowData` used to count `meta.accounts` itself, which calls an EMPTY list zero accounts, while `accountsOfMeta` — and therefore `done`, `duplicate` and `cache-status` — calls the same shape one. So a one-account dataset whose meta carried `accounts: []` published an Account record on replay and none on rebuild, depending on which query the user ran. Both the count AND the single root now come from the normalised list; a reader that re-decides what an absent or empty list means is a second answer to a question that already has one.
+- [Phase 09]: Tolerance for an incomplete STORED record belongs at the projection boundary, not in each reader and not in the stored type (09-09, IN-01/T-09-30). `toAccountSummary` defaults an absent games list to a new empty array, an absent identity to `null` and an absent year to `null` — `AccountMeta` itself is unchanged, because the current writer always writes those fields and weakening the type would spread the tolerance into every writer. The year default was found by the plan's own RED: `accountRows` narrows on `=== null`, so an absent `firstYear` rendered the literal string `"undefined"` as the account row's activity line. A default here cannot disagree with itself the way a default at each reader could.
+- [Phase 09]: A guard that asserts on PROSE must read the file RAW (09-09, IN-04). `activeWorkflowLines()` filters every line matching `/^\s*#/`, which is the entire comment block the CI-prose assertion is about — reusing it would not be an optimisation, it would be a tautology. The three CONFIGURED limits keep the filtered reader; the prose gets its own plain `readFileSync` of the same file, matched against the anchored literal `Playwright's own \`globalTimeout\` (N min)` with EXACTLY ONE match required, so a future second copy fails loudly instead of quietly. The CI comment block is an APPEND-ONLY log: correct the present-tense sentence in place, never rewrite a dated "Raised from …" paragraph.
+- [Phase 09]: `earliestCreated` normalises for the COMPARISON and returns the export's own spelling (09-04). A `CREATED_AT` is a wall-clock stamp with no timezone, so `formatCreatedDate` shows it as the export wrote it and a `Date` round-trip would invent one; but comparing those texts lexicographically is wrong, because `DD.MM.YYYY` sorts after every ISO value. So the date is parsed into integers (range-checked through `daysInMonth`, so `2020-02-30` does not normalise to a March day) purely to pick the minimum, and the winner is rendered verbatim. Two of this plan's own assertions expected ISO re-formatting and then expected `01.01.2020` to beat `31.12.2019`; both were wrong and the implementation was right — worth remembering before "fixing" a date formatter to agree with them.
+- [Phase 09]: Two test-authoring rules this phase paid for (09-04). (1) A named import of a not-yet-existing `ui-copy` export is a LINK error, and Playwright reports `No tests found` — a broken RED, not a behavioural one; the namespace import the repo already uses for this reason fixed it. (2) Assert a nickname's `outerHTML` occurrence COUNT rather than `expect(aria).not.toContain(nickname)`: a row's text IS its accessible name by design (UI-SPEC Accessibility), so the negative assertion fails against correct code. Counting the raw literal in `outerHTML` is the stronger claim anyway, because an occurrence inside a `title` or `aria-label` would be a second one.
 
 - [Roadmap]: Horizontal-layers structure (standard mode, not MVP). The shared ingest foundation (Phases 1-3) comes before the feature dashboards (4-6), followed by mobile and deploy (7).
 - [Roadmap]: The zero-network Playwright check and CSP are introduced in Phase 1 as a standing check, not added in the final phase.
@@ -384,6 +405,26 @@ CI budget at 07-03: no limit moved. `playwright test --list` counts BOTH project
 - [Phase 08]: 08-21: heatmaps fill only when plot beats today's (calendar 594, hour grid 576); row pitch capped 24/48, columns always fill the pane; no upper width bound
 - [Phase 02]: 02-05: parseCsvFile picks the delimiter from the header line only and withholds (counted, fail closed) any file whose keys hide LOGIN/BIRTH_DATE inside a longer key; blank records stay in the parse so error.row maps to data[row-1]; a stray quote quarantines one physical line and the remainder is re-parsed, bounded by MAX_QUARANTINED_RECORDS with the remainder counted — A guarantee must be a property of the parsed keys, not of a sniffing heuristic; counts must equal what was actually lost (D-03, D-04, D-18)
 - [Phase 02]: 02-06: header keys go through ONE normaliser (NFKC, trim, upper-case, bounded UTS #39 fold) shared by the strip, the glued check and the identity pick; hasGluedSensitiveColumn only ADDS withholds (02-05 raw-key split kept verbatim) and reads the pre-fold form so an I/l-ambiguous letter cannot hide the L of a lower-case login; a mixed-terminator file is canonicalised to LF and parsed with newline LF, uniform files untouched — A privacy guarantee must not depend on how a header is spelled; counts must equal what was actually lost (D-03, D-04, D-18)
+- [Phase 09]: N-root resolver in classify.ts runs first and hands every zero-root archive back to the unchanged v1.0 reason chain (09-01)
+- [Phase 09]: MAX_ACCOUNT_ROOTS=32 and MAX_ROOT_NAME_LENGTH=128 apply to one root as well as several (D-20)
+- [Phase 09]: resolveCsvFileOwner delegates to resolveCsvFileCategory for a one-member root set, so single-root behaviour cannot drift
+- [Phase 09]: D-06/D-07/D-08/D-14/D-15/D-16/D-17 (09-02): the worker resolves every inflated entry EXACTLY ONCE into a Map<category, OwnedFile[]>, so the inflate filter and the per-category counts are two consumers of one resolution and cannot disagree about which account owns a file (D-06). Per-root state (two sanitised identity pools, presence facts, session sources, per-category counts) lives in a Map keyed by the root — never a plain object — so a root named __proto__ cannot collide with Object.prototype (T-09-04). Every stored row carries a non-indexed `account` field and a rowIndex that restarts per ACCOUNT AND CATEGORY, which is what makes the adjacency case real: (sourceFile, rowIndex) is deliberately NOT a key (D-12). Accounts are ordered by D-16 in the worker, not the classifier, because years exist only after parsing — and the ordered list is STORED, so done, duplicate and cache-status replay identically through the single accountsOfMeta normaliser.
+- [Phase 09]: D-18/D-19/D-22 (09-02): rows of unknown and known-deferred categories are now parsed for their COUNTS and never stored, decided from the category STATUS rather than the file's folder name so the classifier's answer is the single thing both the counts and the skip read. The real sample's Game_Forums EMAIL/IP_ADDRESS/BDAY_* columns and Chat_History message text are not on the three-column deny-list, so a strip would have had to grow to hold them — and a growing deny-list is the catch-all the rule exists to close. The "Not yet supported" counts are unaffected (rowCount/skippedRowCount still accumulate from the parse result), and every pre-existing privacy assertion was rewritten rather than deleted: the misfiled-copy tests moved to the SUPPORTED Activity_history folder so they still inspect a stored, stripped row, and a copy in an unknown folder became the counted-not-stored control. The ragged overflow control moved from Misc to Activity_history for the same reason. D-22 is implemented as CONTEXT records: accountsOfMeta returns empty games and null years for a v1.0 cache, with no rebuild path.
+- [Phase 09]: accountCount defaults to ONE in DashboardSection, so a one-account dataset renders no caption node at all — the absence is a default rather than a branch a caller must remember
+- [Phase 09]: The two repeated-value each blocks key by POSITION rather than by a composite key: Phase 9 must not sum or de-duplicate across accounts (Phase 10's work), and a composite key would collapse the two rows into one identity
+- [Phase 09]: The combined caption's {#if} tag is written flush against the provenance div and the From span, because a newline there becomes a whitespace text node that changes a v1.0 DOM's text content
+- [Phase 09]: 09-03: the rebuild readers group by ACCOUNT first, because each source resolves its columns from its own first row — without it the NA root's alias-header WOT file costs a session and the rebuild disagrees with its own import
+- [Phase 09]: 09-03: D-21 is a delete function called from the check-cache path, NOT a Dexie version bump — a bump would cost every returning user their whole correct cached dataset to delete a subset of it, and the purge deliberately opens db.rows alone so meta's rowCounts survive
+- [Phase 09]: A guard block whose tests arrived IN THIS phase is gated on the count at which they appeared, not subtracted unconditionally (09-06). The three older scale blocks are unconditional because their files have existed since their own phase; Phase 9's two long tests do not, so below 258 listed tests there is nothing to hold back - and the gate is what keeps every historical projectedE2eSeconds pin (184/234/239/242/251/252) at exactly the value the phase that measured it recorded. Do not simplify it into an unconditional subtraction: it silently rewrites six pins and their worked arithmetic.
+- [Phase 09]: The e2e count is one number everywhere and only 'playwright test --list' is authoritative (09-06). D-23 recorded 256 tests in 27 files at Phase 9 planning; that figure predates plan 09-04's spec file - the 28th file - which added one of its two tests, so Phase 9 started from 257 in 28 files and ends at 258 in 28. A plan's expected TOTAL can be right while its decomposition is wrong (09-06 expected 258 = 256 + 2 and added exactly one test), so check the arithmetic against the previous summary's count, not only against --list.
+- [Phase 09]: A fixture's JSDoc and its test's NAME are claims, and a fixture can fail them silently (09-06). buildLongTextAccountsExport documented 'the twenty-digit root carrying the forty-character nickname' and classify.test.ts had a test named for it, yet the builder never passed a nickname: both roots read Synthetic EU Captain and MA_LONG_NICKNAME was an unused export in the whole repository. The classify test passed because it read root NAMES only. What caught it was a browser step that reads the rendered nickname - when a fixture constant is unused anywhere, that is the bug, not the constant.
+- [Phase 09]: The ACCOUNT is the outermost level of readRowsByFile grouping, because a column key is never taken across an account boundary (CR-01).
+- [Phase 09]: A union of the per-group resolved fields is correct for a COLUMN LIST and never for a cell, so mapRow always takes the group's own map.
+- [Phase 09]: Grouping is not slicing: D-11 is untouched and Phase 10 still owns per-account slicing, merging vehicles by id and per-currency totals.
+- [Phase 09]: 09-08: an id-only account row's title shares the .account-id selector rather than restating its values, so the ID-only title and the ID line cannot drift apart
+- [Phase 09]: 09-08: the widened duplicate-row scan reads panes through an expect.poll on a stable row count, not on data-status — the Account pane is pending forever on a multi-account dataset, and Finance/Device info draw after ready, so a status gate is both unusable and vacuous
+- [Phase 09]: The account count counts the accounts that hold DATA, decided by the user at a blocking-human checkpoint and not derived (09-10, `accountCountSemantics: option-a`). The count described the archive's roots while the rows described the data, so the title, the list and the six pane captions were three statements about one dataset. It is now one number, produced by ONE projection — `accountSummariesOf` — that `done`, `duplicate` and `cache-status` all go through, so agreement is structural rather than three matching edits. What holds it back together: the flag is OPTIONAL and read as ABSENT-MEANS-DATA, so a cache written before it renders exactly as it always has and Dexie stays at `version(2)` with its upgrader untouched; and the STORE keeps every root while the PUBLISHED LIST is filtered, because a gate that counts the published list would let one account's address stand for a two-root dataset (T-09-13). `readLoginRowData` therefore reads `accountsOfMeta`, never the projection, and says so at the call site. Accepted cost, recorded so it reads as a decision: a folder the user can see in their zip now contributes nothing and is named nowhere. D-17 is untouched — a root with sessions and no `User_Info` holds stored rows and stays listed — and the filter is `hasData === false` rather than any inference from a summary, because a root with no games, no years and a null identity still holds data.
+- [Phase 09]: 09-11: rootCount (account folders the archive held) decides every variant via hasMultipleRoots; accountCountOf (accounts holding data) decides every title, row count and caption; rootCount derived at publish time, never persisted
 
 ### Pending Todos
 
@@ -482,10 +523,10 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-11T06:49:08.276Z
-Stopped at: Phase 02 complete, ready to plan Phase 07
+Last session: 2026-10-18T07:57:51.083Z
+Stopped at: Phase 09 complete, ready to plan Phase 10
 Resume file: None
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Plan the first v1.1 phase with /gsd-plan-phase 9 (or /gsd-discuss-phase 9 first)

@@ -1,7 +1,14 @@
 import type { ClassifyResult } from '../core/types/worker-messages.ts';
 import { unsupportedEntries } from './dashboard-status.ts';
+import { accountCountOf, earliestCreated, hasMultipleRoots } from './identity-model.ts';
 import { paneEntries, type PaneEntry, type PaneId } from './selection-state.ts';
-import { IDENTITY_CREATED_LABEL, PANE_TITLES, formatCreatedDate } from '../ui-copy.ts';
+import {
+  IDENTITY_CREATED_LABEL,
+  PANE_TITLES,
+  formatAccountCount,
+  formatCreatedDate,
+  formatEarliestCreated,
+} from '../ui-copy.ts';
 
 // =============================================================================
 // The Overview model (Phase 8, plan 08-05)
@@ -94,19 +101,35 @@ export function overviewChips(result: ClassifyResult | null): OverviewChips {
  * names the creation date (the row's summary is a static description); the
  * nickname is never read here, because it appears exactly once in the document,
  * in the list pane's identity header (D-21).
+ *
+ * ## Phase 9, D-13: the Account card for two or more account folders
+ *
+ * "Account" / "Account created {date}" describes ONE account, so on an archive
+ * that held several folders (09-11: the folder count, not the published list,
+ * decides, even when only one folder stores data) the card's TITLE becomes the account count and its summary
+ * becomes `formatEarliestCreated(earliestCreated(...))` — the MINIMUM across
+ * accounts, and the unknown-date sentence when no account's `createdAt` parses.
+ *
+ * The single-account path is untouched and reads the legacy `identity` exactly
+ * as before. That is deliberate: `earliestCreated` over a one-account list would
+ * answer the same day in the same spelling, but keeping the branch makes "one
+ * account renders v1.0" a structural fact rather than a coincidence.
  */
 export function overviewCards(result: ClassifyResult | null): OverviewCard[] {
   const createdAt = result?.identity?.createdAt ?? null;
+  const multiRoot = hasMultipleRoots(result);
   return cardEntries(result).map((entry): OverviewCard => {
     const id = entry.id as OverviewCardId;
     const available = !entry.muted;
-    const summary =
-      id === 'account' && available
+    const multi = id === 'account' && available && multiRoot;
+    const summary = multi
+      ? formatEarliestCreated(earliestCreated(result?.accounts ?? []))
+      : id === 'account' && available
         ? `${IDENTITY_CREATED_LABEL} ${formatCreatedDate(createdAt)}`
         : entry.summary;
     return {
       id,
-      title: PANE_TITLES[id],
+      title: multi ? formatAccountCount(accountCountOf(result)) : PANE_TITLES[id],
       available,
       headline: entry.headline,
       summary,

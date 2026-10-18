@@ -177,7 +177,23 @@ export default defineConfig({
   // G = 29, W = 31 and J = 39: all three moved together, the same G + 2 and
   // W + 8 relationship as every raise before it. 29 min holds up to 258
   // listed tests (258 project 1338 s and a floor of 1739.4 s against 1740 s).
-  globalTimeout: 29 * 60 * 1000,
+  //
+  // 30 min is 09-06's raise, and this comment is where its arithmetic lives.
+  // Phase 9 added two listed tests, and both run far longer than the 5 s a
+  // browser test is credited with, so they are held back from the per-test
+  // count and priced as one block — together with the stage the Phase 5
+  // zero-network test gained, which is not a listed test at all. 258 tests in
+  // 28 files, MEASURED:
+  //
+  //   E = 330 + 5 * (258 - 86 - 5 - 5 - 5 - 2) + 120 + 90 + 13 + 32
+  //     = 1360 s
+  //   1.3 * E = 1768 s, and ceil(1768 / 60) = 30 min
+  //
+  // G = 30, W = 32 and J = 40: all three moved together, the same G + 2 and
+  // W + 8 relationship as every raise before it. 30 min holds up to 262
+  // listed tests. Left unpriced, 258 would have projected 1338 s and a floor of
+  // 1739.4 s — 0.6 s of slack under the 1740 s this line replaced.
+  globalTimeout: 30 * 60 * 1000,
   timeout: 120000,
   webServer: {
     // Direct binary invocation (NOT `pnpm run build && pnpm run preview`).

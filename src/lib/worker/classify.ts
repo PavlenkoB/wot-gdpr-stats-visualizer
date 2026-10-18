@@ -1,4 +1,5 @@
 import type {
+  AccountSummary,
   CategoryEntry,
   CategoryStatus,
   ClassifyResult,
@@ -15,9 +16,10 @@ import { CATEGORY_STATUS_ORDER, classifyFolder } from './categories.ts';
  *   1. Path normalization (forward slashes only, strip leading "/" or "./")
  *   2. OS-metadata filtering (`__MACOSX/...`, `.DS_Store`, `Thumbs.db`,
  *      `desktop.ini`)
- *   3. Single-root detection with a directory-entry guarantee
+ *   3. N-account-root resolution (Phase 9, D-01..D-05) plus the unchanged
+ *      single-root chain for every archive with NO account root
  *   4. Per-category file counts (directory entries register 0)
- *   5. The reasoned outcome: a `ClassifyResult` OR one of five named
+ *   5. The reasoned outcome: a `ClassifyResult` OR one of the named
  *      reasons an archive is NOT a recognizable Wargaming export.
  *
  * Nothing here touches the DOM, a worker, or fflate — every function is
@@ -34,10 +36,76 @@ export type UnrecognizedReason =
   | 'no-category-folders'
   | 'no-recognized-category'
   | 'ambiguous-root'
-  | 'no-csv-data';
+  | 'no-csv-data'
+  | 'too-many-roots'
+  | 'root-name-too-long';
 
 export type AnalyzeOutcome =
-  { ok: true; result: ClassifyResult } | { ok: false; reason: UnrecognizedReason };
+  | { ok: true; result: ClassifyResult; roots: AccountRootAnalysis[] }
+  | { ok: false; reason: UnrecognizedReason };
+
+/**
+ * One account root's own category list (Phase 9, D-01).
+ *
+ * `analyzeExport` reports every root it found with that root's OWN categories
+ * and file counts, alongside the merged list in `result.categories` (merged by
+ * exact folder name, so two roots carrying `Player_Statistics` report one
+ * merged entry with the summed count).
+ *
+ * `roots` is in CODE-UNIT order of the root names. D-16 order (first
+ * activity year ascending) is applied by the ingest worker after parsing,
+ * because years exist only once rows have been read.
+ */
+export interface AccountRootAnalysis {
+  root: string;
+  categories: CategoryEntry[];
+}
+
+/**
+ * Hard cap on the number of account roots one archive may declare (Phase 9,
+ * D-20 / T-09-02). The user's real export has three.
+ *
+ * The cap exists for COST, not for trust: an archive with thousands of
+ * well-formed account folders would multiply the parse, the inflate budget and
+ * the stored rows for no realistic export.
+ *
+ * ## What the code actually costs (09-09, WR-02)
+ *
+ * The root scan is ONE pass over the entry list, and the cap is decided from
+ * its result BEFORE any per-root category counting — so an archive with 3,000
+ * account folders is rejected at the same cost as one with 3,000 loose files,
+ * and the rejection itself is cheap.
+ *
+ * What is NOT one pass is the work for a root that survives the cap: each root
+ * is counted through `foldersAt`, which re-runs `prepare()` over the WHOLE
+ * entry list before scanning it. The honest statement is therefore a product of
+ * a pass and a count of survivors, not a linear scan: `MAX_ACCOUNT_ROOTS` (32)
+ * and {@link MAX_ROOT_NAME_LENGTH} are what bound it. Those two constants —
+ * together with the existing unit cases for the cap, cap+1 and the many-folder
+ * cost case — are what make this note checkable rather than aspirational.
+ *
+ * It applies to ONE root as well as to several. Restricting it to several would
+ * leave a single 60 KB root name free to be stamped onto every stored row,
+ * which is the other half of the same bound ({@link MAX_ROOT_NAME_LENGTH}).
+ */
+export const MAX_ACCOUNT_ROOTS = 32;
+
+/**
+ * Hard bound on the length of an account folder name (Phase 9, D-20 /
+ * T-09-02).
+ *
+ * The root name is stamped onto every stored row (D-07) and shown in the
+ * identity header, so an unbounded folder name would be copied into every row
+ * of the dataset. Real Wargaming export folders are numeric account ids.
+ *
+ * This NARROWS one v1.0 shape on purpose: a single account folder named longer
+ * than 128 characters used to import and now fails with the one generic
+ * banner. The narrowing is recorded as a decision (D-20), not a defect, and
+ * the bound holds for every root count including one — a bound that applied
+ * only to several roots would let the very row-copy cost it exists to stop
+ * through the single-root door.
+ */
+export const MAX_ROOT_NAME_LENGTH = 128;
 
 // -----------------------------------------------------------------------------
 // Pure helpers
@@ -402,6 +470,210 @@ function resolveAccountRootAndCategories(prepared: string[]): RootResolution {
 }
 
 // -----------------------------------------------------------------------------
+// Phase 9: the N-account-root resolver (D-01..D-06)
+// -----------------------------------------------------------------------------
+
+/**
+ * The three non-`null` outcomes of {@link resolveAccountRoots}, plus the
+ * failure rules each one stands for. Every one of them is decided BEFORE any
+ * per-root category counting runs, which is what keeps the cost of a hostile
+ * archive at one linear pass (T-09-02).
+ *
+ *   `roots`         — at least one account root was found and every rule held
+ *   `too-many`      — more than {@link MAX_ACCOUNT_ROOTS} roots (D-20)
+ *   `name-too-long` — a root name longer than {@link MAX_ROOT_NAME_LENGTH} (D-20)
+ *   `ambiguous`     — a recognised category sits at the candidate level (D-04),
+ *                     or two root names collide case-insensitively (T-09-03)
+ *   `stray`         — any other non-root candidate folder (D-02)
+ *   `null`          — NO account root exists, so the unchanged v1.0 chain runs
+ */
+type MultiRootResolution =
+  | { kind: 'roots'; roots: AccountRootAnalysis[] }
+  | { kind: 'too-many' }
+  | { kind: 'name-too-long' }
+  | { kind: 'ambiguous' }
+  | { kind: 'stray' }
+  | null;
+
+/**
+ * Is this candidate folder an ACCOUNT ROOT (D-01)?
+ *
+ * A root is a folder whose own name is NOT a recognised Wargaming category and
+ * which DIRECTLY holds at least one folder that IS one (supported or
+ * known-deferred). The name itself is never checked: a real account folder is
+ * a numeric id, a re-zipped one is `WrapperName`, and a renamed one is
+ * anything else.
+ *
+ * The "directly holds" part is load-bearing and is why `unknownFolderHolds-
+ * Recognized` is NOT reused here: that helper answers "does this unknown
+ * top-level folder hold a recognised folder SOMEWHERE beneath it", which is
+ * true of every account root in every archive, so using it as the multi-root
+ * rule would reject every multi-account export (RESEARCH Pitfall 4).
+ */
+function isAccountRoot(name: string, children: ReadonlySet<string>): boolean {
+  if (classifyFolder(name) !== 'unknown') return false;
+  for (const child of children) {
+    if (classifyFolder(child) !== 'unknown') return true;
+  }
+  return false;
+}
+
+/**
+ * Resolve every account root in one archive (Phase 9).
+ *
+ * ONE linear pass over the already-prepared entries. The pass records, for
+ * every candidate folder, the set of its DIRECT child folder names using
+ * exactly the rule `foldersAt` applies — the segment after the candidate's
+ * prefix, taken only when a further slash follows it, directory entries
+ * included. Nothing here is per-candidate: an archive with 3,000 top-level
+ * folders costs one pass, not 3,000 scans (T-09-02, the T-01-43 cost class).
+ *
+ * Loose top-level FILES are skipped entirely (D-05). They are not candidates,
+ * so they can neither be a root nor trip the stray-folder rule. This is what
+ * lets the real sample's two `Readme_*.pdf` sit beside three account folders.
+ * `detectRoot` still counts them, which is deliberate: with ZERO roots the
+ * unchanged v1.0 chain runs and keeps producing `no-single-root` for a lone
+ * top-level file (RESEARCH Pitfall 5).
+ *
+ * Wargaming's own `personal_data_export` folder stays transparent (D-03): when
+ * it is the ONLY top-level name, its children become the candidates and the
+ * candidate's prefix is spelled as written. Any OTHER wrapper holding several
+ * account roots is NOT a container of roots — it keeps failing, because the
+ * root rule demands a candidate hold a recognised category DIRECTLY (pinned
+ * shape `w/x/Activity_history/...` + `w/y/Payment_history/...`).
+ *
+ * One wrapper shape is handed back to the v1.0 chain rather than read here: the
+ * wrapper sitting DIRECTLY above recognised categories
+ * (`personal_data_export/Activity_history/foo.csv`), with or without account
+ * folders beside them. That is the CR-01 shape, where the account-folder layer
+ * is gone and the honest answer is `accountRoot === ''` (or `ambiguous-root`
+ * when an unknown folder beside it holds a `User_Info`). Reading it as "N
+ * roots" would report a wrapper child as an account id.
+ */
+function resolveAccountRoots(prepared: readonly string[]): MultiRootResolution {
+  /** Distinct top-level folder names, in first-seen order. */
+  const topLevel = new Set<string>();
+  /** First-segment folder name → its direct child FOLDER names. */
+  const children = new Map<string, Set<string>>();
+  /** Second-segment name under the transparent wrapper → its child folders. */
+  const wrapperChildren = new Map<string, Set<string>>();
+
+  for (const p of prepared) {
+    const slash1 = p.indexOf('/');
+    if (slash1 === -1) continue; // a loose top-level FILE (D-05)
+    const first = p.slice(0, slash1);
+    topLevel.add(first);
+    let kids = children.get(first);
+    if (kids === undefined) {
+      // Seeded even when this folder holds nothing but loose files, so a
+      // stray folder beside a root is still seen as a candidate (D-02).
+      kids = new Set<string>();
+      children.set(first, kids);
+    }
+    const rest = p.slice(slash1 + 1);
+    const slash2 = rest.indexOf('/');
+    if (slash2 === -1) continue; // a file directly under `first`
+    kids.add(rest.slice(0, slash2));
+
+    // Only entries under the wrapper need the second-level bookkeeping, and
+    // "the only top-level name is the wrapper" implies exactly those entries
+    // are the ones whose first segment is the wrapper.
+    if (!isTransparentWrapper(first)) continue;
+    const second = rest.slice(0, slash2);
+    let wrapped = wrapperChildren.get(second);
+    if (wrapped === undefined) {
+      // Seeded for EVERY second segment, exactly as the top-level map seeds
+      // every first segment: a folder holding only loose files is still a
+      // candidate, so a stray folder beside the roots fails closed (D-02)
+      // under the wrapper just as it does at the top level.
+      wrapped = new Set<string>();
+      wrapperChildren.set(second, wrapped);
+    }
+    const afterSecond = rest.slice(slash2 + 1);
+    const slash3 = afterSecond.indexOf('/');
+    if (slash3 === -1) continue; // a file directly under the candidate folder
+    wrapped.add(afterSecond.slice(0, slash3));
+  }
+
+  // Candidate folders, and the prefix each one's files sit under, as written.
+  let candidates: Map<string, Set<string>> = children;
+  let prefixOf: (root: string) => string = (root) => `${root}/`;
+  if (topLevel.size === 1) {
+    const [only] = [...topLevel];
+    if (only !== undefined && isTransparentWrapper(only)) {
+      // The wrapper's own direct children are the second segments, which is
+      // exactly what `children` recorded. A recognised one there means the
+      // categories hang off the wrapper itself (CR-01), not off account roots.
+      if (holdsRecognizedFolder(children.get(only) ?? new Set<string>())) return null;
+      candidates = wrapperChildren;
+      prefixOf = (root) => `${only}/${root}/`;
+    }
+  }
+
+  const roots: string[] = [];
+  const nonRoots: string[] = [];
+  for (const [name, kids] of candidates) {
+    (isAccountRoot(name, kids) ? roots : nonRoots).push(name);
+  }
+  // Zero roots: hand the archive back to the unchanged v1.0 chain.
+  if (roots.length === 0) return null;
+
+  // The bounds, before ANY per-root work (D-20, T-09-02).
+  if (roots.length > MAX_ACCOUNT_ROOTS) return { kind: 'too-many' };
+  for (const root of roots) {
+    if (root.length > MAX_ROOT_NAME_LENGTH) return { kind: 'name-too-long' };
+  }
+  // A recognised category at the candidate level cannot be attributed to an
+  // account (D-04) — the reason name stays `ambiguous-root`, which is what the
+  // pinned single-root tests already assert for this family of shapes.
+  for (const name of nonRoots) {
+    if (classifyFolder(name) !== 'unknown') return { kind: 'ambiguous' };
+  }
+  if (nonRoots.length > 0) return { kind: 'stray' };
+  // Two roots differing only in case would blur the per-root pools (T-09-03).
+  const lowered = new Set<string>();
+  for (const root of roots) {
+    const lower = root.toLowerCase();
+    if (lowered.has(lower)) return { kind: 'ambiguous' };
+    lowered.add(lower);
+  }
+
+  roots.sort();
+  return {
+    kind: 'roots',
+    roots: roots.map((root) => ({
+      root,
+      categories: sortCategoryEntries(countsToEntries(foldersAt(prefixOf(root), prepared))),
+    })),
+  };
+}
+
+/** Internal: does any of these folder names classify as supported or known-deferred? */
+function holdsRecognizedFolder(names: ReadonlySet<string>): boolean {
+  for (const name of names) {
+    if (classifyFolder(name) !== 'unknown') return true;
+  }
+  return false;
+}
+
+/** Internal: does any `.csv` entry sit under one of these roots' prefixes? */
+function hasCsvUnderAnyRoot(prepared: readonly string[], roots: ReadonlySet<string>): boolean {
+  for (const p of prepared) {
+    if (!p.toLowerCase().endsWith('.csv')) continue;
+    const slash = p.indexOf('/');
+    if (slash === -1) continue;
+    const first = p.slice(0, slash);
+    if (roots.has(first)) return true;
+    if (isTransparentWrapper(first)) {
+      const rest = p.slice(slash + 1);
+      const slash2 = rest.indexOf('/');
+      if (slash2 !== -1 && roots.has(rest.slice(0, slash2))) return true;
+    }
+  }
+  return false;
+}
+
+// -----------------------------------------------------------------------------
 // analyzeExport — the reasoned outcome
 // -----------------------------------------------------------------------------
 
@@ -449,6 +721,47 @@ export function sortCategoryEntries(entries: readonly CategoryEntry[]): Category
 }
 
 /**
+ * Internal: counts → category entries plus the three status counts.
+ *
+ * ONE implementation for both callers (the N-root merge and the v1.0 chain),
+ * because two of them would be a second answer to the same question that could
+ * drift the moment a field is added.
+ *
+ * The caller guarantees a recognised category exists (both resolvers refuse
+ * to return without one), so no entry is filtered here — an unknown folder
+ * alongside a recognised one always stays in the list (RESEARCH Pitfall 1).
+ */
+function countsToEntries(counts: ReadonlyMap<string, number>): CategoryEntry[] {
+  const entries: CategoryEntry[] = [];
+  for (const [name, fileCount] of counts) {
+    entries.push({ name, status: classifyFolder(name), fileCount });
+  }
+  return entries;
+}
+
+/** Internal: the `{ supported, known-deferred, unknown }` tally of an entry list. */
+function statusCountsOf(entries: readonly CategoryEntry[]): Record<CategoryStatus, number> {
+  const statusCounts: Record<CategoryStatus, number> = {
+    supported: 0,
+    'known-deferred': 0,
+    unknown: 0,
+  };
+  for (const entry of entries) statusCounts[entry.status] += 1;
+  return statusCounts;
+}
+
+/** Internal: one pre-parse `AccountSummary` per root (the classifier reads no cell). */
+function preParseAccounts(roots: readonly AccountRootAnalysis[]): AccountSummary[] {
+  return roots.map((r) => ({
+    root: r.root,
+    identity: null,
+    games: [] as string[],
+    firstYear: null,
+    lastYear: null,
+  }));
+}
+
+/**
  * Build a ClassifyResult from a list of raw entry paths. Returns a
  * `not-ok` outcome with a named reason when the archive is not
  * recognizable enough to be called a Wargaming export:
@@ -456,10 +769,9 @@ export function sortCategoryEntries(entries: readonly CategoryEntry[]): Category
  *   empty-archive          — the prepared list is empty (after OS-metadata
  *                            filtering); the archive has no payload rows
  *                            that we can act on.
- *   no-single-root         — the entry list has zero or two+ distinct
- *                            first segments, OR the single distinct
- *                            segment is never followed by a "/" (a lone
- *                            top-level file is not a root folder).
+ *   no-single-root         — no account root resolved, and the legacy chain
+ *                            named it (a lone top-level file, a stray folder
+ *                            beside roots (D-02), …).
  *   no-category-folders    — a single root exists, but the archive has
  *                            no second-level folders beneath it.
  *   no-recognized-category — categories exist under the root, but none
@@ -474,7 +786,14 @@ export function sortCategoryEntries(entries: readonly CategoryEntry[]): Category
  *                            top-level folder holds a recognized category
  *                            beneath it (CR-01 / W-1, 01-11), so the
  *                            importer will not guess which folder is the
- *                            account. Fail closed: nothing is parsed.
+ *                            account; OR, with roots present, a recognized
+ *                            category sits at the candidate level (D-04) or
+ *                            two root names collide case-insensitively.
+ *                            Fail closed: nothing is parsed.
+ *   no-csv-data            — a recognized category holds no CSV at all.
+ *   too-many-roots         — more than MAX_ACCOUNT_ROOTS account folders (D-20).
+ *   root-name-too-long     — an account folder name is longer than
+ *                            MAX_ROOT_NAME_LENGTH (D-20).
  *
  * Unknown folders alongside at least one recognized folder ALWAYS
  * stay in the result as `unknown` entries (RESEARCH Pitfall 1).
@@ -489,6 +808,12 @@ export function sortCategoryEntries(entries: readonly CategoryEntry[]): Category
  * `ambiguous-root`; `null` falls through to the legacy naming chain, which
  * keeps every pre-existing failure fixture's exact reason.
  *
+ * Since Phase 9 the N-root resolver runs FIRST, and only hands the archive
+ * back to that unchanged chain when NO account root exists — which is why
+ * every v1.0 reason still fires for its v1.0 shape. On success the outcome
+ * also carries `roots` (one entry per account, code-unit order) and
+ * `result.accounts` (the same list, pre-parse).
+ *
  * Ordering is owned by `sortCategoryEntries` below — status group, then
  * lower-case code-unit order, then raw name — which the replay path in
  * `ingest.worker.ts` shares.
@@ -496,6 +821,44 @@ export function sortCategoryEntries(entries: readonly CategoryEntry[]): Category
 export function analyzeExport(paths: string[]): AnalyzeOutcome {
   const prepared = prepare(paths);
   if (prepared.length === 0) return { ok: false, reason: 'empty-archive' };
+
+  const multi = resolveAccountRoots(prepared);
+  if (multi !== null) {
+    if (multi.kind === 'too-many') return { ok: false, reason: 'too-many-roots' };
+    if (multi.kind === 'name-too-long') return { ok: false, reason: 'root-name-too-long' };
+    if (multi.kind === 'ambiguous') return { ok: false, reason: 'ambiguous-root' };
+    if (multi.kind === 'stray') return { ok: false, reason: 'no-single-root' };
+
+    // A recognized folder name is not an export: Phase 2 parses CSVs only, so
+    // an archive with none would "import" successfully and show nothing
+    // (windows #3). Fail closed with a named reason instead.
+    const prefixes = new Set(multi.roots.map((r) => r.root));
+    if (!hasCsvUnderAnyRoot(prepared, prefixes)) {
+      return { ok: false, reason: 'no-csv-data' };
+    }
+
+    // Merged categories: one entry per EXACT folder name, counts summed
+    // across roots. Case variants stay separate entries, exactly as v1.0
+    // treats `Clans` and `clans` inside one root.
+    const mergedCounts = new Map<string, number>();
+    for (const root of multi.roots) {
+      for (const entry of root.categories) {
+        mergedCounts.set(entry.name, (mergedCounts.get(entry.name) ?? 0) + entry.fileCount);
+      }
+    }
+    const merged = sortCategoryEntries(countsToEntries(mergedCounts));
+    const roots = multi.roots;
+    return {
+      ok: true,
+      roots,
+      result: {
+        accountRoot: roots[0]?.root ?? '',
+        categories: merged,
+        counts: statusCountsOf(merged),
+        accounts: preParseAccounts(roots),
+      },
+    };
+  }
 
   const resolved = resolveAccountRootAndCategories(prepared);
   // 01-11: an ambiguous root is named directly, before the legacy chain
@@ -512,26 +875,16 @@ export function analyzeExport(paths: string[]): AnalyzeOutcome {
       return { ok: false, reason: 'no-csv-data' };
     }
     const { root, counts } = resolved;
-    const entries: CategoryEntry[] = [];
-    const statusCounts: Record<CategoryStatus, number> = {
-      supported: 0,
-      'known-deferred': 0,
-      unknown: 0,
-    };
-    // resolveAccountRootAndCategories guarantees hasRecognizedCategory,
-    // so every entry is recorded without an explicit hasRecognized gate.
-    for (const [name, fileCount] of counts) {
-      const status = classifyFolder(name);
-      entries.push({ name, status, fileCount });
-      statusCounts[status] += 1;
-    }
+    const entries = countsToEntries(counts);
 
     return {
       ok: true,
+      roots: [{ root, categories: sortCategoryEntries(entries) }],
       result: {
         accountRoot: root,
         categories: sortCategoryEntries(entries),
-        counts: statusCounts,
+        counts: statusCountsOf(entries),
+        accounts: preParseAccounts([{ root, categories: entries }]),
       },
     };
   }
@@ -672,4 +1025,86 @@ export function resolveCsvFileCategory(
   const sourceFile = rest.slice(slash + 1);
   if (!sourceFile.toLowerCase().endsWith('.csv')) return null;
   return { category, sourceFile };
+}
+
+// -----------------------------------------------------------------------------
+// resolveCsvFileOwner — per-entry name → { root, category, sourceFile } (09-01)
+// -----------------------------------------------------------------------------
+//
+// Why this exists (Phase 9, D-06):
+//   `resolveCsvFileCategory` maps an entry name to its category for ONE root,
+//   which is what the `unzipSync` filter uses to decide which entries to
+//   inflate. An export can now hold SEVERAL roots, so the filter has to learn
+//   WHICH root a file belongs to — and the per-category row counts written to
+//   the cache are computed from exactly these resolutions. If the two ever
+//   disagreed, the inflate filter would store rows the counts never claimed, or
+//   (far worse) attribute one account's `User_Info` to another account.
+//
+// Rules, in order:
+//   1. Normalize the raw name and reject OS-metadata and directory entries,
+//      exactly as the one-root function does — the two must never disagree
+//      about what a name is at all.
+//   2. An EMPTY root set resolves nothing: there is no owner to attribute to.
+//   3. A root set of EXACTLY ONE delegates to `resolveCsvFileCategory` and
+//      attaches the root. Delegating rather than reimplementing is what keeps
+//      the single-root behaviour — including its bounded rightmost-root wrapper
+//      fallback — byte-identical to v1.0.
+//   4. TWO OR MORE roots use a STRICT rule: the owner is the first path
+//      segment, or the second segment when the first is Wargaming's
+//      transparent wrapper (D-03). The one-root rightmost-`/root/`
+//      fallback is deliberately OFF here: `A/Activity_history/B/…/x.csv`
+//      would otherwise attribute a folder merely NAMED like another root to
+//      that root, filing one account's rows under another account.
+//
+// Returns `null` on every rejection path, the same shape as the one-root form.
+export function resolveCsvFileOwner(
+  rawName: string,
+  roots: ReadonlySet<string>,
+  recognizedCategories: ReadonlySet<string>,
+): { root: string; category: string; sourceFile: string } | null {
+  const normalized = normalizeEntryPath(rawName);
+  if (isOsMetadataEntry(normalized)) return null;
+  if (normalized.endsWith('/')) return null; // directory entry, not a CSV file
+  if (roots.size === 0) return null;
+
+  if (roots.size === 1) {
+    const [root] = [...roots];
+    if (root === undefined) return null;
+    const one = resolveCsvFileCategory(normalized, root, recognizedCategories);
+    return one === null ? null : { root, category: one.category, sourceFile: one.sourceFile };
+  }
+
+  const slash = normalized.indexOf('/');
+  if (slash === -1) return null; // a loose top-level file is never inflated
+  const first = normalized.slice(0, slash);
+  let root: string | undefined;
+  let rest: string;
+  if (roots.has(first)) {
+    root = first;
+    rest = normalized.slice(slash + 1);
+  } else if (isTransparentWrapper(first)) {
+    const remainder = normalized.slice(slash + 1);
+    const slash2 = remainder.indexOf('/');
+    if (slash2 === -1) return null; // a loose file under the wrapper (D-05)
+    const second = remainder.slice(0, slash2);
+    if (!roots.has(second)) return null;
+    root = second;
+    rest = remainder.slice(slash2 + 1);
+  } else {
+    return null;
+  }
+
+  const inner = rest.indexOf('/');
+  if (inner === -1) return null; // a file directly under the root
+  const category = rest.slice(0, inner);
+  if (!category) return null;
+  if (!recognizedCategories.has(category)) return null;
+  const sourceFile = rest.slice(inner + 1);
+  if (!sourceFile.toLowerCase().endsWith('.csv')) return null;
+  // `root` is narrowed by the branch chain above — every arm that leaves it
+  // unset returns first — so the value carries its own type here. This module's
+  // header rule is that a narrowing problem is an error and never a cast, and
+  // the cast that used to stand on this line read as an exception to that rule
+  // without being one (09-09, WR-03).
+  return { root, category, sourceFile };
 }

@@ -47,6 +47,16 @@ import type {
   SpendCard,
 } from '../../../src/lib/features/finance/finance-shared';
 import { mulberry32 } from '../../fixtures/sessions-fixtures';
+import { oneAccount } from '../../helpers/row-groups';
+import type { AccountRowGroup } from '../../../src/lib/worker/csv-columns';
+import {
+  MA_DIVERGENT_AMOUNT_CANONICAL,
+  MA_DIVERGENT_AMOUNT_RENAMED,
+  MA_DIVERGENT_CANONICAL_ROOT,
+  MA_DIVERGENT_CURRENCY_CODE,
+  MA_DIVERGENT_CURRENCY_CREATED,
+  MA_DIVERGENT_RENAMED_ROOT,
+} from '../../fixtures/multi-account-fixtures';
 
 /**
  * Parse a fixture CSV with the IMPORT PATH's own parser, so the rows the
@@ -236,7 +246,7 @@ describe('05-04 tracer: premium through the production parser to the hand-derive
     const rows = premiumHandRows();
     const expected = fixtures.PREMIUM_HAND_EXPECTED;
     const recomputed = oracle.oraclePremium(rows);
-    const view = finance.buildPremium(rows, true);
+    const view = finance.buildPremium(oneAccount(rows), true);
 
     expect(view.status).toBe('ready');
     if (view.status !== 'ready') return;
@@ -275,7 +285,7 @@ describe('05-04 tracer: premium through the production parser to the hand-derive
     // One grant, so the view is `ready` and the disclosure has a card to sit
     // on; the five unrecognised values are the ones being ranked.
     const view = finance.buildPremium(
-      [at('zebra'), at('zebra'), at('zebra'), at('mango'), at('apple'), at('1 day')],
+      oneAccount([at('zebra'), at('zebra'), at('zebra'), at('mango'), at('apple'), at('1 day')]),
       true,
     );
     expect(view.status).toBe('ready');
@@ -287,17 +297,17 @@ describe('05-04 tracer: premium through the production parser to the hand-derive
   });
 
   it('separates a missing file, an empty file and nothing usable', () => {
-    expect(finance.buildPremium([], false).status).toBe('not-in-export');
-    expect(finance.buildPremium([], true).status).toBe('no-rows');
+    expect(finance.buildPremium(oneAccount([]), false).status).toBe('not-in-export');
+    expect(finance.buildPremium(oneAccount([]), true).status).toBe('no-rows');
 
     // Every row unusable: the card still has to say how many rows it dropped
     // and which strings it could not read, because a card that simply shows
     // nothing is indistinguishable from a broken one (D-03, D-20).
     const unusable = finance.buildPremium(
-      [
+      oneAccount([
         premiumRowIn('premium forever', '2019-05-05 10:00:00'),
         premiumRowIn('', '2019-05-06 10:00:00'),
-      ],
+      ]),
       true,
     );
     expect(unusable.status).toBe('no-usable');
@@ -322,7 +332,7 @@ describe('05-04 tracer: premium through the production parser to the hand-derive
     const rows = premiumRealShapeRows();
     const expected = fixtures.PREMIUM_REAL_SHAPE_EXPECTED;
     const recomputed = oracle.oraclePremium(rows);
-    const view = finance.buildPremium(rows, true);
+    const view = finance.buildPremium(oneAccount(rows), true);
 
     expect(view.status).toBe('ready');
     if (view.status !== 'ready') return;
@@ -352,7 +362,7 @@ describe('05-04 tracer: premium through the production parser to the hand-derive
     // were reshaped too and a reshape that kept the old behaviour would be just
     // as wrong as a builder that never changed.
     for (const rows of [premiumHandRows(), premiumRealShapeRows()]) {
-      const view = finance.buildPremium(rows, true);
+      const view = finance.buildPremium(oneAccount(rows), true);
 
       expect(view.status).toBe('ready');
       if (view.status !== 'ready') return;
@@ -367,7 +377,7 @@ describe('05-04 tracer: premium through the production parser to the hand-derive
     // the 05-01 key is untouched: 11 grants, 7 excluded, 53 days, and the same
     // two listed strings. If this number moved, the fixture stop being a proof
     // that the fix preserved everything it was already right about.
-    const view = finance.buildPremium(premiumHandRows(), true);
+    const view = finance.buildPremium(oneAccount(premiumHandRows()), true);
     const expected = fixtures.PREMIUM_HAND_EXPECTED;
 
     expect(view.status).toBe('ready');
@@ -383,10 +393,10 @@ describe('05-04 tracer: premium through the production parser to the hand-derive
     // (a) No CURR_PREMIUM column at all: the header simply has none, so the
     // file is dated by CREATED — the behaviour before the UAT finding.
     const withoutColumn = finance.buildPremium(
-      [
+      oneAccount([
         { PREMIUM: '1 day', CREATED: '2019-05-02 12:00:00', UPDATED: '2019-05-02 12:00:00' },
         { PREMIUM: '1 day', CREATED: '2019-06-02 12:00:00', UPDATED: '2019-06-02 12:00:00' },
-      ],
+      ]),
       true,
     );
     expect(withoutColumn.status).toBe('ready');
@@ -402,7 +412,10 @@ describe('05-04 tracer: premium through the production parser to the hand-derive
       UPDATED: fixtures.PREMIUM_BULK_STAMP,
     };
     const allUnreadable = finance.buildPremium(
-      [unreadableThroughout, { ...unreadableThroughout, CREATED: '2019-06-02 12:00:00' }],
+      oneAccount([
+        unreadableThroughout,
+        { ...unreadableThroughout, CREATED: '2019-06-02 12:00:00' },
+      ]),
       true,
     );
     expect(allUnreadable.status).toBe('ready');
@@ -416,7 +429,7 @@ describe('05-04 tracer: premium through the production parser to the hand-derive
     // CREATED and quietly invent a grant month; instead it is excluded, counted,
     // lists nothing, and the bulk stamp's month stays off the axis (D-20).
     const mixed = finance.buildPremium(
-      [
+      oneAccount([
         premiumRowIn('1 day', '2019-05-02 12:00:00'),
         {
           PREMIUM: '5 days',
@@ -424,7 +437,7 @@ describe('05-04 tracer: premium through the production parser to the hand-derive
           CREATED: '2019-08-02 12:00:00',
           UPDATED: fixtures.PREMIUM_BULK_STAMP,
         },
-      ],
+      ]),
       true,
     );
     expect(mixed.status).toBe('ready');
@@ -442,7 +455,7 @@ describe('05-04 exact decimals and the virtual-currency flow builder', () => {
     const rows = currencyHandRows();
     const expected = fixtures.CURRENCY_HAND_EXPECTED;
     const recomputed = oracle.oracleCurrency(rows);
-    const view = finance.buildCurrency(rows, true);
+    const view = finance.buildCurrency(oneAccount(rows), true);
 
     expect(view.status).toBe('ready');
     if (view.status !== 'ready') return;
@@ -496,7 +509,7 @@ describe('05-04 exact decimals and the virtual-currency flow builder', () => {
     // agreeing with an answer key that agrees with it (D-18, UAT G-05-4).
     const rows = rowsFrom(fixtures.CURRENCY_INCOME_ONLY_CSV, 'Virtual_Currencies_Operations.csv');
     const expected = fixtures.CURRENCY_INCOME_ONLY_EXPECTED;
-    const view = finance.buildCurrency(rows, true);
+    const view = finance.buildCurrency(oneAccount(rows), true);
 
     expect(view.status).toBe('ready');
     if (view.status !== 'ready') return;
@@ -541,7 +554,7 @@ describe('05-04 exact decimals and the virtual-currency flow builder', () => {
       'Virtual_Currencies_Operations.csv',
     );
     const recomputed = oracle.oracleCurrency(rows);
-    const view = finance.buildCurrency(rows, true);
+    const view = finance.buildCurrency(oneAccount(rows), true);
 
     expect(view.status).toBe('ready');
     if (view.status !== 'ready') return;
@@ -565,7 +578,7 @@ describe('05-04 exact decimals and the virtual-currency flow builder', () => {
       'Virtual_Currencies_Operations.csv',
     );
     const recomputed = oracle.oracleCurrency(rows);
-    const view = finance.buildCurrency(rows, true);
+    const view = finance.buildCurrency(oneAccount(rows), true);
 
     expect(view.status).toBe('ready');
     if (view.status !== 'ready') return;
@@ -589,7 +602,7 @@ describe('05-04 exact decimals and the virtual-currency flow builder', () => {
         rows.push(currencyRow(code, 'deposit', '10', 24_000 + ((op + index) % 12)));
       }
     });
-    const view = finance.buildCurrency(rows, true);
+    const view = finance.buildCurrency(oneAccount(rows), true);
 
     expect(view.status).toBe('ready');
     if (view.status !== 'ready') return;
@@ -624,7 +637,7 @@ describe('05-04 exact decimals and the virtual-currency flow builder', () => {
       currencyRow('', 'deposit', '1', 24_200),
       currencyRow('Z', 'deposit', '1', 24_200),
     ];
-    const view = finance.buildCurrency(rows, true);
+    const view = finance.buildCurrency(oneAccount(rows), true);
 
     expect(view.status).toBe('ready');
     if (view.status !== 'ready') return;
@@ -642,7 +655,7 @@ describe('05-04 exact decimals and the virtual-currency flow builder', () => {
       currencyRow('__proto__', 'withdrawal', '2', 24_200),
       currencyRow('constructor', 'deposit', '3', 24_200),
     ];
-    const view = finance.buildCurrency(rows, true);
+    const view = finance.buildCurrency(oneAccount(rows), true);
 
     expect(view.status).toBe('ready');
     if (view.status !== 'ready') return;
@@ -678,7 +691,7 @@ describe('05-04 exact decimals and the virtual-currency flow builder', () => {
         CREATED: '2019-04-31 10:00:00',
       },
     ];
-    const view = finance.buildCurrency(rows, true);
+    const view = finance.buildCurrency(oneAccount(rows), true);
 
     expect(view.status).toBe('ready');
     if (view.status !== 'ready') return;
@@ -701,11 +714,11 @@ describe('05-04 exact decimals and the virtual-currency flow builder', () => {
     // income-only currency would report "Deposited 0" over N operations, which
     // is exactly what UAT G-05-4 found in the real export.
     const view = finance.buildCurrency(
-      [
+      oneAccount([
         currencyRow('ru.wot.crystal', 'deposit', '100', 24_200),
         currencyRow('ru.wot.crystal', 'income', '50', 24_210),
         currencyRow('ru.wot.crystal', 'withdrawal', '30', 24_220),
-      ],
+      ]),
       true,
     );
     expect(view.status).toBe('ready');
@@ -721,7 +734,7 @@ describe('05-04 exact decimals and the virtual-currency flow builder', () => {
     // all have to say so, or a reader sees an empty cell for a month the export
     // actually reported activity in.
     const view = finance.buildCurrency(
-      Array.from({ length: 50 }, () => currencyRow('inc.only', 'income', '10', 24_230)),
+      oneAccount(Array.from({ length: 50 }, () => currencyRow('inc.only', 'income', '10', 24_230))),
       true,
     );
     expect(view.status).toBe('ready');
@@ -745,12 +758,12 @@ describe('05-04 exact decimals and the virtual-currency flow builder', () => {
     // disagree with the bars beside it. Only CHARTED entries carry months; an
     // Other-currencies line has no per-month figures to check, and the 10k
     // generated spec supplies five charted ones.
-    const hand = finance.buildCurrency(currencyHandRows(), true);
+    const hand = finance.buildCurrency(oneAccount(currencyHandRows()), true);
     const generated = rowsFrom(
       fixtures.generateCurrencyOpsCsv(fixtures.CURRENCY_10K_SPEC),
       'Virtual_Currencies_Operations.csv',
     );
-    const big = finance.buildCurrency(generated, true);
+    const big = finance.buildCurrency(oneAccount(generated), true);
 
     let charted = 0;
     for (const view of [hand, big]) {
@@ -767,10 +780,10 @@ describe('05-04 exact decimals and the virtual-currency flow builder', () => {
   });
 
   it('separates a missing file, an empty file and nothing usable', () => {
-    expect(finance.buildCurrency([], false).status).toBe('not-in-export');
-    expect(finance.buildCurrency([], true).status).toBe('no-rows');
+    expect(finance.buildCurrency(oneAccount([]), false).status).toBe('not-in-export');
+    expect(finance.buildCurrency(oneAccount([]), true).status).toBe('no-rows');
     const unusable = finance.buildCurrency(
-      [currencyRow('ru.wot.credits', 'refund', '1', 24_200)],
+      oneAccount([currencyRow('ru.wot.credits', 'refund', '1', 24_200)]),
       true,
     );
     expect(unusable.status).toBe('no-usable');
@@ -977,7 +990,7 @@ describe('05-04 the real-money spend builder', () => {
     const rows = ordersHandRows();
     const expected = fixtures.ORDERS_HAND_EXPECTED;
     const recomputed = oracle.oracleSpend(rows);
-    const view = finance.buildSpend(rows);
+    const view = finance.buildSpend(oneAccount(rows));
 
     expect(view.status).toBe('ready');
     if (view.status !== 'ready') return;
@@ -994,7 +1007,7 @@ describe('05-04 the real-money spend builder', () => {
   });
 
   it('orders the cards by paid orders, then by code, with the unit-less card last', () => {
-    const view = finance.buildSpend(ordersHandRows());
+    const view = finance.buildSpend(oneAccount(ordersHandRows()));
     expect(view.status).toBe('ready');
     if (view.status !== 'ready') return;
     // USD has four paid orders, UAH and the unit-less group two each, RUB and
@@ -1012,7 +1025,7 @@ describe('05-04 the real-money spend builder', () => {
   });
 
   it('makes every breakdown a view of the same included paid rows', () => {
-    const view = finance.buildSpend(ordersHandRows());
+    const view = finance.buildSpend(oneAccount(ordersHandRows()));
     expect(view.status).toBe('ready');
     if (view.status !== 'ready') return;
     for (const card of view.cards) {
@@ -1033,7 +1046,7 @@ describe('05-04 the real-money spend builder', () => {
   });
 
   it('orders a breakdown by year descending and by game by paid orders', () => {
-    const view = finance.buildSpend(ordersHandRows());
+    const view = finance.buildSpend(oneAccount(ordersHandRows()));
     expect(view.status).toBe('ready');
     if (view.status !== 'ready') return;
     const usd = view.cards[0]!;
@@ -1066,8 +1079,8 @@ describe('05-04 the real-money spend builder', () => {
       // never estimated (D-24).
       orderRow('2021-06-05 10:00:00', 'WOT', 'USD', 'not a number', '0', 'PAID'),
     ];
-    const before = finance.buildSpend(base);
-    const after = finance.buildSpend(withNoise);
+    const before = finance.buildSpend(oneAccount(base));
+    const after = finance.buildSpend(oneAccount(withNoise));
     expect(before.status).toBe('ready');
     expect(after.status).toBe('ready');
     if (before.status !== 'ready' || after.status !== 'ready') return;
@@ -1094,10 +1107,12 @@ describe('05-04 the real-money spend builder', () => {
     // no figure anywhere that is their sum. A blended total would be a number
     // that means nothing, and it is the one thing the spend block must never
     // draw.
-    const view = finance.buildSpend([
-      orderRow('2021-01-05 10:00:00', 'WOT', 'USD', '10.00', '0', 'PAID'),
-      orderRow('2021-01-06 10:00:00', 'WOT', 'RUB', '20.00', '0', 'PAID'),
-    ]);
+    const view = finance.buildSpend(
+      oneAccount([
+        orderRow('2021-01-05 10:00:00', 'WOT', 'USD', '10.00', '0', 'PAID'),
+        orderRow('2021-01-06 10:00:00', 'WOT', 'RUB', '20.00', '0', 'PAID'),
+      ]),
+    );
     expect(view.status).toBe('ready');
     if (view.status !== 'ready') return;
     expect(view.cards).toHaveLength(2);
@@ -1117,17 +1132,20 @@ describe('05-04 the real-money spend builder', () => {
     // An absent Orders file and a file of nothing but unrecognised statuses are
     // the same answer: there is no spend to show. UI-SPEC section 2 has no
     // `not-in-export` state for this block, so `no-usable` IS the empty case.
-    expect(finance.buildSpend([]).status).toBe('no-usable');
+    expect(finance.buildSpend(oneAccount([])).status).toBe('no-usable');
     expect(
-      finance.buildSpend([orderRow('2021-01-05 10:00:00', 'WOT', 'USD', '1', '0', 'REFUNDED')])
-        .status,
+      finance.buildSpend(
+        oneAccount([orderRow('2021-01-05 10:00:00', 'WOT', 'USD', '1', '0', 'REFUNDED')]),
+      ).status,
     ).toBe('no-usable');
     // A group whose rows are ALL an unrecognised status is still listed, because
     // its other count is a fact the reader is owed.
-    const onlyOther = finance.buildSpend([
-      orderRow('2021-01-05 10:00:00', 'WOT', 'USD', '1', '0', 'REFUNDED'),
-      orderRow('2021-01-06 10:00:00', 'WOT', 'USD', '9', '0', 'PAID'),
-    ]);
+    const onlyOther = finance.buildSpend(
+      oneAccount([
+        orderRow('2021-01-05 10:00:00', 'WOT', 'USD', '1', '0', 'REFUNDED'),
+        orderRow('2021-01-06 10:00:00', 'WOT', 'USD', '9', '0', 'PAID'),
+      ]),
+    );
     expect(onlyOther.status).toBe('ready');
     if (onlyOther.status !== 'ready') return;
     expect(onlyOther.cards[0]!.other).toBe(1);
@@ -1148,11 +1166,11 @@ describe('05-04 the privacy canary: a builder reads the columns it names and no 
 
   it('sees no identifying column in the premium, currency or spend path', () => {
     const premium = watchRows(premiumHandRows());
-    finance.buildPremium(premium.rows, true);
+    finance.buildPremium(oneAccount(premium.rows), true);
     const currency = watchRows(currencyHandRows());
-    finance.buildCurrency(currency.rows, true);
+    finance.buildCurrency(oneAccount(currency.rows), true);
     const spend = watchRows(ordersHandRows());
-    finance.buildSpend(spend.rows);
+    finance.buildSpend(oneAccount(spend.rows));
 
     for (const [name, watched] of [
       ['premium', premium],
@@ -1173,7 +1191,7 @@ describe('05-04 the privacy canary: a builder reads the columns it names and no 
     // — a stronger claim than a column-name list, because it holds whatever the
     // view's shape grows to be.
     const watched = watchRows(premiumRealShapeRows());
-    const view = finance.buildPremium(watched.rows, true);
+    const view = finance.buildPremium(oneAccount(watched.rows), true);
 
     // Positive control: the column really IS read, or the assertions below would
     // pass on an empty string.
@@ -1203,17 +1221,21 @@ describe('05-04 the privacy canary: a builder reads the columns it names and no 
         name: 'premium',
         rows: premiumHandRows(),
         build: (rows) => {
-          finance.buildPremium(rows, true);
+          finance.buildPremium(oneAccount(rows), true);
         },
       },
       {
         name: 'currency',
         rows: currencyHandRows(),
         build: (rows) => {
-          finance.buildCurrency(rows, true);
+          finance.buildCurrency(oneAccount(rows), true);
         },
       },
-      { name: 'spend', rows: ordersHandRows(), build: (rows) => void finance.buildSpend(rows) },
+      {
+        name: 'spend',
+        rows: ordersHandRows(),
+        build: (rows) => void finance.buildSpend(oneAccount(rows)),
+      },
     ];
     for (const testCase of cases) {
       const watched = watchRows(testCase.rows);
@@ -1237,7 +1259,7 @@ describe('05-04 the scale ceiling and the seeded random-order invariants', () =>
     );
     const recomputed = oracle.oracleCurrency(rows);
     const started = performance.now();
-    const view = finance.buildCurrency(rows, true);
+    const view = finance.buildCurrency(oneAccount(rows), true);
     const elapsed = performance.now() - started;
 
     expect(view.status).toBe('ready');
@@ -1285,7 +1307,7 @@ describe('05-04 the scale ceiling and the seeded random-order invariants', () =>
       );
     }
 
-    const view = finance.buildSpend(rows);
+    const view = finance.buildSpend(oneAccount(rows));
     const recomputed = oracle.oracleSpend(rows);
     expect(view.status).toBe('ready');
     if (view.status !== 'ready') return;
@@ -1300,5 +1322,78 @@ describe('05-04 the scale ceiling and the seeded random-order invariants', () =>
       expect(BigInt(card.giftUnits)).toBeLessThanOrEqual(BigInt(card.units));
     }
     expect(view.cards.map(cardOf)).toEqual(recomputed.cards.map(cardOfOracle));
+  });
+});
+
+// =============================================================================
+// 09-07 CR-01 — two accounts, one file name, two different headers
+// =============================================================================
+//
+// The renamed account writes `AMOUNT` as `AMOUNT_VALUE`; the canonical account
+// writes `AMOUNT`. Resolved per GROUP, the canonical account's operation is read
+// through its own key. Resolved off the merged bucket's first row — which is the
+// renamed account's — `AMOUNT` resolved to null and BOTH operations were
+// excluded, so the shared currency answered `no-usable` while its file was
+// plainly in the archive.
+//
+// RED was demonstrated against the merged shape before the change: the view was
+// `no-usable` with no chart at all. The case below is the same claim in the
+// shape the builder now takes.
+// =============================================================================
+
+describe('09-07 CR-01: two accounts whose same-named currency file disagrees on a header', () => {
+  /** One account's rows, under its own header. */
+  function groupsOfBothAccounts(): AccountRowGroup<FinanceRow>[] {
+    return [
+      {
+        account: MA_DIVERGENT_RENAMED_ROOT,
+        rows: [
+          {
+            CREATED: MA_DIVERGENT_CURRENCY_CREATED,
+            CURRENCY_CODE: MA_DIVERGENT_CURRENCY_CODE,
+            CURRENCY_TITLE: 'Synthetic crystal',
+            AMOUNT_VALUE: MA_DIVERGENT_AMOUNT_RENAMED,
+            TYPE: 'deposit',
+          },
+        ],
+      },
+      {
+        account: MA_DIVERGENT_CANONICAL_ROOT,
+        rows: [
+          {
+            CREATED: MA_DIVERGENT_CURRENCY_CREATED,
+            CURRENCY_CODE: MA_DIVERGENT_CURRENCY_CODE,
+            CURRENCY_TITLE: 'Synthetic crystal',
+            AMOUNT: MA_DIVERGENT_AMOUNT_CANONICAL,
+            TYPE: 'deposit',
+          },
+        ],
+      },
+    ];
+  }
+
+  it("keeps the other account's operation, and still combines both into one currency", () => {
+    const view = finance.buildCurrency(groupsOfBothAccounts(), true);
+    expect(view.status).toBe('ready');
+    if (view.status !== 'ready') return;
+
+    // Read from BOTH lists rather than only `charts`: one operation is below
+    // `CHART_MIN_OPS`, and WHICH list a currency lands in is not what this case
+    // is about.
+    const entries = [...view.charts, ...view.others].filter(
+      (entry) => entry.code === MA_DIVERGENT_CURRENCY_CODE,
+    );
+    expect(entries, 'the shared currency is answered').toHaveLength(1);
+    // The canonical account's amount survives on its own `AMOUNT` key — this is
+    // exactly what the merged reader reported as absent.
+    expect(BigInt(entries[0]!.inUnits)).toBeGreaterThanOrEqual(
+      BigInt(MA_DIVERGENT_AMOUNT_CANONICAL),
+    );
+    // D-11 untouched: every group's rows fold into the SAME currency bucket, so
+    // two accounts' operations of one currency are ONE entry, not two.
+    expect(entries[0]!.ops).toBe(1);
+    // And the account that renamed the column is reported honestly on its own
+    // row: `no AMOUNT this app reads` is an exclusion, not a silent zero.
+    expect(view.excluded).toBe(1);
   });
 });
