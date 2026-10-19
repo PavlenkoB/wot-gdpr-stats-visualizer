@@ -33,7 +33,13 @@
     VEHICLE_TABLE_TITLE,
     VEHICLE_TITLE_LABELS,
     WARSHIPS_ALL_NOTE,
+    WOWP_ACCOUNT_COLUMN_LABELS,
+    WOWP_ACCOUNT_STATS_HEADING,
+    WOWP_FILE_LABELS,
     formatBattleTypeLabel,
+    formatGameName,
+    formatNewDataSkipped,
+    formatNoVehicleTable,
     formatTitleNoRows,
     formatTitleNotInExport,
     formatTitleOption,
@@ -58,8 +64,15 @@
   } from './vehicle-state.ts';
   import BattleTypeSummary from './BattleTypeSummary.svelte';
   import VehicleTable from './VehicleTable.svelte';
-  import { filterAfterTitleChange, filterToTitle } from '../../shell/game-filter-state.ts';
-  import { accountTagsFor } from '../../shell/identity-model.ts';
+  import {
+    filterAfterTitleChange,
+    hasNoVehicleTable,
+    vehicleTitleForAsk,
+    type AnyVehicleTitle,
+  } from '../../shell/game-filter-state.ts';
+  import { accountTagsFor, tagLabel } from '../../shell/identity-model.ts';
+  import AccountTag from '../../shell/AccountTag.svelte';
+  import { orderRowsByAccount } from '../new-data/new-data-state.ts';
 
   /**
    * The Vehicle statistics block of the Player_statistics card (05-12).
@@ -111,9 +124,29 @@
     gameFilter: string | null;
     /** Write the shared filter after the reader picks a title in the select. */
     onGameFilterChange: (token: string | null) => void;
+    /**
+     * The title this block last APPLIED under the dataset on screen, or `null`
+     * (11-06, D-06).
+     *
+     * It is a prop rather than a cell here because it has to survive this pane
+     * unmounting, and `Dashboard.svelte` already holds it stamped with its
+     * dataset. Only HEAT and WoT Console read it: those two games have sessions
+     * but no vehicle table, so `vehicleTitleForAsk` keeps showing the reader's
+     * last table instead of falling back to whatever the worker picks.
+     */
+    lastTitle: AnyVehicleTitle | null;
+    /**
+     * Report the title the worker APPLIED, so the shell can remember it.
+     *
+     * APPLIED, never requested: a `null` ask comes back as the worker's first
+     * title with rows, and that is the table the reader is looking at, so it is
+     * the title that has to be remembered for next time (T-11-20).
+     */
+    onTitleApplied: (title: VehicleTitleId) => void;
   }
 
-  let { result, client, gameFilter, onGameFilterChange }: Props = $props();
+  let { result, client, gameFilter, onGameFilterChange, lastTitle, onTitleApplied }: Props =
+    $props();
 
   /**
    * The control ids for the two labels, generated rather than hand-written so
@@ -205,6 +238,11 @@
     // "Updating table..." for ever.
     if (accepted.kind === 'view') {
       requested = appliedAsk(ask.importedAt, accepted.view);
+      // D-06: the shell remembers the APPLIED title, because that is the table
+      // on screen and therefore the one HEAT and WOTC will fall back to next
+      // time. A title the worker DECLINED is never recorded, and the worker's
+      // own first-title-with-rows choice becomes the remembered one instead.
+      onTitleApplied(accepted.view.title);
     } else {
       requested = { importedAt: ask.importedAt, title: ask.title, battleType: ask.battleType };
     }
@@ -249,9 +287,15 @@
       // `importedAt` alone. With a filter set, opening Vehicles opens that
       // game; with All it is `null` and the worker's first-title-with-rows rule
       // applies exactly as it always did (D-21).
+      //
+      // 11-06 adds D-06's case to that sentence: HEAT and WoT Console have no
+      // vehicle table, so `vehicleTitleForAsk` asks for the title this dataset
+      // last showed rather than clearing the filter to explain itself. Every
+      // other filter value goes through `filterToTitle` unchanged, which is why
+      // the helper rather than an `if`.
       const ask: VehicleAsk = {
         importedAt: wanted,
-        title: filterToTitle(gameFilter),
+        title: vehicleTitleForAsk(gameFilter, lastTitle),
         battleType: null,
       };
       requested = ask;
@@ -425,6 +469,27 @@
   });
 
   /**
+   * D-06's note: the shared filter names a game with no vehicle table, and the
+   * table below is the reader's last one rather than that game's.
+   *
+   * Keyed on `view`, not on `gameFilter` alone, so it is ABSENT in the loading
+   * and error states and present only over a table that is really on screen —
+   * naming a table that is still loading would be a claim about data nobody
+   * can see yet. The game's LABEL goes through `formatGameName` rather than
+   * the raw token, because a chip reading `WOTC` is not an explanation.
+   *
+   * No `aria-live`, deliberately: the block owns exactly one live region and the
+   * page-wide count `dashboard.spec.ts` asserts must stay true. A note that
+   * appeared silently while the filter changed elsewhere is also not a change
+   * the reader made here — Vehicles and Playtime are never mounted together, so
+   * the filter cannot move while this line is on screen (UI-SPEC Surface 5).
+   */
+  const noTableNote = $derived.by(() => {
+    if (view === null || !hasNoVehicleTable(gameFilter)) return '';
+    return formatNoVehicleTable(formatGameName(gameFilter), VEHICLE_TITLE_LABELS[view.title]);
+  });
+
+  /**
    * D-13's two per-title figures, formatted through the ONE cell formatter the
    * table uses.
    *
@@ -473,6 +538,26 @@
   );
 
   /**
+   * The Warplanes files named in words because every column of them was
+   * dropped (D-09), as their constant labels.
+   *
+   * The key is looked up in a closed table and an unknown one is dropped, so a
+   * zip entry name can never be what the page prints (T-11-35).
+   */
+  const wowpSkippedFiles = $derived(
+    view === null || view.wowpAccount === null
+      ? []
+      : view.wowpAccount.skipped
+          .filter((key) => Object.hasOwn(WOWP_FILE_LABELS, key))
+          .map((key) => WOWP_FILE_LABELS[key]!),
+  );
+
+  /** The heading of one block column; an unlabelled id is shown as itself. */
+  function wowpColumnLabel(id: string): string {
+    return Object.hasOwn(WOWP_ACCOUNT_COLUMN_LABELS, id) ? WOWP_ACCOUNT_COLUMN_LABELS[id]! : id;
+  }
+
+  /**
    * D-07's partial-coverage note, and when there is one at all.
    *
    * It appears only when a CODE is applied, because it is a claim about a
@@ -517,6 +602,22 @@
    * gives every pane the same letter for the same account by construction.
    */
   const tags = $derived(accountTagsFor(result));
+
+  /**
+   * D-02's Warplanes account statistics: the accounts in the identity header's
+   * order, so this block and the table below it read the same way.
+   *
+   * Ordered through the tag map by `orderRowsByAccount`, which consults a `Map`
+   * and never an object keyed by account, so a root literally named `__proto__`
+   * is an ordinary key (T-10-09). With one account the tag map is null and the
+   * list comes back unchanged. The block's values are the view's own cells and
+   * never carry a nickname: the type has no field for one.
+   */
+  const wowpAccounts = $derived(
+    view === null || view.wowpAccount === null
+      ? []
+      : orderRowsByAccount(view.wowpAccount.accounts, tags),
+  );
 
   /**
    * D-11: the extra strings one row matches on — its account's LETTER and its
@@ -753,6 +854,16 @@
     </div>
 
     <!--
+      D-06's note, directly under the controls and above everything else. It is
+      a neutral-info line in the same chrome as the title-state note below —
+      this is a fact about the filter, not a failure of the export — and it
+      carries no `aria-live`; see `noTableNote`.
+    -->
+    {#if noTableNote !== ''}
+      <p class="body info" data-testid="vehicles-no-table-note">{noTableNote}</p>
+    {/if}
+
+    <!--
       D-13's per-title header, after the controls row and before everything
       else, exactly where the UI-SPEC's document order puts it: the two figures
       describe the ACCOUNT, while everything below describes one file of it.
@@ -792,6 +903,49 @@
           </dd>
         {/if}
       </dl>
+    {/if}
+
+    <!--
+      D-02's Warplanes account statistics, directly after the per-title header and
+      before the title-state line: they describe the ACCOUNT, as the header does,
+      while everything below describes the plane files.
+
+      Gated on the view's own `wowpAccount`, which the worker sets for the
+      Warplanes title alone and only when there is something to show, so every
+      other title and the loading and error states render byte-identically to
+      before. An account without the record has no entry and nothing stands in
+      for it. Every value is text-interpolated and goes through the one cell
+      formatter the table and the header use. It adds no live region: the block is
+      shown with the view it belongs to and the page already announces that view.
+
+      The tag line is drawn only when the identity header has a tag map (two or
+      more accounts), flush against the `dl` with no whitespace between them.
+    -->
+    {#if view.wowpAccount !== null}
+      <h4>{WOWP_ACCOUNT_STATS_HEADING}</h4>
+      {#each wowpAccounts as entry (entry.account)}
+        {@const tag = tags === null ? null : (tags.get(entry.account) ?? null)}
+        <div class="wowp-account">
+          {#if tag !== null}<p class="wowp-tag">
+              <AccountTag letter={tag.letter} label={tagLabel(tag)} />
+            </p>{/if}
+          <dl class="header" data-testid="wowp-account-stats">
+            {#each view.wowpAccount.columns as column, index (column.id)}
+              {@const shown = formatVehicleCell(entry.cells[index]!, column.kind)}
+              <dt>{wowpColumnLabel(column.id)}</dt>
+              <dd>
+                {shown.text}
+                {#if shown.hidden !== null}
+                  <span class="sr-only">{shown.hidden}</span>
+                {/if}
+              </dd>
+            {/each}
+          </dl>
+        </div>
+      {/each}
+      {#each wowpSkippedFiles as file (file)}
+        <p class="body info" data-testid="wowp-skipped">{formatNewDataSkipped(file)}</p>
+      {/each}
     {/if}
 
     {#if titleStateLine !== ''}
@@ -1168,6 +1322,20 @@
     color: var(--ink);
     min-width: 0;
     overflow-wrap: anywhere;
+  }
+
+  /* D-02's per-account block: the tag line, when there is one, sits 4px above
+     its `dl` (UI-SPEC Surface 5). A plain column; the bare `div` rule above gives
+     every div a 24px gap, which is the gap BETWEEN blocks and not inside one. */
+  .wowp-account {
+    gap: 4px;
+  }
+
+  .wowp-tag {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.4;
+    color: var(--text);
   }
 
   /* D-10's column picker. The `<summary>` is styled as a button — the shared

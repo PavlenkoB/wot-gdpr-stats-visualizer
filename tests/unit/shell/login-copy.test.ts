@@ -370,6 +370,8 @@ describe('formatGameName', () => {
     ['WOT', 'WoT'],
     ['WOTB', 'WoT Blitz'],
     ['WOWS', 'Warships'],
+    ['WOTC', 'WoT Console'],
+    ['HEAT', 'HEAT'],
     ['WOWP', 'Warplanes'],
   ])('%s reads %s', (token, expected) => {
     expect(loginCopy.formatGameName(token)).toBe(expected);
@@ -390,6 +392,18 @@ describe('formatGames', () => {
     expect(loginCopy.formatGames(['WOWP', 'WOTB', 'WOT', 'WOWS'])).toBe(
       'WoT, WoT Blitz, Warships, Warplanes',
     );
+  });
+
+  test('prints the two new games in ONE fixed app-wide order (11-01)', () => {
+    // The order is the identity header's: WOT, WOTB, WOWS, WOTC, HEAT, WOWP.
+    // Warplanes stays LAST even though it is the newest entry alphabetically,
+    // because the order is a display contract and not a sort.
+    expect(loginCopy.formatGames(['WOT', 'WOTC', 'HEAT', 'WOWP'])).toBe(
+      'WoT, WoT Console, HEAT, Warplanes',
+    );
+    // And the Games cell now prints a NAME for WoT Console rather than the raw
+    // token, which is the change D-13's chip labels depend on.
+    expect(loginCopy.formatGames(['WOTC'])).toBe('WoT Console');
   });
 
   test('puts unknown tokens after the known ones, ascending', () => {

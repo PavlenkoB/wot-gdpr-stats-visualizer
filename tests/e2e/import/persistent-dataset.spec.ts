@@ -152,8 +152,12 @@ const UNSUPPORTED_FOLDERS = SAMPLE_BADGE_ORDER.slice(
   SAMPLE_EXPECTED_COUNTS.supported,
 ) as readonly string[];
 
-/** The list always shows nine rows: Overview, seven data panes, Not yet supported. */
-const PANE_COUNT = 9;
+/**
+ * The sample export's list: Overview, seven data panes, the Warships crews and
+ * storage row its two Warships files earn (plan 11-11) and Not yet supported.
+ * There is no HEAT row: the sample holds no HEAT file.
+ */
+const PANE_COUNT = 10;
 
 /** Wait for the dataset to be displayed: the bar is slim (D-25). */
 async function expectSlimBar(page: import('@playwright/test').Page): Promise<void> {

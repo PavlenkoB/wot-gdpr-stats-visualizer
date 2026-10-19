@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import {
   DEFAULT_PANE,
+  OPTIONAL_PANE_IDS,
   PANE_IDS,
+  PANE_ORDER,
   PHONE_MAX_WIDTH_PX,
   PHONE_MEDIA_QUERY,
   SIDE_BY_SIDE_MEDIA_QUERY,
@@ -25,9 +27,11 @@ import {
   UNSUPPORTED_NONE_DETECTED,
   formatAccountCount,
   formatFolderCount,
+  formatHeatRowSummary,
   formatRowCount,
   formatRowSummary,
   formatSectionStatus,
+  formatWowsStorageRowSummary,
 } from '../../../src/lib/ui-copy.ts';
 import type {
   AccountIdentity,
@@ -133,6 +137,10 @@ describe('the pane vocabulary', () => {
       'device-info': 'device-info',
       account: 'user-info',
       'not-yet-supported': 'not-yet-supported',
+      // The two optional panes of plan 11-05 read no single folder: a HEAT or
+      // Warships pane is built from files spread across the export (A3).
+      heat: null,
+      'warships-storage': null,
     });
   });
 
@@ -498,5 +506,193 @@ describe('the side-by-side query', () => {
   test('is the 900px sticky-list breakpoint', () => {
     expect(SIDE_BY_SIDE_MIN_WIDTH_PX).toBe(900);
     expect(SIDE_BY_SIDE_MEDIA_QUERY).toBe('(min-width: 900px)');
+  });
+});
+
+// =============================================================================
+// Phase 11, plan 11-05 — the two OPTIONAL panes (D-01, D-03; UI-SPEC Surface 2)
+// =============================================================================
+//
+// `PANE_IDS` stays the nine always-present panes: about seven e2e specs and
+// several unit suites iterate it, so growing it would break every loop for a
+// pane most exports do not have. The two new-game panes are ADDED AROUND it —
+// `OPTIONAL_PANE_IDS` for the ids, `PANE_ORDER` for where they sit, and a
+// `paneEntries` that emits a row only when the worker reported that pane.
+//
+// The first test below is the compatibility contract in one assertion: a result
+// with no `newDataPanes` must produce byte-identical output to v1.0, whatever
+// the shape of the result.
+// =============================================================================
+
+/** `SAMPLE` with the pane facts a worker would publish for a real import. */
+function withPanes(
+  panes: NonNullable<ClassifyResult['newDataPanes']>,
+  extra: Parameters<typeof resultOf>[1] = {},
+): ClassifyResult {
+  return {
+    ...resultOf(SAMPLE, { importedAt: 'a', identity: IDENTITY, ...extra }),
+    newDataPanes: panes,
+  };
+}
+
+describe('the optional pane vocabulary', () => {
+  test('OPTIONAL_PANE_IDS is the shared new-data contract, in list order', () => {
+    expect([...OPTIONAL_PANE_IDS]).toEqual(['heat', 'warships-storage']);
+  });
+
+  test('PANE_ORDER is the eleven panes with the two new ones directly after Vehicles', () => {
+    expect([...PANE_ORDER]).toEqual([
+      'overview',
+      'playtime',
+      'login-history',
+      'vehicles',
+      'heat',
+      'warships-storage',
+      'finance',
+      'payments',
+      'device-info',
+      'account',
+      'not-yet-supported',
+    ]);
+    expect(PANE_ORDER).toHaveLength(11);
+  });
+
+  test('PANE_IDS still holds exactly the nine always-present panes', () => {
+    // The compatibility contract, stated as a count: the seven specs that loop
+    // `PANE_IDS` must keep clicking rows that exist.
+    expect(PANE_IDS).toHaveLength(9);
+    for (const id of OPTIONAL_PANE_IDS) expect(PANE_IDS).not.toContain(id);
+    for (const id of PANE_ORDER)
+      expect(PANE_ORDER.filter((candidate) => candidate === id)).toHaveLength(1);
+  });
+
+  test('every optional pane has a title and no single section folder', () => {
+    for (const id of OPTIONAL_PANE_IDS) {
+      expect(PANE_TITLES[id], `${id} has a title`).toBeTypeOf('string');
+      expect(PANE_TITLES[id]).not.toBe('');
+      expect(PANE_SECTION[id], `${id} reads no single folder`).toBeNull();
+    }
+  });
+});
+
+describe('paneEntries: the two optional panes', () => {
+  test('a result with no newDataPanes renders exactly the nine v1.0 rows', () => {
+    const shapes: [string, ClassifyResult][] = [
+      ['sample', resultOf(SAMPLE, { importedAt: 'a', identity: IDENTITY })],
+      [
+        'one account',
+        resultOf(SAMPLE, { importedAt: 'a', identity: IDENTITY, accounts: [TWO_ACCOUNTS[1]!] }),
+      ],
+      [
+        'three accounts',
+        resultOf(SAMPLE, { importedAt: 'a', identity: IDENTITY, accounts: THREE_ACCOUNTS }),
+      ],
+      ['pre-parse (no field)', resultOf(SAMPLE, { importedAt: 'a' })],
+    ];
+    for (const [name, result] of shapes) {
+      expect(
+        paneEntries(result).map((entry) => entry.id),
+        name,
+      ).toEqual([...PANE_IDS]);
+      expect(paneEntries({ ...result, newDataPanes: undefined })).toEqual(paneEntries(result));
+    }
+    expect(paneEntries(null).map((entry) => entry.id)).toEqual([...PANE_IDS]);
+  });
+
+  test('an empty newDataPanes object renders the nine rows, byte for byte', () => {
+    const plain = resultOf(SAMPLE, { importedAt: 'a', identity: IDENTITY });
+    expect(paneEntries(withPanes({}))).toEqual(paneEntries(plain));
+  });
+
+  test('a HEAT pane adds one row directly after Vehicles, with its own headline and summary', () => {
+    const entries = paneEntries(withPanes({ heat: { fileCount: 4, rowCount: 12 } }));
+    expect(entries.map((entry) => entry.id)).toHaveLength(10);
+    const heat = rowOf(entries, 'heat');
+    expect(entries[entries.indexOf(heat) - 1]?.id).toBe('vehicles');
+    expect(heat).toEqual({
+      id: 'heat',
+      muted: false,
+      reason: null,
+      headline: '12 rows',
+      summary: 'Battle types, stats, storage · 4 files',
+    });
+    expect(heat.summary).toBe(formatHeatRowSummary(4));
+    expect(heat.headline).toBe(formatRowCount(12));
+  });
+
+  test('a present-but-empty Warships pane renders MUTED with the no-rows wording', () => {
+    const entries = paneEntries(withPanes({ 'warships-storage': { fileCount: 2, rowCount: 0 } }));
+    expect(entries.map((entry) => entry.id)).toHaveLength(10);
+    expect(rowOf(entries, 'warships-storage')).toEqual({
+      id: 'warships-storage',
+      muted: true,
+      reason: 'empty',
+      headline: ROW_HEADLINE_NONE,
+      summary: 'This export contains no rows for Warships crews & storage',
+    });
+  });
+
+  test('both panes present: Vehicles, HEAT, Warships crews & storage, Finance', () => {
+    const entries = paneEntries(
+      withPanes({
+        heat: { fileCount: 4, rowCount: 12 },
+        'warships-storage': { fileCount: 2, rowCount: 31 },
+      }),
+    );
+    expect(entries.map((entry) => entry.id)).toEqual([
+      'overview',
+      'playtime',
+      'login-history',
+      'vehicles',
+      'heat',
+      'warships-storage',
+      'finance',
+      'payments',
+      'device-info',
+      'account',
+      'not-yet-supported',
+    ]);
+    expect(rowOf(entries, 'warships-storage').summary).toBe(formatWowsStorageRowSummary(2));
+    expect(rowOf(entries, 'warships-storage').headline).toBe(formatRowCount(31));
+  });
+
+  test('an absent optional pane is never a muted no-export row', () => {
+    const entries = paneEntries(withPanes({ heat: { fileCount: 4, rowCount: 12 } }));
+    // Absence means ABSENT, which is what keeps it out of the "N not in this
+    // export" chip (D-01: shown only when the export holds HEAT data).
+    expect(entries.some((entry) => entry.id === 'warships-storage')).toBe(false);
+    expect(
+      entries.filter((entry) => entry.reason === 'no-export').map((entry) => entry.id),
+    ).not.toContain('heat');
+  });
+
+  test('a null result renders no optional row at all', () => {
+    expect(paneEntries(null).map((entry) => entry.id)).toEqual([...PANE_IDS]);
+  });
+});
+
+describe('stepSelection over the RENDERED order', () => {
+  const RENDERED_WITH_HEAT = PANE_ORDER.filter((id) => id !== 'warships-storage');
+
+  test('the default order is still the nine panes', () => {
+    expect(stepSelection('vehicles', 1)).toBe('finance');
+  });
+
+  test('stepping a rendered list follows what is on screen', () => {
+    expect(stepSelection('vehicles', 1, RENDERED_WITH_HEAT)).toBe('heat');
+    expect(stepSelection('heat', 1, RENDERED_WITH_HEAT)).toBe('finance');
+    expect(stepSelection('heat', -1, RENDERED_WITH_HEAT)).toBe('vehicles');
+  });
+
+  test('it is still clamped, not wrapped', () => {
+    expect(stepSelection('account', 1, RENDERED_WITH_HEAT)).toBe('not-yet-supported');
+    expect(stepSelection('not-yet-supported', 1, RENDERED_WITH_HEAT)).toBe('not-yet-supported');
+    expect(stepSelection('overview', -1, RENDERED_WITH_HEAT)).toBe('overview');
+  });
+
+  test('a current id absent from the given order is returned unchanged', () => {
+    // The selection can name a pane a NEW dataset does not carry, until the
+    // stamp rule falls back to Overview (D-04). Stepping must not guess.
+    expect(stepSelection('warships-storage', 1, RENDERED_WITH_HEAT)).toBe('warships-storage');
   });
 });

@@ -42,6 +42,10 @@ import type { IngestStage } from '../../../src/lib/core/types/worker-messages.ts
 // reuses this import.
 import * as playtimeCopy from '../../../src/lib/ui-copy.ts';
 import { DURATION_BIN_COUNT } from '../../../src/lib/features/playtime/playtime-shared.ts';
+import { NEW_DATA_PANE_FILES } from '../../../src/lib/features/new-data/new-data-shared.ts';
+import { NEW_DATA_SPEC_FILES } from '../../../src/lib/worker/new-data-specs.ts';
+import { CAPTURED_FILES } from '../../fixtures/new-data-headers.ts';
+import { wowpAccountColumns } from '../../../src/lib/features/vehicles/vehicle-aggregate.ts';
 
 // =============================================================================
 // ui-copy — formatter tests (01-05-PLAN Task 1, RED then GREEN)
@@ -1976,7 +1980,7 @@ describe('05-08 export inventory', () => {
 // Literals are typed out here, not read back from the constants, so a paraphrase
 // in ui-copy.ts fails here rather than reaching a user.
 describe('08-01 pane and row copy', () => {
-  test('PANE_TITLES names the nine panes', () => {
+  test('PANE_TITLES names the nine panes and the two optional ones (11-05)', () => {
     expect(playtimeCopy.PANE_TITLES).toEqual({
       overview: 'Overview',
       playtime: 'Playtime',
@@ -1987,6 +1991,8 @@ describe('08-01 pane and row copy', () => {
       'device-info': 'Device info',
       account: 'Account',
       'not-yet-supported': 'Not yet supported',
+      heat: 'HEAT',
+      'warships-storage': 'Warships crews & storage',
     });
   });
 
@@ -2388,6 +2394,17 @@ describe('Phase 9: the multi-account identity header copy', () => {
     expect(playtimeCopy.formatGameName('WOWS')).toBe('Warships');
     expect(playtimeCopy.formatGames(['WOT', 'WOWS'])).toBe('WoT, Warships');
   });
+
+  test('the two new games have SHORT names in this table (11-01)', () => {
+    // The panes read this table in a column headed "Game"; "World of Tanks
+    // HEAT" would wrap there. The long names stay in GAME_LONG_NAMES, which
+    // only the identity list has the width for.
+    expect(playtimeCopy.formatGameName('WOTC')).toBe('WoT Console');
+    expect(playtimeCopy.formatGameName('HEAT')).toBe('HEAT');
+    // And the long table still says something different for the same tokens.
+    expect(playtimeCopy.formatGameLongName('WOTC')).toBe('WoT Console');
+    expect(playtimeCopy.formatGameLongName('HEAT')).toBe('World of Tanks HEAT');
+  });
 });
 
 // =============================================================================
@@ -2473,5 +2490,265 @@ describe('the Vehicles search hint', () => {
     expect(playtimeCopy.VEHICLE_SEARCH_ACCOUNT_HINT).not.toMatch(
       /sort|order|picker|choose an account/i,
     );
+  });
+});
+
+describe('the no-vehicle-table note (11-06, D-06)', () => {
+  test('it names the game AND the table being shown instead', () => {
+    // The honest sentence: not an error, not an empty state. A reader narrowed
+    // to HEAT has to learn both facts — that the game they chose has no
+    // vehicles, and which table they are looking at.
+    expect(playtimeCopy.formatNoVehicleTable('WoT Console', 'WoT')).toBe(
+      'WoT Console has no vehicle table. Showing WoT instead.',
+    );
+    expect(playtimeCopy.formatNoVehicleTable('HEAT', 'Warplanes')).toBe(
+      'HEAT has no vehicle table. Showing Warplanes instead.',
+    );
+  });
+
+  test('it is two sentences and never blames the export', () => {
+    // D-06 says a TABLE plus one honest sentence, never an error: the export is
+    // fine, the reader's filter simply names a game with no vehicles in it.
+    const line = playtimeCopy.formatNoVehicleTable('HEAT', 'WoT');
+    expect(line.endsWith('.')).toBe(true);
+    expect(line).not.toMatch(/error|failed|corrupt|missing|invalid/i);
+  });
+
+  test('it interpolates only, so an unknown label cannot become markup', () => {
+    // The two arguments are labels from this module's own vocabularies in every
+    // real call, and the function only concatenates them (T-05-35's rule).
+    expect(playtimeCopy.formatNoVehicleTable('x', 'y')).toBe(
+      'x has no vehicle table. Showing y instead.',
+    );
+  });
+});
+
+// =============================================================================
+// Phase 11, plan 11-05 — the two optional panes' copy (D-01, D-03, D-09)
+// =============================================================================
+//
+// Literals typed out again, never read back from the constants, so a paraphrase
+// fails here rather than reaching a reader. Every string here is CONSTANT or an
+// integer count: no zip entry name and no cell can reach a list row, an Overview
+// card or a pane header through these (T-11-16).
+describe('11-05 optional pane copy', () => {
+  test('the two row summaries name the files and take their count from formatFileCount', () => {
+    expect(playtimeCopy.formatHeatRowSummary(4)).toBe('Battle types, stats, storage · 4 files');
+    expect(playtimeCopy.formatHeatRowSummary(1)).toBe('Battle types, stats, storage · 1 file');
+    expect(playtimeCopy.formatWowsStorageRowSummary(2)).toBe('Crews and account storage · 2 files');
+    expect(playtimeCopy.formatWowsStorageRowSummary(1)).toBe('Crews and account storage · 1 file');
+  });
+
+  test('the provenance labels are prose, used with formatProvenanceFrom', () => {
+    expect(playtimeCopy.NEW_DATA_PROVENANCE_LABELS).toEqual({
+      heat: 'HEAT data',
+      'warships-storage': 'Warships crews and storage files',
+    });
+    expect(playtimeCopy.formatProvenanceFrom(playtimeCopy.NEW_DATA_PROVENANCE_LABELS.heat)).toBe(
+      'From HEAT data ·',
+    );
+  });
+
+  test('the skipped sentence names the file and the reason, once (D-09)', () => {
+    expect(playtimeCopy.formatNewDataSkipped('Account statistics')).toBe(
+      'Account statistics is in this export, but none of its columns are ones this viewer reads, so it was skipped.',
+    );
+  });
+
+  test('the skipped sentence is a fixed template: one file label, no count, no path', () => {
+    const line = playtimeCopy.formatNewDataSkipped('Geolocation');
+    expect(line.endsWith('so it was skipped.')).toBe(true);
+    expect(line).toMatch(/^Geolocation is in this export, but /);
+    // A zip-derived name must not be smuggled in through the label: the caller
+    // passes a canonical label, and the function only interpolates it.
+    expect(playtimeCopy.formatNewDataSkipped('HEAT_Account_Statistics.csv')).toContain(
+      'HEAT_Account_Statistics.csv',
+    );
+  });
+});
+
+// =============================================================================
+// 11-08 - HEAT and Warships crews & storage pane copy
+// =============================================================================
+//
+// Every sentence the two panes show is a named constant or a formatter, pinned
+// here with its exact text, and the file and column label tables are
+// cross-checked against the worker's spec table so a renamed column fails a
+// test by name instead of printing an id (T-11-23, UI-SPEC copy rules).
+// =============================================================================
+
+describe('11-08 HEAT and Warships pane copy', () => {
+  const CONSTANT_ROWS = [
+    [
+      'HEAT_INTRO',
+      'Your HEAT account statistics, battle types, storage and geolocation records. HEAT play sessions are counted in Playtime.',
+    ],
+    [
+      'WOWS_STORAGE_INTRO',
+      'The crews and account storage your export lists for Warships. Warships vehicle statistics are in Vehicles.',
+    ],
+    ['HEAT_GEO_NOTE', 'These addresses are not added to the Login history map or country list.'],
+    ['HEAT_LOADING', 'Reading HEAT data...'],
+    ['WOWS_STORAGE_LOADING', 'Reading Warships crews and storage...'],
+    [
+      'HEAT_ERROR',
+      'HEAT data could not be read from this export. Your imported data is unchanged. Drop the export again to retry.',
+    ],
+    [
+      'WOWS_STORAGE_ERROR',
+      'Warships crews and storage could not be read from this export. Your imported data is unchanged. Drop the export again to retry.',
+    ],
+  ] as const;
+
+  test.each(CONSTANT_ROWS)('%s is the approved wording', (name, literal) => {
+    expect(playtimeCopy[name]).toBe(literal);
+  });
+
+  test('the error sentences are fixed and never carry a placeholder', () => {
+    for (const sentence of [playtimeCopy.HEAT_ERROR, playtimeCopy.WOWS_STORAGE_ERROR]) {
+      expect(
+        sentence.endsWith('Your imported data is unchanged. Drop the export again to retry.'),
+      ).toBe(true);
+      expect(sentence).not.toMatch(/[{}$]/);
+    }
+  });
+
+  test('the card titles are pinned', () => {
+    expect(playtimeCopy.HEAT_CARD_TITLES).toEqual({
+      accountStats: 'Account statistics',
+      battleTypes: 'Battle types',
+      storage: 'Storage',
+      geolocation: 'Geolocation',
+    });
+    expect(playtimeCopy.WOWS_STORAGE_CARD_TITLES).toEqual({
+      crews: 'Crews',
+      storage: 'Account storage',
+    });
+  });
+
+  test('the file labels are the captured file names, one per pane file, and no other key', () => {
+    expect(playtimeCopy.NEW_DATA_FILE_LABELS).toEqual({
+      'heat_account_statistics.csv': 'HEAT_Account_Statistics.csv',
+      'heat_battle_types_statistics.csv': 'HEAT_Battle_Types_Statistics.csv',
+      'heat_account_storage.csv': 'HEAT_Account_Storage.csv',
+      'heat_session_geolocation.csv': 'HEAT_Session_Geolocation.csv',
+      'wows_crews.csv': 'WOWS_Crews.csv',
+      'wows_account_storage.csv': 'WOWS_Account_Storage.csv',
+    });
+  });
+
+  test('the file-label keys equal the pane file key set and the captured display names', () => {
+    const paneKeys = Object.values(NEW_DATA_PANE_FILES).flat().sort();
+    // heat_game_sessions.csv and heat_device_info.csv are not pane files (11-01, D-15).
+    expect(Object.keys(playtimeCopy.NEW_DATA_FILE_LABELS).sort()).toEqual(paneKeys);
+    for (const key of paneKeys) {
+      const captured = CAPTURED_FILES.find((entry) => entry.key === key);
+      expect(captured, `${key} is in the header capture`).toBeDefined();
+      expect(playtimeCopy.NEW_DATA_FILE_LABELS[key], key).toBe(captured!.fileName);
+    }
+  });
+
+  test('every spec column of every pane file has a non-empty label', () => {
+    const missing: string[] = [];
+    for (const key of Object.values(NEW_DATA_PANE_FILES).flat()) {
+      const spec = NEW_DATA_SPEC_FILES.find((candidate) => candidate.key === key);
+      expect(spec, `${key} has a spec`).toBeDefined();
+      for (const column of spec!.columns) {
+        const label = playtimeCopy.NEW_DATA_COLUMN_LABELS[key]?.[column.id];
+        if (label === undefined || label.trim() === '') missing.push(`${key} / ${column.id}`);
+      }
+    }
+    expect(missing, `columns without a label: ${missing.join(', ')}`).toEqual([]);
+  });
+
+  test('the column-label table names no file that is not a pane file and no column that is not in its spec', () => {
+    const paneKeys = new Set(Object.values(NEW_DATA_PANE_FILES).flat());
+    for (const [key, labels] of Object.entries(playtimeCopy.NEW_DATA_COLUMN_LABELS)) {
+      expect(paneKeys.has(key), `${key} is a pane file`).toBe(true);
+      const spec = NEW_DATA_SPEC_FILES.find((candidate) => candidate.key === key)!;
+      const ids = new Set(spec.columns.map((column) => column.id));
+      for (const id of Object.keys(labels)) expect(ids.has(id), `${key} / ${id}`).toBe(true);
+    }
+  });
+
+  test('a label is plain language, not the raw header text', () => {
+    for (const [key, labels] of Object.entries(playtimeCopy.NEW_DATA_COLUMN_LABELS)) {
+      for (const [id, label] of Object.entries(labels)) {
+        expect(label, `${key} / ${id}`).not.toBe(id);
+        expect(label, `${key} / ${id} has no underscore`).not.toContain('_');
+      }
+    }
+  });
+
+  test('formatNewDataColumnLabel returns the label and falls back to the id, never a zip header', () => {
+    expect(playtimeCopy.formatNewDataColumnLabel('wows_account_storage.csv', 'AMOUNT')).toBe(
+      playtimeCopy.NEW_DATA_COLUMN_LABELS['wows_account_storage.csv']!['AMOUNT'],
+    );
+    expect(playtimeCopy.formatNewDataColumnLabel('wows_crews.csv', 'SOMETHING_NEW')).toBe(
+      'SOMETHING_NEW',
+    );
+    expect(playtimeCopy.formatNewDataColumnLabel('not_a_pane_file.csv', 'AMOUNT')).toBe('AMOUNT');
+    // An inherited property name is an ordinary unknown id, not a label.
+    expect(playtimeCopy.formatNewDataColumnLabel('wows_crews.csv', 'constructor')).toBe(
+      'constructor',
+    );
+    expect(playtimeCopy.formatNewDataColumnLabel('__proto__', 'AMOUNT')).toBe('AMOUNT');
+  });
+
+  test('the battle-type column is a real column of the battle-types spec', () => {
+    const id = playtimeCopy.HEAT_BATTLE_TYPE_COLUMN_ID;
+    expect(id === null || typeof id === 'string').toBe(true);
+    if (id !== null) {
+      const spec = NEW_DATA_SPEC_FILES.find(
+        (candidate) => candidate.key === 'heat_battle_types_statistics.csv',
+      );
+      expect(spec!.columns.map((column) => column.id)).toContain(id);
+    }
+  });
+});
+
+describe('Warplanes account statistics copy (plan 11-10)', () => {
+  test('the heading is the contract wording', () => {
+    expect(playtimeCopy.WOWP_ACCOUNT_STATS_HEADING).toBe('Account statistics');
+  });
+
+  test('WOWP_FILE_LABELS holds exactly the four Warplanes file keys, as the capture printed them', () => {
+    const keys = [
+      'wowp_19_plane_statistics.csv',
+      'wowp_20_plane_statistics.csv',
+      'wowp_19_account_statistics.csv',
+      'wowp_20_account_statistics.csv',
+    ];
+    expect(Object.keys(playtimeCopy.WOWP_FILE_LABELS).sort()).toEqual([...keys].sort());
+    for (const key of keys) {
+      const captured = CAPTURED_FILES.find((entry) => entry.key === key);
+      expect(captured, `${key} is in the header capture`).toBeDefined();
+      expect(playtimeCopy.WOWP_FILE_LABELS[key], key).toBe(captured!.fileName);
+    }
+  });
+
+  test('WOWP_FILE_LABELS stays a separate table from the pane file labels', () => {
+    for (const key of Object.keys(playtimeCopy.WOWP_FILE_LABELS)) {
+      expect(Object.hasOwn(playtimeCopy.NEW_DATA_FILE_LABELS, key), key).toBe(false);
+    }
+  });
+
+  test('every column the account block can show has a non-empty plain label', () => {
+    const missing: string[] = [];
+    for (const column of wowpAccountColumns()) {
+      const label = playtimeCopy.WOWP_ACCOUNT_COLUMN_LABELS[column.id];
+      if (label === undefined || label.trim() === '') missing.push(column.id);
+    }
+    expect(missing, `columns without a label: ${missing.join(', ')}`).toEqual([]);
+  });
+
+  test('the column-label table names only block columns and no label is raw header text', () => {
+    const ids = new Set(wowpAccountColumns().map((column) => column.id));
+    for (const [id, label] of Object.entries(playtimeCopy.WOWP_ACCOUNT_COLUMN_LABELS)) {
+      expect(ids.has(id), `${id} is a block column`).toBe(true);
+      expect(label, id).not.toBe(id);
+      expect(label, `${id} has no underscore`).not.toContain('_');
+    }
+    expect(Object.keys(playtimeCopy.WOWP_ACCOUNT_COLUMN_LABELS)).not.toContain('NAME');
   });
 });

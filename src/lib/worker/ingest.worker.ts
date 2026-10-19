@@ -15,6 +15,8 @@ import { listEntryPaths } from './zip-paths.ts';
 import { createInflateFilter } from './inflate-bounds.ts';
 import { digestFile } from './hash.ts';
 import { parseCsvFile } from './csv-parse.ts';
+import { fileMatchesSpec, isNewDataFile, projectRow, specFor } from './new-data-allowlist.ts';
+import { newDataPaneFacts } from './new-data-facts.ts';
 import {
   extractAccountRecord,
   extractIdentity,
@@ -68,6 +70,7 @@ import {
   checkCache,
   clearData,
   MAX_PRESENCE_FILES,
+  narrowStoredNewDataRows,
   purgeUnsupportedCategoryRows,
   readLoginRowData,
   readRowsByFile,
@@ -97,6 +100,13 @@ const scope = self as unknown as WorkerScopeLike;
  * the set is spelled here in lower case because the comparison is: a folder
  * spelled `financial_data` classifies as the same supported category as
  * `Financial_data` and its files need the same facts.
+ *
+ * Phase 11, D-09: this set is NOT the whole rule. A new-game FAMILY file in a
+ * supported category records a fact too, whatever folder it is filed under —
+ * which is how `HEAT_Session_Geolocation.csv` and the HEAT session files get
+ * one without `activity_history` being added here and start recording a fact
+ * for every WoT session file (11-RESEARCH Pitfall 4). The extra half lives in
+ * the push, beside the family decision it reads, so the two cannot drift.
  */
 const PRESENCE_CATEGORIES: ReadonlySet<string> = new Set([
   'player_statistics',
@@ -675,6 +685,14 @@ async function handleCheckCache(jobId: number): Promise<void> {
     // error channel as a failed cache read rather than report a clean load
     // while the rows remain.
     await purgeUnsupportedCategoryRows();
+    // Phase 11, D-14: and then the NEW-GAME rows a cache written before the
+    // per-file column allowlist still holds in full. Same placement and the same
+    // discipline — before the cache is described, with no catch of its own, so a
+    // failed narrowing reports an error rather than a clean load while the
+    // un-narrowed rows (and the WOWP account rows' nickname-like NAME) remain.
+    // The two steps are independent: one judges a row by its CATEGORY, the other
+    // by its file NAME and the spec filed under its own category.
+    await narrowStoredNewDataRows();
     const existing = await checkCache();
     scope.postMessage({
       type: 'cache-status',
@@ -758,6 +776,10 @@ function resultFromMeta(meta: DatasetMeta): ClassifyResult {
     // the same list as `accounts` above. The import's `finalResult` sets the same
     // figure; edit the pair together.
     rootCount: storedAccounts.length,
+    // 11-04, D-09: the new-game panes' file and row counts, from the stored
+    // presence list. The import's `finalResult` publishes the same figure from
+    // the same function; edit the pair together. INTEGERS ONLY (T-11-14).
+    newDataPanes: newDataPaneFacts(meta.files),
   };
 }
 
@@ -1073,6 +1095,31 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
         if (isLoginsFile) {
           loginSources.push({ game: null, kind: 'logins', rows, account: resolved.root });
         }
+        // Phase 11 (D-08), restated at the top of the loop so the fact below can
+        // count STORED rows: the file-level SKIP for a new-game file, decided
+        // before anything is written rather than inside the row loop. The three
+        // conditions fail CLOSED, and the reasons are the ones the block below
+        // spells out at length:
+        //
+        //   - `family` is by NAME and ignores the folder, because the folder is
+        //     attacker-controlled and classification can be wrong;
+        //   - a family file with no spec stores NOTHING (`spec === null`), which
+        //     is how `heat_device_info.csv` fails closed until a plan gives it a
+        //     spec (D-15);
+        //   - a spec file whose headers match nothing stores NOTHING, and the
+        //     match is decided per FILE rather than per row, so one ragged row
+        //     cannot drop its siblings (11-RESEARCH Pitfall 3).
+        //
+        // Moving it here changed NOTHING about what it decides: `storeFile` still
+        // guards the row loop below, so an unsupported category feeds nothing
+        // even when its file is in the family. What it buys is that the presence
+        // fact below can be written from the same decision the rows were written
+        // from, instead of from the parse alone.
+        const rowData = parsed.rows.map((row) => row.data);
+        const family = isNewDataFile(resolved.sourceFile);
+        const spec = family ? specFor(entry.name, resolved.sourceFile) : null;
+        const storeFile =
+          storeRows && (!family || (spec !== null && fileMatchesSpec(rowData, spec)));
         // Same before-the-loop rule, for the same reason. The category is
         // matched LOWER-CASED because a folder spelled `player_statistics`
         // classifies as the same supported category (D-18) and its files are
@@ -1080,14 +1127,33 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
         // crafted archive (T-05-21) and is PER ACCOUNT since Phase 9, so one
         // noisy root cannot starve a sibling's facts: past the cap the facts
         // stop, the rows do not.
+        //
+        // Phase 11, D-09: the OR half is the FAMILY rule, and it exists because
+        // `Activity_History` is deliberately NOT in `PRESENCE_CATEGORIES` above.
+        // Adding that category wholesale would start recording facts for every
+        // session file the Playtime and Login panes already describe elsewhere;
+        // the family rule records a fact for `HEAT_Session_Geolocation.csv` and
+        // for the session files themselves, and for nothing else (Pitfall 4).
+        // `storeRows` is part of it, so a family file in an unsupported folder
+        // records nothing — the same sentence its rows get.
         if (
           root.presenceFiles.length < MAX_PRESENCE_FILES &&
-          PRESENCE_CATEGORIES.has(entry.name.toLowerCase())
+          (PRESENCE_CATEGORIES.has(entry.name.toLowerCase()) || (family && storeRows))
         ) {
           root.presenceFiles.push({
             category: entry.name,
             sourceFile: resolved.sourceFile,
-            rowCount: parsed.rows.length,
+            // For a family file this is what the allowlist STORED, which is zero
+            // for a drifted header and for a file with no spec; the projection
+            // never drops a row of a file that matched, so the stored count is
+            // knowable here, before the loop.
+            rowCount: family && !storeFile ? 0 : parsed.rows.length,
+            // `parsedRowCount` rides on FAMILY facts only, and only because it
+            // distinguishes "skipped" from "absent" — a state the rows table
+            // cannot express, since a skipped file leaves no row behind. Spread
+            // conditionally so a non-family fact stays byte-identical to what
+            // Phase 5 recorded, property for property.
+            ...(family ? { parsedRowCount: parsed.rows.length } : {}),
             account: resolved.root,
           });
         }
@@ -1096,6 +1162,25 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
         // foot of this loop still read `parsed.rows.length` and
         // `parsed.skippedCount`, which is why the sentence the "Not yet
         // supported" pane shows is unchanged by the skip.
+        //
+        // Phase 11, D-08/D-15: the file-level SKIP for a new-game file. Three
+        // conditions decide whether this file stores anything at all, and all
+        // three fail CLOSED:
+        //
+        //   - `family` is by NAME and ignores the folder, because the folder is
+        //     attacker-controlled and classification can be wrong — the same
+        //     argument as CR-01 layer 2 below;
+        //   - a family file with no spec stores NOTHING (`spec === null`), which
+        //     is how `heat_device_info.csv` fails closed until a plan gives it a
+        //     spec;
+        //   - a spec file whose headers match nothing stores NOTHING, and the
+        //     match is decided per FILE rather than per row, so one ragged row
+        //     cannot drop its siblings (11-RESEARCH Pitfall 3).
+        //
+        // `storeRows` still guards the LOOP, so an unsupported category feeds
+        // nothing even when its file is in the family. The three conditions
+        // themselves — and why each fails closed — are stated where the
+        // decision is made, at the top of this loop.
         for (let r = 0; storeRows && r < parsed.rows.length; r++) {
           // THE single choke point every row passes through. Dropping the
           // three sensitive columns here — rather than at the Dexie write —
@@ -1126,21 +1211,34 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
           // keeps its cells at rest. They still never reach a view, because the
           // device-info channel reads three exact file names of one category.
           const raw = parsed.rows[r]!.data;
-          const data =
-            deviceInfo && hasBlobColumn(raw)
+          // 11-01, D-08/D-15: a new-game row is PROJECTED, and never merely
+          // sanitised. The projection replaces both expressions below rather
+          // than running beside them, so a family row cannot be reduced by the
+          // blob rule, sanitised by the deny-list, or stored raw — there is one
+          // path for these files and it ends at the spec's own columns. A family
+          // file with no spec projects to `{}`: its cells never reach storage,
+          // while its rows still feed the aggregators below so a drifted header
+          // is counted as EXCLUDED rather than vanishing from the file's counts.
+          const data = family
+            ? spec === null
+              ? {}
+              : projectRow(raw, spec)
+            : deviceInfo && hasBlobColumn(raw)
               ? reduceBlobRow(raw)
               : userInfo || hasSensitiveColumn(raw)
                 ? sanitizeUserInfoRow(raw)
                 : raw;
-          allRows.push({
-            category: entry.name,
-            sourceFile: resolved.sourceFile,
-            rowIndex: own.rowCount + r,
-            data,
-            // D-07: the owning root, stamped on EVERY row, so two accounts
-            // contributing the same file name stay distinguishable at rest.
-            account: resolved.root,
-          });
+          if (storeFile) {
+            allRows.push({
+              category: entry.name,
+              sourceFile: resolved.sourceFile,
+              rowIndex: own.rowCount + r,
+              data,
+              // D-07: the owning root, stamped on EVERY row, so two accounts
+              // contributing the same file name stay distinguishable at rest.
+              account: resolved.root,
+            });
+          }
           // The aggregator reads four named columns off this reference and
           // keeps nothing else, so handing it the SAME object costs no copy
           // and cannot change what is persisted (T-04-01).
@@ -1151,13 +1249,19 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
           // it is which collection the source was pushed into above. Filling it
           // only for `isSessions` would hand the login aggregator an EMPTY
           // source and report a file that contributed nothing.
+          //
+          // 11-01: the feed is deliberately NOT gated on `storeFile`. A family
+          // file that matches no spec column still reaches the aggregators as
+          // rows, which is what makes "no usable sessions, N rows excluded" the
+          // honest sentence for it; gating the feed would report a file that
+          // contributed nothing instead.
           if (isSessions || isLoginsFile) rows.push(data);
           // 09-10: one stored row for the owning account. It is counted HERE,
           // inside the single choke point every stored row passes through, so
           // "this root stored something" is a fact about rows that really
           // reached `allRows` and never about folders that merely existed.
-          root.storedRows += 1;
-          if (userInfo) {
+          if (storeFile) root.storedRows += 1;
+          if (storeFile && userInfo) {
             const isAccountInfo = resolved.sourceFile.toLowerCase().endsWith('account_info.csv');
             // Into the OWNING ROOT's pools only. A per-root pool is what stops
             // an account with no User_Info inheriting a sibling's nickname, and
@@ -1309,6 +1413,11 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
       // which `accounts` leaves out. `resultFromMeta` sets the same figure from the
       // stored list; edit the pair together.
       rootCount: ordered.length,
+      // 11-04, D-09: the new-game panes' file and row counts. Over the SAME
+      // flattened presence list `writeDataset` just stored, through the SAME
+      // function `resultFromMeta` replays it with — so `done`, `duplicate` and
+      // `cache-status` cannot publish two different answers (11-UI-SPEC A3).
+      newDataPanes: newDataPaneFacts(ordered.flatMap((account) => account.files)),
     };
     scope.postMessage({ type: 'done', jobId, result: finalResult } satisfies IngestResponse);
   } catch (err) {

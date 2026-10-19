@@ -64,7 +64,12 @@ import {
   formatSectionStatus,
   formatSkippedRowCount,
 } from '../../../src/lib/ui-copy.ts';
-import { PANE_IDS, PANE_SECTION, type PaneId } from '../../../src/lib/shell/selection-state.ts';
+import {
+  PANE_IDS,
+  PANE_ORDER,
+  PANE_SECTION,
+  type PaneId,
+} from '../../../src/lib/shell/selection-state.ts';
 import {
   detailPane,
   dropFiles,
@@ -789,7 +794,7 @@ test.describe('not yet supported block (03-04 Task 3)', () => {
     await expect(page.locator('[data-testid="dashboard-section-user-info"]')).toHaveCount(1);
   });
 
-  test('(order) the nine list rows render in PANE_IDS order with Not yet supported last', async ({
+  test('(order) the list rows render in PANE_ORDER with Not yet supported last', async ({
     page,
   }) => {
     await importExport(page, 'sample.zip', buildSampleExport());
@@ -801,9 +806,11 @@ test.describe('not yet supported block (03-04 Task 3)', () => {
     // order is the imported constant, not a retyped literal, so the one place
     // that defines the order is the one place that can change it. The six
     // section cards of the single-scroll page no longer exist side by side, so
-    // their document-order claim has no subject any more.
-    expect(await listRowIdsInOrder(page)).toEqual([...PANE_IDS]);
-    expect(PANE_IDS[PANE_IDS.length - 1]).toBe('not-yet-supported');
+    // their document-order claim has no subject any more. The sample export holds
+    // the two Warships crews and storage files (so that optional row follows
+    // Vehicles) and no HEAT file (so there is no HEAT row): plan 11-11.
+    expect(await listRowIdsInOrder(page)).toEqual(PANE_ORDER.filter((id) => id !== 'heat'));
+    expect(PANE_ORDER[PANE_ORDER.length - 1]).toBe('not-yet-supported');
     // No section is mounted on the landing view, whichever row is current.
     await expect(page.locator('[data-testid^="dashboard-section-"]')).toHaveCount(0);
   });

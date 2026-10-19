@@ -6,6 +6,16 @@ import {
 } from '../features/device-info/device-info-shared.ts';
 import { buildCurrency, buildPremium, buildSpend } from '../features/finance/finance-aggregate.ts';
 import {
+  buildHeatView,
+  buildWarshipsStorageView,
+  type NewDataCardInput,
+} from '../features/new-data/new-data-aggregate.ts';
+import {
+  HEAT_CARD_FILES,
+  NEW_DATA_PANE_FILES,
+  WOWS_CARD_FILES,
+} from '../features/new-data/new-data-shared.ts';
+import {
   buildVehicleView,
   VEHICLE_FILE_NAMES,
   type VehicleFileFacts,
@@ -17,7 +27,7 @@ import type { RowsSnapshot } from './db.ts';
 import { MAX_BATTLE_TYPE_LENGTH, VEHICLE_TITLES } from '../features/vehicles/vehicle-shared.ts';
 
 // =============================================================================
-// data-queries.ts — the five channels, answered from ONE Dexie snapshot (05-07)
+// data-queries.ts — the seven channels, answered from ONE Dexie snapshot (05-07)
 // =============================================================================
 //
 // The pure builders from 05-04 (vehicle) and 05-05 (finance) already know how
@@ -53,6 +63,7 @@ import { MAX_BATTLE_TYPE_LENGTH, VEHICLE_TITLES } from '../features/vehicles/veh
 const CATEGORY_PLAYER_STATS = 'player_statistics';
 const CATEGORY_FINANCIAL = 'financial_data';
 const CATEGORY_PAYMENT = 'payment_history';
+const CATEGORY_ACTIVITY = 'activity_history';
 
 const PREMIUM_FILE = 'operations_with_premium_days.csv';
 const CURRENCY_FILE = 'virtual_currencies_operations.csv';
@@ -71,7 +82,8 @@ export interface ChannelFiles {
  *
  * The three finance channels each need exactly one file, so their table entry is
  * a single name; the vehicles channel needs the builder's own sixteen-name set,
- * and the device-info channel (261012-bog) needs the three Device_info files.
+ * the device-info channel (261012-bog) needs the three Device_info files, and the
+ * two new-game pane channels (11-07) need their pane's files.
  *
  * The key type EXCLUDES `logins` (06-01): that channel reads no file at all —
  * it is answered from the aggregate stored on the meta record, with a rebuild
@@ -107,6 +119,18 @@ export const DATA_FILES: Readonly<Record<Exclude<DataQuery['channel'], 'logins'>
     names: new Set(DEVICE_SOURCES.map((source) => DEVICE_FILE_KEYS[source])),
     categories: [DEVICE_INFO_CATEGORY],
   },
+  // 11-07. The names come from the pane contract (the same table the pane
+  // facts of plan 11-04 count against), so the reader and the builder cannot
+  // drift. HEAT spans two categories because the geolocation file lives in
+  // Activity_History while the other three are player statistics.
+  heat: {
+    names: new Set(NEW_DATA_PANE_FILES.heat),
+    categories: [CATEGORY_ACTIVITY, CATEGORY_PLAYER_STATS],
+  },
+  'warships-storage': {
+    names: new Set(NEW_DATA_PANE_FILES['warships-storage']),
+    categories: [CATEGORY_PLAYER_STATS],
+  },
 };
 
 /**
@@ -133,6 +157,41 @@ function isPresent(snapshot: RowsSnapshot, name: string, categories: readonly st
   // count is the sum over every account's group, because the bucket is grouped
   // per account rather than being one flat row list.
   return rowCountOf(snapshot.rows.get(name)) > 0;
+}
+
+/**
+ * Presence AND the parsed-row count of one file (plan 11-07, D-09).
+ *
+ * `seen` is {@link isPresent}. `parsed` is the sum of `parsedRowCount ?? rowCount`
+ * over the presence facts that match the name and an accepted category, which
+ * is what lets a card tell "skipped" (rows parsed, none stored) from "no rows".
+ * It is null when the snapshot has no fact list (a legacy cache) or no fact
+ * matches, because an unknown count must not be read as zero.
+ */
+function factsOf(
+  snapshot: RowsSnapshot,
+  name: string,
+  categories: readonly string[],
+): { seen: boolean; parsed: number | null } {
+  const seen = isPresent(snapshot, name, categories);
+  if (snapshot.files === null) return { seen, parsed: null };
+  const wanted = new Set(categories.map((c) => c.toLowerCase()));
+  let parsed: number | null = null;
+  for (const file of snapshot.files) {
+    if (file.sourceFile.toLowerCase() !== name || !wanted.has(file.category.toLowerCase()))
+      continue;
+    parsed = (parsed ?? 0) + (file.parsedRowCount ?? file.rowCount);
+  }
+  return { seen, parsed };
+}
+
+/** One card's builder input: its groups, presence and parsed count. */
+function cardInputOf(
+  snapshot: RowsSnapshot,
+  name: string,
+  categories: readonly string[],
+): NewDataCardInput {
+  return { groups: groupsOf(snapshot, name), ...factsOf(snapshot, name, categories) };
 }
 
 /** How many rows a grouped file holds, summed over its accounts. */
@@ -169,9 +228,13 @@ function vehicleFilesOf(snapshot: RowsSnapshot): VehicleFiles {
   const categories = DATA_FILES.vehicles.categories;
   const files = new Map<string, VehicleFileFacts>();
   for (const name of VEHICLE_FILE_NAMES) {
+    // `parsed` is the presence facts' parsed-row count (plan 11-10): it is what
+    // lets the Warplanes account block tell a file whose every column the
+    // allowlist dropped from a file that held no rows. Set for all sixteen
+    // names, so the shape stays independent of what the export held.
     files.set(name, {
       groups: groupsOf(snapshot, name),
-      seen: isPresent(snapshot, name, categories),
+      ...factsOf(snapshot, name, categories),
     });
   }
   return files;
@@ -213,7 +276,8 @@ const VEHICLE_TITLE_IDS: ReadonlySet<string> = new Set(VEHICLE_TITLES);
  * The `logins` channel (06-01) is the fourth field-less channel and rides the
  * same rule unchanged: a bare `{ channel: 'logins' }` is a well-formed query,
  * and the same query plus a `title` is rejected. The `device-info` channel
- * (261012-bog) is the fifth and rides it too.
+ * (261012-bog) is the fifth and rides it too; the `heat` and `warships-storage`
+ * channels (11-07) are the sixth and seventh.
  */
 export function isDataQuery(x: unknown): x is DataQuery {
   if (typeof x !== 'object' || x === null || Array.isArray(x)) return false;
@@ -238,7 +302,7 @@ export function isDataQuery(x: unknown): x is DataQuery {
 /**
  * Answer one query from one snapshot.
  *
- * EXHAUSTIVE over the five channels that read files, deliberately: a channel
+ * EXHAUSTIVE over the seven channels that read files, deliberately: a channel
  * that somehow reached here would fall to the default and throw, and the
  * caller's catch turns that into a `data-error` for that block. That is the
  * right shape for a bug — a block shows an error, the import is untouched, and
@@ -299,6 +363,28 @@ export function answerDataQuery(query: DataQuery, snapshot: RowsSnapshot): DataR
           pc: source('pc'),
           blitz: source('blitz'),
           assistant: source('assistant'),
+        }),
+      };
+    }
+    case 'heat': {
+      const categories = DATA_FILES.heat.categories;
+      return {
+        channel: 'heat',
+        view: buildHeatView({
+          accountStats: cardInputOf(snapshot, HEAT_CARD_FILES.accountStats, categories),
+          battleTypes: cardInputOf(snapshot, HEAT_CARD_FILES.battleTypes, categories),
+          storage: cardInputOf(snapshot, HEAT_CARD_FILES.storage, categories),
+          geolocation: cardInputOf(snapshot, HEAT_CARD_FILES.geolocation, categories),
+        }),
+      };
+    }
+    case 'warships-storage': {
+      const categories = DATA_FILES['warships-storage'].categories;
+      return {
+        channel: 'warships-storage',
+        view: buildWarshipsStorageView({
+          crews: cardInputOf(snapshot, WOWS_CARD_FILES.crews, categories),
+          storage: cardInputOf(snapshot, WOWS_CARD_FILES.storage, categories),
         }),
       };
     }

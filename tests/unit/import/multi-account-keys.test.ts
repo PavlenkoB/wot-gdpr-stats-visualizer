@@ -227,8 +227,54 @@ const AUDITED: readonly AuditedKey[] = [
     why: 'position',
     reason: 'D-12 fix: `row.id` repeats because the Blitz vehicle file is in three roots.',
   },
+  {
+    file: 'NewDataCard.svelte',
+    key: 'blockIndex',
+    why: 'position',
+    reason:
+      'One block per account, in the pane order; two accounts may share a nickname, so no value is a safe key.',
+  },
+  {
+    file: 'NewDataCard.svelte',
+    key: 'columnIndex',
+    why: 'position',
+    reason: 'The label and value rows of one block, one per spec column in spec order.',
+  },
+  {
+    file: 'NewDataTable.svelte',
+    key: 'columnIndex',
+    why: 'position',
+    reason: 'The header cells, in spec order; the column list is fixed by the card.',
+  },
+  {
+    file: 'NewDataTable.svelte',
+    key: 'cellIndex',
+    why: 'position',
+    reason: 'Cells of one row; the column count is fixed by the header.',
+  },
+  {
+    file: 'NewDataTable.svelte',
+    key: 'rowIndex',
+    why: 'position',
+    reason:
+      'Index key: the same record type is in every account folder, so a row repeats across accounts and a value key would collide.',
+  },
 
   // --- Fixed lists: the collection is a module constant ---------------------
+  {
+    file: 'WarshipsStoragePane.svelte',
+    key: 'id',
+    why: 'fixed-list',
+    reason:
+      'The card list is `WOWS_CARD_IDS`, a two-entry module constant in a fixed order: it is a list of card ids, not of rows, so an untrusted export cannot repeat or reorder it.',
+  },
+  {
+    file: 'HeatPane.svelte',
+    key: 'id',
+    why: 'fixed-list',
+    reason:
+      'The card list is `HEAT_CARD_IDS`, a four-entry module constant in a fixed order: it is a list of card ids, not of rows, so an untrusted export cannot repeat or reorder it.',
+  },
   {
     file: 'GameFilter.svelte',
     key: 'index',
@@ -387,6 +433,26 @@ const AUDITED: readonly AuditedKey[] = [
     key: 'code',
     why: 'de-duplicated',
     reason: 'The selectable battle-type codes, collected into a Set before they reach the select.',
+  },
+  {
+    file: 'PlayerStats.svelte',
+    key: 'entry.account',
+    why: 'de-duplicated',
+    reason:
+      'The Warplanes account blocks: `buildWowpAccountBlock` walks the account files with a `seen` set, so each account contributes one entry.',
+  },
+  {
+    file: 'PlayerStats.svelte',
+    key: 'column.id',
+    why: 'de-duplicated',
+    reason:
+      'The Warplanes account block columns: `wowpAccountColumns` merges the two spec column lists by header with a `known` set.',
+  },
+  {
+    file: 'PlayerStats.svelte',
+    key: 'file',
+    why: 'fixed-list',
+    reason: 'The skipped Warplanes file labels, drawn from the four-key `WOWP_FILE_LABELS` table.',
   },
   {
     file: 'PremiumBlock.svelte',

@@ -1,7 +1,10 @@
 import { expect, test } from '@playwright/test';
 import { SAMPLE_NICKNAME, buildSampleExport } from '../../fixtures/export-fixtures.ts';
 import { buildLoginsScaleExport, buildLoginsScaleSpec } from '../../fixtures/logins-fixtures.ts';
-import { buildRealShapeThreeAccountExport } from '../../fixtures/multi-account-fixtures.ts';
+import {
+  buildNewGamesThreeAccountExport,
+  buildRealShapeThreeAccountExport,
+} from '../../fixtures/multi-account-fixtures.ts';
 import {
   SYNTHETIC_ZIP_NAME,
   countryList,
@@ -12,7 +15,7 @@ import {
   startOver,
   waitForImported,
 } from '../_support/helpers.ts';
-import { PANE_IDS } from '../../../src/lib/shell/selection-state.ts';
+import { OPTIONAL_PANE_IDS, PANE_IDS } from '../../../src/lib/shell/selection-state.ts';
 import { SCALE_5K_SPEC, buildSessionsExport } from '../../fixtures/sessions-fixtures.ts';
 
 /**
@@ -240,8 +243,10 @@ test.describe('zero-network and CSP', () => {
     // value, sorts, searches, toggles a column, interacts with two charts by
     // pointer AND by keyboard, opens three disclosures, replaces the whole
     // dataset, replaces it AGAIN with a three-account export and walks every
-    // pane on that one (09-06). A timeout here would look like a network
-    // failure.
+    // pane on that one (09-06), then replaces it a third time with the archive
+    // that holds the Phase 11 pane files and opens HEAT, Warships crews and
+    // storage and the Warplanes block on it (11-11). A timeout here would look
+    // like a network failure.
     test.setTimeout(300_000);
 
     // The same observer as the playtime test, installed before navigation so a
@@ -469,6 +474,38 @@ test.describe('zero-network and CSP', () => {
       await openSection(page, pane);
     }
 
+    // --- 12. the Phase 11 new-game panes --------------------------------------
+    // The HEAT pane, the Warships crews and storage pane and the Warplanes
+    // account block are built from files no earlier flow imports, and each reads
+    // its own worker channel. So the three-account archive that holds them
+    // replaces the one above, every optional pane is opened on it, the shared
+    // address reveal is pressed once (a state change, never a request) and
+    // Vehicles is opened on the Warplanes title. The baseline arithmetic and the
+    // three assertions below are untouched: they now cover this stage as well.
+    await page.getByTestId('file-input').setInputFiles({
+      name: 'new-games-export.zip',
+      mimeType: 'application/zip',
+      buffer: Buffer.from(buildNewGamesThreeAccountExport()),
+    });
+    await expect(panel).toBeVisible();
+    await panel.getByTestId('confirm-commit').click();
+    await expect(panel).toHaveCount(0);
+    await waitForImported(page);
+    await expect(page.getByTestId('identity-multi-title')).toBeVisible({ timeout: 30_000 });
+
+    for (const pane of OPTIONAL_PANE_IDS) {
+      await openSection(page, pane);
+      await expect(
+        page.getByTestId(pane === 'heat' ? 'heat-block' : 'warships-storage-block'),
+      ).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+    }
+    await openSection(page, 'heat');
+    await page.getByTestId('heat-mask-toggle').click();
+    await openSection(page, 'vehicles');
+    await expect(playerStats).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+    await page.getByTestId('player-stats-title-selector').selectOption('wowp');
+    await expect(page.getByTestId('wowp-account-stats')).toHaveCount(1, { timeout: 30_000 });
+
     // The same short settle the other two tests use, so a request queued by the
     // last interaction has reached the network stack before the count is read.
     await page.waitForTimeout(500);
@@ -486,7 +523,7 @@ test.describe('zero-network and CSP', () => {
     }
 
     // The half that counting requests cannot see: nothing was even ATTEMPTED,
-    // by any of the eleven flows above.
+    // by any of the twelve flows above.
     const violations = await page.evaluate(
       () => (window as unknown as { __cspViolations: string[] }).__cspViolations,
     );

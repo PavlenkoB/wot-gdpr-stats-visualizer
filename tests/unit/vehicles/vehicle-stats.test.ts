@@ -40,6 +40,7 @@ import {
 import { WOT_MAIN_HEADER } from '../../fixtures/player-stats-fixtures';
 import { oneAccount } from '../../helpers/row-groups';
 import { parseCsvFile } from '../../../src/lib/worker/csv-parse';
+import { NEW_DATA_SPEC_FILES } from '../../../src/lib/worker/new-data-specs';
 // Namespace imports on purpose: a symbol that does not exist yet fails the ONE
 // test that uses it instead of crashing the whole file at module resolution,
 // which is what makes the RED run below readable.
@@ -1544,5 +1545,236 @@ describe('Phase 10: accounts combine', () => {
       { title: 'wot', battleType: null },
     );
     expect(view.header).toBeNull();
+  });
+});
+
+// =============================================================================
+// Plan 11-10 Task 1 - the Warplanes account statistics block (D-02, GAMES-03)
+// =============================================================================
+
+const WOWP_19_ACCOUNT = 'wowp_19_account_statistics.csv';
+const WOWP_20_ACCOUNT = 'wowp_20_account_statistics.csv';
+type WowpFileKey =
+  | 'wowp_19_plane_statistics.csv'
+  | 'wowp_20_plane_statistics.csv'
+  | typeof WOWP_19_ACCOUNT
+  | typeof WOWP_20_ACCOUNT;
+
+/** The headers the existing header owns, which the block must not repeat. */
+const HEADER_OWNED = new Set([
+  'BATTLES_COUNT',
+  'BATTLES',
+  'GAMES_PLAYED',
+  'PREMIUM_EXPIRES_AT',
+  'PREMIUM_EXPIRY_TIME',
+]);
+
+/** The spec headers of one account file, minus the header-owned ones, in spec order. */
+function specHeaders(key: string): string[] {
+  const spec = NEW_DATA_SPEC_FILES.find((file) => file.key === key)!;
+  return spec.columns.map((column) => column.header).filter((header) => !HEADER_OWNED.has(header));
+}
+
+/** One stored account row: every spec header (owned ones too) holds `<tag>:<header>`. */
+function accountRow(key: string, tag: string): VehicleRowData {
+  const spec = NEW_DATA_SPEC_FILES.find((file) => file.key === key)!;
+  return Object.fromEntries(
+    spec.columns.map((column) => [column.header, `${tag}:${column.header}`]),
+  );
+}
+
+/** Facts for the Warplanes files: only the named ones are in the map. */
+function wowpFiles(
+  entries: Partial<Record<WowpFileKey, VehicleFileFacts>>,
+): Map<string, VehicleFileFacts> {
+  return new Map(Object.entries(entries) as [string, VehicleFileFacts][]);
+}
+
+/** The serialised cell text, to compare a cell without caring about its tag. */
+function cellValue(cell: VehicleCell): string {
+  return cell.t === 'x' ? `x:${cell.v}` : `${cell.t}:${String(cell.v)}`;
+}
+
+describe('11-10: buildVehicleView wowpAccount for the Warplanes title', () => {
+  it('lists one entry per account, each once, A from the 19 file and B from the 20 file', () => {
+    const files = wowpFiles({
+      [WOWP_19_ACCOUNT]: {
+        groups: [{ account: 'A', rows: [accountRow(WOWP_19_ACCOUNT, 'a19')] }],
+        seen: true,
+      },
+      [WOWP_20_ACCOUNT]: {
+        groups: [
+          { account: 'A', rows: [accountRow(WOWP_20_ACCOUNT, 'a20')] },
+          { account: 'B', rows: [accountRow(WOWP_20_ACCOUNT, 'b20')] },
+        ],
+        seen: true,
+      },
+    });
+    const view = vehicleStats.buildVehicleView(files, { title: 'wowp', battleType: null });
+    expect(view.wowpAccount).not.toBeNull();
+    const block = view.wowpAccount!;
+    expect(block.skipped).toEqual([]);
+    expect(block.accounts.map((entry) => entry.account)).toEqual(['A', 'B']);
+
+    // Spec columns of the two files, merged by header, 19 first, minus the
+    // header-owned battles and premium-expiry headers.
+    const expected: string[] = [];
+    for (const header of [...specHeaders(WOWP_19_ACCOUNT), ...specHeaders(WOWP_20_ACCOUNT)]) {
+      if (!expected.includes(header)) expected.push(header);
+    }
+    expect(block.columns.map((column) => column.id)).toEqual(expected);
+    for (const owned of HEADER_OWNED) {
+      expect(block.columns.map((column) => column.id)).not.toContain(owned);
+    }
+
+    const [a, b] = block.accounts;
+    const goldIndex = block.columns.findIndex((column) => column.id === 'GOLD');
+    expect(cellValue(a!.cells[goldIndex]!)).toBe('s:a19:GOLD');
+    expect(cellValue(b!.cells[goldIndex]!)).toBe('s:b20:GOLD');
+    // A contributes once: nothing of A's 20 row is in its cells.
+    expect(a!.cells.map(cellValue).some((text) => text.includes('a20:'))).toBe(false);
+    for (const entry of block.accounts) expect(entry.cells).toHaveLength(block.columns.length);
+  });
+
+  it('takes the kind from the spec: number is a count, date is a date, the rest are text', () => {
+    const files = wowpFiles({
+      [WOWP_19_ACCOUNT]: {
+        groups: [
+          {
+            account: 'A',
+            rows: [
+              {
+                ...accountRow(WOWP_19_ACCOUNT, 'a'),
+                SPOTTED: '1234',
+                CREATED_AT: '01.02.2020 10:00',
+              },
+            ],
+          },
+        ],
+        seen: true,
+      },
+    });
+    const block = vehicleStats.buildVehicleView(files, {
+      title: 'wowp',
+      battleType: null,
+    }).wowpAccount!;
+    const kinds = new Map(block.columns.map((column) => [column.id, column.kind]));
+    expect(kinds.get('SPOTTED')).toBe('count');
+    expect(kinds.get('CREATED_AT')).toBe('date');
+    expect(kinds.get('GOLD')).toBe('text');
+    const row = block.accounts[0]!.cells;
+    expect(row[block.columns.findIndex((column) => column.id === 'SPOTTED')]).toEqual({
+      t: 'n',
+      v: 1234,
+    });
+  });
+
+  it('builds specials with the existing readers: N/A, N/D, a blank and a missing key', () => {
+    const files = wowpFiles({
+      [WOWP_19_ACCOUNT]: {
+        groups: [
+          {
+            account: 'A',
+            rows: [
+              {
+                ...accountRow(WOWP_19_ACCOUNT, 'a'),
+                SPOTTED: 'N/A',
+                SURVIVED: 'N/D',
+                WINS: '',
+              },
+            ],
+          },
+        ],
+        seen: true,
+      },
+    });
+    const block = vehicleStats.buildVehicleView(files, {
+      title: 'wowp',
+      battleType: null,
+    }).wowpAccount!;
+    const cells = block.accounts[0]!.cells;
+    const at = (id: string): VehicleCell => cells[block.columns.findIndex((c) => c.id === id)]!;
+    expect(at('SPOTTED')).toEqual({ t: 'x', v: 'na' });
+    expect(at('SURVIVED')).toEqual({ t: 'x', v: 'nd' });
+    expect(at('WINS')).toEqual({ t: 'x', v: 'na' });
+  });
+
+  it('shows an account with no row in either account file as absent, and nothing at all as null', () => {
+    const only19 = wowpFiles({
+      [WOWP_19_ACCOUNT]: {
+        groups: [
+          { account: 'A', rows: [accountRow(WOWP_19_ACCOUNT, 'a')] },
+          { account: 'B', rows: [] },
+        ],
+        seen: true,
+      },
+    });
+    const view = vehicleStats.buildVehicleView(only19, { title: 'wowp', battleType: null });
+    expect(view.wowpAccount!.accounts.map((entry) => entry.account)).toEqual(['A']);
+
+    const none = vehicleStats.buildVehicleView(new Map(), { title: 'wowp', battleType: null });
+    expect(none.wowpAccount).toBeNull();
+    expect(none.titleState).toBe('not-in-export');
+  });
+
+  it('lists a seen, parsed, row-less file in skipped, and a view of only skipped files still has the block', () => {
+    const files = wowpFiles({
+      [WOWP_20_ACCOUNT]: { groups: [], seen: true, parsed: 3 },
+    });
+    const view = vehicleStats.buildVehicleView(files, { title: 'wowp', battleType: null });
+    expect(view.wowpAccount).toEqual({ columns: [], accounts: [], skipped: [WOWP_20_ACCOUNT] });
+  });
+
+  it('does not call a file skipped when its parsed count is zero or unknown', () => {
+    const files = wowpFiles({
+      [WOWP_19_ACCOUNT]: { groups: [], seen: true, parsed: 0 },
+      [WOWP_20_ACCOUNT]: { groups: [], seen: true },
+    });
+    const view = vehicleStats.buildVehicleView(files, { title: 'wowp', battleType: null });
+    expect(view.wowpAccount).toBeNull();
+  });
+
+  it('is null for the other three titles even when Warplanes files are in the map', () => {
+    const files = new Map([
+      ...allFiles(),
+      ...wowpFiles({
+        [WOWP_19_ACCOUNT]: {
+          groups: [{ account: 'A', rows: [accountRow(WOWP_19_ACCOUNT, 'a')] }],
+          seen: true,
+        },
+      }),
+    ]);
+    for (const title of ['wot', 'wotb', 'wows'] as const) {
+      expect(
+        vehicleStats.buildVehicleView(files, { title, battleType: null }).wowpAccount,
+      ).toBeNull();
+    }
+  });
+
+  it('carries no nickname or non-column key even for an unnarrowed row with a canary column', () => {
+    const files = wowpFiles({
+      [WOWP_19_ACCOUNT]: {
+        groups: [
+          {
+            account: 'A',
+            rows: [
+              {
+                ...accountRow(WOWP_19_ACCOUNT, 'a'),
+                NAME: 'CANARY-NICKNAME-WOWP',
+                NICKNAME: 'CANARY-NICKNAME-WOWP',
+                EMAIL: 'canary@example.invalid',
+              },
+            ],
+          },
+        ],
+        seen: true,
+      },
+    });
+    const view = vehicleStats.buildVehicleView(files, { title: 'wowp', battleType: null });
+    const text = JSON.stringify(view);
+    expect(text).not.toContain('CANARY');
+    expect(text).not.toContain('example.invalid');
+    const ids = new Set(view.wowpAccount!.columns.map((column) => column.id));
+    for (const id of ids) expect(['NAME', 'NICKNAME', 'EMAIL']).not.toContain(id);
   });
 });

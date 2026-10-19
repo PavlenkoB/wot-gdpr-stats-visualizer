@@ -16,6 +16,7 @@ import {
 import { isLoginsFileName, isLoginsRow } from '../features/logins/login-aggregate.ts';
 import type { LoginSource } from '../features/logins/login-aggregate.ts';
 import { classifyFolder } from './categories.ts';
+import { fileMatchesSpec, isNewDataFile, projectRow, specFor } from './new-data-allowlist.ts';
 import type { AccountRowGroup } from './csv-columns.ts';
 import { accountsOfMeta } from './account-summary.ts';
 
@@ -82,7 +83,39 @@ export interface DatasetRow {
 export interface DatasetFile {
   category: string;
   sourceFile: string;
+  /**
+   * How many rows of this file were STORED (plan 11-04, D-09).
+   *
+   * For a NEW-GAME family file this is the count the per-file column allowlist
+   * kept, which is what makes it differ from {@link DatasetFile.parsedRowCount}.
+   * For every other file it is the whole parse, exactly as it has always been.
+   */
   rowCount: number;
+  /**
+   * How many rows this file PARSED to, before the allowlist (plan 11-04, D-09).
+   *
+   * Present on facts of new-game FAMILY files only, and it is what turns the
+   * presence list into a three-state answer the rows table cannot give (D-09):
+   *
+   *   - `parsedRowCount > 0 && rowCount === 0` — the file WAS in the export and
+   *     the allowlist stored none of its rows ("skipped");
+   *   - `parsedRowCount === 0` — the file was in the export and held no rows;
+   *   - no fact at all — the file was not in the export.
+   *
+   * ABSENT on facts of non-family files (their `rowCount` IS the parse, so a
+   * second number would say nothing) and on every fact written before this
+   * plan, which a reader must treat as "parsed equals stored" — the state a
+   * family file's fact had before, and the only honest reading of a cache that
+   * predates the distinction.
+   *
+   * This is a NON-INDEXED property of the existing `meta` record, exactly like
+   * `files` itself: NO Dexie version is added, `version(2)` and its wiping
+   * upgrader are untouched, and `db.verno` stays 2 — a property
+   * `tests/unit/import/db.test.ts` pins. Narrowing the rows this fact describes
+   * is a DATA operation (11-04's `narrowStoredNewDataRows`), not a migration,
+   * so a returning reader loses nothing to have it applied.
+   */
+  parsedRowCount?: number;
   /**
    * The account ROOT this file was read from (Phase 9, D-07), for the same
    * reason and with the same non-indexed shape as {@link DatasetRow.account}:
@@ -1065,5 +1098,228 @@ export async function purgeUnsupportedCategoryRows(): Promise<number> {
       deleted += await db.rows.where('category').equals(key).delete();
     }
     return deleted;
+  });
+}
+
+/**
+ * Do two stored row bodies hold the same keys and the same cells?
+ *
+ * Key ORDER is not compared: the projection writes its keys in the row's own
+ * order, so an already-narrowed row produces the same object again, and a row
+ * whose keys merely arrive in a different order is not a change. `hasOwnProperty`
+ * rather than a `key in b` test, because `in` answers true for `__proto__`
+ * through the prototype chain and a legacy row may hold that key.
+ */
+function sameRowData(
+  stored: Record<string, string | undefined>,
+  projected: Record<string, string | undefined>,
+): boolean {
+  const keys = Object.keys(stored);
+  if (keys.length !== Object.keys(projected).length) return false;
+  return keys.every((key) => Object.hasOwn(projected, key) && stored[key] === projected[key]);
+}
+
+/**
+ * The identity of one stored group of rows: the account that owns them, the
+ * lower-cased file name and the lower-cased category.
+ *
+ * A joined string rather than a nested Map, because unlike the session reader's
+ * grouping this key is never looked up in a plain object — a `Map` holds any
+ * string, so a root named `__proto__` is an ordinary key here (T-09-04). The
+ * separator is a NUL, which cannot occur in a zip entry name, a folder name or a
+ * file name.
+ */
+function narrowGroupKey(account: string, sourceFile: string, category: string): string {
+  return `${account} ${sourceFile.toLowerCase()} ${category.toLowerCase()}`;
+}
+
+/**
+ * Narrow every already-stored row of a new-game FAMILY file to its allowlist
+ * projection, deleting the rows that should no longer exist, and put the
+ * presence facts back in agreement with the rows they describe. Returns the
+ * number of rows deleted plus rewritten (plan 11-04, D-14/D-15).
+ *
+ * ## Why this exists
+ *
+ * The per-file column allowlist stops NEW imports from writing a column the spec
+ * does not name. It does nothing for a user who imported before it existed: their
+ * cache still holds the WOWP account rows' nickname-like `NAME`, and every other
+ * column of every HEAT, WoT Console and Warplanes file that 11-03's specs exclude
+ * — data at rest that no reader uses and nothing else would ever remove. This is
+ * the removal, on the same single point where `purgeUnsupportedCategoryRows`
+ * already runs: the returning visit's cache read.
+ *
+ * ## Why the decision is made on the ROW's own name and category
+ *
+ * Exactly the rule `purgeUnsupportedCategoryRows` follows, for the same reason:
+ * a cached classification can be stale, while the row's own `sourceFile` and
+ * `category` are what it really was read from. So `isNewDataFile` screens the
+ * `sourceFile` index BY NAME (cheap, index-driven, and a non-family name is
+ * never read at all), and the spec is looked up with the row's OWN category — so
+ * a copy of a family file filed under a different folder is judged on the pair it
+ * really has, and a family file this build has no spec for stores nothing.
+ *
+ * The group is per ACCOUNT as well as per category, because two accounts
+ * contribute the same file name (D-12) and one account's drifted header must not
+ * delete the other account's good rows.
+ *
+ * ## Why the file match is decided per GROUP, from the rows themselves
+ *
+ * `fileMatchesSpec` asks which HEADERS the file carried, so it is asked once per
+ * group over the stored rows rather than per row — the same per-file decision
+ * the import makes, so a narrow here and a narrow at import cannot disagree. A
+ * group that matches nothing is deleted outright, because a row this build would
+ * not have stored must not survive at rest.
+ *
+ * ## Why the transaction opens `db.meta` although the purge does not
+ *
+ * Because the presence facts must agree with the rows they describe. A fact that
+ * still said five rows beside a table holding one would be a false statement
+ * about the user's own data — the very claim D-09's `parsedRowCount` exists to
+ * make honest. `purgeUnsupportedCategoryRows` can leave meta alone because it
+ * leaves the unsupported folders' category counts intact; this step CHANGES the
+ * stored row counts of files it already described, so it must move their facts in
+ * the same transaction. Only `files` and `accounts[].files` are touched: the
+ * hash, the identity, the aggregates, the categories and `importedAt` are spread
+ * through untouched, and the record is written ONLY when a fact actually changed.
+ *
+ * A fact whose `parsedRowCount` is absent — every fact a pre-11-04 build wrote —
+ * reads its OLD `rowCount` as the parsed count, which is what that field meant
+ * then. A reader still treats an absent field as "parsed equals stored", so no
+ * information is invented and no legacy cache is left in a state nothing
+ * understands.
+ *
+ * ## Idempotence
+ *
+ * A row is rewritten only when its projection DIFFERS from what it holds, so a
+ * second run finds every row already narrow, writes nothing, and returns 0; the
+ * facts are then already equal to the stored counts, so the meta record is not
+ * rewritten either. The step is a no-op by construction rather than by a guard,
+ * which is what makes it safe to run on every page load. An empty database is a
+ * no-op too: no meta record means no facts to keep in agreement.
+ *
+ * ## Why this is NOT a Dexie version bump
+ *
+ * `version(3)` with an `upgrade` callback would cost every returning user their
+ * WHOLE cached dataset — rows, identity, imported-at — to narrow a subset of
+ * their rows, and the `version(2)` upgrader already wipes. This is a data
+ * operation on records whose shape is unchanged, exactly as the purge is:
+ * `db.verno` stays 2, the `version(2)` upgrader is untouched, and a property
+ * `tests/unit/import/db.test.ts` pins. A row this step deletes is recoverable by
+ * re-importing the archive, which is the same price the D-21 purge named.
+ */
+export async function narrowStoredNewDataRows(): Promise<number> {
+  return db.transaction('rw', db.rows, db.meta, async () => {
+    const meta = await db.meta.get('active');
+    // No dataset, no facts, nothing to narrow.
+    if (meta === undefined) return 0;
+
+    // The index walk this file already uses: index-only, and the LIST form of a
+    // `sourceFile` query must never appear here (its cost is a function of the
+    // number of KEYS, not of the rows — RESEARCH Pattern 2, measured).
+    const keys = await db.rows.orderBy('sourceFile').uniqueKeys();
+    let changed = 0;
+    // How many rows each group HOLDS once this run is done, keyed as in
+    // `narrowGroupKey`. A group absent from this map was never visited, so its
+    // facts are left exactly as written.
+    const stored = new Map<string, number>();
+
+    for (const key of keys) {
+      if (typeof key !== 'string' || !isNewDataFile(key)) continue;
+      const matches = await db.rows.where('sourceFile').equals(key).toArray();
+      if (matches.length === 0) continue;
+
+      const groups = new Map<string, DatasetRow[]>();
+      for (const row of matches) {
+        const groupKey = narrowGroupKey(accountOf(row, meta), key, row.category);
+        const group = groups.get(groupKey);
+        // The accumulator behind the array; see the same pattern in the readers
+        // above.
+        if (group === undefined) groups.set(groupKey, [row]);
+        else (group as DatasetRow[]).push(row);
+      }
+
+      for (const [groupKey, group] of groups) {
+        const spec = specFor(group[0]!.category, key);
+        // No spec for this name in this category, or headers that match no
+        // column of it: rows a current import would not have stored must not
+        // survive at rest (D-15). Decided for the GROUP, so one account's
+        // drifted copy cannot delete its sibling's rows.
+        if (
+          spec === null ||
+          !fileMatchesSpec(
+            group.map((row) => row.data),
+            spec,
+          )
+        ) {
+          await db.rows.bulkDelete(group.map((row) => row.id!));
+          changed += group.length;
+          stored.set(groupKey, 0);
+          continue;
+        }
+        const narrowed: DatasetRow[] = [];
+        for (const row of group) {
+          const projected = projectRow(row.data, spec);
+          // Only the CHANGED rows are written: that is what makes a second run
+          // write nothing at all.
+          if (sameRowData(row.data, projected)) continue;
+          // The spread keeps `id`, `category`, `sourceFile`, `rowIndex` and
+          // `account` — this is the same row, narrower, never a replacement that
+          // would renumber the file or move it to another account (D-12).
+          (narrowed as DatasetRow[]).push({ ...row, data: projected });
+        }
+        if (narrowed.length > 0) {
+          await db.rows.bulkPut(narrowed);
+          changed += narrowed.length;
+        }
+        stored.set(groupKey, group.length);
+      }
+    }
+
+    // The facts, in both lists that hold them. A fact is rewritten ONLY when its
+    // group was visited and the counts disagree, so an idempotent run leaves the
+    // record's own bytes alone.
+    const rewrite = (
+      files: DatasetFile[] | null | undefined,
+    ): { files: DatasetFile[] | null | undefined; changed: boolean } => {
+      if (files === null || files === undefined) return { files, changed: false };
+      let touched = false;
+      const next = files.map((file) => {
+        if (!isNewDataFile(file.sourceFile)) return file;
+        const count = stored.get(
+          narrowGroupKey(file.account ?? meta.accountRoot, file.sourceFile, file.category),
+        );
+        if (count === undefined) return file;
+        // A fact written before `parsedRowCount` existed said "rows stored",
+        // which for a family file is exactly how many rows it PARSED.
+        const parsedRowCount = file.parsedRowCount ?? file.rowCount;
+        if (file.rowCount === count && file.parsedRowCount === parsedRowCount) return file;
+        touched = true;
+        return { ...file, rowCount: count, parsedRowCount };
+      });
+      return { files: touched ? next : files, changed: touched };
+    };
+
+    const flattened = rewrite(meta.files);
+    let accounts: AccountMeta[] | null | undefined = meta.accounts;
+    let accountsChanged = false;
+    if (Array.isArray(accounts)) {
+      const next = accounts.map((account) => {
+        const result = rewrite(account.files);
+        if (!result.changed) return account;
+        accountsChanged = true;
+        return { ...account, files: result.files as DatasetFile[] };
+      });
+      if (accountsChanged) accounts = next;
+    }
+
+    if (flattened.changed || accountsChanged) {
+      await db.meta.put({
+        ...meta,
+        files: flattened.files,
+        accounts,
+      });
+    }
+    return changed;
   });
 }

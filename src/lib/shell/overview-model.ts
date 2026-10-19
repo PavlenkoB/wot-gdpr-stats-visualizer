@@ -1,7 +1,7 @@
 import type { ClassifyResult } from '../core/types/worker-messages.ts';
 import { unsupportedEntries } from './dashboard-status.ts';
 import { accountCountOf, earliestCreated, hasMultipleRoots } from './identity-model.ts';
-import { paneEntries, type PaneEntry, type PaneId } from './selection-state.ts';
+import { OPTIONAL_PANE_IDS, paneEntries, type PaneEntry, type PaneId } from './selection-state.ts';
 import {
   IDENTITY_CREATED_LABEL,
   PANE_TITLES,
@@ -38,8 +38,20 @@ export const OVERVIEW_CARD_IDS = [
   'account',
 ] as const satisfies readonly PaneId[];
 
-/** One of the seven card pane ids. */
-export type OverviewCardId = (typeof OVERVIEW_CARD_IDS)[number];
+/**
+ * The ids that get a card when the pane exists: the seven above plus the two
+ * optional new-game panes (HEAT, Warships crews and storage). An absent optional
+ * pane has no `paneEntries` row, so it has no card and is in no chip count
+ * (UI-SPEC assumption A2); a present-but-empty one carries reason `empty`.
+ */
+const CARD_PANE_IDS: ReadonlySet<PaneId> = new Set<PaneId>([
+  ...OVERVIEW_CARD_IDS,
+  ...OPTIONAL_PANE_IDS,
+]);
+
+/** One of the pane ids that can have a card. */
+export type OverviewCardId =
+  (typeof OVERVIEW_CARD_IDS)[number] | (typeof OPTIONAL_PANE_IDS)[number];
 
 /** The three chip counts. */
 export interface OverviewChips {
@@ -66,17 +78,17 @@ export interface OverviewCard {
   reason: PaneEntry['reason'];
 }
 
-/** The `paneEntries` rows that have a card, in `OVERVIEW_CARD_IDS` order. */
+/** The `paneEntries` rows that have a card, in list (`PANE_ORDER`) order. */
 function cardEntries(result: ClassifyResult | null): PaneEntry[] {
-  const entries = paneEntries(result);
-  return OVERVIEW_CARD_IDS.flatMap((id) => entries.filter((entry) => entry.id === id));
+  return paneEntries(result).filter((entry) => CARD_PANE_IDS.has(entry.id));
 }
 
 /**
  * The three chips.
  *
  * `withData` counts the card panes that are not muted. `absent` counts only the
- * panes whose reason is `no-export`. A pane that is PRESENT but has zero rows
+ * panes whose reason is `no-export`. An optional pane the export lacks has no
+ * entry at all, so it is counted in neither. A pane that is PRESENT but has zero rows
  * (reason `empty`) is counted in neither: absent and empty are different facts
  * (DATA-04), and the chip that says "not in this export" must not claim a
  * folder the export does hold. Its card carries the "no rows" wording instead.
@@ -94,7 +106,8 @@ export function overviewChips(result: ClassifyResult | null): OverviewChips {
 }
 
 /**
- * The seven cards, in list order.
+ * The cards, in list order: the seven always-present ones, plus the optional
+ * new-game panes when the export holds them.
  *
  * The headline and summary are the list row's own, so the two surfaces word the
  * same fact the same way. The one addition is the Account card's summary, which

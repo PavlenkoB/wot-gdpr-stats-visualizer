@@ -4,8 +4,12 @@ import {
   filterAfterTitleChange,
   filterChips,
   filterToTitle,
+  hasNoVehicleTable,
   resolveGameFilter,
+  resolveVehicleTitle,
+  vehicleTitleForAsk,
   type GameFilterChoice,
+  type VehicleTitleChoice,
 } from '../../../src/lib/shell/game-filter-state.ts';
 
 // =============================================================================
@@ -26,6 +30,8 @@ import {
 //      filter to All games without a reset hook.
 //   4. Token <-> title, including Warplanes leaving the filter untouched
 //      (D-21, UI-SPEC Recorded Choice 4).
+//   5. 11-01: HEAT and WoT Console are tokens now, so the matrix above has two
+//      new members and the HEAT title/stamp cases join the WOT ones.
 //
 // Pure and DOM-free, so it runs under Node. The style is copied from
 // `tests/unit/shell/selection-state.test.ts`; test files do not import each
@@ -35,6 +41,16 @@ import {
 /** A choice stamped for `stamp`, as `Dashboard.svelte` writes it. */
 function choice(token: string | null, stamp: string | null = '2026-10-18T10:00:00.000Z') {
   return { token, stamp } satisfies GameFilterChoice;
+}
+
+/** The one dataset the 11-06 cases below talk about. */
+const DATASET = '2026-10-18T10:00:00.000Z';
+/** A second one, so a stamp mismatch is a real case rather than a null literal. */
+const OTHER_DATASET = '2026-10-18T11:00:00.000Z';
+
+/** A remembered-title cell stamped for `stamp`, as `Dashboard.svelte` writes it. */
+function titleChoice(title: string | null, stamp: string | null) {
+  return { title, stamp } satisfies VehicleTitleChoice;
 }
 
 // -----------------------------------------------------------------------------
@@ -56,15 +72,19 @@ describe('filterChips: when the row exists at all', () => {
     expect(filterChips(['WOTB', 'WOT'], null)).toEqual(['WOT', 'WOTB']);
   });
 
-  test('one filterable token plus HEAT renders the row with that one token', () => {
-    // All games differs from WoT here, because HEAT's sessions are counted
-    // under All and have no chip of their own (D-05).
-    expect(filterChips(['WOT', 'HEAT'], null)).toEqual(['WOT']);
+  test('one filterable token plus HEAT renders BOTH, in the FIXED order', () => {
+    // HEAT is a token as of 11-01: the worker already stores a per-game scope
+    // for it, so a reader can narrow to it and the row offers the way back.
+    expect(filterChips(['WOT', 'HEAT'], null)).toEqual(['WOT', 'HEAT']);
   });
 
-  test('only non-filterable tokens render no node', () => {
-    expect(filterChips(['HEAT', 'WOTC'], null)).toBeNull();
-    expect(filterChips(['WOTC', 'HEAT'], null)).toBeNull();
+  test('HEAT and WoT Console are filterable, and only together render no node', () => {
+    // Each ALONE still renders no node: All games is that export's only view.
+    expect(filterChips(['HEAT'], null)).toBeNull();
+    expect(filterChips(['WOTC'], null)).toBeNull();
+    // Together they are two distinct games, so both chips are offered.
+    expect(filterChips(['HEAT', 'WOTC'], null)).toEqual(['WOTC', 'HEAT']);
+    expect(filterChips(['WOTC', 'HEAT'], null)).toEqual(['WOTC', 'HEAT']);
   });
 
   test('a hostile token never becomes a chip, whatever else is in the list', () => {
@@ -73,6 +93,24 @@ describe('filterChips: when the row exists at all', () => {
     // And the same when the hostile token is the only other entry: the row is
     // still warranted (two game tokens) and still offers only the real one.
     expect(filterChips(['WOTB', 'constructor'], null)).toEqual(['WOTB']);
+  });
+
+  test('every token the export holds gets a chip, in the fixed order (11-01)', () => {
+    // The whole matrix, in one place, because the two new tokens are the first
+    // time the tuple has grown and the ORDER is part of the contract.
+    expect(filterChips(['HEAT'], null)).toBeNull();
+    expect(filterChips(['WOTC'], null)).toBeNull();
+    expect(filterChips(['WOT', 'HEAT'], null)).toEqual(['WOT', 'HEAT']);
+    expect(filterChips(['HEAT', 'WOTC'], null)).toEqual(['WOTC', 'HEAT']);
+    expect(filterChips(['HEAT', 'WOTC', 'WOT', 'WOTB', 'WOWS', 'WOWP'], null)).toEqual([
+      'WOT',
+      'WOTB',
+      'WOWS',
+      'WOTC',
+      'HEAT',
+    ]);
+    // WOWP is still not a filter token, so it never earns a chip of its own.
+    expect(filterChips(['WOT', 'WOWP'], null)).toEqual(['WOT']);
   });
 
   test('a repeated token is one game, so it does not warrant the row by itself', () => {
@@ -110,7 +148,7 @@ describe('filterChips: the active choice is always visible and reversible', () =
   test('the fixed order holds whatever order the export arrived in', () => {
     expect(filterChips(['WOT', 'WOTB', 'WOWS'], null)).toEqual(['WOT', 'WOTB', 'WOWS']);
     expect(filterChips(['WOWS', 'WOTB', 'WOT'], null)).toEqual(['WOT', 'WOTB', 'WOWS']);
-    expect(GAME_FILTER_TOKENS).toEqual(['WOT', 'WOTB', 'WOWS']);
+    expect(GAME_FILTER_TOKENS).toEqual(['WOT', 'WOTB', 'WOWS', 'WOTC', 'HEAT']);
   });
 });
 
@@ -144,6 +182,20 @@ describe('resolveGameFilter', () => {
     expect(resolveGameFilter(choice('WOWP', stamp), stamp)).toBeNull();
     expect(resolveGameFilter(choice('<b>WOT</b>', stamp), stamp)).toBeNull();
   });
+
+  test('a HEAT or WOTC choice is stamped exactly like any other token', () => {
+    expect(resolveGameFilter(choice('HEAT', stamp), stamp)).toBe('HEAT');
+    expect(resolveGameFilter(choice('WOTC', stamp), stamp)).toBe('WOTC');
+    // And it is discarded by a new dataset, which is the whole reset rule.
+    expect(resolveGameFilter(choice('HEAT', stamp), '2026-10-18T11:00:00.000Z')).toBeNull();
+  });
+
+  test('choosing WoT or Warplanes on Vehicles replaces a HEAT filter (D-21)', () => {
+    expect(filterAfterTitleChange('wot', 'HEAT')).toBe('WOT');
+    expect(filterAfterTitleChange('wows', 'WOTC')).toBe('WOWS');
+    // And Warplanes leaves a HEAT filter alone, because it is not the filter.
+    expect(filterAfterTitleChange('wowp', 'HEAT')).toBe('HEAT');
+  });
 });
 
 // -----------------------------------------------------------------------------
@@ -159,8 +211,12 @@ describe('the token and the Vehicles title', () => {
   });
 
   test('a title the filter does not offer means no title', () => {
+    // HEAT and WOTC have chips but no Vehicles title: neither game contributes
+    // a vehicle table, so asking for one would name a game with no vehicles
+    // (D-21, and the reason `filterToTitle` still answers null for them).
     expect(filterToTitle('WOWP')).toBeNull();
     expect(filterToTitle('HEAT')).toBeNull();
+    expect(filterToTitle('WOTC')).toBeNull();
     expect(filterToTitle('')).toBeNull();
   });
 
@@ -182,5 +238,96 @@ describe('the token and the Vehicles title', () => {
   test('an unknown title value leaves the filter unchanged rather than guessing', () => {
     expect(filterAfterTitleChange('', 'WOTB')).toBe('WOTB');
     expect(filterAfterTitleChange('wtb', null)).toBeNull();
+  });
+});
+
+// -----------------------------------------------------------------------------
+// hasNoVehicleTable / vehicleTitleForAsk / resolveVehicleTitle (11-06, D-06)
+// -----------------------------------------------------------------------------
+//
+// D-06: HEAT and WoT Console have SESSIONS but no vehicle table. Vehicles does
+// not clear the shared filter for them (that is the reader's choice, and D-21
+// gives Playtime a claim on it); it keeps showing the table it last showed in
+// this dataset and says so in one line. These three helpers are the whole of
+// that, and they are pure because every failure reachable here is a claim
+// about the reader's own export rather than a visual one.
+
+describe('hasNoVehicleTable: which games the note is for', () => {
+  test('exactly HEAT and WoT Console', () => {
+    expect(hasNoVehicleTable('HEAT')).toBe(true);
+    expect(hasNoVehicleTable('WOTC')).toBe(true);
+  });
+
+  test('not a game that DOES contribute vehicles, and not All', () => {
+    expect(hasNoVehicleTable('WOT')).toBe(false);
+    expect(hasNoVehicleTable('WOTB')).toBe(false);
+    expect(hasNoVehicleTable('WOWS')).toBe(false);
+    expect(hasNoVehicleTable(null)).toBe(false);
+  });
+
+  test('not Warplanes and not a hostile token from a file name', () => {
+    // Warplanes is a Vehicles TITLE rather than a shared filter token, and a
+    // token from an untrusted archive must never produce the note.
+    expect(hasNoVehicleTable('WOWP')).toBe(false);
+    expect(hasNoVehicleTable('<b>HEAT</b>')).toBe(false);
+    expect(hasNoVehicleTable('')).toBe(false);
+  });
+});
+
+describe('vehicleTitleForAsk: the title Vehicles asks for on its first query', () => {
+  test('a filterable game asks for its own title, whatever was remembered', () => {
+    // Phase 10's first-ask rule, byte for byte: the remembered title is
+    // consulted ONLY for the two games with no table of their own.
+    expect(vehicleTitleForAsk('WOT', 'wowp')).toBe('wot');
+    expect(vehicleTitleForAsk('WOTB', null)).toBe('wotb');
+    expect(vehicleTitleForAsk('WOTB', 'wows')).toBe('wotb');
+    expect(vehicleTitleForAsk('WOWS', 'wot')).toBe('wows');
+  });
+
+  test('All asks the worker own rule and never the remembered title', () => {
+    // D-21 stands: with All, `null` is the worker's first-title-with-rows
+    // question, exactly as it was before the new games existed.
+    expect(vehicleTitleForAsk(null, 'wowp')).toBeNull();
+    expect(vehicleTitleForAsk(null, null)).toBeNull();
+  });
+
+  test('HEAT and WoT Console keep the title the reader last saw in this dataset', () => {
+    expect(vehicleTitleForAsk('HEAT', 'wows')).toBe('wows');
+    expect(vehicleTitleForAsk('WOTC', 'wowp')).toBe('wowp');
+    // And with nothing remembered there is nothing to keep, so it falls back to
+    // the same `null` All asks — the worker picks, and the note names whatever
+    // it applied.
+    expect(vehicleTitleForAsk('HEAT', null)).toBeNull();
+    expect(vehicleTitleForAsk('WOTC', null)).toBeNull();
+  });
+
+  test('an unknown remembered title is never asked for', () => {
+    // T-11-20: the cell is component state, but a value that is not one of the
+    // four known ids must not travel into a worker query.
+    expect(vehicleTitleForAsk('HEAT', 'junk')).toBeNull();
+    expect(vehicleTitleForAsk('HEAT', 'WOT')).toBeNull();
+    expect(vehicleTitleForAsk('HEAT', '')).toBeNull();
+  });
+});
+
+describe('resolveVehicleTitle: the remembered title, stamped (11-06)', () => {
+  test('the title the reader applied under this dataset is remembered', () => {
+    expect(resolveVehicleTitle(titleChoice('wowp', DATASET), DATASET)).toBe('wowp');
+  });
+
+  test('a replace or a Clear discards it', () => {
+    // The same rule `resolveGameFilter` and `resolveReveal` use: the stamp IS
+    // the reset, so there is no hook that can be forgotten on one path.
+    expect(resolveVehicleTitle(titleChoice('wowp', DATASET), OTHER_DATASET)).toBeNull();
+    expect(resolveVehicleTitle(titleChoice('wowp', DATASET), null)).toBeNull();
+  });
+
+  test('the initial cell remembers nothing, and an unstamped one cannot either', () => {
+    expect(resolveVehicleTitle({ title: null, stamp: null }, DATASET)).toBeNull();
+    expect(resolveVehicleTitle({ title: 'wowp', stamp: null }, DATASET)).toBeNull();
+  });
+
+  test('an unknown title under a matching stamp still answers null', () => {
+    expect(resolveVehicleTitle(titleChoice('junk', DATASET), DATASET)).toBeNull();
   });
 });

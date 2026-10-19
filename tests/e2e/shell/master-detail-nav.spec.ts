@@ -36,7 +36,12 @@ import {
 } from '../../../src/lib/ui-copy.ts';
 import { NAV_ORDER } from '../../../src/lib/shell/dashboard-status.ts';
 import { OVERVIEW_CARD_IDS } from '../../../src/lib/shell/overview-model.ts';
-import { PANE_IDS, PANE_SECTION, type PaneId } from '../../../src/lib/shell/selection-state.ts';
+import {
+  PANE_IDS,
+  PANE_ORDER,
+  PANE_SECTION,
+  type PaneId,
+} from '../../../src/lib/shell/selection-state.ts';
 import {
   SYNTHETIC_ZIP_NAME,
   detailPane,
@@ -411,12 +416,14 @@ test.describe('master-detail navigation', () => {
     await page.keyboard.press('ArrowUp');
     await expectSelectionIsFocus(page, 'overview');
 
-    // Eight presses from the first row reach the last and stay there; after each
+    // Nine presses from the first row reach the last and stay there; after each
     // one the selected row is the focused row (the walk follows the pane order,
-    // clamped at the last).
-    for (let i = 0; i < 8; i += 1) {
+    // clamped at the last). The sample export's list has the Warships crews and
+    // storage row after Vehicles and no HEAT row, so it is ten rows (plan 11-11).
+    const walk = PANE_ORDER.filter((id) => id !== 'heat');
+    for (let i = 0; i < walk.length - 1; i += 1) {
       await page.keyboard.press('j');
-      await expectSelectionIsFocus(page, PANE_IDS[Math.min(i + 1, PANE_IDS.length - 1)]!);
+      await expectSelectionIsFocus(page, walk[Math.min(i + 1, walk.length - 1)]!);
     }
     await expectSelected(page, 'not-yet-supported');
     await expect(listRow(page, 'not-yet-supported')).toBeFocused();
@@ -711,7 +718,8 @@ test.describe('master-detail navigation', () => {
 
     // Offer it again and commit. While it processes, a page-side observer records
     // what is on screen at every DOM change that shows the processing notice: the
-    // nine rows and the OLD finance section must all still be there.
+    // ten rows (the sample's nine plus its Warships row) and the OLD finance
+    // section must all still be there.
     await page.evaluate(() => {
       const w = window as unknown as { __during: { rows: number; finance: boolean }[] };
       w.__during = [];
@@ -743,7 +751,7 @@ test.describe('master-detail navigation', () => {
     );
     expect(during.length).toBeGreaterThan(0);
     for (const sample of during) {
-      expect(sample).toEqual({ rows: 9, finance: true });
+      expect(sample).toEqual({ rows: 10, finance: true });
     }
     // The new dataset lands on Overview (R1).
     await expectSelected(page, 'overview');
@@ -759,7 +767,9 @@ test.describe('master-detail navigation', () => {
     await expectInViewportAndListPane(page, banner);
     await expect(page.getByTestId('import-bar')).toHaveAttribute('data-variant', 'slim');
     await expect(page.getByTestId('list-pane').getByTestId('import-bar')).toHaveCount(1);
-    await expect(page.locator('[data-testid^="list-row-"]')).toHaveCount(9);
+    // The failed replace left the sample's list alone: its nine rows plus the
+    // Warships crews and storage row its two files earn (plan 11-11).
+    await expect(page.locator('[data-testid^="list-row-"]')).toHaveCount(10);
     await expect(page.getByTestId('identity-nickname')).toHaveText(nickname);
     await expectSelected(page, 'vehicles');
     await expect(page.getByTestId('dashboard-section-player-statistics')).toBeVisible();
@@ -778,7 +788,10 @@ test.describe('master-detail navigation', () => {
     // The chips are computed from the fixture's own counts, never typed. The
     // sample holds every supported folder, and the unsupported ones are the two
     // known-deferred and two unknown categories it declares.
-    const cardCount = OVERVIEW_CARD_IDS.length;
+    // The sample's two Warships crews and storage files earn that pane a card as
+    // well (plan 11-11); it holds no HEAT file, so there is no HEAT card.
+    const cardIds = [...OVERVIEW_CARD_IDS, 'warships-storage'] as const;
+    const cardCount = cardIds.length;
     const unsupported = SAMPLE_EXPECTED_COUNTS['known-deferred'] + SAMPLE_EXPECTED_COUNTS.unknown;
     await expect(page.getByTestId('ov-chip-with-data')).toHaveText(formatChipWithData(cardCount));
     await expect(page.getByTestId('ov-chip-absent')).toHaveText(formatChipAbsent(0));
@@ -788,7 +801,7 @@ test.describe('master-detail navigation', () => {
 
     // Six cards, each with its open control.
     await expect(page.locator('[data-testid^="ov-card-"]')).toHaveCount(cardCount);
-    for (const id of OVERVIEW_CARD_IDS) {
+    for (const id of cardIds) {
       await expect(page.getByTestId('ov-card-' + id)).not.toHaveClass(/\bna\b/);
       await expect(page.getByTestId('ov-open-' + id)).toHaveText(
         formatOpenSectionLink(PANE_TITLES[id]),

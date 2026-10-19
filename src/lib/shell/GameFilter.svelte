@@ -52,7 +52,14 @@
    */
   const groupId = $props.id();
 
-  /** Lower case for the test ids: `game-filter-chip-wot`, `…-wotb`, `…-wows`. */
+  /**
+   * Lower case for the test ids: `game-filter-chip-wot`, `…-wotb`, `…-wows`,
+   * `…-wotc`, `…-heat`.
+   *
+   * Derived from the token rather than looked up, so a new filter token is
+   * addressable in a spec without an edit here — the tests, not this function,
+   * decide which chips an export warrants.
+   */
   function chipId(token: string | null): string {
     return token === null ? 'all' : token.toLowerCase();
   }

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, test } from 'vitest';
 import {
   BUILT_DASHBOARDS,
@@ -21,6 +23,11 @@ import type {
   CategoryStatus,
   ClassifyResult,
 } from '../../../src/lib/core/types/worker-messages.ts';
+
+/** The module under the source-shape pin at the foot of this file. */
+const DASHBOARD_STATUS_PATH = fileURLToPath(
+  new URL('../../../src/lib/shell/dashboard-status.ts', import.meta.url),
+);
 
 // =============================================================================
 // dashboard-status — the single status derivation (03-02-PLAN Task 1)
@@ -515,5 +522,49 @@ describe('navEntries', () => {
       reason: 'none',
     });
     expect(entries.filter((e) => e.muted)).toHaveLength(1);
+  });
+});
+
+// -----------------------------------------------------------------------------
+// Phase 11, plan 11-05 — the footer is untouched by the new panes (A5)
+// -----------------------------------------------------------------------------
+//
+// HEAT and Warships crews files can sit INSIDE folders that are already
+// classed as supported, so a pane appearing must not move anything in the
+// "Not yet supported" derivation: its list, its block status and its section
+// status all come from the same folder statuses as before. This is the pin
+// that keeps a promotion from being silent — if a later phase promotes a
+// folder, this test is what turns red and says the footer moved on purpose.
+describe('the footer is not derived from newDataPanes (11-05, A5)', () => {
+  const WITH_PANES: NonNullable<ClassifyResult['newDataPanes']> = {
+    heat: { fileCount: 4, rowCount: 12 },
+    'warships-storage': { fileCount: 2, rowCount: 31 },
+  };
+
+  test('the same export yields the same unsupported list with and without the pane facts', () => {
+    const withoutPanes = resultOf([...FULL_SUPPORTED, ['Clans', 'known-deferred', 1, 2]]);
+    const withPanes: ClassifyResult = { ...withoutPanes, newDataPanes: WITH_PANES };
+    expect(unsupportedEntries(withPanes)).toEqual(unsupportedEntries(withoutPanes));
+    expect(unsupportedEntries(withPanes).map((entry) => entry.name)).toEqual(['Clans']);
+    expect(unsupportedBlockStatus(withPanes)).toBe(unsupportedBlockStatus(withoutPanes));
+    expect(unsupportedSectionStatus(withPanes)).toBe(unsupportedSectionStatus(withoutPanes));
+  });
+
+  test('an unknown folder is still listed, exactly once, whichever panes exist', () => {
+    const result = resultOf([...FULL_SUPPORTED, ['Bans', 'unknown', 1, 0]]);
+    const withPanes: ClassifyResult = { ...result, newDataPanes: WITH_PANES };
+    expect(unsupportedEntries(withPanes).map((entry) => entry.name)).toEqual(['Bans']);
+    expect(unsupportedBlockStatus(withPanes)).toBe('has-items');
+  });
+
+  test('the module does not read the pane facts at all (source shape)', () => {
+    // A grep pin rather than a behavioural one: the footer must keep deriving
+    // from folder statuses only, and a later edit that reads `newDataPanes`
+    // here would change a "not yet supported" claim about a SUPPORTED folder.
+    const source = readFileSync(DASHBOARD_STATUS_PATH, 'utf8')
+      .split('\n')
+      .filter((line) => !/^\s*(\*|\/\/|\/\*)/.test(line))
+      .join('\n');
+    expect(source).not.toContain('newDataPanes');
   });
 });

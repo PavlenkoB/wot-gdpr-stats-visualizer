@@ -53,6 +53,13 @@
      * not a folder (the unsupported block).
      */
     folder?: string;
+    /**
+     * What the provenance line names when the pane reads no single folder (HEAT,
+     * Warships crews & storage): their files are spread across the export, so
+     * the pane names its source here instead of faking a folder. Wins over
+     * `folder` and `title`; absent for every other pane, whose text is unchanged.
+     */
+    provenanceLabel?: string;
     status: SectionStatus;
     /** Summed counts, or `null` when the category is not in the export. */
     counts: SectionCounts | null;
@@ -77,6 +84,7 @@
     id,
     title,
     folder,
+    provenanceLabel,
     status,
     counts,
     note,
@@ -86,7 +94,7 @@
   }: Props = $props();
 
   /** The name the provenance line and the greyed sentences use for this section. */
-  const source = $derived(folder ?? title);
+  const source = $derived(provenanceLabel ?? folder ?? title);
 
   /** The three statuses that render a status line, narrowed for the formatter. */
   const greyedStatus = $derived<GreyedSectionStatus | null>(

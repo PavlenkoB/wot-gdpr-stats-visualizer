@@ -1,4 +1,14 @@
 import type { ClassifyResult } from '../core/types/worker-messages.ts';
+// A RUNTIME import, and a safe one: `new-data-shared.ts` has no imports at all
+// (that is what lets the worker and the page agree on the pane ids), so reading
+// the tuple here cannot create a cycle. Re-exporting it rather than repeating
+// the literals is what stops the shell and the worker from disagreeing about
+// which panes exist (11-05).
+import {
+  NEW_DATA_PANE_IDS,
+  type NewDataPaneFacts,
+  type NewDataPaneId,
+} from '../features/new-data/new-data-shared.ts';
 import {
   SECTIONS,
   navEntries,
@@ -17,9 +27,11 @@ import {
   UNSUPPORTED_NONE_DETECTED,
   formatAccountCount,
   formatFolderCount,
+  formatHeatRowSummary,
   formatRowCount,
   formatRowSummary,
   formatSectionStatus,
+  formatWowsStorageRowSummary,
   type GreyedSectionStatus,
 } from '../ui-copy.ts';
 import { accountCountOf, hasMultipleRoots } from './identity-model.ts';
@@ -31,7 +43,8 @@ import { accountCountOf, hasMultipleRoots } from './identity-model.ts';
 //
 // The list pane, the Overview grid and the detail pane all describe the same
 // export. This module is the ONE place that turns a `ClassifyResult` into the
-// nine rows the list shows, so a list row, an Overview card and a detail pane
+// rows the list shows — the nine always-present ones plus the two optional
+// new-game panes of 11-05 — so a list row, an Overview card and a detail pane
 // cannot disagree (the Phase 3 D-08 rule, carried forward).
 //
 // Three consequences worth stating, because all three are load-bearing:
@@ -82,7 +95,38 @@ export const PANE_IDS = [
 ] as const;
 
 /** One of the nine pane ids. */
-export type PaneId = (typeof PANE_IDS)[number];
+export type PaneId = (typeof PANE_IDS)[number] | NewDataPaneId;
+
+/**
+ * The panes an export may or may not hold (11-05, D-01/D-03).
+ *
+ * THE SHARED CONSTANT, not a copy of it: `NEW_DATA_PANE_IDS` is the one
+ * vocabulary the ingest worker and this shell both read, so a pane cannot be
+ * spelled one way in the worker and another here. `new-data-shared.ts` has no
+ * imports at all, which is exactly what makes that import legal.
+ */
+export const OPTIONAL_PANE_IDS = NEW_DATA_PANE_IDS;
+
+/**
+ * The eleven panes in the order the list shows them (UI-SPEC Surface 2).
+ *
+ * The two optional ones sit directly after `vehicles`, with the other
+ * game-data row, and the money and device rows keep the order v1.0 gave them.
+ * `paneEntries` walks THIS, not `PANE_IDS`, and drops an optional pane the
+ * result does not carry.
+ */
+export const PANE_ORDER = [
+  'overview',
+  'playtime',
+  'login-history',
+  'vehicles',
+  ...OPTIONAL_PANE_IDS,
+  'finance',
+  'payments',
+  'device-info',
+  'account',
+  'not-yet-supported',
+] as const satisfies readonly PaneId[];
 
 /** The pane shown when nothing else has been chosen (D-03). */
 export const DEFAULT_PANE: PaneId = 'overview';
@@ -94,6 +138,12 @@ export const DEFAULT_PANE: PaneId = 'overview';
  * `playtime` and `login-history` BOTH map to `activity-history`: they are two
  * views of one folder, so they are muted or available together. A folder with
  * zero rows mutes both, and a missing folder mutes both, with the same reason.
+ *
+ * The two optional panes are `null` (11-05): neither reads ONE folder — a HEAT
+ * or a Warships crews pane is built from files the export may place anywhere —
+ * so there is no `NavId` whose availability could stand for the pane's. Their
+ * availability comes from `result.newDataPanes` instead, and `paneEntries`
+ * never routes them through `navEntries`.
  */
 export const PANE_SECTION: Record<PaneId, NavId | null> = {
   overview: null,
@@ -105,6 +155,8 @@ export const PANE_SECTION: Record<PaneId, NavId | null> = {
   'device-info': 'device-info',
   account: 'user-info',
   'not-yet-supported': 'not-yet-supported',
+  heat: null,
+  'warships-storage': null,
 };
 
 /** One row of the list pane. */
@@ -130,9 +182,53 @@ function folderOf(section: NavId | null): string {
   return SECTIONS.find((candidate) => candidate.id === section)?.folder ?? '';
 }
 
+/** Is this pane one of the optional new-game panes? */
+function isOptionalPane(id: PaneId): id is NewDataPaneId {
+  return (OPTIONAL_PANE_IDS as readonly PaneId[]).includes(id);
+}
+
 /**
- * The nine list rows, in `PANE_IDS` order, for the last known result (`null`
- * for "nothing loaded").
+ * One optional pane's row, from the facts the worker published for it
+ * (11-05, UI-SPEC Surface 2).
+ *
+ * The two states D-09 exists to tell apart are both here and they read
+ * differently: a pane whose files are IN the export but stored nothing is
+ * MUTED with reason `empty` and the existing no-rows sentence, and it stays
+ * selectable, because its detail explains which of its files was header-only
+ * or skipped. An ABSENT pane produces no row at all — that is decided by
+ * {@link paneEntries}, and it is what keeps an absent pane out of the
+ * Overview's "not in this export" count.
+ *
+ * Headline and summary come from constants and the pane's two integers; no
+ * file name and no cell can reach either (T-11-16).
+ */
+function optionalPaneEntry(id: NewDataPaneId, facts: NewDataPaneFacts): PaneEntry {
+  if (facts.rowCount === 0) {
+    return {
+      id,
+      muted: true,
+      reason: 'empty',
+      headline: ROW_HEADLINE_NONE,
+      summary: formatSectionStatus('empty', PANE_TITLES[id]),
+    };
+  }
+  const summary =
+    id === 'heat'
+      ? formatHeatRowSummary(facts.fileCount)
+      : formatWowsStorageRowSummary(facts.fileCount);
+  return { id, muted: false, reason: null, headline: formatRowCount(facts.rowCount), summary };
+}
+
+/**
+ * The list rows, in `PANE_ORDER`, for the last known result (`null` for
+ * "nothing loaded").
+ *
+ * The nine always-present panes are derived exactly as they were in v1.0, in
+ * the same order, so every existing spec and fixture sees identical output.
+ * The two optional ones are ADDED: a row exists only when
+ * `result.newDataPanes` names that pane, which is why an export with no HEAT
+ * data has no HEAT row, no muted placeholder and no "not in this export"
+ * sentence (D-01: shown only when the export holds HEAT data).
  *
  * Every folder name that reaches a summary is the canonical constant from
  * `SECTIONS`. The only untrusted string read is the identity region, returned
@@ -142,7 +238,14 @@ export function paneEntries(result: ClassifyResult | null): PaneEntry[] {
   const nav = navEntries(result);
   const unsupportedCount = unsupportedEntries(result).length;
 
-  return PANE_IDS.map((id): PaneEntry => {
+  /**
+   * One always-present pane's row — the v1.0 derivation, byte for byte.
+   *
+   * A local closure rather than a module function so `result` stays in scope
+   * and so the optional panes can be interleaved by `PANE_ORDER` without this
+   * body having to know they exist.
+   */
+  const entryOf = (id: Exclude<PaneId, NewDataPaneId>): PaneEntry => {
     if (id === 'overview') {
       const muted = result === null;
       return {
@@ -230,6 +333,14 @@ export function paneEntries(result: ClassifyResult | null): PaneEntry[] {
       headline: formatRowCount(counts?.rowCount ?? 0),
       summary: formatRowSummary(folder, counts?.fileCount ?? 0),
     };
+  };
+
+  return PANE_ORDER.flatMap((id): PaneEntry[] => {
+    if (isOptionalPane(id)) {
+      const facts = result?.newDataPanes?.[id];
+      return facts === undefined ? [] : [optionalPaneEntry(id, facts)];
+    }
+    return [entryOf(id)];
   });
 }
 
@@ -272,14 +383,33 @@ export function resolveSelection(choice: SelectionChoice, result: ClassifyResult
  * The pane one step up or down the list, for the keyboard (`j`/`k`, arrows).
  *
  * Clamped, not wrapped: a held key must not loop from the footer back to
- * Overview. All nine rows are reachable, muted ones included, because a muted
- * row's detail is the "Not in this export" panel and a keyboard user is
- * entitled to read it.
+ * Overview. Every row of the given order is reachable, muted ones included,
+ * because a muted row's detail is the "Not in this export" panel and a keyboard
+ * user is entitled to read it.
+ *
+ * `order` is what is RENDERED, and the caller passes the ids of the rows it is
+ * showing (11-05): a keyboard step must skip an optional pane a dataset does not
+ * hold, because a step that selected an unrendered row would move the selection
+ * somewhere the reader cannot see. The default is `PANE_IDS`, so the two-argument
+ * call and every existing caller keep their v1.0 meaning.
+ *
+ * A `current` that is not in `order` is returned unchanged: the selection can
+ * name a pane a NEW dataset no longer carries until the stamp rule falls back to
+ * Overview (D-04), and stepping must not guess a neighbour for it.
  */
-export function stepSelection(current: PaneId, direction: 1 | -1): PaneId {
-  const index = PANE_IDS.indexOf(current) + direction;
-  const clamped = Math.min(PANE_IDS.length - 1, Math.max(0, index));
-  return PANE_IDS[clamped] ?? current;
+export function stepSelection(
+  current: PaneId,
+  direction: 1 | -1,
+  order: readonly PaneId[] = PANE_IDS,
+): PaneId {
+  const from = order.indexOf(current);
+  // `indexOf` answers -1 for a pane this order does not render. Stepping from
+  // "nowhere" would silently land on row 0 (Overview) or on the last row, so the
+  // unknown case returns `current` unchanged and the key does nothing.
+  if (from === -1) return current;
+  const index = from + direction;
+  if (index < 0 || index >= order.length) return current;
+  return order[index] ?? current;
 }
 
 /** Which of the two phone screens is showing. */

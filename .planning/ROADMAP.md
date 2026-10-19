@@ -29,7 +29,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md). Audit: [
 
 - [x] **Phase 9: Multi-account Import & Account Identity** - A zip with several account-ID folders imports, is cached as one dataset, and every account is listed in the identity header (completed 2026-10-18)
 - [x] **Phase 10: Merged Dashboard Across Accounts** - Playtime, finance, vehicles and login history read as one combined history, with a game filter, no double-counting and a source account on every row (completed 2026-10-18)
-- [ ] **Phase 11: New Game Data** - HEAT, WoT Console, World of Warplanes account and plane stats, and WoWS crews and storage, each through the fail-closed PII strip
+- [x] **Phase 11: New Game Data** - HEAT, WoT Console, World of Warplanes account and plane stats, and WoWS crews and storage, each through the fail-closed PII strip (completed 2026-10-19)
 - [ ] **Phase 12: Account Timeline & Perks** - Name, service, language/country history, bans, authorized third parties, subscriptions, coupons, bonus codes and surveys, with emails, IPs and codes masked
 
 ## Phase Details
@@ -121,7 +121,34 @@ Plans:
   4. WoWS crews and account storage are shown, with each row traceable to its account.
   5. Every new category's files go through the same fail-closed PII strip as `LOGIN` and `BIRTH_DATE`, with a unit test per header, so a planted synthetic email from any new file appears in neither IndexedDB nor any rendered pane, and any IP address a new pane shows follows the existing masking. Folders that used to sit under "Not yet supported" now open their own pane and leave that footer. The zero-network assertion is extended to every new pane, and any table over a few thousand rows is windowed or aggregated.
 
-**Plans**: TBD
+**Plans**: 11/11 plans complete
+
+Plans:
+**Wave 1**
+- [x] 11-01-PLAN.md — Tracer: HEAT and WOTC sessions through the per-file column allowlist at the worker choke point, per-game Playtime scopes proved (no PLAYTIME_VERSION bump unless the test fails), filter tokens and chip names
+- [x] 11-02-PLAN.md — Wave 0 checkpoint: values-free header capture run by the user on the real export, names-only constants and the per-file column decision table
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [x] 11-03-PLAN.md — Allowlist specs for the ten HEAT, WoWS and WOWP files from the capture, the full fail-closed file-name family, a per-header PII matrix and the Warplanes parity proof
+- [x] 11-06-PLAN.md — One shell-owned IP reveal lifted out of Login history, the remembered Vehicles title, and the vehicles-no-table-note under HEAT or WoT Console
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [x] 11-04-PLAN.md — Presence facts with stored and parsed counts, one pane-facts derivation on done/duplicate/cache-status, and idempotent narrowing of already-stored rows on check-cache
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [x] 11-05-PLAN.md — Optional HEAT and Warships rows in the pane model, list and Overview, keyboard stepping over rendered rows, and the footer pin
+- [x] 11-07-PLAN.md — The heat and warships-storage data channels: view contract, pure builders with four card states, account-stamped rows and spec-only cells
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [x] 11-08-PLAN.md — Pane copy and label tables, the shared plain/windowed table and the four-state card
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [x] 11-09-PLAN.md — The HEAT pane and the Warships crews and storage pane, mounted in the shell with the geolocation card on the shared reveal
+- [x] 11-10-PLAN.md — Warplanes account statistics block inside Vehicles, with skipped-file lines and no nickname
+
+**Wave 7** *(blocked on Wave 6 completion)*
+- [x] 11-11-PLAN.md — Three-account new-games archive, three new e2e tests, zero-network extended to every new pane, CI budget reconciled and the phase gate
+
 **UI hint**: yes
 
 ### Phase 12: Account Timeline & Perks
@@ -148,7 +175,7 @@ Plans:
 - **Fail-closed classification:** `classify.ts` returns `ambiguous-root` today for several roots, and that rejection exists so a `User_Info` folder under an unknown parent cannot skip the LOGIN/BIRTH_DATE strip. Accepting N account roots must keep every v1.0 failure shape failing.
 - **Open decision for discuss-phase 12 (PRIV-01 vs TIMELINE-01):** PRIV-01 says new categories go through the same fail-closed strip as `LOGIN`, which means the value is never stored. TIMELINE-01 says emails are "masked", which reads as stored and shown masked. Both cannot hold for an email in the name, service or language history files. Decide before planning Phase 12: strip emails at import (never stored, the timeline shows that an entry existed but not its address), or store them and render them masked with no reveal path. Until decided, the Phase 12 criteria are worded so either outcome passes: an email is never shown in clear text and cannot be revealed. The same question applies to bonus codes in PERKS-02, where the requirement says "masked by default", which does allow a reveal.
 - **Unverified headers:** real column headers for HEAT, WOTC, name/service/language history, bans, third parties, subscriptions, coupons, bonus codes and surveys come from one sample export. Research must inspect that sample (or an updated one) before plan-phase commits to a schema. Tolerate drift, as in v1.0.
-- **e2e budget:** the CI e2e limits are 30 / 32 / 40 min against a **262 of 262** spec ceiling after Phase 9, which measured **258 tests in 28 files** with `playwright test --list` (D-23's planning-time figure of 256 in 27 files, and the older figure this bullet carried, both predate the current suite; the count this phase actually started from is 257 in 28). Phase 9's two multi-account tests are priced as one block rather than at 5 s each, which is what forced the raise from 29 / 31 / 39. New specs must raise or reconcile the three limits together.
+- **e2e budget:** the CI e2e limits are 30 / 32 / 40 min against a **262 of 262** spec ceiling after Phase 9, which measured **258 tests in 28 files** with `playwright test --list` (D-23's planning-time figure of 256 in 27 files, and the older figure this bullet carried, both predate the current suite; the count this phase actually started from is 257 in 28). Phase 9's two multi-account tests are priced as one block rather than at 5 s each, which is what forced the raise from 29 / 31 / 39. New specs must raise or reconcile the three limits together. **Phase 11 close (plan 11-11):** the limits are now 31 / 33 / 41 min (Phase 10), covering **264** listed tests; `playwright test --list` measures **263 tests in 30 files** after Phase 11's three new listed tests (260 before them), so no raise was needed. A local 12-core run of all 263 took about 1.4 minutes; the CI wall time at one worker is still unmeasured.
 - **UI conventions:** new panes follow the Day 10 master-detail shell (`.claude/skills/sketch-findings-wot-gdpr-stats-visualizer/`): hand-rolled SVG and CSS grid, no new dependencies, one 480px phone block, 44px touch floor, selection as component state and never a route.
 
 ## Progress
@@ -160,5 +187,5 @@ Phases execute in numeric order: 9 → 10 → 11 → 12
 |-------|-----------|----------------|--------|-----------|
 | 9. Multi-account Import & Account Identity | v1.1 | 11/11 | Complete    | 2026-10-18 |
 | 10. Merged Dashboard Across Accounts | v1.1 | 6/6 | Complete    | 2026-10-18 |
-| 11. New Game Data | v1.1 | 0/TBD | Not started | - |
+| 11. New Game Data | v1.1 | 11/11 | Complete    | 2026-10-19 |
 | 12. Account Timeline & Perks | v1.1 | 0/TBD | Not started | - |

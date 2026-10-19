@@ -35,6 +35,7 @@ function mockView(title: 'wot' | 'wotb' = 'wot', battleType: string | null = nul
     summary: [],
     header: null,
     wowp20: null,
+    wowpAccount: null,
     allBattlesOnly: false,
     columns: [],
     rows: [],

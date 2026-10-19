@@ -42,6 +42,10 @@ import type { VehicleFileFacts } from '../../../src/lib/features/vehicles/vehicl
 import type { LoginsView } from '../../../src/lib/features/logins/login-shared.ts';
 import type { DeviceInfoView } from '../../../src/lib/features/device-info/device-info-shared.ts';
 import type {
+  HeatView,
+  WarshipsStorageView,
+} from '../../../src/lib/features/new-data/new-data-shared.ts';
+import type {
   DataQuery,
   IngestRequest,
   IngestResponse,
@@ -311,6 +315,7 @@ function dataResult(
  * shape it expects, and the channel check above is what has already proved the
  * reply belongs to the question that was asked.
  *
+ * `HeatView` and `WarshipsStorageView` joined it in 11-07, for the same reason.
  * `LoginsView` joined that union in 06-01, when the `logins` channel was added
  * to `DataResult`. This file never asks for it — `logins-worker.test.ts` owns
  * that channel — but the parameter is typed by `DataQuery['channel']`, so a
@@ -322,7 +327,15 @@ function dataResult(
 function viewOf(
   reply: Extract<IngestResponse, { type: 'data-result' | 'data-error' }>,
   channel: DataQuery['channel'],
-): PremiumView | CurrencyView | SpendView | VehicleView | LoginsView | DeviceInfoView {
+):
+  | PremiumView
+  | CurrencyView
+  | SpendView
+  | VehicleView
+  | LoginsView
+  | DeviceInfoView
+  | HeatView
+  | WarshipsStorageView {
   const result = dataResult(reply).result;
   if (result === null) throw new Error(`expected a ${channel} result, got null`);
   if (result.channel !== channel) {

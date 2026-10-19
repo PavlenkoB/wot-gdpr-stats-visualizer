@@ -70,6 +70,7 @@
  */
 
 import { cell, headerKey, type AccountRowGroup } from '../../worker/csv-columns.ts';
+import { NEW_DATA_SPEC_FILES, type SpecColumnKind } from '../../worker/new-data-specs.ts';
 import { parseSessionTimestamp } from '../playtime/playtime-aggregate';
 import {
   MAX_BATTLE_TYPE_CODES,
@@ -88,6 +89,7 @@ import {
   type VehicleTitleId,
   type VehicleView,
   type Warplanes20Note,
+  type WowpAccountBlock,
 } from './vehicle-shared';
 
 // ---------------------------------------------------------------------------
@@ -190,6 +192,14 @@ export const VEHICLE_FILE_NAMES: ReadonlySet<string> = new Set(
 export interface VehicleFileFacts {
   groups: readonly AccountRowGroup<VehicleRowData>[];
   seen: boolean;
+  /**
+   * The summed parsed-row count from the presence facts (plan 11-10, D-09).
+   *
+   * Absent or null means UNKNOWN, never zero, so every existing caller keeps
+   * working. It is what tells a file whose rows were parsed and all dropped by
+   * the allowlist (skipped) from a file that simply held none.
+   */
+  parsed?: number | null;
 }
 
 /** The files of one export, keyed by lower-cased exact file name. */
@@ -1054,6 +1064,61 @@ const PREMIUM_EXPIRY_FIELD: RawField = {
 };
 
 /**
+ * Every header name the given raw fields accept, de-duplicated, in first-seen order.
+ *
+ * One header can be listed by more than one field — `BATTLES` is both the
+ * battle-count spelling and the Warplanes 20 spelling — and a vocabulary that
+ * listed it twice would make the spec-superset guard read as two requirements.
+ */
+function fieldHeaders(fields: readonly RawField[]): readonly string[] {
+  const out: string[] = [];
+  for (const field of fields) {
+    for (const header of field.headers) {
+      if (!out.includes(header)) out.push(header);
+    }
+  }
+  return out;
+}
+
+/**
+ * Every header this module READS from each of the four Warplanes files.
+ *
+ * ## What it is for
+ *
+ * Plan 11-03 makes every Warplanes file fail closed through a per-file column
+ * allowlist (`worker/new-data-specs.ts`), and an allowlist narrower than the
+ * reader blanks a column the table shows today: the Warplanes table's own
+ * vocabulary would match nothing on import and every cell would read "not in
+ * export" (11-RESEARCH Pitfall 2, T-11-10). This map is what makes that
+ * narrowness CHECKABLE rather than a matter of care — the spec test asserts
+ * every header below is in the corresponding spec, so widening or renaming a
+ * field here fails a test instead of quietly emptying a column.
+ *
+ * ## It reads nothing and changes nothing
+ *
+ * A projection of the four field constants that already existed, keyed by the
+ * lower-cased file names {@link TITLE_FILES} names for this title. No builder
+ * behaviour depends on it; an export added here is inert until a spec uses it.
+ *
+ * ## Why each file gets its OWN list
+ *
+ * The four files are read for different things, and a union would be a weaker
+ * statement: the 19 plane file carries the whole {@link ALL_FIELDS} vocabulary
+ * because the table is built from it, the 20 plane file contributes only its
+ * own `BATTLES` total to the note (D-09), and the two account files are read
+ * for the battle count and the premium expiry and nothing else.
+ */
+export const WOWP_FILE_HEADER_VOCABULARY: ReadonlyMap<string, readonly string[]> = new Map<
+  string,
+  readonly string[]
+>([
+  ['wowp_19_plane_statistics.csv', fieldHeaders(ALL_FIELDS)],
+  ['wowp_20_plane_statistics.csv', fieldHeaders([WOWP20_BATTLES_FIELD])],
+  ['wowp_19_account_statistics.csv', fieldHeaders([BATTLES_FIELD, PREMIUM_EXPIRY_FIELD])],
+  ['wowp_20_account_statistics.csv', fieldHeaders([BATTLES_FIELD, PREMIUM_EXPIRY_FIELD])],
+]);
+
+/**
  * The expiry cell as written, with the export's two abbreviations mapped to
  * their specials: `N/A` is "not available" and `N/D` is "not defined", and a
  * blank is not available too.
@@ -1067,6 +1132,115 @@ function expiryCell(row: VehicleRowData, key: string | null): VehicleCell {
   if (upper === NOT_DEFINED) return { t: 'x', v: 'nd' };
   if (upper === NOT_AVAILABLE || text === '') return { t: 'x', v: 'na' };
   return { t: 's', v: clamp(text) };
+}
+
+// ---------------------------------------------------------------------------
+// The Warplanes account statistics block (plan 11-10, D-02, GAMES-03)
+// ---------------------------------------------------------------------------
+
+/** The four Warplanes file keys, the closed set `skipped` may name (T-11-35). */
+const WOWP_FILE_KEYS: readonly string[] = [
+  TITLE_FILES.wowp.main,
+  ...TITLE_FILES.wowp.extras,
+  ...TITLE_FILES.wowp.accounts,
+];
+
+/** The block's column kind for a spec column's kind. */
+function blockKind(kind: SpecColumnKind): ColumnKind {
+  if (kind === 'number') return 'count';
+  if (kind === 'date') return 'date';
+  return 'text';
+}
+
+/**
+ * Every column the account block may show, in order: the spec columns of the
+ * two Warplanes account files, merged by header (the 19 file first, spec order),
+ * minus the headers the existing header already owns.
+ *
+ * The allowlist is the ONLY source: a header that is not in
+ * `new-data-specs.ts` (the nickname above all) is not here, so it cannot be
+ * read by the block however a row is shaped (T-11-33).
+ */
+export function wowpAccountColumns(): { id: string; kind: ColumnKind }[] {
+  const owned = new Set(fieldHeaders([BATTLES_FIELD, PREMIUM_EXPIRY_FIELD]));
+  const columns: { id: string; kind: ColumnKind }[] = [];
+  const known = new Set<string>();
+  for (const name of TITLE_FILES.wowp.accounts) {
+    const spec = NEW_DATA_SPEC_FILES.find((file) => file.key === name);
+    for (const column of spec?.columns ?? []) {
+      if (owned.has(column.header) || known.has(column.header)) continue;
+      known.add(column.header);
+      columns.push({ id: column.header, kind: blockKind(column.kind) });
+    }
+  }
+  return columns;
+}
+
+/**
+ * The Warplanes account statistics: per account that holds the record, the
+ * allowlisted non-identifying columns the header does not already show.
+ *
+ * ## Accounts
+ *
+ * Exactly {@link buildHeader}'s rule: the account files are walked in preference
+ * order with a `seen` set, so each account contributes ONCE, through WOWP_19 when
+ * it has a row there and WOWP_20 otherwise, and each contributes its group's
+ * FIRST row. An account with no row in either file has no entry, and nothing is
+ * written about it (D-02).
+ *
+ * ## Cells
+ *
+ * Stored rows are projected through the allowlist, so a column is read by its
+ * spec header as a direct key and nothing else of the row is touched: no key
+ * enumeration, no spread (T-11-34). A header the account's own file lacks is the
+ * existing `missing` special, which is "this file does not have it" and not a
+ * zero. Only columns that at least one contributing row actually carries are
+ * listed, so an export of one file revision does not print a wall of "not in
+ * export" for the other revision's columns.
+ *
+ * ## Skipped
+ *
+ * A Warplanes file that was in the zip, whose presence fact says rows were
+ * parsed, and that holds no stored row had every column dropped by the
+ * allowlist; it is named by KEY (D-09), and the page prints its label from a
+ * constant table.
+ */
+function buildWowpAccountBlock(files: VehicleFiles): WowpAccountBlock | null {
+  const catalogue = wowpAccountColumns();
+  const seen = new Set<string>();
+  const contributions: { account: string; row: VehicleRowData }[] = [];
+  for (const name of TITLE_FILES.wowp.accounts) {
+    for (const group of factsOf(files, name).groups) {
+      if (seen.has(group.account)) continue;
+      const first = group.rows[0];
+      if (first === undefined) continue;
+      seen.add(group.account);
+      contributions.push({ account: group.account, row: first });
+    }
+  }
+
+  const columns = catalogue.filter((column) =>
+    contributions.some((entry) => Object.hasOwn(entry.row, column.id)),
+  );
+  // With no column to show there is nothing to put in an entry, so a row-only
+  // account with no shown column contributes none rather than an empty list.
+  const accounts =
+    columns.length === 0
+      ? []
+      : contributions.map(({ account, row }) => ({
+          account,
+          cells: columns.map((column) =>
+            directCell(row, Object.hasOwn(row, column.id) ? column.id : null, column.kind),
+          ),
+        }));
+
+  const skipped = WOWP_FILE_KEYS.filter((name) => {
+    const facts = factsOf(files, name);
+    return facts.seen && (facts.parsed ?? 0) > 0 && rowCountOf(facts.groups) === 0;
+  });
+
+  if (accounts.length === 0 && skipped.length === 0) return null;
+  return { columns, accounts, skipped };
 }
 
 /** What the title selector needs for all four titles, in the fixed order. */
@@ -1115,6 +1289,11 @@ export function buildVehicleView(files: VehicleFiles, request: VehicleViewReques
       : 'no-rows';
 
   const names = TITLE_FILES[title];
+  // The Warplanes account block belongs to that title alone (D-02). It is read
+  // from the ACCOUNT files, which are a different file from the plane table, so
+  // it is built before the no-rows branch: an export whose plane file is empty
+  // still has account statistics to show, exactly as it still has a header.
+  const wowpAccount = title === 'wowp' ? buildWowpAccountBlock(files) : null;
   // A view with no rows never resolves a column, so it is answered from the
   // core six directly rather than by reading an empty file's (absent) first row.
   if (titleState !== 'ready') {
@@ -1130,6 +1309,7 @@ export function buildVehicleView(files: VehicleFiles, request: VehicleViewReques
       // header and a `not-in-export` one has none (D-05).
       header: buildHeader(files, title),
       wowp20: null,
+      wowpAccount,
       allBattlesOnly: false,
       columns: CORE_COLUMNS.map(toColumn),
       rows: [],
@@ -1174,6 +1354,7 @@ export function buildVehicleView(files: VehicleFiles, request: VehicleViewReques
       summary: buildSummary(files, title, codes),
       header: buildHeader(files, title),
       wowp20: null,
+      wowpAccount: null,
       allBattlesOnly: false,
       columns: listed.map(toColumn),
       rows,
@@ -1204,6 +1385,7 @@ export function buildVehicleView(files: VehicleFiles, request: VehicleViewReques
     // showing "4 plane records have no names" would be a sentence about a
     // table the reader is not looking at (D-09).
     wowp20: title === 'wowp' ? buildWowp20Note(files) : null,
+    wowpAccount,
     allBattlesOnly: title === 'wows',
     columns: columns.map(toColumn),
     rows,

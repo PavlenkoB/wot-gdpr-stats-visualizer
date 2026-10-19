@@ -9,6 +9,12 @@ import type {
 } from '../../features/finance/finance-shared.ts';
 import type { LoginsView } from '../../features/logins/login-shared.ts';
 import type { DeviceInfoView } from '../../features/device-info/device-info-shared.ts';
+import type {
+  HeatView,
+  NewDataPaneFacts,
+  NewDataPaneId,
+  WarshipsStorageView,
+} from '../../features/new-data/new-data-shared.ts';
 import type { CityView } from '../../features/logins/city-shared.ts';
 
 export type CategoryStatus = 'supported' | 'known-deferred' | 'unknown';
@@ -102,6 +108,31 @@ export interface ClassifyResult {
    * integer: no row cell and no identity rides on it.
    */
   rootCount?: number;
+  /**
+   * Per-pane presence and row counts for the new-game files (plan 11-04, D-09).
+   *
+   * Derived from the stored presence list at PUBLISH time by the ONE function
+   * `worker/new-data-facts.ts` exposes, and never persisted — the same
+   * `rootCount` precedent. The list, the Overview card and every pane header
+   * read their counts from here, so none of them issues a worker query of its
+   * own (11-UI-SPEC assumption A3).
+   *
+   * `done`, `duplicate` and `cache-status` all publish it, computed over the
+   * SAME presence list, so an import and a reload cannot disagree about how many
+   * files a pane holds.
+   *
+   * A pane that is ABSENT means no file of it was in the export; a pane present
+   * with `rowCount: 0` means its files were there and stored nothing — the two
+   * states D-09 exists to tell apart.
+   *
+   * PRIVACY: two integers per pane and nothing else — no file name, no category,
+   * no account id, no row cell (T-11-14).
+   *
+   * OPTIONAL for the same reason `accounts` and `rootCount` are: a pre-parse
+   * result, a hand-built result and a replay produced by an older build all keep
+   * compiling, and every consumer reads absence as "no pane".
+   */
+  newDataPanes?: Partial<Record<NewDataPaneId, NewDataPaneFacts>>;
 }
 
 /**
@@ -389,7 +420,12 @@ export type DataQuery =
   // through the same channel union. It takes no further fields, so
   // `isDataQuery` rejects a `title` or `battleType` smuggled into it exactly as
   // it does for the finance channels.
-  | { channel: 'device-info' };
+  | { channel: 'device-info' }
+  // 11-07. The two new-game panes ask for their card views through the same
+  // channel union. Neither takes a further field, so `isDataQuery` rejects a
+  // `title` or `battleType` smuggled into either, exactly as for device-info.
+  | { channel: 'heat' }
+  | { channel: 'warships-storage' };
 
 /**
  * The answer to one `DataQuery`, discriminated by the same channel as the
@@ -401,7 +437,9 @@ export type DataResult =
   | { channel: 'currency'; view: CurrencyView }
   | { channel: 'spend'; view: SpendView }
   | { channel: 'logins'; view: LoginsView }
-  | { channel: 'device-info'; view: DeviceInfoView };
+  | { channel: 'device-info'; view: DeviceInfoView }
+  | { channel: 'heat'; view: HeatView }
+  | { channel: 'warships-storage'; view: WarshipsStorageView };
 
 export interface ParsingProgress {
   category: string;

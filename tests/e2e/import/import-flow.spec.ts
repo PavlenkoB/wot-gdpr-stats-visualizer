@@ -24,7 +24,12 @@ import {
   formatRowCount,
   formatRowSummary,
 } from '../../../src/lib/ui-copy.ts';
-import { PANE_IDS, PANE_SECTION, type PaneId } from '../../../src/lib/shell/selection-state.ts';
+import {
+  PANE_IDS,
+  PANE_ORDER,
+  PANE_SECTION,
+  type PaneId,
+} from '../../../src/lib/shell/selection-state.ts';
 import {
   dropFiles,
   importLine,
@@ -238,9 +243,11 @@ test('(a) shows stage feedback while busy, then account, summary and grouped bad
     formatAccountId(SAMPLE_ACCOUNT_ROOT),
   );
 
-  // The nine list rows are in PANE_IDS order (the list replaced the card
-  // order of D-02; pixel positions are no longer the contract).
-  expect(await listRowIdsInOrder(page)).toEqual([...PANE_IDS]);
+  // The list rows are in PANE_ORDER (the list replaced the card order of D-02;
+  // pixel positions are no longer the contract). The sample export holds the two
+  // Warships crews and storage files, so that optional row is listed after
+  // Vehicles; it holds no HEAT file, so there is no HEAT row (D-01, plan 11-11).
+  expect(await listRowIdsInOrder(page)).toEqual(PANE_ORDER.filter((id) => id !== 'heat'));
 
   // Each data pane: open it, exactly one section is mounted, its import line is
   // the summary built by the SAME formatter the component uses, and the list

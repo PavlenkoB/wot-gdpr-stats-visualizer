@@ -630,3 +630,167 @@ describe('05-14 — the new copy is the inventory’s, in every component', () =
     }
   });
 });
+
+// =============================================================================
+// 11-06 Task 2 — Vehicles under HEAT or WoT Console (D-06)
+// =============================================================================
+//
+// D-06 in three source-shape facts, because a render test is not available for
+// a component in this repository:
+//
+//   1. The first ask goes through `vehicleTitleForAsk`, NOT the bare
+//      `filterToTitle` call Phase 10 left: the remembered title is consulted
+//      only for HEAT and WoT Console, and every other filter value must ask
+//      exactly what it asked before (D-21).
+//   2. The block REMEMBERS what the worker APPLIED and reports it upward, so a
+//      title the worker declined is never recorded as the reader's choice.
+//   3. The note is a plain neutral-info paragraph with its own test id and NO
+//      `aria-live`: the block owns exactly one live region, and a second one
+//      would make the page-wide count `dashboard.spec.ts` asserts a lie.
+
+describe('11-06 — the block asks through the remembered-title helper (D-06, D-21)', () => {
+  test('the first ask goes through `vehicleTitleForAsk`, not the bare token mapping', () => {
+    const body = code(BLOCK);
+    expect(body).toContain('vehicleTitleForAsk(gameFilter, lastTitle)');
+    // The Phase 10 call is GONE. A reader with All games, WoT, WoT Blitz or
+    // Warships must get a byte-identical first ask, which is only provable
+    // because the helper branches on the token rather than on a default.
+    expect(body).not.toContain('filterToTitle(gameFilter)');
+    expect(body).not.toContain('filterToTitle(');
+  });
+
+  test('it takes the remembered title and the applied-title callback as props', () => {
+    const body = code(BLOCK);
+    expect(body).toContain('lastTitle: AnyVehicleTitle | null');
+    expect(body).toContain('onTitleApplied: (title: VehicleTitleId) => void');
+    // Both are used: a prop that is declared and never read is a wiring that
+    // silently does nothing, and this one is the whole point of the plan.
+    expect(body).toContain('vehicleTitleForAsk(gameFilter, lastTitle)');
+    expect(body).toContain('onTitleApplied(accepted.view.title)');
+  });
+
+  test('it records the APPLIED title only, never the requested one', () => {
+    // Read with comments: the call sits inside the `accepted.kind === 'view'`
+    // branch, separated from its opening brace by the comment that explains why.
+    const body = source(BLOCK);
+    // A worker that answers with a different title (the first-title-with-rows
+    // rule) makes THAT the remembered one: it is the table on screen. Writing
+    // `ask.title` here would remember a table the reader never saw.
+    expect(body).toMatch(
+      /if \(accepted\.kind === 'view'\) \{[\s\S]*?onTitleApplied\(accepted\.view\.title\);/,
+    );
+    expect(code(BLOCK)).not.toContain('onTitleApplied(ask.title)');
+  });
+});
+
+describe('11-06 — the no-vehicle-table note (D-06)', () => {
+  test('the note exists, with its own test id and the shared neutral-info chrome', () => {
+    const body = code(BLOCK);
+    expect(body).toContain('vehicles-no-table-note');
+    // Reuse `.body.info`, not a new rule: this is a fact about the export, in
+    // the same shape as the title-state and battle-type notes above it.
+    expect(body).toMatch(/class="body info"[^>]*data-testid="vehicles-no-table-note"/);
+    expect(body).toContain('formatNoVehicleTable(formatGameName(gameFilter)');
+  });
+
+  test('the note carries NO `aria-live`, so the block still owns exactly one region', () => {
+    const body = code(BLOCK);
+    // Unchanged count, asserted rather than avoided — a second explicit live
+    // region is what `dashboard.spec.ts`'s page-wide count would catch.
+    expect(body.match(/aria-live=/g) ?? []).toHaveLength(1);
+    // And the note's own element carries none of the three attributes that
+    // would make it one, however the markup is reflowed.
+    const note = body.slice(body.indexOf('vehicles-no-table-note') - 200);
+    const element = note.slice(0, note.indexOf('>'));
+    expect(element).not.toContain('aria-live');
+    expect(element).not.toContain('role=');
+  });
+
+  test('it shows only for a game with no table, and only over a real view', () => {
+    const body = code(BLOCK);
+    // The loading and error states render no controls and no table, so a note
+    // there would be a claim about a dataset whose table is not on screen.
+    // The gate is in the derived, so the paragraph renders only when there is
+    // something to say.
+    expect(body).toContain('view === null || !hasNoVehicleTable(gameFilter)');
+    expect(body).toContain("{#if noTableNote !== ''}");
+  });
+
+  test('it does NOT clear the shared filter, and choosing a title still writes it', () => {
+    const body = code(BLOCK);
+    // D-06: Vehicles leaves the filter alone. `filterAfterTitleChange` is the
+    // only writer and it is untouched — Warplanes leaves the filter as it was.
+    expect(body).toContain('filterAfterTitleChange(control.value, gameFilter)');
+    // Nothing in the note's branch writes the filter.
+    expect(body.match(/onGameFilterChange\(/g) ?? []).toHaveLength(1);
+  });
+});
+
+// =============================================================================
+// Plan 11-10 Task 2 - the Warplanes `Account statistics` block (D-02, GAMES-03)
+// =============================================================================
+
+describe('11-10 Task 2 - the Account statistics block in PlayerStats.svelte', () => {
+  test('it has the heading, the test id and one gate on the view field', () => {
+    const body = code(BLOCK);
+    expect(body).toContain('WOWP_ACCOUNT_STATS_HEADING');
+    expect(body.match(/data-testid="wowp-account-stats"/g) ?? []).toHaveLength(1);
+    expect(body.match(/\{#if view\.wowpAccount !== null\}/g) ?? []).toHaveLength(1);
+  });
+
+  test('it sits after the header dl and before the title-state line', () => {
+    const body = code(BLOCK);
+    const header = body.indexOf('data-testid="player-stats-header"');
+    const block = body.indexOf('data-testid="wowp-account-stats"');
+    const titleState = body.indexOf('data-testid="player-stats-title-state"');
+    expect(header).toBeGreaterThan(-1);
+    expect(block).toBeGreaterThan(header);
+    expect(titleState).toBeGreaterThan(block);
+  });
+
+  test('its heading is an h4 and its cells go through the one Vehicles cell formatter', () => {
+    const body = code(BLOCK);
+    expect(body).toMatch(/<h4>\{WOWP_ACCOUNT_STATS_HEADING\}<\/h4>/);
+    expect(body).toContain('formatVehicleCell(entry.cells[index]!, column.kind)');
+    expect(body).toContain('WOWP_ACCOUNT_COLUMN_LABELS');
+  });
+
+  test('accounts are ordered through the tag map and the tag is drawn only behind it', () => {
+    const body = code(BLOCK);
+    expect(body).toContain('orderRowsByAccount(');
+    const start = body.indexOf('wowpAccount !== null');
+    const section = body.slice(start, body.indexOf('data-testid="player-stats-title-state"'));
+    // One AccountTag in the block, behind a check of the account's tag.
+    expect(section.match(/<AccountTag/g) ?? []).toHaveLength(1);
+    expect(section).toMatch(/\{#if tag !== null\}<p[^>]*>\s*<AccountTag/);
+  });
+
+  test('skipped files are an info line from formatNewDataSkipped over the constant label table', () => {
+    const body = code(BLOCK);
+    expect(body).toContain('formatNewDataSkipped(');
+    expect(body).toContain('WOWP_FILE_LABELS');
+    // An unknown key renders nothing: the label is looked up, never the key.
+    expect(body).toMatch(/Object\.hasOwn\(WOWP_FILE_LABELS/);
+    expect(body).toContain('class="body info"');
+  });
+
+  test('it adds no live region, no icon, no media query and no inline style', () => {
+    const body = code(BLOCK);
+    // The block owns exactly the one live region it always owned.
+    expect(body.match(/aria-live=/g) ?? []).toHaveLength(1);
+    const start = body.indexOf('wowpAccount !== null');
+    const section = body.slice(start, body.indexOf('data-testid="player-stats-title-state"'));
+    expect(section).not.toContain('aria-live');
+    expect(section).not.toContain('<svg');
+    expect(section).not.toContain('style=');
+    expect(source(BLOCK)).not.toContain('@media');
+  });
+
+  test('the nickname has no path into the block: no name, nickname or html tag in the markup', () => {
+    const body = code(BLOCK);
+    const start = body.indexOf('wowpAccount !== null');
+    const section = body.slice(start, body.indexOf('data-testid="player-stats-title-state"'));
+    expect(section).not.toMatch(/nickname/i);
+    expect(section).not.toContain('{@html');
+  });
+});

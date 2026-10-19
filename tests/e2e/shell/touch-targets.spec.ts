@@ -98,8 +98,8 @@ test('every list row, the back button, the persistent bar and the confirm button
   // The list screen: all nine rows, then the persistent bar's controls.
   expect(
     await page.locator('[data-testid^="list-row-"]').count(),
-    'the list shows all nine rows',
-  ).toBe(9);
+    'the list shows all ten rows: the nine always present and the Warships crews and storage row the sample earns',
+  ).toBe(10);
   await expectTargets(page.locator('[data-testid^="list-row-"]'), 'the list rows');
   await expectTargets(page.getByTestId('start-over'), 'Start over');
   await expectTargets(page.getByTestId('clear-data-control'), 'Clear data');

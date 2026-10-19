@@ -28,12 +28,7 @@
     formatLoginCountLine,
     formatLoginExcludedPill,
   } from '../../ui-copy.ts';
-  import {
-    acceptLoginsOutcome,
-    deriveLoginState,
-    maskStateFor,
-    type ShownLogins,
-  } from './login-state.ts';
+  import { acceptLoginsOutcome, deriveLoginState, type ShownLogins } from './login-state.ts';
   import {
     DEFAULT_LOGIN_SORT,
     accountCells,
@@ -78,14 +73,22 @@
    * for. What is left here is the DOM wiring — two cells of state, one effect
    * that starts a load, and one click handler.
    *
-   * ## The mask is ONE rune for the whole block
+   * ## The mask is ONE rune for the whole APP, owned by the shell (11-06, D-04)
    *
-   * `revealed` is the single source of truth, and it is reset through
-   * `maskStateFor` in the same `$effect` that starts the query — so a replace
-   * and a Clear re-mask by construction rather than through a reset hook
-   * somebody has to remember. Nothing here touches a storage API, a cookie or
-   * the URL, and `tests/unit/logins/login-model.test.ts` scans the feature
-   * directory to keep that true (D-07, T-06-29).
+   * Until 11-06 `revealed` was a `$state` right here, and that was a cell that
+   * died with the pane: switch to Playtime and back and the addresses were
+   * masked again. The HEAT pane of plan 11-09 shows addresses too, and D-04 asks
+   * for ONE global reveal rather than one per pane, so the cell now lives in
+   * `Dashboard.svelte`, stamped with the dataset it was made under and read
+   * through `resolveReveal`.
+   *
+   * This block still READS the same flag and still renders the same toggle, the
+   * same captions and the same two announcements — the lift changed WHO owns
+   * the boolean, and nothing a reader can see. The reset is still D-07's rule,
+   * it just happens one level up. Nothing here touches a storage API, a cookie
+   * or the URL, and `tests/unit/logins/login-model.test.ts` scans the feature
+   * directory while `tests/unit/shell/reveal-state.test.ts` scans the shell to
+   * keep that true across the new home (D-07, T-06-29).
    *
    * ## Why `untrack`, and why the effect reads only `importedAt`
    *
@@ -109,9 +112,18 @@
     client: QueryClient;
     /** The opt-in city decode bridge (06-13). Not a query: it carries bytes. */
     cityClient: CityClient;
+    /**
+     * Whether addresses are shown in full, for the ONE reveal of the whole app
+     * (11-06, D-04). A prop rather than a rune of this block's own: the cell
+     * is in the shell, so it survives a pane switch and the HEAT pane reads the
+     * same value. Masked on every dataset change, by the shell's stamp.
+     */
+    revealed: boolean;
+    /** Ask the shell to reveal or re-mask, stamped with the current dataset. */
+    onRevealChange: (revealed: boolean) => void;
   }
 
-  let { result, client, cityClient }: Props = $props();
+  let { result, client, cityClient, revealed, onRevealChange }: Props = $props();
 
   /**
    * Which dataset this block is describing. Absent before the first import, and
@@ -139,12 +151,14 @@
    * nulls it on a replace or a Clear, so there is nothing for Clear to wipe.
    */
   let cityShown = $state.raw<{ importedAt: string; view: CityView } | null>(null);
-  /** The mask, for the whole block. Reset by `maskStateFor`, never persisted. */
-  let revealed = $state(false);
   /**
-   * The `importedAt` the mask was last set for. A second stamp rather than a
-   * "reset this on change" hook, so the reset is a value derived from the same
-   * `importedAt` that drives the query.
+   * The `importedAt` the table was last set up for.
+   *
+   * NOT the mask's stamp any more (11-06): the reveal moved to the shell, so
+   * this one drives the sort and city-view resets only — which are about the
+   * TABLE, not about the mask. Keeping it means those resets still happen in
+   * the same effect, on the same primitive, without the block having to own a
+   * boolean it no longer sets.
    */
   let maskStamp = $state.raw<string | null>(null);
   /**
@@ -185,11 +199,11 @@
   $effect(() => {
     const wanted = importedAt;
     untrack(() => {
-      // D-07's whole lifecycle in two lines: a different dataset (or no
-      // dataset) is masked, the same one keeps the user's own choice. The
-      // announcement goes with it, so a replace never reads out the previous
-      // export's mask.
-      revealed = maskStateFor({ importedAt: maskStamp, revealed }, wanted);
+      // The mask is NOT reset here any more (11-06, D-04): it is the shell's
+      // stamped cell, and `resolveReveal` masks a different dataset by
+      // construction. The announcement still goes with the dataset, so a
+      // replace never reads out the previous export's mask.
+      //
       // A different dataset opens on the default order; the same one keeps the
       // reader's own choice.
       if (wanted !== maskStamp) {
@@ -312,10 +326,15 @@
    * state a screen reader announces two changes where one is meant. Focus stays
    * where it is, because the button is never re-created — only its text
    * changes.
+   *
+   * The WRITE goes to the shell (11-06, D-04); the announcement is read from
+   * the NEXT value rather than from the flag, so it says what the reader just
+   * asked for rather than waiting for the prop to come back down.
    */
   function onToggle(): void {
-    revealed = !revealed;
-    announcement = revealed ? MASK_ANNOUNCE_SHOWN : MASK_ANNOUNCE_MASKED;
+    const next = !revealed;
+    onRevealChange(next);
+    announcement = next ? MASK_ANNOUNCE_SHOWN : MASK_ANNOUNCE_MASKED;
   }
 </script>
 

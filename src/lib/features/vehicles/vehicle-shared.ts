@@ -221,6 +221,24 @@ export interface Warplanes20Note {
 }
 
 /**
+ * The Warplanes account statistics block (plan 11-10, D-02, GAMES-03).
+ *
+ * Non-null only for the Warplanes view and only when there is something to
+ * show: at least one account holds the record, or at least one Warplanes file
+ * was read but none of its columns are on the allowlist. It never carries a
+ * nickname (the type has no field for it, and the builder reads only spec
+ * headers). `columns` are shared by every account; `accounts[i].cells` line up
+ * with them, and `account` is the owning group's root, never a cell. `skipped`
+ * is how D-09's drifted file reaches the page: lower-cased WOWP file KEYS from
+ * a closed set, never an archive name.
+ */
+export interface WowpAccountBlock {
+  columns: { id: string; kind: ColumnKind }[];
+  accounts: { account: string; cells: VehicleCell[] }[];
+  skipped: string[];
+}
+
+/**
  * Why the applied title has no table, or that it has one (D-05).
  *
  * `not-in-export` — no file of this title was in the zip, so there is nothing
@@ -254,6 +272,8 @@ export interface VehicleView {
   summary: BattleTypeSummaryRow[];
   header: VehicleHeader | null;
   wowp20: Warplanes20Note | null;
+  /** The Warplanes account statistics; null for every other title (D-02). */
+  wowpAccount: WowpAccountBlock | null;
   allBattlesOnly: boolean;
   columns: VehicleColumn[];
   rows: VehicleRow[];

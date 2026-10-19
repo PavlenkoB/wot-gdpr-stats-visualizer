@@ -9,7 +9,7 @@
     SKIP_TO_DETAIL_LABEL,
   } from '../ui-copy.ts';
   import IdentityHeader from './IdentityHeader.svelte';
-  import { PANE_IDS, paneEntries, stepSelection, type PaneId } from './selection-state.ts';
+  import { PANE_ORDER, paneEntries, stepSelection, type PaneId } from './selection-state.ts';
 
   /**
    * The left pane of the master-detail shell: the product label, the account
@@ -57,12 +57,16 @@
     navEl?.querySelector<HTMLElement>('[aria-current="true"]')?.focus();
   }
 
-  /** The pane a row button stands for, or `null` for any other target. */
+  /**
+   * The pane a row button stands for, or `null` for any other target. Resolved
+   * over `PANE_ORDER` (all eleven ids), not the nine-pane tuple, so the two
+   * optional rows are panes too when they are rendered.
+   */
   function paneOf(target: EventTarget | null): PaneId | null {
     const row = target instanceof Element ? target.closest('[data-testid^="list-row-"]') : null;
     if (row === null || !(navEl?.contains(row) ?? false)) return null;
     const testId = row.getAttribute('data-testid');
-    return PANE_IDS.find((id) => 'list-row-' + id === testId) ?? null;
+    return PANE_ORDER.find((id) => 'list-row-' + id === testId) ?? null;
   }
 
   /**
@@ -100,7 +104,13 @@
 
     // Step from the FOCUSED row: with nothing loaded the selection stays pinned to
     // Overview while focus moves, so stepping from `selected` would stall on row 2.
-    const next = stepSelection(current, direction);
+    // The order is the rows ON SCREEN, so an absent optional pane is skipped
+    // because it has no row, not because of a special case.
+    const next = stepSelection(
+      current,
+      direction,
+      entries.map((entry) => entry.id),
+    );
     if (next === current) return;
     onselect(next, 'keyboard');
     await tick();

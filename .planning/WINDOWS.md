@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 3
+open_count: 6
 waived_count: 2
 fixed_count: 10
-total_count: 15
-last_updated: 2026-10-18T12:56:43.837Z
+total_count: 18
+last_updated: 2026-10-19T12:12:00.000Z
 ---
 
 # Broken Windows Ledger
@@ -30,6 +30,9 @@ last_updated: 2026-10-18T12:56:43.837Z
 | 13 | 09 | deviation | .planning/phases/09-multi-account-import-account-identity/09-10-SUMMARY.md |  | 09-10 fixture correction: the data-less root initially still received the three shared Player_statistics files (a supported category), so it held data and the fixture did not describe its claimed shape | fixed |  | 2026-10-18T06:10:56.957Z | 2026-10-18T06:11:32.205Z |
 | 14 | 10 | deviation | tests/unit/playtime/playtime.test.ts |  | 10-01 flipped a stored-aggregate KEY-SET pin the plan did not list: adding games/byGame failed the T-04-01 'never the IP' key assertion, and it was fixed rather than left red | fixed |  | 2026-10-18T12:26:02.204Z | 2026-10-18T12:26:28.117Z |
 | 15 | 10 | lint-warning | tests/e2e/shell/chart-fill.spec.ts | 151 | Pre-existing flake: finance charts fill the detail pane fails at 375px under parallel workers (finance-tooltip overflows the pane edge by ~8px); passes standalone and fails identically at the pre-10-02 commit | open |  | 2026-10-18T12:56:43.837Z |  |
+| 16 | 11 | deviation | .planning/REQUIREMENTS.md |  | GAMES-01 left Pending: 11-01 delivers HEAT SESSIONS only; battle types, account stats, storage and geolocation are plans 11-02/11-03. The plan frontmatter lists GAMES-01 but marking it complete would be a false ledger entry. | open |  | 2026-10-19T09:21:47.262Z |  |
+| 17 | 11 | deviation |  |  | 11-02 deliberately marked NO requirement complete: GAMES-01/03/04 all read 'are shown' and this plan shows no pane; PRIV-01 was already Complete from 11-01. Re-run requirements.mark-complete after the pane plans land. | open |  | 2026-10-19T10:51:50.052Z |  |
+| 18 | 11 | deviation | .planning/REQUIREMENTS.md |  | 11-03 deliberately marked NO requirement complete either: GAMES-01/03/04 each read 'are shown' and this plan shows no pane — it ships the allowlist, the family and the fixtures that make the later pane plans possible. The 11-01 note that 11-03 would re-run requirements.mark-complete for GAMES-01 is answered NO for the same reason 11-02 answered NO. The pane plans (11-07, 11-08, 11-10, 11-11) are what close entries 16 and 17. | open |  | 2026-10-19T12:12:00.000Z |  |
 
 ````json
 [
@@ -222,6 +225,44 @@ last_updated: 2026-10-18T12:56:43.837Z
     "recorded_at": "2026-10-18T12:56:43.837Z",
     "resolved_at": null,
     "milestone": "v1.1"
+  },
+  {
+    "id": 16,
+    "kind": "deviation",
+    "phase": "11",
+    "file": ".planning/REQUIREMENTS.md",
+    "line": null,
+    "description": "GAMES-01 left Pending: 11-01 delivers HEAT SESSIONS only; battle types, account stats, storage and geolocation are plans 11-02/11-03. The plan frontmatter lists GAMES-01 but marking it complete would be a false ledger entry.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-10-19T09:21:47.262Z",
+    "resolved_at": null,
+    "milestone": "v1.1"
+  },
+  {
+    "id": 17,
+    "kind": "deviation",
+    "phase": "11",
+    "file": "",
+    "line": null,
+    "description": "11-02 deliberately marked NO requirement complete: GAMES-01/03/04 all read 'are shown' and this plan shows no pane; PRIV-01 was already Complete from 11-01. Re-run requirements.mark-complete after the pane plans land.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-10-19T10:51:50.052Z",
+    "resolved_at": null,
+    "milestone": "v1.1"
+  },
+  {
+    "id": 18,
+    "kind": "deviation",
+    "phase": "11",
+    "file": ".planning/REQUIREMENTS.md",
+    "line": null,
+    "description": "11-03 deliberately marked NO requirement complete: GAMES-01/03/04 all read 'are shown' and this plan shows no pane; PRIV-01 was already Complete from 11-01. The 11-01 note that 11-03 would re-run the mark is answered NO for the reason 11-02 gave.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-10-19T12:12:00.000Z",
+    "resolved_at": null,
+    "milestone": "v1.1"
   }
 ]
-````

@@ -489,3 +489,96 @@ describe('the Account row and card under the root-count rule (09-11)', () => {
     expect(cardOf(two).title).toBe('2 accounts');
   });
 });
+
+// =============================================================================
+// Phase 11, plan 11-05 — the two OPTIONAL cards (D-01, D-03; UI-SPEC Surface 6)
+// =============================================================================
+//
+// An Overview card is a FILTER over `paneEntries`, so an optional pane gets one
+// exactly when it gets a list row. The two states D-09 tells apart are both
+// here and neither is "not in this export": an absent pane has NO card at all,
+// and a present-but-empty one has an unavailable card whose reason is `empty`.
+// That is what keeps an absent pane out of the "N not in this export" chip.
+describe('overviewCards: the optional new-game panes', () => {
+  /** `SAMPLE()` plus the pane facts a worker publishes for a real import. */
+  function withPanes(panes: NonNullable<ClassifyResult['newDataPanes']>): ClassifyResult {
+    return { ...SAMPLE(), newDataPanes: panes };
+  }
+
+  test('a result without newDataPanes gives exactly the seven v1.0 cards', () => {
+    expect(overviewCards(SAMPLE()).map((card) => card.id)).toEqual([...OVERVIEW_CARD_IDS]);
+    expect(overviewCards(withPanes({}))).toEqual(overviewCards(SAMPLE()));
+    expect(overviewChips(SAMPLE())).toEqual({ withData: 7, absent: 0, unsupported: 3 });
+    expect(overviewChips(withPanes({}))).toEqual(overviewChips(SAMPLE()));
+  });
+
+  test('both panes present: nine cards, the new ones after Vehicles and before Finance', () => {
+    const cards = overviewCards(
+      withPanes({
+        heat: { fileCount: 4, rowCount: 12 },
+        'warships-storage': { fileCount: 2, rowCount: 31 },
+      }),
+    );
+    expect(cards.map((card) => card.id)).toEqual([
+      'playtime',
+      'login-history',
+      'vehicles',
+      'heat',
+      'warships-storage',
+      'finance',
+      'payments',
+      'device-info',
+      'account',
+    ]);
+    expect(cards).toHaveLength(9);
+  });
+
+  test('a present optional card is available, and says what its list row says', () => {
+    const result = withPanes({ heat: { fileCount: 4, rowCount: 12 } });
+    const heat = overviewCards(result).find((card) => card.id === 'heat')!;
+    expect(heat.title).toBe(PANE_TITLES.heat);
+    expect(heat.title).toBe('HEAT');
+    expect(heat.available).toBe(true);
+    expect(heat.reason).toBeNull();
+    expect(heat.headline).toBe('12 rows');
+    expect(heat.summary).toBe('Battle types, stats, storage · 4 files');
+    // The Overview never rewords a row (D-08), so the two are equal objects.
+    const row = paneEntries(result).find((entry) => entry.id === 'heat')!;
+    expect(heat.headline).toBe(row.headline);
+    expect(heat.summary).toBe(row.summary);
+  });
+
+  test('a present-but-empty optional card is unavailable with reason empty', () => {
+    const cards = overviewCards(withPanes({ 'warships-storage': { fileCount: 2, rowCount: 0 } }));
+    const storage = cards.find((card) => card.id === 'warships-storage')!;
+    expect(storage.available).toBe(false);
+    expect(storage.reason).toBe('empty');
+    expect(storage.headline).toBe(ROW_HEADLINE_NONE);
+    expect(storage.summary).toBe('This export contains no rows for Warships crews & storage');
+  });
+
+  test('an absent optional pane has no card and is in neither chip (A2)', () => {
+    const withHeat = withPanes({ heat: { fileCount: 4, rowCount: 12 } });
+    const cards = overviewCards(withHeat);
+    expect(cards.some((card) => card.id === 'warships-storage')).toBe(false);
+    // One more section with data, and NOTHING added to the absent count.
+    expect(overviewChips(withHeat)).toEqual({ withData: 8, absent: 0, unsupported: 3 });
+  });
+
+  test('a present-but-empty optional pane is in neither chip (DATA-04)', () => {
+    const empty = withPanes({ heat: { fileCount: 4, rowCount: 0 } });
+    expect(overviewChips(empty)).toEqual({ withData: 7, absent: 0, unsupported: 3 });
+    expect(overviewCards(empty).find((card) => card.id === 'heat')!.reason).toBe('empty');
+  });
+
+  test('withData + absent + empty counts the CARDS that exist, optional ones included', () => {
+    const result = withPanes({
+      heat: { fileCount: 4, rowCount: 12 },
+      'warships-storage': { fileCount: 2, rowCount: 0 },
+    });
+    const chips = overviewChips(result);
+    const empty = overviewCards(result).filter((card) => card.reason === 'empty').length;
+    expect(chips.withData + chips.absent + empty).toBe(overviewCards(result).length);
+    expect(empty).toBe(1);
+  });
+});

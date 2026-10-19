@@ -16,7 +16,7 @@
     {
       "number": "11",
       "name": "New Game Data",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "number": "12",
@@ -26,8 +26,8 @@
   ],
   "next": {
     "command": "/gsd-progress --next",
-    "label": "Advance to the next step (plan phase 11)",
-    "reason": "Phase 3 of 4 — needs a plan"
+    "label": "Advance to the next step (plan phase 12)",
+    "reason": "Phase 4 of 4 — needs a plan"
   },
-  "updated_at": "2026-10-18T19:49:50.899Z"
+  "updated_at": "2026-10-19T19:37:33.216Z"
 }

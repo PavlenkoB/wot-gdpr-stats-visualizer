@@ -2,20 +2,19 @@
 gsd_state_version: "1.0"
 milestone: v1.1
 milestone_name: Multi-account & new data
-current_phase: 11
-current_phase_name: New Game Data
-status: planning
-stopped_at: Phase 10 complete, ready to plan Phase 11
-last_updated: "2026-10-18T19:49:50.882Z"
-last_activity: 2026-10-18
-last_activity_desc: Phase 10 complete, transitioned to Phase 11
-state_head: 77cb81ed04784c2913c12eadd0e955d36d88dea4
+current_phase: 12
+current_phase_name: Account Timeline & Perks
+status: "Phase 11 shipped — PR #18"
+stopped_at: Phase 11 complete, ready to plan Phase 12
+last_updated: "2026-10-19T20:02:04.535Z"
+last_activity: 2026-10-20
+state_head: d2333a9cf7f6a74781a362b438f4d253bcd7d26d
 progress:
   total_phases: 4
-  completed_phases: 2
-  total_plans: 17
-  completed_plans: 17
-  percent: 50
+  completed_phases: 3
+  total_plans: 28
+  completed_plans: 28
+  percent: 75
 ---
 
 # Project State
@@ -25,22 +24,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-16)
 
 **Core value:** Your data never leaves your machine. Zero network requests after page load, enforced by CI and a CSP.
-**Current focus:** Phase 10 — merged-dashboard-across-accounts
+**Current focus:** Phase 11 — New Game Data
 
 ## Current Position
 
-Phase: 11 — New Game Data
+Phase: 12 — Account Timeline & Perks
 Plan: Not started
-Status: Ready to plan
-Last activity: 2026-10-18 — Phase 10 complete, transitioned to Phase 11
+Status: Phase 11 shipped — PR #18
+Last activity: 2026-10-20
 
-Progress: [█████░░░░░] 50% (v1.1: 0 of 4 phases)
+Progress: [████████░░] 75% (v1.1: 0 of 4 phases)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 119
+- Total plans completed: 130
 - Average duration: -
 - Total execution time: 0.0 hours
 
@@ -57,6 +56,7 @@ Progress: [█████░░░░░] 50% (v1.1: 0 of 4 phases)
 | 08 | 22 | - | - |
 | 09 | 11 | - | - |
 | 10 | 6 | - | - |
+| 11 | 11 | - | - |
 
 **Recent Trend:**
 
@@ -78,6 +78,7 @@ Progress: [█████░░░░░] 50% (v1.1: 0 of 4 phases)
 | Phase 04 P05 | 18 min | 3 tasks | 2 files |
 | Phase 04 P07 | 12 min | 3 tasks | 4 files |
 | Phase 04 P08 | 24 min | 3 tasks | 8 files |
+| Phase 11 P03 | 25 min | 2 tasks | 6 files |
 | Phase 04 P09 | 47 min | 3 tasks | 9 files |
 | Phase 04 P14 | 33 min | 3 tasks | 10 files |
 | Phase 04 P15 | 14 min | 3 tasks | 11 files |
@@ -157,6 +158,15 @@ Progress: [█████░░░░░] 50% (v1.1: 0 of 4 phases)
 | Phase 10 P04 | 1h 12m | 2 tasks | 15 files |
 | Phase 10 P05 | 35min | 2 tasks | 9 files |
 | Phase 10 P06 | 40min | 3 tasks | 7 files |
+| Phase 11 P01 | 14 min | 2 tasks | 16 files |
+| Phase 11 P02 | 85min | 3 tasks | 6 files |
+| Phase 11 P04 | 32 min | 3 tasks | 7 files |
+| Phase 11 P05 | 25min | 2 tasks | 10 files |
+| Phase 11 P07 | 35min | 3 tasks | 10 files |
+| Phase 11 P08 | 15min | 3 tasks | 8 files |
+| Phase 11 P09 | 20min | 3 tasks | 7 files |
+| Phase 11 P10 | 20min | 2 tasks | 13 files |
+| Phase 11 P11 | 38min | 3 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -169,6 +179,10 @@ Progress: [█████░░░░░] 50% (v1.1: 0 of 4 phases)
 
 Decisions are logged in the PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
+
+- [Phase 11]: `Activity_History` stays OUT of `PRESENCE_CATEGORIES`; a family file in a SUPPORTED category records a fact instead (11-04, D-09/Pitfall 4). Adding the category would have started recording facts for every WoT session file, which the Playtime and Login panes already describe elsewhere. The family/spec/store decision therefore MOVED to the top of the parse loop — it decides exactly what it decided before (the row loop is still gated on `storeFile`, the aggregator feed deliberately is not), and what it buys is that a fact's `rowCount` is the count the allowlist STORED rather than the count that was parsed. `parsedRowCount` rides on family facts only: a non-family fact stays byte-identical to what Phase 5 recorded, so the two are distinguishable by shape and not only by number.
+- [Phase 11]: The narrowing step groups rows per ACCOUNT as well as per category (11-04, D-12/D-14). Two accounts contribute the same family file name, so a group keyed on the file alone would let one account's drifted header delete the other's good rows. Only CHANGED rows are written and the meta record is written only when a fact changed, which is what makes the step idempotent by construction rather than by a guard — and it is a DATA operation, not a Dexie version bump: `version(3)` would cost a returning user their whole cache to narrow a subset of their rows.
+- [Phase 11]: `newDataPaneFacts` is ONE function feeding `done`, `duplicate` and `cache-status`, the `accountSummariesOf` / `rootCount` precedent extended to the panes (11-04, UI-SPEC A3). A fact counts toward a pane only when its name matches AND `specFor` agrees with its own category, which is what stops a misfiled copy from conjuring a pane; the published object is two integers per pane and a test asserts every string in it is a pane id from the contract.
 
 - [Phase 09]: The multi-account variant is derived BEFORE the legacy identity, and every rule about a row lives in a pure module (09-04). `isMultiAccount(result)` is checked first in `IdentityHeader`'s variant chain because `result.identity` is the FIRST account's: letting it decide would render one account as though it were the whole dataset (T-09-20). The second half is structural rather than a rule someone must remember — `accountRows(accounts)` is handed the LIST and nothing else, so a row cannot read the legacy field even by mistake. That module exists because `vitest.config.ts` runs in Node with no Svelte plugin and a component cannot be rendered in a unit test at all, which is why the ID-only row, the blank `NAME`, the no-games and no-activity shapes and the hostile-text pass-through are all 42 ordinary tests rather than browser assertions.
 - [Phase 09]: The header never re-sorts, and the account list is keyed by INDEX (09-04). The worker stores D-16 order and every producer sorts with `sortAccounts`; `accountRows` is a projection in the order it is given, because a second comparator is a second thing that can disagree with the first. The key is an index rather than a nickname, root or year because two accounts may share all three — `buildDuplicateNicknameExport` and `buildTiedYearsExport` exist for exactly that — and a repeated key makes Svelte's list throw or silently reuse a node.
@@ -450,6 +464,31 @@ CI budget at 07-03: no limit moved. `playwright test --list` counts BOTH project
 - [Phase 10]: 10-05: byAccount split accumulated in the included-paid branch; drawn only in a closed per-account disclosure, never as a headline (D-14)
 - [Phase 10]: 10-06: The Dexie schema stays at version 2; the non-indexed account field with in-memory grouping handles 54,000 rows in about 0.25 s (D-16)
 - [Phase 10]: 10-06: CI limits raised to 31 / 33 / 41 min from a MEASURED 49 s allowance for the large scale spec; 31 min holds up to 264 listed tests
+- [Phase 11]: D-13 answered NO (11-01): PLAYTIME_VERSION stays 3. The HEAT/WOTC per-game Playtime scopes already existed — buildGameScopes has always grouped by session FILE NAME — so the test asking the real worker for All/HEAT/WOTC/WOT against the two-account new-games archive passes against the hand-derived literals (HEAT 9,000/3/2; WOTC 3,600/1/1; WOT 7,200/2/2; All 19,800/6/5). The pinned toBe(3) in ingest-worker.test.ts was deliberately NOT flipped and no returning reader is charged a rebuild.
+- [Phase 11]: A new-game row is PROJECTED, never merely sanitised (11-01): the projection replaces reduceBlobRow and sanitizeUserInfoRow for these files rather than running beside them, and the aggregator feed is deliberately NOT gated on the file-level storeFile. Gating it would make a drifted-header file vanish from the counts instead of being reported as excluded sessions.
+- [Phase 11]: The WoT files in the new-games fixture carry NO canaries (11-01). WoT is not a family file and is stored exactly as it always was, so a canary there sits in db.rows by design and would make 'no canary anywhere in db.rows' — the plan's own unqualified assertion — unsatisfiable by a correct build. The omission is load-bearing, not incidental.
+- [Phase 11]: GAME_ORDER is now the identity header's WOT/WOTB/WOWS/WOTC/HEAT/WOWP rather than an append to the old four (11-01), so one fixed app-wide order exists and the Logins Games cell prints 'WoT Console' where it printed the raw token. Warplanes stays LAST deliberately rather than by sort.
+- [Phase 11]: D-12 discharged: the real HEAT/WOTC/WOWP/WoWS headers now exist as committed names-only data, so no downstream plan guesses a header from a legacy file's shape
+- [Phase 11]: All eighteen captured files are COMMA-delimited, contradicting the Phase 5 semicolon evidence; a semicolon fixture would store nothing, silently
+- [Phase 11]: WOWP_20_Plane_Statistics.csv carries NO vehicle identifier, so plan 11-10's note-not-table rule stands unchanged; the identifier is WOWP_19_Plane_Statistics.VEHICLE_NAME
+- [Phase 11]: HEAT_Session_Geolocation.csv has no coordinates at all; its hazard is ACCOUNT_ID plus CITY/REGION plus network identity, and CITY_NAME also lurks in HEAT_Game_Sessions.csv
+- [Phase 11]: Rule (g) is scoped literally: the WOWP plane allowlists are exactly the Vehicles builder vocabulary, the wider numeric/date allowance applies only to the two account files
+- [Phase 11]: No requirement marked complete by 11-02: GAMES-01/03/04 read 'are shown' and this plan shows nothing
+- [Phase 11]: A stored column is admitted by exactly ONE of three SCOPED sources (11-03): the captured header for every file, the Vehicles builder vocabulary for the four WOWP files only, and the session-aggregator vocabulary for the two session files only. The test asserts the scopes do not cross in either direction, because a single merged list would let a session header leak into a Warplanes spec with nothing objecting
+- [Phase 11]: Both supersets are the SAFE direction (11-03). The WOWP specs are the UNION of the capture and the builder vocabulary (40 columns on the 19 plane file where the capture allowed 14), because a spec narrower than its reader blanks a shown column the next revision renames (Pitfall 2). The two session specs keep all seven aggregator headers though the capture carries only three each, because narrowing them would change which sessions the Playtime and Login aggregators count
+- [Phase 11]: The identity-pattern guard's exceptions map is CLOSED (11-03). Thirteen entries across seven files, each naming the decision-table rule that decided it, and a second case fails if an entry does not correspond to a column the pattern actually flags — so the map cannot grow into a list of things that merely felt safe
+- [Phase 11]: The Warplanes table is protected by a PARITY test, not a fixture assertion (11-03): the real worker's answer is compared with `buildVehicleView` over the same CSV text parsed WITHOUT projection, over three archive shapes including the older 2021 revision the sample fixtures still ship
+- [Phase 11]: No requirement marked complete by 11-03 either: GAMES-01/03/04 read 'are shown' and this plan ships the allowlist, the family and the fixtures, not a pane. PRIV-01 was already Complete from 11-01
+- [Phase 11]: The IP reveal is ONE cell in the SHELL, not one per pane (11-06, D-04). It was a `$state` inside `LoginHistory.svelte`, so the reader's choice died with the pane and plan 11-09's HEAT geolocation card would have needed a second boolean that could disagree with the first. `reveal-state.ts` keeps the reset a pure READ — `resolveReveal` delegates to Phase 6's `maskStateFor` rather than re-implementing the comparison, so D-07 has exactly one definition — and Login history's visible behaviour is byte-identical: the toggle, captions, announcements and `data-masked` assertions pass unedited. Nothing is persisted, and the new test scans the whole `src/lib/shell` directory for storage/cookie/URL/history APIs to keep it that way
+- [Phase 11]: Vehicles under HEAT or WOTC keeps the title the reader last saw IN THIS DATASET (11-06, D-06), in a stamped cell beside the pane choice, the game filter and the reveal — four of them now, all the same pattern. `vehicleTitleForAsk` returns `filterToTitle(filter)` for every value Phase 10 knew, so the first ask is byte-identical there and D-21 stands as written; only HEAT and WOTC consult the remembered title. The cell records the APPLIED view title, never the requested ask, so a title the worker declined is never remembered. The filter is never cleared: `filterAfterTitleChange` remains the only writer
+- [Phase 11]: `hasNoVehicleTable` is EQUALITY against two literals and a type guard, not a complement of `GAME_FILTER_TOKENS` (11-06). A complement would mean that appending a chip in a later phase silently starts producing "… has no vehicle table" for a game that has one. The guard also narrows `gameFilter`, which is what stops `formatGameName` receiving the `null` that All is spelled as — a real `svelte-check` error before the guard was made one
+- [Phase 11]: 11-05: PANE_IDS stays nine; PaneId widens and PANE_ORDER (eleven) is the list order; absent optional panes have no row, card or chip count
+- [Phase 11]: 11-07: a pane view is { status: 'ready', cards: Record<cardId, NewDataCardView> }; zero stored rows is skipped only when the summed parsed count is above zero, unknown parsed is no-rows
+- [Phase 11]: 11-08: HEAT_BATTLE_TYPE_COLUMN_ID is GAME_MODE (the battle-types grouping key), shown through formatBattleTypeLabel
+- [Phase 11]: 11-08: cell rules live in one pure formatNewDataCell; a plain table is the same each over an all-rows range, spacers only above 500 rows
+- [Phase 11]: 11-09: optional panes mount through newDataSectionProps (counts from result.newDataPanes, ready even at zero rows) and an optional DashboardSection provenanceLabel; the Warships pane passes revealed=false so any future address column stays masked
+- [Phase 11]: 11-10: the Warplanes account block is built before the no-rows branch so an empty plane file still shows account statistics; only columns a contributing row carries are listed
+- [Phase 11]: 11-11: no CI limit raised; 263 listed e2e tests fit the 264 the 31/33/41 minute limits cover
 
 ### Pending Todos
 
@@ -548,8 +587,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-18T19:40:33.295Z
-Stopped at: Phase 10 complete, ready to plan Phase 11
+Last session: 2026-10-19T15:37:08.428Z
+Stopped at: Phase 11 complete, ready to plan Phase 12
 Resume file: None
 
 ## Operator Next Steps

@@ -19,10 +19,10 @@
 
 ### New games
 
-- [ ] **GAMES-01**: HEAT sessions, battle types, account stats, storage and geolocation are shown
-- [ ] **GAMES-02**: WoT Console (WOTC) sessions are shown in activity
-- [ ] **GAMES-03**: World of Warplanes (WOWP 19 and 20) account and plane stats are shown
-- [ ] **GAMES-04**: WoWS crews and account storage are shown
+- [x] **GAMES-01**: HEAT sessions, battle types, account stats, storage and geolocation are shown
+- [x] **GAMES-02**: WoT Console (WOTC) sessions are shown in activity
+- [x] **GAMES-03**: World of Warplanes (WOWP 19 and 20) account and plane stats are shown
+- [x] **GAMES-04**: WoWS crews and account storage are shown
 
 ### Account timeline
 
@@ -37,8 +37,8 @@
 
 ### Cross-cutting
 
-- [ ] **PRIV-01**: Every new category goes through the same fail-closed PII strip as `LOGIN` and `BIRTH_DATE`, with unit tests per header
-- [ ] **PRIV-02**: Zero network requests after load still holds; the Playwright guard is extended to the new panes
+- [x] **PRIV-01**: Every new category goes through the same fail-closed PII strip as `LOGIN` and `BIRTH_DATE`, with unit tests per header
+- [x] **PRIV-02**: Zero network requests after load still holds; the Playwright guard is extended to the new panes
 - [x] **SCALE-01**: All new panes aggregate or virtualize; the 54k-row Virtual_Currencies file is checked against a synthetic large export
 
 ## Future Requirements
@@ -68,17 +68,17 @@
 | ACCOUNT-06 | Phase 10 | Complete |
 | ACCOUNT-07 | Phase 10 | Complete |
 | ACCOUNT-08 | Phase 9 | Complete |
-| GAMES-01 | Phase 11 | Pending |
-| GAMES-02 | Phase 11 | Pending |
-| GAMES-03 | Phase 11 | Pending |
-| GAMES-04 | Phase 11 | Pending |
+| GAMES-01 | Phase 11 | Complete |
+| GAMES-02 | Phase 11 | Complete |
+| GAMES-03 | Phase 11 | Complete |
+| GAMES-04 | Phase 11 | Complete |
 | TIMELINE-01 | Phase 12 | Pending |
 | TIMELINE-02 | Phase 12 | Pending |
 | PERKS-01 | Phase 12 | Pending |
 | PERKS-02 | Phase 12 | Pending |
 | PERKS-03 | Phase 12 | Pending |
-| PRIV-01 | Phase 11 | Pending |
-| PRIV-02 | Phase 11 | Pending |
+| PRIV-01 | Phase 11 | Complete |
+| PRIV-02 | Phase 11 | Complete |
 | SCALE-01 | Phase 10 | Complete |
 
 **Coverage:** 20/20 v1.1 requirements mapped, no orphans, no duplicates.

@@ -8,6 +8,10 @@ import type { DeviceColumnIds, DeviceSourceId } from './features/device-info/dev
 // Type-only: the split-column keys label strings, and a runtime import would
 // put a module in the bundle that this one only needs a union from.
 import type { HourGridBasis, SplitColumn } from './features/playtime/playtime-shared.ts';
+// Type-only: the new-game pane ids the optional rows and their provenance
+// labels are keyed by (11-05). `new-data-shared.ts` has no imports at all, so a
+// type read across it is free of runtime cycles in either direction.
+import type { HeatCardId, NewDataPaneId, WowsCardId } from './features/new-data/new-data-shared.ts';
 // A RUNTIME import, unlike the two above: `civilFromDays` and `weekdayOfDay`
 // are the pure integer date arithmetic every calendar string is built from
 // (04-01). They construct no `Date`, which is what keeps a cell's date the
@@ -1862,6 +1866,25 @@ export function formatTitleNoRows(titleLabel: string): string {
   return `This export contains no vehicle rows for ${titleLabel}`;
 }
 
+/**
+ * The note Vehicles shows when the shared filter names a game with no vehicle
+ * table (11-06, D-06): `HEAT has no vehicle table. Showing WoT instead.`
+ *
+ * ## Why this is not an empty state and not an error
+ *
+ * The reader chose a game with sessions in it, and there is a perfectly good
+ * table on screen. Both facts belong in one sentence, so the note names the
+ * game that has no table AND the table being shown instead — a reader who sees
+ * only "no vehicle table" would think the export lost something.
+ *
+ * Neither argument is the export's own text: `gameLabel` is a display name
+ * from this module and `titleLabel` a {@link VEHICLE_TITLE_LABELS} entry, and
+ * the function only concatenates them (T-05-35's rule).
+ */
+export function formatNoVehicleTable(gameLabel: string, titleLabel: string): string {
+  return `${gameLabel} has no vehicle table. Showing ${titleLabel} instead.`;
+}
+
 /** One table cell as the page renders it: what it says, and how it is styled. */
 export type VehicleCellView = {
   /** The visible text. */
@@ -2986,16 +3009,37 @@ export function formatLoginDateRange(first: number | null, last: number | null):
 // Formatters — games
 // -----------------------------------------------------------------------------
 
-/** The four known game tokens, in the order the Games cell and the list use. */
+/**
+ * The known game tokens, by their SHORT display name.
+ *
+ * "Short" is the constraint, not a preference: the panes read this table in a
+ * column headed `Game`, where `World of Tanks HEAT` would wrap. The identity
+ * list is the one place with the width, and it reads `GAME_LONG_NAMES` instead.
+ *
+ * `WOTC` and `HEAT` arrived in 11-01, when their session files became readable
+ * (D-05). Before that the Logins Games cell printed the raw token `WOTC` for a
+ * game it otherwise named everywhere else; there is now one name table and the
+ * cell joins it like every other.
+ */
 const GAME_NAMES: Record<string, string> = {
   WOT: 'WoT',
   WOTB: 'WoT Blitz',
   WOWS: 'Warships',
+  WOTC: 'WoT Console',
+  HEAT: 'HEAT',
   WOWP: 'Warplanes',
 };
 
-/** The fixed display order, longest-known first, matching the contract's Games row. */
-const GAME_ORDER: readonly string[] = ['WOT', 'WOTB', 'WOWS', 'WOWP'];
+/**
+ * The fixed display order, matching the identity header's `GAME_LONG_ORDER`.
+ *
+ * ONE order for the app rather than one per surface: the Games cell, the chip
+ * row and the identity list now walk the same sequence, so the same export
+ * never names its games in two different orders (D-05, 11-01). Warplanes stays
+ * LAST: the order is a display contract, not a sort, so a new entry is placed
+ * deliberately rather than appended by alphabet.
+ */
+const GAME_ORDER: readonly string[] = ['WOT', 'WOTB', 'WOWS', 'WOTC', 'HEAT', 'WOWP'];
 
 /**
  * One game token as its display name, or the token unchanged if unknown.
@@ -3306,7 +3350,7 @@ export function formatCityNoCity(n: number, locale?: string): string {
  *
  * Prose titles rather than folder names: the folder a pane reads from is shown
  * in its provenance line instead (`formatProvenanceFrom`). `Record<PaneId,
- * string>` so a ninth pane without a title is a type error, not a blank row.
+ * string>` so a pane without a title is a type error, not a blank row.
  */
 export const PANE_TITLES: Record<PaneId, string> = {
   overview: 'Overview',
@@ -3318,6 +3362,11 @@ export const PANE_TITLES: Record<PaneId, string> = {
   'device-info': 'Device info',
   account: 'Account',
   'not-yet-supported': 'Not yet supported',
+  // The two OPTIONAL panes of 11-05 (D-01, D-03). They are titled here whether
+  // or not the export holds them: the title is a constant, and which rows are
+  // RENDERED is `paneEntries`' decision, not this table's.
+  heat: 'HEAT',
+  'warships-storage': 'Warships crews & storage',
 };
 
 /** The headline of a row that has nothing to count: an em dash. */
@@ -3342,6 +3391,77 @@ export function formatRowSummary(folder: string, fileCount: number): string {
 /** The Not-yet-supported row's headline: `1 folder` / `N folders`. */
 export function formatFolderCount(n: number): string {
   return n === 1 ? '1 folder' : `${formatNumber(n)} folders`;
+}
+
+// =============================================================================
+// Phase 11 — the two optional new-game panes (11-05-PLAN Task 1)
+// =============================================================================
+//
+// D-01 gives HEAT its own list row and D-03 gives the Warships crews and
+// storage files theirs, each shown only when the export holds that data
+// (UI-SPEC Surface 2, assumption A2). These are the strings those rows, their
+// Overview cards and their pane headers read.
+//
+// Two properties hold across every line below:
+//
+//   1. **No zip-derived string.** A label here is a constant or a canonical
+//      file label, and the only interpolation is a count. A file's own name
+//      reaches a reader only through the canonical label table plan 11-08
+//      builds, never through `formatNewDataSkipped`'s argument in any real call
+//      (T-11-16, the same rule as `formatRowSummary`).
+//   2. **The counts are the pane's two integers**, already summed by the worker
+//      over every account (`NewDataPaneFacts`). Nothing here re-derives them.
+// =============================================================================
+
+/**
+ * The HEAT list row's summary: `Battle types, stats, storage · {n files}`.
+ *
+ * The three words are the record types the pane's four files hold, not the
+ * files themselves, so the row says what the reader will find rather than what
+ * the export happened to name. The count goes through {@link formatFileCount},
+ * so "1 file" never reads "1 files".
+ */
+export function formatHeatRowSummary(fileCount: number): string {
+  return `Battle types, stats, storage · ${formatFileCount(fileCount)}`;
+}
+
+/**
+ * The Warships crews & storage row's summary: `Crews and account storage ·
+ * {n files}` (D-03).
+ */
+export function formatWowsStorageRowSummary(fileCount: number): string {
+  return `Crews and account storage · ${formatFileCount(fileCount)}`;
+}
+
+/**
+ * What each optional pane's provenance line names, for
+ * {@link formatProvenanceFrom}: `From HEAT data ·` and `From Warships crews and
+ * storage files ·`.
+ *
+ * Prose rather than folder names because neither pane reads ONE folder: a HEAT
+ * pane is built from files spread across the export, so there is no canonical
+ * folder to show (UI-SPEC assumption A3).
+ */
+export const NEW_DATA_PROVENANCE_LABELS: Record<NewDataPaneId, string> = {
+  heat: 'HEAT data',
+  'warships-storage': 'Warships crews and storage files',
+};
+
+/**
+ * The sentence a card shows for a file that is in the export but whose columns
+ * this viewer reads none of (D-09): `{file} is in this export, but none of its
+ * columns are ones this viewer reads, so it was skipped.`
+ *
+ * It NAMES the file, and it says the file was skipped rather than that the data
+ * is missing: the distinction is the whole point of D-09, because a drifted
+ * column set looks exactly like an absent one from the outside.
+ *
+ * `file` is the canonical label from plan 11-08's label table in every real
+ * call; the function concatenates and returns, so an untrusted zip entry name
+ * can only ever reach the screen as escaped text (T-11-16).
+ */
+export function formatNewDataSkipped(file: string): string {
+  return `${file} is in this export, but none of its columns are ones this viewer reads, so it was skipped.`;
 }
 
 // =============================================================================
@@ -3581,3 +3701,305 @@ export function formatDeviceSourceCount(
 export function formatDeviceTableLabel(heading: string): string {
   return `${heading} table`;
 }
+
+// =============================================================================
+// Phase 11 plan 08 - HEAT and Warships crews & storage pane copy
+// =============================================================================
+//
+// Every sentence the two new-game panes show, plus the two label tables that
+// keep a zip entry's own text off the screen. The wording is the 11-UI-SPEC
+// Copywriting Contract's, pinned by `tests/unit/shell/ui-copy.test.ts`.
+//
+// The label tables are the T-08-01 pattern again: a card's `From {file}` caption
+// is looked up by the lower-cased RECORD TYPE the worker matched, never read off
+// the archive, so an untrusted zip entry name cannot reach a caption; and a
+// column header is looked up by the allowlisted column ID, never by a header
+// string from the zip, so a header the allowlist does not name cannot become a
+// column heading. A lookup that misses falls back to the allowlisted id (or the
+// card is not drawn), never to archive text (T-11-23).
+//
+// `DEVICE_TABLE_NOT_IN_EXPORT`, `DEVICE_NOT_REPORTED`, `formatDeviceFromFile`,
+// `formatDeviceNoRows`, `formatDeviceTableLabel` and `formatNewDataSkipped` are
+// reused from above and deliberately not redefined here.
+// =============================================================================
+
+/** The HEAT pane's intro paragraph (UI-SPEC Copywriting Contract). */
+export const HEAT_INTRO =
+  'Your HEAT account statistics, battle types, storage and geolocation records. HEAT play sessions are counted in Playtime.';
+
+/** The Warships crews & storage pane's intro; it points to Vehicles for ship statistics. */
+export const WOWS_STORAGE_INTRO =
+  'The crews and account storage your export lists for Warships. Warships vehicle statistics are in Vehicles.';
+
+/** The four HEAT card titles, in pane order. */
+export const HEAT_CARD_TITLES: Record<HeatCardId, string> = {
+  accountStats: 'Account statistics',
+  battleTypes: 'Battle types',
+  storage: 'Storage',
+  geolocation: 'Geolocation',
+};
+
+/** The two Warships card titles, in pane order. */
+export const WOWS_STORAGE_CARD_TITLES: Record<WowsCardId, string> = {
+  crews: 'Crews',
+  storage: 'Account storage',
+};
+
+/** The caption under the Geolocation card title (D-04): these addresses stay out of Logins. */
+export const HEAT_GEO_NOTE =
+  'These addresses are not added to the Login history map or country list.';
+
+/** The status line while the HEAT query is in flight. */
+export const HEAT_LOADING = 'Reading HEAT data...';
+
+/** The status line while the Warships crews & storage query is in flight. */
+export const WOWS_STORAGE_LOADING = 'Reading Warships crews and storage...';
+
+/** The FIXED sentence for a failed HEAT query; the worker's detail is never shown (T-11-29). */
+export const HEAT_ERROR =
+  'HEAT data could not be read from this export. Your imported data is unchanged. Drop the export again to retry.';
+
+/** The FIXED sentence for a failed Warships crews & storage query (T-11-29). */
+export const WOWS_STORAGE_ERROR =
+  'Warships crews and storage could not be read from this export. Your imported data is unchanged. Drop the export again to retry.';
+
+/**
+ * Each pane file's name as the export spells it, keyed by the lower-cased record
+ * type. Taken from the header capture (`tests/fixtures/new-data-headers.ts`), so
+ * a card caption is a constant and an archive's own entry name is never printed.
+ */
+export const NEW_DATA_FILE_LABELS: Readonly<Record<string, string>> = {
+  'heat_account_statistics.csv': 'HEAT_Account_Statistics.csv',
+  'heat_battle_types_statistics.csv': 'HEAT_Battle_Types_Statistics.csv',
+  'heat_account_storage.csv': 'HEAT_Account_Storage.csv',
+  'heat_session_geolocation.csv': 'HEAT_Session_Geolocation.csv',
+  'wows_crews.csv': 'WOWS_Crews.csv',
+  'wows_account_storage.csv': 'WOWS_Account_Storage.csv',
+};
+
+/**
+ * A short plain-language heading for every allowlisted column of every pane
+ * file, keyed by the lower-cased file key and then the spec's stored column id.
+ *
+ * Complete by construction: a unit test walks the worker's spec table and fails,
+ * naming the file and the id, if a column has no entry here. Warplanes files are
+ * not in this table (they feed Vehicles, plan 11-10).
+ */
+export const NEW_DATA_COLUMN_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  'heat_account_statistics.csv': {
+    REGISTRATION_DT: 'Registered',
+    ACTIVATION_DT: 'Activated',
+    FIRST_LOGIN_DT: 'First login',
+    FIRST_LOGIN_PLATFORM: 'First login platform',
+    FIRST_BATTLE_DT: 'First battle',
+    FIRST_PAYMENT_DT: 'First payment',
+    COUNTRY_CODE: 'Country',
+  },
+  'heat_battle_types_statistics.csv': {
+    GAME_MODE: 'Game mode',
+    GAME_SOURCE: 'Source',
+    BATTLES: 'Battles',
+    WINS: 'Wins',
+    LOSSES: 'Losses',
+    DRAWS: 'Draws',
+    ND: 'No decision',
+    DAMAGE: 'Damage',
+    DAMAGE_TAKEN: 'Damage taken',
+    FRAGS: 'Frags',
+    KILL_ASSIST: 'Assists',
+    DEATHS: 'Deaths',
+    SHOOT_DONE: 'Shots fired',
+    HITS_DONE: 'Hits',
+    CAPTURE_POINTS: 'Capture points',
+    TIME_PLAYED_BY_HUMAN: 'Time played',
+    VEHICLE_EXPERIENCE: 'Vehicle experience',
+    FRONTMAN_EXPERIENCE: 'Frontman experience',
+    ARENA_START_TS: 'First arena',
+    ARENA_END_TS: 'Last arena',
+  },
+  'heat_account_storage.csv': {
+    ASSET_CODE: 'Asset code',
+    FIRST_OWNED_TS: 'First owned',
+    REALM_CODE: 'Realm',
+    ASSET_NAME: 'Asset',
+  },
+  'heat_session_geolocation.csv': {
+    IP: 'IP address',
+    COUNTRY_CODE_ALPHA_3: 'Country',
+    CONNECTION_SPEED: 'Connection speed',
+    LAST_SESSION_STARTED_DT: 'Last session started',
+    LAST_SESSION_FINISHED_DT: 'Last session ended',
+  },
+  'wows_crews.csv': {
+    CREW_ID: 'Crew',
+    CREW_SHIP: 'Ship',
+    CREW_TYPE: 'Crew type',
+    CREW_LEVEL: 'Level',
+    CREW_SHIP_TRAINED: 'Trained for ship',
+    CREW_EXPERIENCE: 'Experience',
+  },
+  'wows_account_storage.csv': {
+    ITEM_DESC: 'Item',
+    AMOUNT: 'Amount',
+  },
+};
+
+/**
+ * A column heading by file key and allowlisted column id.
+ *
+ * A miss returns the id string itself: the id is already an allowlisted
+ * constant, so the fallback can never print a header taken from the zip. Own
+ * properties only, so an id such as `constructor` is an unknown id and not an
+ * inherited function.
+ */
+export function formatNewDataColumnLabel(fileKey: string, id: string): string {
+  const labels = Object.hasOwn(NEW_DATA_COLUMN_LABELS, fileKey)
+    ? NEW_DATA_COLUMN_LABELS[fileKey]
+    : undefined;
+  if (labels === undefined || !Object.hasOwn(labels, id)) return id;
+  return labels[id] ?? id;
+}
+
+/**
+ * The HEAT battle-types column whose cell is shown as `Battle type {value}`.
+ *
+ * `GAME_MODE` is the file's grouping key (11-HEADERS.md: "an enumeration, and
+ * the grouping key of the battle-types card"), the one per-row name the export
+ * gives, and the export records it as a code rather than a label. A card shows it
+ * through `formatBattleTypeLabel`, as Vehicles shows its codes, and never maps it
+ * to a name (a lookup would be a guess about a game's internal enum).
+ */
+export const HEAT_BATTLE_TYPE_COLUMN_ID: string | null = 'GAME_MODE';
+
+// =============================================================================
+// Plan 11-10 - Warplanes account statistics inside Vehicles (D-02, GAMES-03)
+// =============================================================================
+//
+// Three constants for the `Account statistics` block under the Warplanes title:
+// its heading, the label of each Warplanes file the page may NAME when a file's
+// columns were all dropped, and a heading for every column the block may show.
+//
+// The file labels are a SEPARATE table from `NEW_DATA_FILE_LABELS` on purpose:
+// that one is pinned to the pane file set (the HEAT and Warships files), and the
+// Warplanes files feed Vehicles, not a pane. Neither table is ever fed by a zip
+// entry name: the page looks a label up by a lower-cased KEY from a closed set,
+// so an archive can never choose a word the page prints (T-11-35).
+//
+// The column labels describe a header by its words. Where the export abbreviates
+// with a prefix whose game meaning the export does not state (`B_`, `D_`, `G_`,
+// `P_`, `AT_`, `DB_`), the label keeps the prefix letters rather than naming a
+// plane type: a lookup would be a guess about a game's internal enumeration.
+// =============================================================================
+
+/** The `Account statistics` block heading (UI-SPEC Copywriting Contract). */
+export const WOWP_ACCOUNT_STATS_HEADING = 'Account statistics';
+
+/** The four Warplanes file keys mapped to the file names as the capture printed them. */
+export const WOWP_FILE_LABELS: Readonly<Record<string, string>> = {
+  'wowp_19_plane_statistics.csv': 'WOWP_19_Plane_Statistics.csv',
+  'wowp_20_plane_statistics.csv': 'WOWP_20_Plane_Statistics.csv',
+  'wowp_19_account_statistics.csv': 'WOWP_19_Account_Statistics.csv',
+  'wowp_20_account_statistics.csv': 'WOWP_20_Account_Statistics.csv',
+};
+
+/**
+ * A short sentence-case heading for every column the Warplanes account block
+ * can show, keyed by the allowlisted column id. Complete by construction: a unit
+ * test walks the builder's column list and fails, naming the id, if one has no
+ * entry here.
+ */
+export const WOWP_ACCOUNT_COLUMN_LABELS: Readonly<Record<string, string>> = {
+  CREATED_AT: 'Account created',
+  UPDATED_AT: 'Record updated',
+  AUTO_BAN_TIME: 'Automatic ban time',
+  LAST_COMPENSATION_TIME: 'Last compensation',
+  LOGOUT_TIME: 'Last logout',
+  LAST_GAME_TIME: 'Last game',
+  ACC_OFFLINE: 'Offline',
+  ACC_ONLINE: 'Online',
+  GOLD: 'Gold',
+  CREDITS: 'Credits',
+  EXPERIENCE: 'Experience',
+  SLOTS: 'Slots',
+  EMPTY_SLOTS: 'Empty slots',
+  SPOTTED: 'Spotted',
+  SHOTS_RECEIVED: 'Shots received',
+  SQUAD_GAMES: 'Squad games',
+  SQUAD_WINS: 'Squad wins',
+  BASE_GAIN_EXPERIENCE: 'Base experience gained',
+  GAIN_EXPERIENCE: 'Experience gained',
+  MAX_GAIN_EXPERIENCE: 'Most experience gained',
+  MAX_GAIN_CREDITS: 'Most credits gained',
+  SUPERIORITY_POINTS: 'Superiority points',
+  SURVIVED: 'Survived',
+  WINS: 'Wins',
+  LOSSES: 'Losses',
+  DRAWS: 'Draws',
+  DEATHS: 'Deaths',
+  MAX_STRUCTURE_DAMAGE: 'Most structure damage',
+  MAX_STRUCTURE_DES_BY_WEAP_TYPE: 'Most structures destroyed by weapon type',
+  MAX_GROUND_OBJECTS_DESTROYED: 'Most ground objects destroyed',
+  MAX_DAMAGE_DEALT: 'Most damage dealt',
+  MAX_KILLED: 'Most kills',
+  MAX_ASSISTS_GROUND: 'Most ground assists',
+  MAX_KILLED_BY_WEAPON_TYPE: 'Most kills by weapon type',
+  MAX_GRO_OB_DEST_BY_WEAPON_TYPE: 'Most ground objects destroyed by weapon type',
+  MAX_ASSISTS: 'Most assists',
+  TOTAL_ASSISTS: 'Total assists',
+  TOTAL_DAMAGE_DEALT: 'Total damage dealt',
+  TOTAL_TEAM_OBJECTS_DESTROYED: 'Total team objects destroyed',
+  TOTAL_KILLED: 'Total kills',
+  TOTAL_HITS: 'Total hits',
+  TOTAL_GROUND_OBJECTS_DESTROYED: 'Total ground objects destroyed',
+  TOTAL_ASSISTS_GROUND: 'Total ground assists',
+  TOTAL_SHOTS: 'Total shots',
+  TOTAL_TURRETS_DESTROYED: 'Total turrets destroyed',
+  TOTAL_STRUCTURE_DAMAGE: 'Total structure damage',
+  ACHIEVEMENTS: 'Achievements',
+  MEDALS: 'Medals',
+  RIBBONS: 'Ribbons',
+  LANGUAGE: 'Language',
+  CBT_GAMES_PLAYED: 'Closed beta games',
+  OBT_GAMES_PLAYED: 'Open beta games',
+  GLOBAL_RATING: 'Global rating',
+  AT_DAMAGE_MAX: 'AT most damage',
+  AT_KILL_AVG_DF: 'AT average kills (defence)',
+  B_ASSIST: 'B assists',
+  B_DAMAGE: 'B damage',
+  B_DAMAGE_MAX: 'B most damage',
+  B_KILL: 'B kills',
+  B_KILL_MAX: 'B most kills',
+  B_SCORE: 'B score',
+  B_SCORE_AVG: 'B average score',
+  B_SCORE_MAX: 'B best score',
+  BASE_XP: 'Base experience',
+  BASE_XP_AVG: 'Base experience, average',
+  BASE_XP_MAX: 'Base experience, best',
+  D_ASSIST: 'D assists',
+  D_DAMAGE: 'D damage',
+  D_DAMAGE_MAX: 'D most damage',
+  D_KILL: 'D kills',
+  D_KILL_MAX: 'D most kills',
+  DB_DAMAGE_MAX: 'DB most damage',
+  DB_KILL_MAX: 'DB most kills',
+  DB_KILL_AVG: 'DB average kills',
+  FLIGHTS: 'Flights',
+  FLIGHTTIME: 'Flight time',
+  G_ASSIST: 'G assists',
+  G_DAMAGE: 'G damage',
+  G_DAMAGE_MAX: 'G most damage',
+  G_KILL: 'G kills',
+  G_KILL_MAX: 'G most kills',
+  G_KILL_AVG: 'G average kills',
+  G_KILL_AVG_DF: 'G average kills (defence)',
+  KD_RATION: 'Kill to death ratio',
+  P_ASSIST: 'P assists',
+  P_DAMAGE: 'P damage',
+  P_DAMAGE_MAX: 'P most damage',
+  P_KILL: 'P kills',
+  P_KILL_AVG: 'P average kills',
+  P_KILL_DEF_ZONE: 'P kills in the defence zone',
+  P_KILL_DEF_ZONE_MAX: 'P most kills in the defence zone',
+  P_KILL_MAX: 'P most kills',
+  ZONE_CAPTURE: 'Zone captures',
+};

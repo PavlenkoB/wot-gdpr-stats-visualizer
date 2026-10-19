@@ -19,6 +19,24 @@ import {
 } from './player-stats-fixtures.ts';
 import { mulberry32 } from './sessions-fixtures.ts';
 import { buildRealShapeCsv, type RealShapeRow } from './playtime-real-shape-fixture.ts';
+import {
+  NEW_DATA_FIXTURE_FILES,
+  NG_HEAT_PANE_KEYS,
+  NG_WOWP_KEYS,
+  NG_WOWS_PANE_KEYS,
+  buildLargeTableCsv,
+  withCanaries,
+  NG_HEAT_DRIFTED,
+  NG_HEAT_HEADER_ONLY,
+  NG_HEAT_SESSIONS_A,
+  NG_HEAT_SESSIONS_B,
+  NG_ROOT_A,
+  NG_ROOT_B,
+  NG_UNLISTED_BODY,
+  NG_WOT_SESSIONS_A,
+  NG_WOT_SESSIONS_B,
+  NG_WOTC_SESSIONS_A,
+} from './new-data-fixtures.ts';
 
 /**
  * Synthetic MULTI-ACCOUNT export fixtures (Phase 9, plan 09-01).
@@ -1562,4 +1580,125 @@ export function buildLargeThreeAccountExport(): {
       addresses: [...addresses].sort(),
     },
   };
+}
+
+// -----------------------------------------------------------------------------
+// The new-game archive (plan 11-01)
+// -----------------------------------------------------------------------------
+
+/**
+ * TWO roots whose session files are HEAT, WOTC and WOT, each row carrying an
+ * email, a nickname and an account id no spec names — the archive the
+ * per-file allowlist is proved against (D-08, PRIV-01).
+ *
+ * Built through the same private {@link assemble} as every other builder here,
+ * so the roots, the folder names and the entry shapes are the ones the
+ * classifier already handles. The session CSVs are written through the `files`
+ * override rather than through `sessions`, because `sessionCsv` renders the
+ * three-column real header and these files need six — the three spec columns
+ * and the three planted canaries.
+ *
+ * Root A additionally carries TWO family files with NO spec:
+ * `Device_Info/HEAT_Device_Info.csv` and
+ * `Player_Statistics/HEAT_Unlisted_File.csv`. Both are in the new-game family by
+ * name and both are in a supported folder, so both must store nothing (D-15) —
+ * and each carries a canary so the test can prove the rows were never WRITTEN
+ * rather than merely never read.
+ */
+export function buildNewGamesExport(
+  options: { drifted?: boolean; headerOnly?: boolean; reversed?: boolean } = {},
+): Uint8Array {
+  const filesA: Record<string, string> = {
+    [`${F_ACTIVITY}/HEAT_Game_Sessions.csv`]: NG_HEAT_SESSIONS_A,
+    [`${F_ACTIVITY}/WOTC_Game_Sessions.csv`]: NG_WOTC_SESSIONS_A,
+    [`${F_ACTIVITY}/WOT_Game_Sessions.csv`]: NG_WOT_SESSIONS_A,
+    [`${F_DEVICE}/HEAT_Device_Info.csv`]: NG_UNLISTED_BODY,
+    [`${F_PLAYER}/HEAT_Unlisted_File.csv`]: NG_UNLISTED_BODY,
+  };
+  // The two variants that prove the FILE-level skip: `headerOnly` replaces the
+  // HEAT file with a header and no rows, and `drifted` gives it headers that
+  // match no spec column. Each is applied to root A alone, so the archive always
+  // holds the same number of accounts.
+  if (options.headerOnly === true) {
+    filesA[`${F_ACTIVITY}/HEAT_Game_Sessions.csv`] = NG_HEAT_HEADER_ONLY;
+  } else if (options.drifted === true) {
+    filesA[`${F_ACTIVITY}/HEAT_Game_Sessions.csv`] = NG_HEAT_DRIFTED;
+  }
+
+  const filesB: Record<string, string> = {
+    [`${F_ACTIVITY}/HEAT_Game_Sessions.csv`]: NG_HEAT_SESSIONS_B,
+    [`${F_ACTIVITY}/WOT_Game_Sessions.csv`]: NG_WOT_SESSIONS_B,
+  };
+
+  return assemble(
+    [
+      { root: NG_ROOT_A, noSharedPlayerStats: true, files: filesA },
+      { root: NG_ROOT_B, noSharedPlayerStats: true, files: filesB },
+    ],
+    { reverse: options.reversed === true },
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Phase 11, plan 11-11 — the three-account archive with the new pane files
+// -----------------------------------------------------------------------------
+
+/**
+ * The `files` map of one root for a set of new-data spec keys, every file in its
+ * canary-laden form (RESEARCH Pitfall 9). Folder and file name are the capture's
+ * own spelling; `overrides` replaces one body by spec key.
+ */
+function newDataFilesFor(
+  keys: readonly string[],
+  overrides: Readonly<Record<string, string>> = {},
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const key of keys) {
+    const fixture = NEW_DATA_FIXTURE_FILES[key];
+    if (fixture === undefined) throw new Error(`no new-data fixture for ${key}`);
+    out[`${fixture.folder}/${fixture.fileName}`] = overrides[key] ?? withCanaries(key);
+  }
+  return out;
+}
+
+/**
+ * The real-shape archive's three roots (same RU, EU, NA, same loose README
+ * files) PLUS the new pane files: the four HEAT files in EU, the two Warships
+ * files in RU and NA, the four Warplanes files in RU alone.
+ *
+ * The roots are spread copies, so no existing builder changes by a byte. Every
+ * file is laden with canary columns; the one exception is the large storage file
+ * (`largeStorageRows`), which is the generated scale table with no canaries.
+ */
+export function buildNewGamesThreeAccountExport(
+  options: { reversed?: boolean; largeStorageRows?: number } = {},
+): Uint8Array {
+  const storageKey = 'wows_account_storage.csv';
+  const ruOverrides: Record<string, string> =
+    options.largeStorageRows === undefined
+      ? {}
+      : { [storageKey]: buildLargeTableCsv(storageKey, options.largeStorageRows) };
+  const ru: RootSpec = {
+    ...RU_ROOT,
+    files: { ...newDataFilesFor(NG_WOWS_PANE_KEYS, ruOverrides), ...newDataFilesFor(NG_WOWP_KEYS) },
+  };
+  const eu: RootSpec = { ...EU_ROOT, files: newDataFilesFor(NG_HEAT_PANE_KEYS) };
+  const na: RootSpec = { ...NA_ROOT, files: newDataFilesFor(NG_WOWS_PANE_KEYS) };
+  const loose: Record<string, string> = {};
+  for (const name of MA_README_FILES) loose[name] = '%PDF-1.4\nsynthetic readme\n%%EOF\n';
+  return assemble([ru, eu, na], { loose, reverse: options.reversed === true });
+}
+
+/**
+ * ONE account whose only session file is `HEAT_Game_Sessions.csv`: its game list
+ * is HEAT alone, so the game filter has nothing to choose between and renders no
+ * chip row. Built through the same generator as every other root.
+ */
+export function buildHeatOnlyExport(): Uint8Array {
+  const heatOnly: RootSpec = {
+    root: MA_ROOT_EU,
+    identity: true,
+    sessions: EU_SESSIONS.filter((file) => file.name === 'HEAT_Game_Sessions.csv'),
+  };
+  return assemble([heatOnly]);
 }

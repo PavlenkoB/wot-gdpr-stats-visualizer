@@ -136,8 +136,14 @@ test('padding: the detail pane has 16px at 375px and 40px at 481px, and neither 
  * What each pane must show before it is measured: the section root (or Overview)
  * and the named blocks that live inside it. A block carrying `data-state` is
  * also waited out of `loading`, so its disclosures exist before they are opened.
+ *
+ * Keyed by the ALWAYS-PRESENT pane ids rather than by the widened `PaneId`
+ * (11-05): this sweep loops `PANE_IDS`, which is still the nine panes an export
+ * always has. The two optional new-game panes are not in this fixture and are
+ * swept by plan 11-11.
  */
-const PANE_EXPECTATIONS: Record<PaneId, { testIds: string[]; settled: string[] }> = {
+type AlwaysPresentPaneId = (typeof PANE_IDS)[number];
+const PANE_EXPECTATIONS: Record<AlwaysPresentPaneId, { testIds: string[]; settled: string[] }> = {
   overview: { testIds: ['overview'], settled: [] },
   playtime: { testIds: ['dashboard-section-activity-history'], settled: ['playtime'] },
   'login-history': {
@@ -177,10 +183,24 @@ test('the full dashboard: the list screen and every pane, every disclosure open 
   await expectPresent(page.getByTestId('list-nav'), 'list-nav');
   await expectNoPageOverflow(page, 'the list screen');
   await page.evaluate(() => window.scrollTo(0, 0));
-  for (const testId of ['identity-header', 'list-nav']) {
+  // The sample export earns the optional Warships crews and storage row, which is
+  // an ordinary 64px phone row on top of the nine always-present ones (UI-SPEC
+  // Surface 2, plan 11-11), so the list may end that far below the fold. The
+  // nine always-present rows still end above it: the allowance is exactly the
+  // optional rows' own height, never a general slack.
+  const optionalRows = await page
+    .locator('[data-testid="list-row-heat"], [data-testid="list-row-warships-storage"]')
+    .count();
+  const PHONE_ROW_PX = 64;
+  for (const [testId, allowance] of [
+    ['identity-header', 0],
+    ['list-nav', optionalRows * PHONE_ROW_PX],
+  ] as const) {
     const box = await page.getByTestId(testId).boundingBox();
     expect(box, `${testId} has a box`).not.toBeNull();
-    expect(box!.y + box!.height, `${testId} ends above the 812px fold`).toBeLessThanOrEqual(812);
+    expect(box!.y + box!.height, `${testId} ends above the 812px fold`).toBeLessThanOrEqual(
+      812 + allowance,
+    );
   }
 
   let disclosuresOpened = 0;

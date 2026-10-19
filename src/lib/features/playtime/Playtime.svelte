@@ -352,8 +352,9 @@
    * must not move or vanish under the reader's cursor (UI-SPEC Surface 1).
    *
    * `null` means the row renders no node at all — a single-game export, no
-   * session file, or only HEAT and WOTC, where All games is the only view there
-   * is.
+   * session file, or one where All games is the only view there is. Since
+   * 11-01 HEAT and WOTC are filter tokens like any other, so "only HEAT and
+   * WOTC" is no longer one of these cases: two distinct games render two chips.
    */
   const chipGames = $derived(
     view !== null && (view.status === 'ready' || view.status === 'no-game-sessions')

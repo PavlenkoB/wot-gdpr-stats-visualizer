@@ -826,10 +826,12 @@ test.describe('multi-account identity header (ACCOUNT-05, D-13 … D-17)', () =>
     // session rows that produce them and NOT read back off the page — so a
     // change in the aggregator cannot move this expectation with it.
     //
-    // HEAT and WOTC are the interesting half: they have real sessions and are
-    // counted under All games, but they get NO chip (D-05). So the four chips
-    // below are All games, WoT, WoT Blitz and Warships while the all-games
-    // total is larger than the three of them added together.
+    // HEAT and WOTC are the interesting half: they have real sessions AND
+    // their own chip, since 11-01 (D-05, D-13) — the worker already stored a
+    // per-game scope for each, and making the file readable was all that was
+    // missing. So the six chips below are All games plus the five filterable
+    // tokens, while the all-games total is still larger than those five added
+    // together (two accounts overlap across games).
     // =============================================================================
     await test.step('the game filter narrows Playtime to one game across all accounts', async () => {
       await openSection(page, 'playtime');
@@ -838,8 +840,9 @@ test.describe('multi-account identity header (ACCOUNT-05, D-13 … D-17)', () =>
       });
 
       // The chips, named by the fixed token list rather than by a count, so a
-      // chip for a non-filterable game (HEAT, WOTC) fails here.
-      for (const chip of ['all', 'wot', 'wotb', 'wows']) {
+      // chip for a non-filterable game (WOWP) and a MISSING chip for a
+      // filterable one both fail here.
+      for (const chip of ['all', 'wot', 'wotb', 'wows', 'wotc', 'heat']) {
         await expect(
           page.getByTestId(`game-filter-chip-${chip}`),
           `the ${chip} chip exists`,
@@ -2037,14 +2040,21 @@ test.describe('multi-account identity header (ACCOUNT-05, D-13 … D-17)', () =>
         timeout: 30_000,
       });
 
-      // The four chips: All, the two games the export has, and the carried-over
-      // Warships one — which is shown precisely because it is the ACTIVE choice
-      // even though it has no sessions (UI-SPEC amendment 6).
-      for (const chip of ['all', 'wot', 'wotb', 'wows']) {
+      // The five chips: All, the three games the two-account export has (WoT,
+      // WoT Blitz, HEAT) and the carried-over Warships one — which is shown
+      // precisely because it is the ACTIVE choice even though it has no sessions
+      // (UI-SPEC amendment 6). WoT Console has no chip: its only session file is
+      // in the RU root, which this replace removed (plan 11-11 corrected the
+      // list 11-01 wrote, which named a chip this archive cannot have).
+      for (const chip of ['all', 'wot', 'wotb', 'wows', 'heat']) {
         await expect(page.getByTestId(`game-filter-chip-${chip}`), `the ${chip} chip`).toHaveCount(
           1,
         );
       }
+      await expect(
+        page.getByTestId('game-filter-chip-wotc'),
+        'no WoT Console chip: the two roots hold no WoT Console session',
+      ).toHaveCount(0);
       await expect(
         page.getByTestId('game-filter-chip-wows').locator('input'),
         'the carried-over Warships chip is checked',

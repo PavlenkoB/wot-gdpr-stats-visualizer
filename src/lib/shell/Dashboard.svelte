@@ -5,6 +5,7 @@
   import { ingestClient } from '../import/ingest-client.ts';
   import {
     EMPTY_STATE_PRIVACY,
+    NEW_DATA_PROVENANCE_LABELS,
     PANE_TITLES,
     SECTION_NOTE_PENDING,
     SECTION_NOTE_USER_INFO,
@@ -14,9 +15,19 @@
   import DetailPane from './DetailPane.svelte';
   import DeviceInfo from '../features/device-info/DeviceInfo.svelte';
   import FinancialData from '../features/finance/FinancialData.svelte';
+  import HeatPane from '../features/new-data/HeatPane.svelte';
+  import type { NewDataPaneId } from '../features/new-data/new-data-shared.ts';
+  import WarshipsStoragePane from '../features/new-data/WarshipsStoragePane.svelte';
   import ListPane from './ListPane.svelte';
   import { accountCountOf } from './identity-model.ts';
-  import { resolveGameFilter, type GameFilterChoice } from './game-filter-state.ts';
+  import {
+    resolveGameFilter,
+    resolveVehicleTitle,
+    type AnyVehicleTitle,
+    type GameFilterChoice,
+    type VehicleTitleChoice,
+  } from './game-filter-state.ts';
+  import { resolveReveal, type RevealChoice } from './reveal-state.ts';
   import LoginHistory from '../features/logins/LoginHistory.svelte';
   import Overview from './Overview.svelte';
   import PlayerStats from '../features/vehicles/PlayerStats.svelte';
@@ -141,6 +152,57 @@
   }
 
   /**
+   * Whether IP addresses are shown in full, stamped with the dataset the reader
+   * revealed them under (11-06, D-04, D-07) — the SAME stamped-cell pattern as
+   * `choice` and `gameChoice` above, and for the same reason.
+   *
+   * It used to be a `$state` inside Login history, and that was a cell that
+   * died with the pane: switch to Playtime and back and the addresses were
+   * masked again. The HEAT pane of plan 11-09 shows addresses too, and D-04 asks
+   * for ONE global reveal rather than one per pane, so both read this one.
+   *
+   * The reset is still a pure READ, now of `resolveReveal` — a first import, a
+   * replace and a Clear each change `result.importedAt`, so the stamp no longer
+   * matches and the addresses are masked again. Component state and nothing
+   * else: no route, no hash, no storage, so a reload starts masked by
+   * construction (T-11-18).
+   */
+  let revealChoice = $state<RevealChoice>({ revealed: false, stamp: null });
+
+  const revealed = $derived(resolveReveal(revealChoice, datasetStamp(result)));
+
+  /** Reveal or re-mask, stamped with the dataset it was done on. */
+  function setRevealed(next: boolean): void {
+    revealChoice = { revealed: next, stamp: datasetStamp(result) };
+  }
+
+  /**
+   * The Vehicles title the reader last saw, stamped with the dataset it was
+   * applied under (11-06, D-06) — the third stamped cell in a row, and the
+   * same pattern for the same reason.
+   *
+   * It has to outlive the pane because it answers a question the reader cannot
+   * answer without leaving: with the filter on HEAT or WoT Console there is no
+   * vehicle table for that game, and D-06 says Vehicles keeps showing the
+   * title it last showed IN THIS DATASET rather than falling back to whatever
+   * the worker picks. A cell inside PlayerStats would be `null` on every mount
+   * and the rule would never fire.
+   *
+   * Stamped for the reset, like the two above: a replace or a Clear changes
+   * `result.importedAt`, so `resolveVehicleTitle` answers `null` and Vehicles
+   * asks the worker's own question again — which is right, because a title from
+   * a previous archive is not a title this one has.
+   */
+  let vehicleTitleChoice = $state<VehicleTitleChoice>({ title: null, stamp: null });
+
+  const lastVehicleTitle = $derived(resolveVehicleTitle(vehicleTitleChoice, datasetStamp(result)));
+
+  /** Remember the title the worker APPLIED, stamped with the dataset it was on. */
+  function setVehicleTitle(title: AnyVehicleTitle): void {
+    vehicleTitleChoice = { title, stamp: datasetStamp(result) };
+  }
+
+  /**
    * Whether the detail pane's CONTENT exists. While the phone's list screen is
    * showing it does not, and that is a correctness rule rather than a saving:
    * `VehicleTable` and `LoginTable` measure their scroller's `clientHeight` once
@@ -244,6 +306,33 @@
   }
 
   /**
+   * The section props of one optional new-game pane (11-09, D-01, D-03).
+   *
+   * Neither pane reads a single folder, so there is no `folder` and no
+   * `SECTIONS` lookup: the provenance line names the pane's source through
+   * `provenanceLabel`, and the counts are the two integers the worker published
+   * for it in `result.newDataPanes`. The status is `ready` even at zero rows: a
+   * pane whose files are in the export but stored nothing is not a greyed panel,
+   * its body shows each card's own state in words (UI-SPEC Surface 3). With no
+   * facts the pane is absent, which the list never offers; the status is then
+   * `no-export` and the shell's existing sentence is shown.
+   */
+  function newDataSectionProps(pane: NewDataPaneId) {
+    const facts = result?.newDataPanes?.[pane];
+    return {
+      id: pane,
+      title: PANE_TITLES[pane],
+      provenanceLabel: NEW_DATA_PROVENANCE_LABELS[pane],
+      status: facts === undefined ? ('no-export' as const) : ('ready' as const),
+      counts:
+        facts === undefined
+          ? null
+          : { fileCount: facts.fileCount, rowCount: facts.rowCount, skippedRowCount: 0 },
+      accountCount: accountCountOf(result),
+    };
+  }
+
+  /**
    * The text the charts' touch announcements currently hold, and the one
    * function that puts it there (07-03, D-05).
    *
@@ -317,7 +406,13 @@
         block asking again releases only its own older question.
       -->
       <DashboardSection {...sectionProps('activity-history', 'login-history')}>
-        <LoginHistory {result} client={ingestClient.data} cityClient={ingestClient.city} />
+        <LoginHistory
+          {result}
+          client={ingestClient.data}
+          cityClient={ingestClient.city}
+          {revealed}
+          onRevealChange={setRevealed}
+        />
       </DashboardSection>
     {:else if active === 'vehicles'}
       <!-- The `vehicles` channel (05-12, D-05); see the note above on channels. -->
@@ -327,6 +422,8 @@
           client={ingestClient.data}
           {gameFilter}
           onGameFilterChange={setGameFilter}
+          lastTitle={lastVehicleTitle}
+          onTitleApplied={setVehicleTitle}
         />
       </DashboardSection>
     {:else if active === 'finance'}
@@ -348,6 +445,26 @@
       -->
       <DashboardSection {...sectionProps('device-info', 'device-info')}>
         <DeviceInfo {result} client={ingestClient.data} />
+      </DashboardSection>
+    {:else if active === 'heat'}
+      <!--
+        The `heat` channel (11-09, D-01, D-04): four cards of HEAT records. It
+        asks through the same channel-scoped client as the blocks above, and
+        superseding is per CHANNEL (05-07), so a remount here cannot starve any
+        other channel. It takes the shell's ONE reveal for its geolocation
+        addresses and NOT the game filter: HEAT is a pane of its own (D-07).
+      -->
+      <DashboardSection {...newDataSectionProps('heat')}>
+        <HeatPane {result} client={ingestClient.data} {revealed} onRevealChange={setRevealed} />
+      </DashboardSection>
+    {:else if active === 'warships-storage'}
+      <!--
+        The `warships-storage` channel (11-09, D-03): crews and account storage,
+        two cards. Per-channel superseding as above; no reveal and no game
+        filter, because the pane shows no address and is not narrowed (D-07).
+      -->
+      <DashboardSection {...newDataSectionProps('warships-storage')}>
+        <WarshipsStoragePane {result} client={ingestClient.data} />
       </DashboardSection>
     {:else if active === 'account'}
       <!-- No block of its own: the identity lives in the list pane header, so
