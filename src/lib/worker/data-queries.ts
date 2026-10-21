@@ -4,15 +4,21 @@ import {
   DEVICE_INFO_CATEGORY,
   DEVICE_SOURCES,
 } from '../features/device-info/device-info-shared.ts';
+import { buildTimelineView } from '../features/account-timeline/timeline-aggregate.ts';
+import { TIMELINE_FILE_IDS } from '../features/account-timeline/timeline-shared.ts';
 import { buildCurrency, buildPremium, buildSpend } from '../features/finance/finance-aggregate.ts';
 import {
   buildHeatView,
+  buildPerksView,
   buildWarshipsStorageView,
   type NewDataCardInput,
 } from '../features/new-data/new-data-aggregate.ts';
 import {
   HEAT_CARD_FILES,
   NEW_DATA_PANE_FILES,
+  PERKS_CARD_FILES,
+  PERKS_CARD_IDS,
+  TIMELINE_FILE_KEYS,
   WOWS_CARD_FILES,
 } from '../features/new-data/new-data-shared.ts';
 import {
@@ -27,7 +33,7 @@ import type { RowsSnapshot } from './db.ts';
 import { MAX_BATTLE_TYPE_LENGTH, VEHICLE_TITLES } from '../features/vehicles/vehicle-shared.ts';
 
 // =============================================================================
-// data-queries.ts — the seven channels, answered from ONE Dexie snapshot (05-07)
+// data-queries.ts — the channels, answered from ONE Dexie snapshot (05-07)
 // =============================================================================
 //
 // The pure builders from 05-04 (vehicle) and 05-05 (finance) already know how
@@ -64,6 +70,13 @@ const CATEGORY_PLAYER_STATS = 'player_statistics';
 const CATEGORY_FINANCIAL = 'financial_data';
 const CATEGORY_PAYMENT = 'payment_history';
 const CATEGORY_ACTIVITY = 'activity_history';
+const CATEGORY_SUBSCRIPTIONS = 'subscriptions';
+const CATEGORY_PERSONAL_COUPONS = 'personal_coupons';
+const CATEGORY_BONUS_CODES = 'bonus_codes';
+const CATEGORY_SURVEYS = 'surveys';
+const CATEGORY_USER_INFO = 'user_info';
+const CATEGORY_BANS = 'bans';
+const CATEGORY_THIRD_PARTIES = 'authorized_third_parties';
 
 const PREMIUM_FILE = 'operations_with_premium_days.csv';
 const CURRENCY_FILE = 'virtual_currencies_operations.csv';
@@ -83,7 +96,7 @@ export interface ChannelFiles {
  * The three finance channels each need exactly one file, so their table entry is
  * a single name; the vehicles channel needs the builder's own sixteen-name set,
  * the device-info channel (261012-bog) needs the three Device_info files, and the
- * two new-game pane channels (11-07) need their pane's files.
+ * three new-game pane channels (11-07, 12-02) need their pane's files.
  *
  * The key type EXCLUDES `logins` (06-01): that channel reads no file at all —
  * it is answered from the aggregate stored on the meta record, with a rebuild
@@ -130,6 +143,32 @@ export const DATA_FILES: Readonly<Record<Exclude<DataQuery['channel'], 'logins'>
   'warships-storage': {
     names: new Set(NEW_DATA_PANE_FILES['warships-storage']),
     categories: [CATEGORY_PLAYER_STATS],
+  },
+  // 12-02. The Perks pane's four cards live in four folders, and the names
+  // come from the shared card contract rather than from a second list here, so
+  // the reader and the builder cannot drift. Three of the four cards name no
+  // file yet (their names come from the Wave 0 capture, plan 12-01), and a card
+  // with no file is answered `not-in-export` by the builder — never an error.
+  perks: {
+    names: new Set(
+      PERKS_CARD_IDS.map((id) => PERKS_CARD_FILES[id]).filter((file) => file !== null),
+    ),
+    categories: [
+      CATEGORY_SUBSCRIPTIONS,
+      CATEGORY_PERSONAL_COUPONS,
+      CATEGORY_BONUS_CODES,
+      CATEGORY_SURVEYS,
+    ],
+  },
+  // 12-11. The Account timeline reads five files from three folders. The names
+  // come from the shared timeline file table (a null names no file and is
+  // answered `not-in-export` by the builder), so the reader and the builder
+  // cannot drift.
+  'account-timeline': {
+    names: new Set(
+      TIMELINE_FILE_IDS.map((id) => TIMELINE_FILE_KEYS[id]).filter((file) => file !== null),
+    ),
+    categories: [CATEGORY_USER_INFO, CATEGORY_BANS, CATEGORY_THIRD_PARTIES],
   },
 };
 
@@ -277,7 +316,11 @@ const VEHICLE_TITLE_IDS: ReadonlySet<string> = new Set(VEHICLE_TITLES);
  * same rule unchanged: a bare `{ channel: 'logins' }` is a well-formed query,
  * and the same query plus a `title` is rejected. The `device-info` channel
  * (261012-bog) is the fifth and rides it too; the `heat` and `warships-storage`
- * channels (11-07) are the sixth and seventh.
+ * channels (11-07) are the sixth and seventh, the `perks` channel (12-02)
+ * is the eighth and the `account-timeline` channel (12-11) the ninth. A field-less channel accepts EXACTLY the one own field
+ * `channel`: any other field — a `title`, a `battleType` or anything at all —
+ * is REJECTED, and the worker answers the fixed detail `invalid query`
+ * (T-12-06).
  */
 export function isDataQuery(x: unknown): x is DataQuery {
   if (typeof x !== 'object' || x === null || Array.isArray(x)) return false;
@@ -285,7 +328,17 @@ export function isDataQuery(x: unknown): x is DataQuery {
   if (typeof query.channel !== 'string' || !DATA_CHANNELS.has(query.channel)) return false;
 
   if (query.channel !== 'vehicles') {
-    return !('title' in query) && !('battleType' in query);
+    // A field-less channel accepts EXACTLY one own field: `channel`. Every
+    // other field is REJECTED rather than ignored — silently dropping a field
+    // this code does not understand is how a future field starts being trusted
+    // by accident, and a `title` or a `battleType` smuggled into a `perks`
+    // query is a question about a different thing entirely (T-12-06).
+    //
+    // `Object.keys` reads OWN enumerable properties only, so an inherited
+    // `title` cannot make a bare query look like a smuggled one, and a
+    // `__proto__` key on a hostile message is an ordinary extra key here.
+    const keys = Object.keys(query);
+    return keys.length === 1 && keys[0] === 'channel';
   }
 
   // A title is either the default (null) or one of the four ids, and a
@@ -302,7 +355,7 @@ export function isDataQuery(x: unknown): x is DataQuery {
 /**
  * Answer one query from one snapshot.
  *
- * EXHAUSTIVE over the seven channels that read files, deliberately: a channel
+ * EXHAUSTIVE over the nine channels that read files, deliberately: a channel
  * that somehow reached here would fall to the default and throw, and the
  * caller's catch turns that into a `data-error` for that block. That is the
  * right shape for a bug — a block shows an error, the import is untouched, and
@@ -386,6 +439,53 @@ export function answerDataQuery(query: DataQuery, snapshot: RowsSnapshot): DataR
           crews: cardInputOf(snapshot, WOWS_CARD_FILES.crews, categories),
           storage: cardInputOf(snapshot, WOWS_CARD_FILES.storage, categories),
         }),
+      };
+    }
+    case 'perks': {
+      // 12-02. A card that names no file gets an input with no groups, no
+      // presence and an unknown parsed count, so the builder answers
+      // `not-in-export` — the honest answer for an export that holds no such
+      // file, and never an error (D-08).
+      const categories = DATA_FILES.perks.categories;
+      const inputOf = (id: (typeof PERKS_CARD_IDS)[number]): NewDataCardInput => {
+        const file = PERKS_CARD_FILES[id];
+        if (file === null) return { groups: [], seen: false, parsed: null };
+        return cardInputOf(snapshot, file, categories);
+      };
+      return {
+        channel: 'perks',
+        view: buildPerksView({
+          subscriptions: inputOf('subscriptions'),
+          coupons: inputOf('coupons'),
+          bonusCodes: inputOf('bonusCodes'),
+          surveys: inputOf('surveys'),
+        }),
+      };
+    }
+    case 'account-timeline': {
+      // 12-11. A kind that names no file gets an input with no groups, no
+      // presence and an unknown parsed count, so the builder answers
+      // `not-in-export` (D-09). The snapshot's account order breaks ties
+      // between two accounts' entries at one instant.
+      const categories = DATA_FILES['account-timeline'].categories;
+      const inputOf = (id: (typeof TIMELINE_FILE_IDS)[number]): NewDataCardInput => {
+        const file = TIMELINE_FILE_KEYS[id];
+        if (file === null) return { groups: [], seen: false, parsed: null };
+        return cardInputOf(snapshot, file, categories);
+      };
+      return {
+        channel: 'account-timeline',
+        view: buildTimelineView(
+          {
+            name: inputOf('name'),
+            service: inputOf('service'),
+            languageCountry: inputOf('languageCountry'),
+            bans: inputOf('bans'),
+            thirdParties: inputOf('thirdParties'),
+          },
+          TIMELINE_FILE_KEYS,
+          snapshot.accounts,
+        ),
       };
     }
     default:

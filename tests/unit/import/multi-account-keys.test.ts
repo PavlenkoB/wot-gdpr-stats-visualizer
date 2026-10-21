@@ -97,10 +97,13 @@ function keyedEachBlocks(): Array<{ file: string; key: string; line: number }> {
   for (const file of listComponentFiles()) {
     const lines = markup(file).split('\n');
     for (const [index, line] of lines.entries()) {
-      if (!/^\s*\{#each\b/.test(line)) continue;
-      const match = /\(([^()]*)\)\s*\}\s*$/.exec(line);
-      if (match === null) continue;
-      found.push({ file, key: match[1]!.trim(), line: index + 1 });
+      // Every `{#each` on the line, not only one that opens it: a flush chip
+      // cell writes its blocks inline (`...)}{#each chips.shown as tag, i (i)}`),
+      // and a scan that missed them would audit nothing about those keys.
+      if (!line.includes('{#each')) continue;
+      for (const match of line.matchAll(/\{#each\b.*?\(([^()]*)\)\s*\}/g)) {
+        found.push({ file, key: match[1]!.trim(), line: index + 1 });
+      }
     }
   }
   return found;
@@ -242,6 +245,20 @@ const AUDITED: readonly AuditedKey[] = [
   },
   {
     file: 'NewDataTable.svelte',
+    key: 'tagIndex',
+    why: 'position',
+    reason:
+      'The account chips of one merged row (shown, then hidden-phrase), keyed by position because the same account repeats on many rows; never an account root or a nickname.',
+  },
+  {
+    file: 'LoginTable.svelte',
+    key: 'tagIndex',
+    why: 'position',
+    reason:
+      'The account chips of one login row (shown, then hidden-phrase), keyed by position. Found by the 12-06 scan, which now reads {#each blocks written inline against the cell text.',
+  },
+  {
+    file: 'NewDataTable.svelte',
     key: 'columnIndex',
     why: 'position',
     reason: 'The header cells, in spec order; the column list is fixed by the card.',
@@ -260,6 +277,35 @@ const AUDITED: readonly AuditedKey[] = [
       'Index key: the same record type is in every account folder, so a row repeats across accounts and a value key would collide.',
   },
 
+  {
+    file: 'AccountTimelinePane.svelte',
+    key: 'lineIndex',
+    why: 'position',
+    reason:
+      'The per-file state lines in the fixed `TIMELINE_FILE_IDS` order, at most one per file; keyed by position because the line holds a status, not an identity.',
+  },
+  {
+    file: 'TimelineTable.svelte',
+    key: 'rowIndex',
+    why: 'position',
+    reason:
+      'Index key: an entry repeats across kinds and accounts (two accounts may hold the same service entry and the merge only collapses identical ones), so no value is a safe key. The key is the entry absolute index in the ordered list.',
+  },
+  {
+    file: 'TimelineTable.svelte',
+    key: 'tagIndex',
+    why: 'position',
+    reason:
+      'The account chips of one timeline entry (shown, then hidden-phrase), keyed by position because the same account repeats on many rows; never an account root or a nickname.',
+  },
+  {
+    file: 'TimelineTable.svelte',
+    key: 'partIndex',
+    why: 'position',
+    reason:
+      'The secondary parts of one entry, at most two, in the entry mapping order; two parts may hold the same text, so no value is a safe key.',
+  },
+
   // --- Fixed lists: the collection is a module constant ---------------------
   {
     file: 'WarshipsStoragePane.svelte',
@@ -276,11 +322,25 @@ const AUDITED: readonly AuditedKey[] = [
       'The card list is `HEAT_CARD_IDS`, a four-entry module constant in a fixed order: it is a list of card ids, not of rows, so an untrusted export cannot repeat or reorder it.',
   },
   {
+    file: 'PerksPane.svelte',
+    key: 'id',
+    why: 'fixed-list',
+    reason:
+      'The card list is `PERKS_CARD_IDS`, a four-entry module constant in a fixed order: it is a list of card ids, not of rows, so an untrusted export cannot repeat or reorder it.',
+  },
+  {
     file: 'GameFilter.svelte',
     key: 'index',
     why: 'fixed-list',
     reason:
       'The chip tokens `filterChips` returned, already deduplicated and already in `GAME_FILTER_TOKENS` order. The module decides the ORDER precisely so an untrusted export cannot; keying on the token itself would make the fixed order a claim rather than a guarantee.',
+  },
+  {
+    file: 'TimelineKindFilter.svelte',
+    key: 'index',
+    why: 'fixed-list',
+    reason:
+      'The kind chips `kindsPresent` returned, already deduplicated and already in `TIMELINE_KINDS` order. The module decides the ORDER precisely so an untrusted export cannot; keying on the kind itself would make the fixed order a claim rather than a guarantee.',
   },
   {
     file: 'CalendarHeatmap.svelte',

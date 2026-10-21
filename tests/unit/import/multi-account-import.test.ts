@@ -29,6 +29,7 @@ import {
   MA_ROOT_NA,
   MA_ROOT_RU,
   MA_ROOTS_D16_ORDER,
+  MA_UNKNOWN_FOLDERS,
   buildCaseVariantUserInfoAcrossRootsExport,
   buildDataLessAccountExport,
   buildDuplicateNicknameExport,
@@ -328,7 +329,7 @@ describe('Phase 9 privacy', () => {
 
   it('still reports the row counts the "Not yet supported" pane needs', async () => {
     const result = await ingestDone(buildRealShapeThreeAccountExport());
-    for (const name of ['Game_Forums', 'Chat_History', 'Bans', 'Subscriptions']) {
+    for (const name of ['Game_Forums', 'Chat_History', ...MA_UNKNOWN_FOLDERS.slice(0, 2)]) {
       const entry = result.categories.find((c) => c.name === name);
       expect(entry, `category ${name}`).toBeDefined();
       expect(entry!.rowCount ?? 0, `rowCount of ${name}`).toBeGreaterThan(0);

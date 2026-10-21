@@ -53,6 +53,29 @@ export const RENAMED_ACCOUNT_ROOT = 'renamed-root-2026';
 export const EXTRA_UNKNOWN_FOLDER = 'Future_category_2026';
 
 /**
+ * The sample's ONE unknown folder, and the SECOND one the directory-entry
+ * fixture adds (12-04).
+ *
+ * These used to be `Bans` and `Bonus_codes`. Phase 12 promotes every real
+ * Phase-12 folder — including both of those — to `SUPPORTED`, and a fixture
+ * that still called one of them "the unknown folder" would have been
+ * asserting the opposite of the product on the very next edit. So the stand-in
+ * is a name NO phase will promote: synthetic, obviously not Wargaming's, and
+ * therefore still classified `unknown` for as long as the suite exists.
+ *
+ * Exported (rather than spelled in each test) so a test names the folder it
+ * means, and a future promotion that reached one of them would have to edit
+ * this line and every importer together.
+ */
+export const SAMPLE_UNKNOWN_FOLDER = 'Unmapped_Folder';
+
+/** The one CSV inside {@link SAMPLE_UNKNOWN_FOLDER}. */
+export const SAMPLE_UNKNOWN_FILE = 'Unmapped_Folder.csv';
+
+/** The second unknown folder — the EMPTY directory entry, for `buildDirectoryEntriesExport`. */
+export const SAMPLE_UNKNOWN_FOLDER_TWO = 'Unmapped_Folder_Two';
+
+/**
  * Synthetic outer-folder name used by buildWrapperExport() to reproduce
  * the G-01-20 "wrapper around a real export" shape (a user re-zipped a
  * downloaded archive into an extra top-level folder, very common).
@@ -82,7 +105,7 @@ export const SAMPLE_FILE_COUNTS: Record<string, number> = {
   Financial_data: 2,
   Chat_history: 1,
   Clans: 1,
-  Bans: 1,
+  [SAMPLE_UNKNOWN_FOLDER]: 1,
   Device_info: DEVICE_INFO_COUNTS.files,
 };
 
@@ -110,7 +133,7 @@ export const SAMPLE_ROW_COUNTS: Record<string, number> = {
   Financial_data: PREMIUM_HAND_ROWS.length + CURRENCY_HAND_ROWS.length,
   Chat_history: 1,
   Clans: 1,
-  Bans: 1,
+  [SAMPLE_UNKNOWN_FOLDER]: 1,
   Device_info: DEVICE_INFO_COUNTS.total,
 };
 
@@ -231,7 +254,7 @@ export const SAMPLE_BADGE_ORDER: readonly string[] = [
   'User_Info',
   'Chat_history',
   'Clans',
-  'Bans',
+  SAMPLE_UNKNOWN_FOLDER,
 ];
 
 // -----------------------------------------------------------------------------
@@ -324,7 +347,7 @@ const DEVICES_ROW = 'device-001;pc;macos;13.0;2020-01-01 00:00:00;2020-12-31 23:
  *
  * Nine folders: six supported (Activity_history, Player_statistics,
  * Financial_data, Payment_history, User_Info, Device_info), two known-deferred
- * (Chat_history, Clans) and one unknown (Bans).
+ * (Chat_history, Clans) and one unknown (SAMPLE_UNKNOWN_FOLDER).
  *
  * IMPORTANT: keep this list stable — 01-01's zero-network Playwright
  * spec depends on the exact set of names produced by buildSampleExport().
@@ -368,7 +391,9 @@ function sampleEntries(root: string): Record<string, Uint8Array> {
   }
 
   // unknown (not in either list)
-  out[`${root}/Bans/Bans.csv`] = encode(CRLF + BANS_HEADER + CRLF + BANS_ROW + CRLF);
+  out[`${root}/${SAMPLE_UNKNOWN_FOLDER}/${SAMPLE_UNKNOWN_FILE}`] = encode(
+    CRLF + BANS_HEADER + CRLF + BANS_ROW + CRLF,
+  );
 
   return out;
 }
@@ -416,7 +441,7 @@ export function buildLargeExport(
     'User_Info',
     'Chat_history',
     'Clans',
-    'Bans',
+    SAMPLE_UNKNOWN_FOLDER,
     'Device_info',
   ];
   const entries: Record<string, Uint8Array> = {};
@@ -479,8 +504,8 @@ export function buildBackslashExport(): Uint8Array {
 }
 
 /**
- * Sample with explicit directory entries. The empty `Bonus_codes/`
- * folder must still appear with fileCount 0.
+ * Sample with explicit directory entries. The empty
+ * `SAMPLE_UNKNOWN_FOLDER_TWO/` folder must still appear with fileCount 0.
  */
 export function buildDirectoryEntriesExport(): Uint8Array {
   const entries = sampleEntries(SAMPLE_ACCOUNT_ROOT);
@@ -488,7 +513,7 @@ export function buildDirectoryEntriesExport(): Uint8Array {
   const empty = new Uint8Array(0);
   entries[`${root}/`] = empty;
   entries[`${root}/Clans/`] = empty;
-  entries[`${root}/Bonus_codes/`] = empty;
+  entries[`${root}/${SAMPLE_UNKNOWN_FOLDER_TWO}/`] = empty;
   return zipSync(entries);
 }
 
@@ -799,13 +824,17 @@ export function buildMojibakeExport(): Uint8Array {
 
 /**
  * A synthetic export identical to buildSampleExport() except that
- * `Bans/Bans.csv` carries THREE valid rows + ONE row with an
- * unbalanced quote character in the BAN_REASON field (missing its
+ * `SAMPLE_UNKNOWN_FOLDER/SAMPLE_UNKNOWN_FILE` carries THREE valid rows + ONE
+ * row with an unbalanced quote character in the BAN_REASON field (missing its
  * closing quote). The unbalanced quote triggers a 'Quotes'-type
  * PapaParse error tied to that row; `parseCsvFile` quarantines the
  * physical line that holds the opening quote, re-parses the remainder
  * so the rows after it are recovered, and `skippedRowCount` for the
- * Bans category becomes 1.
+ * unknown folder becomes 1.
+ *
+ * The file's CONTENT is the old Bans-shaped `BAN_DT;BAN_REASON;BAN_EXPIRES_AT`
+ * body, deliberately unchanged: the fixture exercises a malformed record, and
+ * the folder it is filed under is a stand-in (12-04), not a claim about Wargaming.
  *
  * The file has the REAL export shape (a leading CRLF, then a blank line
  * between every record, written by `renderCsv`) and the malformed record
@@ -824,7 +853,7 @@ export const MALFORMED_ROW_EXPECTED_SKIPPED_COUNT = 1;
 export const MALFORMED_ROW_EXPECTED_ROW_COUNT = 3;
 
 /**
- * The malformed `Bans.csv` body, as its own constant.
+ * The malformed unknown-folder CSV body, as its own constant.
  *
  * Exported since Phase 9 (D-18) because the worker no longer STORES rows of an
  * unknown category: it parses them for the counts and drops them. A test that
@@ -843,7 +872,8 @@ export const MALFORMED_BANS_CSV = renderCsv(BANS_HEADER, [
 
 export function buildMalformedRowsExport(): Uint8Array {
   const entries = sampleEntries(SAMPLE_ACCOUNT_ROOT);
-  entries[`${SAMPLE_ACCOUNT_ROOT}/Bans/Bans.csv`] = new TextEncoder().encode(MALFORMED_BANS_CSV);
+  entries[`${SAMPLE_ACCOUNT_ROOT}/${SAMPLE_UNKNOWN_FOLDER}/${SAMPLE_UNKNOWN_FILE}`] =
+    new TextEncoder().encode(MALFORMED_BANS_CSV);
   return zipSync(entries);
 }
 
@@ -984,7 +1014,12 @@ const SCALE_ROW_TEMPLATES: ReadonlyArray<{
     header: CLAN_MEMBERSHIP_HEADER,
     row: CLAN_MEMBERSHIP_ROW,
   },
-  { folder: 'Bans', baseName: 'Bans.csv', header: BANS_HEADER, row: BANS_ROW },
+  {
+    folder: SAMPLE_UNKNOWN_FOLDER,
+    baseName: SAMPLE_UNKNOWN_FILE,
+    header: BANS_HEADER,
+    row: BANS_ROW,
+  },
   { folder: 'Device_info', baseName: 'Devices.csv', header: DEVICES_HEADER, row: DEVICES_ROW },
 ];
 
@@ -1145,7 +1180,7 @@ export function buildZeroRowPaymentExport(): Uint8Array {
 /** Only the six supported categories: the "nothing detected but unsupported" state. */
 export function buildOnlySupportedExport(): Uint8Array {
   return buildCustomExport({
-    omitFolders: ['Chat_history', 'Clans', 'Bans'],
+    omitFolders: ['Chat_history', 'Clans', SAMPLE_UNKNOWN_FOLDER],
   });
 }
 
@@ -1244,7 +1279,7 @@ export function buildLowercaseUserInfoFolderExport(): Uint8Array {
 
 /**
  * BOTH `User_Info` and `user_info` in one archive, each holding a login
- * column, plus a lower-case `bans/` folder. Proves the strip covers every
+ * column, plus a lower-case copy of the unknown folder. Proves the strip covers every
  * entry of the family rather than one of them, and that a case-variant
  * UNKNOWN folder still classifies as unknown.
  */
@@ -1254,9 +1289,10 @@ export function buildCaseVariantFoldersExport(): Uint8Array {
       'user_info/Extra.csv': renderCsv('ID;NAME;LOGIN', [
         [SAMPLE_ACCOUNT_ROOT, 'Extra Synthetic Player', `extra.${SAMPLE_LOGIN_DOMAIN}`],
       ]),
-      'bans/Bans.csv': renderCsv('BAN_DT;BAN_REASON;BAN_EXPIRES_AT', [
-        ['2020-09-01 00:00:00', 'synthetic_reason', '2020-09-08 00:00:00'],
-      ]),
+      [`${SAMPLE_UNKNOWN_FOLDER.toLowerCase()}/${SAMPLE_UNKNOWN_FILE}`]: renderCsv(
+        'BAN_DT;BAN_REASON;BAN_EXPIRES_AT',
+        [['2020-09-01 00:00:00', 'synthetic_reason', '2020-09-08 00:00:00']],
+      ),
     },
   });
 }

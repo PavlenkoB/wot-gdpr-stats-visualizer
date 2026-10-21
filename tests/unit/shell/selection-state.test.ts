@@ -17,6 +17,7 @@ import {
   type PaneEntry,
   type PaneId,
 } from '../../../src/lib/shell/selection-state.ts';
+import { SAMPLE_UNKNOWN_FOLDER } from '../../fixtures/export-fixtures.ts';
 import {
   ACCOUNT_ROW_MULTI_SUMMARY,
   ACCOUNT_ROW_SUMMARY,
@@ -28,6 +29,8 @@ import {
   formatAccountCount,
   formatFolderCount,
   formatHeatRowSummary,
+  formatPerksRowSummary,
+  formatTimelineRowSummary,
   formatRowCount,
   formatRowSummary,
   formatSectionStatus,
@@ -94,7 +97,7 @@ const FULL_SUPPORTED: EntrySpec[] = [
 const SAMPLE: EntrySpec[] = [
   ...FULL_SUPPORTED,
   ['Chat_history', 'known-deferred', 1, 40],
-  ['Bans', 'unknown', 1, 0],
+  [SAMPLE_UNKNOWN_FOLDER, 'unknown', 1, 0],
 ];
 
 const IDENTITY: AccountIdentity = { nickname: 'Tanker', region: '30', createdAt: '2015-03-11' };
@@ -137,10 +140,14 @@ describe('the pane vocabulary', () => {
       'device-info': 'device-info',
       account: 'user-info',
       'not-yet-supported': 'not-yet-supported',
-      // The two optional panes of plan 11-05 read no single folder: a HEAT or
-      // Warships pane is built from files spread across the export (A3).
+      // The optional panes read no single folder: a HEAT or Warships pane is
+      // built from files spread across the export (A3), and the Perks pane's
+      // four cards live in four different folders (12-02), and the Account
+      // timeline's five files live in three (12-11).
       heat: null,
       'warships-storage': null,
+      perks: null,
+      'account-timeline': null,
     });
   });
 
@@ -536,11 +543,19 @@ function withPanes(
 }
 
 describe('the optional pane vocabulary', () => {
-  test('OPTIONAL_PANE_IDS is the shared new-data contract, in list order', () => {
-    expect([...OPTIONAL_PANE_IDS]).toEqual(['heat', 'warships-storage']);
+  test('OPTIONAL_PANE_IDS is the shared new-data contract, in the order the panes were added', () => {
+    expect([...OPTIONAL_PANE_IDS]).toEqual([
+      'heat',
+      'warships-storage',
+      'perks',
+      'account-timeline',
+    ]);
   });
 
-  test('PANE_ORDER is the eleven panes with the two new ones directly after Vehicles', () => {
+  test('PANE_ORDER is the thirteen panes, with Account timeline directly above Account', () => {
+    // The order is EXPLICIT (12-02, 12-RESEARCH Pitfall 6): the two game-data
+    // panes sit directly after Vehicles, and the Perks row sits with the money
+    // rows, so the optional ids are not a spread of one tuple any more.
     expect([...PANE_ORDER]).toEqual([
       'overview',
       'playtime',
@@ -550,11 +565,13 @@ describe('the optional pane vocabulary', () => {
       'warships-storage',
       'finance',
       'payments',
+      'perks',
       'device-info',
+      'account-timeline',
       'account',
       'not-yet-supported',
     ]);
-    expect(PANE_ORDER).toHaveLength(11);
+    expect(PANE_ORDER).toHaveLength(13);
   });
 
   test('PANE_IDS still holds exactly the nine always-present panes', () => {
@@ -632,6 +649,93 @@ describe('paneEntries: the two optional panes', () => {
     });
   });
 
+  test('a Perks pane renders between Payments and Device info, with its OWN summary', () => {
+    const entries = paneEntries(withPanes({ perks: { fileCount: 1, rowCount: 3 } }));
+    const perks = rowOf(entries, 'perks');
+    // The documented position (12-UI-SPEC Recorded Choice 1): Perks sits with
+    // the money rows, and Device info follows it.
+    expect(entries[entries.indexOf(perks) - 1]?.id).toBe('payments');
+    expect(entries[entries.indexOf(perks) + 1]?.id).toBe('device-info');
+    expect(perks).toEqual({
+      id: 'perks',
+      muted: false,
+      reason: null,
+      headline: '3 rows',
+      summary: 'Subscriptions, coupons, codes, surveys · 1 file',
+    });
+    expect(perks.summary).toBe(formatPerksRowSummary(1));
+    expect(perks.headline).toBe(formatRowCount(3));
+  });
+
+  test('a present-but-empty Perks pane renders MUTED with the no-rows wording', () => {
+    const entries = paneEntries(withPanes({ perks: { fileCount: 1, rowCount: 0 } }));
+    expect(rowOf(entries, 'perks')).toEqual({
+      id: 'perks',
+      muted: true,
+      reason: 'empty',
+      headline: ROW_HEADLINE_NONE,
+      summary: 'This export contains no rows for Perks',
+    });
+  });
+
+  test('an Account timeline pane renders directly above Account, with its OWN summary', () => {
+    const entries = paneEntries(withPanes({ 'account-timeline': { fileCount: 2, rowCount: 7 } }));
+    const timeline = rowOf(entries, 'account-timeline');
+    // UI-SPEC Recorded Choice 1: below Device info, directly above Account.
+    expect(entries[entries.indexOf(timeline) - 1]?.id).toBe('device-info');
+    expect(entries[entries.indexOf(timeline) + 1]?.id).toBe('account');
+    expect(timeline).toEqual({
+      id: 'account-timeline',
+      muted: false,
+      reason: null,
+      headline: '7 rows',
+      summary: 'Names, services, bans, third parties · 2 files',
+    });
+    expect(timeline.summary).toBe(formatTimelineRowSummary(2));
+    expect(timeline.headline).toBe(formatRowCount(7));
+  });
+
+  test('an Account timeline row is absent without facts', () => {
+    const entries = paneEntries(withPanes({ heat: { fileCount: 4, rowCount: 12 } }));
+    expect(entries.map((entry) => entry.id)).not.toContain('account-timeline');
+  });
+
+  test('a present-but-empty Account timeline pane renders MUTED with the no-rows wording', () => {
+    const entries = paneEntries(withPanes({ 'account-timeline': { fileCount: 3, rowCount: 0 } }));
+    expect(rowOf(entries, 'account-timeline')).toEqual({
+      id: 'account-timeline',
+      muted: true,
+      reason: 'empty',
+      headline: ROW_HEADLINE_NONE,
+      summary: 'This export contains no rows for Account timeline',
+    });
+  });
+
+  test('each optional pane produces its OWN summary, and never another pane’s', () => {
+    // The exhaustive switch (12-RESEARCH Pitfall 5): a two-way ternary would
+    // have given the third optional pane the Warships summary without a word
+    // of complaint, so each id is checked against the OTHER ids' texts.
+    const entries = paneEntries(
+      withPanes({
+        heat: { fileCount: 4, rowCount: 12 },
+        'warships-storage': { fileCount: 2, rowCount: 31 },
+        perks: { fileCount: 1, rowCount: 3 },
+        'account-timeline': { fileCount: 1, rowCount: 3 },
+      }),
+    );
+    const summaries = OPTIONAL_PANE_IDS.map((id) => rowOf(entries, id).summary);
+    // Four rows, four different summaries.
+    expect(new Set(summaries).size).toBe(4);
+    expect(rowOf(entries, 'heat').summary).toBe(formatHeatRowSummary(4));
+    expect(rowOf(entries, 'warships-storage').summary).toBe(formatWowsStorageRowSummary(2));
+    expect(rowOf(entries, 'perks').summary).toBe(formatPerksRowSummary(1));
+    expect(rowOf(entries, 'account-timeline').summary).toBe(formatTimelineRowSummary(1));
+    // And no pane's summary is another pane's.
+    expect(rowOf(entries, 'account-timeline').summary).not.toBe(formatPerksRowSummary(1));
+    expect(rowOf(entries, 'perks').summary).not.toBe(formatWowsStorageRowSummary(1));
+    expect(rowOf(entries, 'perks').summary).not.toBe(formatHeatRowSummary(1));
+  });
+
   test('both panes present: Vehicles, HEAT, Warships crews & storage, Finance', () => {
     const entries = paneEntries(
       withPanes({
@@ -672,7 +776,9 @@ describe('paneEntries: the two optional panes', () => {
 });
 
 describe('stepSelection over the RENDERED order', () => {
-  const RENDERED_WITH_HEAT = PANE_ORDER.filter((id) => id !== 'warships-storage');
+  // The rows a result with ONLY a HEAT pane renders: the optional pane the
+  // result does not carry is not on screen, so a keyboard step must skip it.
+  const RENDERED_WITH_HEAT = PANE_ORDER.filter((id) => id !== 'warships-storage' && id !== 'perks');
 
   test('the default order is still the nine panes', () => {
     expect(stepSelection('vehicles', 1)).toBe('finance');

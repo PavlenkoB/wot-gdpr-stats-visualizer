@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 6
-waived_count: 2
-fixed_count: 10
-total_count: 18
-last_updated: 2026-10-19T12:12:00.000Z
+open_count: 0
+waived_count: 3
+fixed_count: 19
+total_count: 22
+last_updated: 2026-10-21T18:27:47.378Z
 ---
 
 # Broken Windows Ledger
@@ -24,15 +24,19 @@ last_updated: 2026-10-19T12:12:00.000Z
 | 7 | 05 | deviation | tests/e2e/finance.spec.ts |  | monthly-table-disclosure and bar-scroller are per-chart hooks now; 05-10's premium table spec had to be scoped to its block | fixed |  | 2026-10-01T21:48:40.951Z | 2026-10-10T10:07:44.045Z |
 | 8 | 05 | skipped-test | tests/e2e/finance.spec.ts | 1519 | ORDER-DEPENDENT FLAKE, measured not anecdotal: at 05-15's HEAD 1e0d491 the full Playwright suite passed 1 run in 6; the other five failed this test with TypeError: Cannot read properties of null (reading 'y'), because boundingBox() returns null when ChartTooltip dismisses the tooltip in response to the scroll event that window.scrollTo delivers ASYNCHRONOUSLY after the test's hover(). It is 05-13's spec, passes 5/5 in isolation, and still fails with 05-15's spend specs EXCLUDED from the run, so 05-15's added spec load is not the trigger; 05-15 does add a spend-channel query plus five cards with two breakdown tables to every import this spec makes, which may have widened the window but was NOT proved. NOT FIXED by 05-15 (documentation-only close-out; the baseline experiment at 8837739 was refused by the permission layer as a product-file overwrite). Fix is test-side ordering: scroll and let the event land BEFORE hovering, as the sibling (keys) test in the same describe already does. | fixed |  | 2026-10-02T12:30:00.000Z | 2026-10-10T10:07:44.117Z |
 | 9 | 05 | deviation | src/lib/dashboard-status.ts | 99 | 05-15's Task 1 said to update the BUILT_DASHBOARDS comment for the four built sections, and the per-id list below the sentence WAS updated with the payment-history entry - but the count in the sentence that introduces it still reads 'Two ids'. Comment only, nothing behavioural depends on it and no test reads it, but it now disagrees with tests/unit/dashboard-status.test.ts, whose own comment says 'Four sections have shipped'. Left unfixed for the orchestrator to decide on a re-dispatch; a one-word edit. | fixed |  | 2026-10-02T12:30:00.000Z | 2026-10-10T10:07:44.191Z |
-| 10 | 09 | deviation | src/lib/worker/classify.ts |  | 09-01: real account id 1234567 remains in pre-existing v1.0 classify.test.ts literals (out of scope, see deferred-items.md) | open |  | 2026-10-16T20:01:08.978Z |  |
+| 10 | 09 | deviation | src/lib/worker/classify.ts |  | 09-01: real account id 1234567 remains in pre-existing v1.0 classify.test.ts literals (out of scope, see deferred-items.md) | fixed |  | 2026-10-16T20:01:08.978Z | 2026-10-21T18:21:09.191Z |
 | 11 | 09 | deviation | src/lib/shell/DashboardSection.svelte | 162 | Rule 1 fix: the caption's {#if} introduced a whitespace text node that changed a v1.0 DOM's text content and broke master-detail-nav's toHaveText(/^From .../) | fixed |  | 2026-10-17T03:36:43.585Z | 2026-10-17T03:37:29.139Z |
-| 12 | 09 | unrun-verify | .planning/phases/09-multi-account-import-account-identity/09-VALIDATION.md |  | 09-06 optional real-export check not run: environment data-handling permission denied reading the private 3-account archive | open |  | 2026-10-17T17:34:58.778Z |  |
+| 12 | 09 | unrun-verify | .planning/phases/09-multi-account-import-account-identity/09-VALIDATION.md |  | 09-06 optional real-export check not run: environment data-handling permission denied reading the private 3-account archive | waived | Synthetic 3-account fixtures and the multi-account e2e specs cover multi-account import; the optional real-export check on the private archive is deferred. Waived by the user at ship time (2026-10-21). | 2026-10-17T17:34:58.778Z | 2026-10-21T18:27:47.378Z |
 | 13 | 09 | deviation | .planning/phases/09-multi-account-import-account-identity/09-10-SUMMARY.md |  | 09-10 fixture correction: the data-less root initially still received the three shared Player_statistics files (a supported category), so it held data and the fixture did not describe its claimed shape | fixed |  | 2026-10-18T06:10:56.957Z | 2026-10-18T06:11:32.205Z |
 | 14 | 10 | deviation | tests/unit/playtime/playtime.test.ts |  | 10-01 flipped a stored-aggregate KEY-SET pin the plan did not list: adding games/byGame failed the T-04-01 'never the IP' key assertion, and it was fixed rather than left red | fixed |  | 2026-10-18T12:26:02.204Z | 2026-10-18T12:26:28.117Z |
-| 15 | 10 | lint-warning | tests/e2e/shell/chart-fill.spec.ts | 151 | Pre-existing flake: finance charts fill the detail pane fails at 375px under parallel workers (finance-tooltip overflows the pane edge by ~8px); passes standalone and fails identically at the pre-10-02 commit | open |  | 2026-10-18T12:56:43.837Z |  |
-| 16 | 11 | deviation | .planning/REQUIREMENTS.md |  | GAMES-01 left Pending: 11-01 delivers HEAT SESSIONS only; battle types, account stats, storage and geolocation are plans 11-02/11-03. The plan frontmatter lists GAMES-01 but marking it complete would be a false ledger entry. | open |  | 2026-10-19T09:21:47.262Z |  |
-| 17 | 11 | deviation |  |  | 11-02 deliberately marked NO requirement complete: GAMES-01/03/04 all read 'are shown' and this plan shows no pane; PRIV-01 was already Complete from 11-01. Re-run requirements.mark-complete after the pane plans land. | open |  | 2026-10-19T10:51:50.052Z |  |
-| 18 | 11 | deviation | .planning/REQUIREMENTS.md |  | 11-03 deliberately marked NO requirement complete either: GAMES-01/03/04 each read 'are shown' and this plan shows no pane — it ships the allowlist, the family and the fixtures that make the later pane plans possible. The 11-01 note that 11-03 would re-run requirements.mark-complete for GAMES-01 is answered NO for the same reason 11-02 answered NO. The pane plans (11-07, 11-08, 11-10, 11-11) are what close entries 16 and 17. | open |  | 2026-10-19T12:12:00.000Z |  |
+| 15 | 10 | lint-warning | tests/e2e/shell/chart-fill.spec.ts | 151 | Pre-existing flake: finance charts fill the detail pane fails at 375px under parallel workers (finance-tooltip overflows the pane edge by ~8px); passes standalone and fails identically at the pre-10-02 commit | fixed |  | 2026-10-18T12:56:43.837Z | 2026-10-21T18:21:09.282Z |
+| 16 | 11 | deviation | .planning/REQUIREMENTS.md |  | GAMES-01 left Pending: 11-01 delivers HEAT SESSIONS only; battle types, account stats, storage and geolocation are plans 11-02/11-03. The plan frontmatter lists GAMES-01 but marking it complete would be a false ledger entry. | fixed |  | 2026-10-19T09:21:47.262Z | 2026-10-21T18:14:56.512Z |
+| 17 | 11 | deviation |  |  | 11-02 deliberately marked NO requirement complete: GAMES-01/03/04 all read 'are shown' and this plan shows no pane; PRIV-01 was already Complete from 11-01. Re-run requirements.mark-complete after the pane plans land. | fixed |  | 2026-10-19T10:51:50.052Z | 2026-10-21T18:14:56.590Z |
+| 18 | 11 | deviation | .planning/REQUIREMENTS.md |  | 11-03 deliberately marked NO requirement complete: GAMES-01/03/04 all read 'are shown' and this plan shows no pane; PRIV-01 was already Complete from 11-01. The 11-01 note that 11-03 would re-run the mark is answered NO for the reason 11-02 gave. | fixed |  | 2026-10-19T12:12:00.000Z | 2026-10-21T18:14:56.668Z |
+| 19 | 12 | stub | src/lib/features/new-data/new-data-shared.ts | 60 | PERKS_CARD_FILES holds null for the subscriptions, coupons and bonusCodes cards: their real file names come from the Wave 0 header capture (plan 12-01) and are written into the contract by plan 12-08, so those three cards answer not-in-export until then. Intentional and documented in 12-02-PLAN.md Task 1. | fixed |  | 2026-10-20T06:57:20.998Z | 2026-10-21T18:14:56.743Z |
+| 20 | 12 | deviation | .planning/REQUIREMENTS.md |  | 12-02 deliberately marked NO requirement complete: PERKS-03 reads 'Surveys are shown' and this plan shows no pane - it ships the category-scoped family rule, the heat_surveys.csv spec, the perks channel and the Perks list row; the pane itself arrives with plan 12-09. PRIV-01 was already Complete from phase 11. Re-run requirements.mark-complete for PERKS-03 after 12-09 lands. | fixed |  | 2026-10-20T06:57:35.481Z | 2026-10-21T18:14:56.820Z |
+| 21 | 12 | deviation | .planning/REQUIREMENTS.md |  | 12-04 promotes Bans/Authorized_Third_Parties/Subscriptions/Personal_Coupons/Bonus_Codes to SUPPORTED and fails every file of them closed, but shows NO pane: TIMELINE-02, PERKS-01 and PERKS-02 stay open until plan 12-08/12-09 land the specs and the panes. Re-run requirements.mark-complete for those three after 12-09. | fixed |  | 2026-10-20T07:44:30.966Z | 2026-10-21T18:14:56.896Z |
+| 22 | 12 | deviation | .planning/REQUIREMENTS.md |  | 12-05 deliberately marked NO requirement complete: TIMELINE-01, TIMELINE-02, PERKS-01 and SCALE-01 all read 'is shown' and this plan shows no pane - it ships the cross-account merge, the timeline view contract, the four-shape instant parse and comparator, and the Phase 12 copy block; the panes arrive with 12-09 and 12-12. Re-run requirements.mark-complete for all four after 12-12 lands. | fixed |  | 2026-10-20T08:05:19.853Z | 2026-10-21T18:14:56.975Z |
 
 ````json
 [
@@ -155,10 +159,10 @@ last_updated: 2026-10-19T12:12:00.000Z
     "file": "src/lib/worker/classify.ts",
     "line": null,
     "description": "09-01: real account id 1234567 remains in pre-existing v1.0 classify.test.ts literals (out of scope, see deferred-items.md)",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-10-16T20:01:08.978Z",
-    "resolved_at": null,
+    "resolved_at": "2026-10-21T18:21:09.191Z",
     "milestone": "v1.1"
   },
   {
@@ -181,10 +185,10 @@ last_updated: 2026-10-19T12:12:00.000Z
     "file": ".planning/phases/09-multi-account-import-account-identity/09-VALIDATION.md",
     "line": null,
     "description": "09-06 optional real-export check not run: environment data-handling permission denied reading the private 3-account archive",
-    "status": "open",
-    "reason": "",
+    "status": "waived",
+    "reason": "Synthetic 3-account fixtures and the multi-account e2e specs cover multi-account import; the optional real-export check on the private archive is deferred. Waived by the user at ship time (2026-10-21).",
     "recorded_at": "2026-10-17T17:34:58.778Z",
-    "resolved_at": null,
+    "resolved_at": "2026-10-21T18:27:47.378Z",
     "milestone": "v1.1"
   },
   {
@@ -220,10 +224,10 @@ last_updated: 2026-10-19T12:12:00.000Z
     "file": "tests/e2e/shell/chart-fill.spec.ts",
     "line": 151,
     "description": "Pre-existing flake: finance charts fill the detail pane fails at 375px under parallel workers (finance-tooltip overflows the pane edge by ~8px); passes standalone and fails identically at the pre-10-02 commit",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-10-18T12:56:43.837Z",
-    "resolved_at": null,
+    "resolved_at": "2026-10-21T18:21:09.282Z",
     "milestone": "v1.1"
   },
   {
@@ -233,10 +237,10 @@ last_updated: 2026-10-19T12:12:00.000Z
     "file": ".planning/REQUIREMENTS.md",
     "line": null,
     "description": "GAMES-01 left Pending: 11-01 delivers HEAT SESSIONS only; battle types, account stats, storage and geolocation are plans 11-02/11-03. The plan frontmatter lists GAMES-01 but marking it complete would be a false ledger entry.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-10-19T09:21:47.262Z",
-    "resolved_at": null,
+    "resolved_at": "2026-10-21T18:14:56.512Z",
     "milestone": "v1.1"
   },
   {
@@ -246,10 +250,10 @@ last_updated: 2026-10-19T12:12:00.000Z
     "file": "",
     "line": null,
     "description": "11-02 deliberately marked NO requirement complete: GAMES-01/03/04 all read 'are shown' and this plan shows no pane; PRIV-01 was already Complete from 11-01. Re-run requirements.mark-complete after the pane plans land.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-10-19T10:51:50.052Z",
-    "resolved_at": null,
+    "resolved_at": "2026-10-21T18:14:56.590Z",
     "milestone": "v1.1"
   },
   {
@@ -259,10 +263,63 @@ last_updated: 2026-10-19T12:12:00.000Z
     "file": ".planning/REQUIREMENTS.md",
     "line": null,
     "description": "11-03 deliberately marked NO requirement complete: GAMES-01/03/04 all read 'are shown' and this plan shows no pane; PRIV-01 was already Complete from 11-01. The 11-01 note that 11-03 would re-run the mark is answered NO for the reason 11-02 gave.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-10-19T12:12:00.000Z",
-    "resolved_at": null,
+    "resolved_at": "2026-10-21T18:14:56.668Z",
+    "milestone": "v1.1"
+  },
+  {
+    "id": 19,
+    "kind": "stub",
+    "phase": "12",
+    "file": "src/lib/features/new-data/new-data-shared.ts",
+    "line": 60,
+    "description": "PERKS_CARD_FILES holds null for the subscriptions, coupons and bonusCodes cards: their real file names come from the Wave 0 header capture (plan 12-01) and are written into the contract by plan 12-08, so those three cards answer not-in-export until then. Intentional and documented in 12-02-PLAN.md Task 1.",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-10-20T06:57:20.998Z",
+    "resolved_at": "2026-10-21T18:14:56.743Z",
+    "milestone": "v1.1"
+  },
+  {
+    "id": 20,
+    "kind": "deviation",
+    "phase": "12",
+    "file": ".planning/REQUIREMENTS.md",
+    "line": null,
+    "description": "12-02 deliberately marked NO requirement complete: PERKS-03 reads 'Surveys are shown' and this plan shows no pane - it ships the category-scoped family rule, the heat_surveys.csv spec, the perks channel and the Perks list row; the pane itself arrives with plan 12-09. PRIV-01 was already Complete from phase 11. Re-run requirements.mark-complete for PERKS-03 after 12-09 lands.",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-10-20T06:57:35.481Z",
+    "resolved_at": "2026-10-21T18:14:56.820Z",
+    "milestone": "v1.1"
+  },
+  {
+    "id": 21,
+    "kind": "deviation",
+    "phase": "12",
+    "file": ".planning/REQUIREMENTS.md",
+    "line": null,
+    "description": "12-04 promotes Bans/Authorized_Third_Parties/Subscriptions/Personal_Coupons/Bonus_Codes to SUPPORTED and fails every file of them closed, but shows NO pane: TIMELINE-02, PERKS-01 and PERKS-02 stay open until plan 12-08/12-09 land the specs and the panes. Re-run requirements.mark-complete for those three after 12-09.",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-10-20T07:44:30.966Z",
+    "resolved_at": "2026-10-21T18:14:56.896Z",
+    "milestone": "v1.1"
+  },
+  {
+    "id": 22,
+    "kind": "deviation",
+    "phase": "12",
+    "file": ".planning/REQUIREMENTS.md",
+    "line": null,
+    "description": "12-05 deliberately marked NO requirement complete: TIMELINE-01, TIMELINE-02, PERKS-01 and SCALE-01 all read 'is shown' and this plan shows no pane - it ships the cross-account merge, the timeline view contract, the four-shape instant parse and comparator, and the Phase 12 copy block; the panes arrive with 12-09 and 12-12. Re-run requirements.mark-complete for all four after 12-12 lands.",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-10-20T08:05:19.853Z",
+    "resolved_at": "2026-10-21T18:14:56.975Z",
     "milestone": "v1.1"
   }
 ]
+````

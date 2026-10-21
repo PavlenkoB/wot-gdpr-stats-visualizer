@@ -420,7 +420,12 @@ test.describe('master-detail navigation', () => {
     // one the selected row is the focused row (the walk follows the pane order,
     // clamped at the last). The sample export's list has the Warships crews and
     // storage row after Vehicles and no HEAT row, so it is ten rows (plan 11-11).
-    const walk = PANE_ORDER.filter((id) => id !== 'heat');
+    // The Perks row is absent too: the sample export holds no Surveys file, so
+    // the worker published no Perks pane (12-02). It holds no Account timeline
+    // file either, so that row is absent too (12-13).
+    const walk = PANE_ORDER.filter(
+      (id) => id !== 'heat' && id !== 'perks' && id !== 'account-timeline',
+    );
     for (let i = 0; i < walk.length - 1; i += 1) {
       await page.keyboard.press('j');
       await expectSelectionIsFocus(page, walk[Math.min(i + 1, walk.length - 1)]!);

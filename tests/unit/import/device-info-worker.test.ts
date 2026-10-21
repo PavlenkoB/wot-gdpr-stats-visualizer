@@ -9,9 +9,10 @@ import type { DeviceInfoView } from '../../../src/lib/features/device-info/devic
 import { parseCsvFile } from '../../../src/lib/worker/csv-parse.ts';
 import { isDataQuery } from '../../../src/lib/worker/data-queries.ts';
 import {
+  SAMPLE_EXPECTED_COUNTS,
+  SAMPLE_UNKNOWN_FOLDER,
   buildCustomExport,
   buildSampleExport,
-  SAMPLE_EXPECTED_COUNTS,
 } from '../../fixtures/export-fixtures.ts';
 import {
   buildDivergentHeaderTwoAccountExport,
@@ -315,7 +316,7 @@ describe('261012-bog validation and replay', () => {
     >;
     const byName = new Map(status.cached!.categories.map((c) => [c.name, c.status]));
     expect(byName.get('Device_info')).toBe('supported');
-    expect(byName.get('Bans')).toBe('unknown');
+    expect(byName.get(SAMPLE_UNKNOWN_FOLDER)).toBe('unknown');
   });
 });
 

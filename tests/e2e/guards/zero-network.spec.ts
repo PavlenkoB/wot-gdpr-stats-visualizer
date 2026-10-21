@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { SAMPLE_NICKNAME, buildSampleExport } from '../../fixtures/export-fixtures.ts';
 import { buildLoginsScaleExport, buildLoginsScaleSpec } from '../../fixtures/logins-fixtures.ts';
+import { buildAccountTimelinePerksExport } from '../../fixtures/account-timeline-perks-export.ts';
 import {
   buildNewGamesThreeAccountExport,
   buildRealShapeThreeAccountExport,
@@ -493,11 +494,19 @@ test.describe('zero-network and CSP', () => {
     await waitForImported(page);
     await expect(page.getByTestId('identity-multi-title')).toBeVisible({ timeout: 30_000 });
 
-    for (const pane of OPTIONAL_PANE_IDS) {
+    // An explicit list of the two panes THIS archive holds. The optional-pane
+    // tuple also names Perks and Account timeline, which this archive has no file
+    // for (so no row to open); stage 13 below opens those two on their own archive.
+    const STAGE_12_PANES = ['heat', 'warships-storage'] as const;
+    const STAGE_13_PANES = ['perks', 'account-timeline'] as const;
+    // Stage 12 and stage 13 together must name every optional pane, so a pane added
+    // to the tuple later fails here instead of silently going unopened.
+    expect([...STAGE_12_PANES, ...STAGE_13_PANES].sort()).toEqual([...OPTIONAL_PANE_IDS].sort());
+    for (const pane of STAGE_12_PANES) {
       await openSection(page, pane);
-      await expect(
-        page.getByTestId(pane === 'heat' ? 'heat-block' : 'warships-storage-block'),
-      ).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+      await expect(page.getByTestId(`${pane}-block`)).toHaveAttribute('data-state', 'ready', {
+        timeout: 30_000,
+      });
     }
     await openSection(page, 'heat');
     await page.getByTestId('heat-mask-toggle').click();
@@ -505,6 +514,38 @@ test.describe('zero-network and CSP', () => {
     await expect(playerStats).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
     await page.getByTestId('player-stats-title-selector').selectOption('wowp');
     await expect(page.getByTestId('wowp-account-stats')).toHaveCount(1, { timeout: 30_000 });
+
+    // --- 13. the Phase 12 panes -----------------------------------------------
+    // The Account timeline and Perks panes read two worker channels no earlier
+    // flow asks, from files no earlier archive holds, and they own the second
+    // and third uses of the shared address reveal. So the archive that holds them
+    // replaces the one above, both panes are opened and awaited, the Perks mask
+    // toggle is pressed (a state change, never a request) and one kind chip is
+    // chosen (a local filter over an in-memory model). The baseline arithmetic
+    // and the three assertions below are untouched: they now cover this stage too.
+    await page.getByTestId('file-input').setInputFiles({
+      name: 'account-timeline-perks-export.zip',
+      mimeType: 'application/zip',
+      buffer: Buffer.from(buildAccountTimelinePerksExport()),
+    });
+    await expect(panel).toBeVisible();
+    await panel.getByTestId('confirm-commit').click();
+    await expect(panel).toHaveCount(0);
+    await waitForImported(page);
+    await expect(page.getByTestId('identity-multi-title')).toBeVisible({ timeout: 30_000 });
+
+    for (const pane of STAGE_13_PANES) {
+      await openSection(page, pane);
+      await expect(page.getByTestId(`${pane}-block`)).toHaveAttribute('data-state', 'ready', {
+        timeout: 30_000,
+      });
+    }
+    await openSection(page, 'perks');
+    await page.getByTestId('perks-mask-toggle').click();
+    await expect(page.getByTestId('perks-mask-toggle')).toHaveAttribute('data-masked', 'false');
+    await openSection(page, 'account-timeline');
+    await page.getByTestId('timeline-kind-filter').locator('label.chip').nth(1).click();
+    await expect(page.getByTestId('timeline-kind-filter').locator('input:checked')).toHaveCount(1);
 
     // The same short settle the other two tests use, so a request queued by the
     // last interaction has reached the network stack before the count is read.
@@ -523,7 +564,7 @@ test.describe('zero-network and CSP', () => {
     }
 
     // The half that counting requests cannot see: nothing was even ATTEMPTED,
-    // by any of the twelve flows above.
+    // by any of the thirteen flows above.
     const violations = await page.evaluate(
       () => (window as unknown as { __cspViolations: string[] }).__cspViolations,
     );

@@ -304,9 +304,28 @@ const F_DEVICE = 'Device_Info';
 const F_USER_INFO = 'User_Info';
 const F_CHAT = 'Chat_History';
 const F_FORUMS = 'Game_Forums';
-const F_BANS = 'Bans';
-const F_SUBSCRIPTIONS = 'Subscriptions';
-const F_BONUS = 'Bonus_Codes';
+
+/**
+ * The synthetic UNKNOWN folders this fixture plants (12-04).
+ *
+ * These were `Bans`, `Subscriptions` and `Bonus_Codes` — three REAL Phase-12
+ * folders, all promoted to `SUPPORTED` by plan 12-04. A fixture still calling
+ * one of them "an unsupported category" would assert the opposite of the
+ * product. `Game_Forums` is NOT a usable stand-in for all three: it is real,
+ * and plan 12-04 deliberately leaves it unpromoted (D-02, its header carries an
+ * EMAIL), but one folder cannot stand in for three.
+ *
+ * So: synthetic names no phase will promote. Exported so the tests that assert
+ * on these folders import the name rather than re-typing it, in the order the
+ * roots below declare them.
+ */
+export const MA_UNKNOWN_FOLDERS = [
+  'Unmapped_Folder',
+  'Unmapped_Folder_Two',
+  'Unmapped_Folder_Three',
+] as const;
+
+const [F_UNMAPPED, F_UNMAPPED_TWO, F_UNMAPPED_THREE] = MA_UNKNOWN_FOLDERS;
 
 /** Wargaming's own export-wrapper folder: transparent (D-03). */
 const MA_WRAPPER = 'personal_data_export';
@@ -540,9 +559,9 @@ function sessionCsv(file: SessionFileSpec): string {
 
 /** The unsupported folders' one-file bodies, by folder name. */
 const UNSUPPORTED_BODY: Readonly<Record<string, string>> = {
-  [F_BANS]: CRLF + BANS_HEADER + CRLF + BANS_ROW + CRLF,
-  [F_SUBSCRIPTIONS]: CRLF + SUBSCRIPTIONS_HEADER + CRLF + SUBSCRIPTIONS_ROW + CRLF,
-  [F_BONUS]: CRLF + BONUS_HEADER + CRLF + BONUS_ROW + CRLF,
+  [F_UNMAPPED]: CRLF + BANS_HEADER + CRLF + BANS_ROW + CRLF,
+  [F_UNMAPPED_TWO]: CRLF + SUBSCRIPTIONS_HEADER + CRLF + SUBSCRIPTIONS_ROW + CRLF,
+  [F_UNMAPPED_THREE]: CRLF + BONUS_HEADER + CRLF + BONUS_ROW + CRLF,
   [F_CHAT]: CRLF + CHAT_HEADER + CRLF + CHAT_ROW + CRLF,
   [F_FORUMS]: CRLF + FORUM_HEADER + CRLF + FORUM_ROW + CRLF,
 };
@@ -663,7 +682,7 @@ const RU_ROOT: RootSpec = {
   misfiledIdentity: true,
   sessions: RU_SESSIONS,
   deviceInfo: true,
-  unsupported: [F_BONUS],
+  unsupported: [F_UNMAPPED_THREE],
   directoryEntries: true,
 };
 
@@ -676,7 +695,7 @@ const EU_ROOT: RootSpec = {
   financial: true,
   payment: true,
   deviceInfo: true,
-  unsupported: [F_BANS, F_SUBSCRIPTIONS, F_FORUMS, F_CHAT],
+  unsupported: [F_UNMAPPED, F_UNMAPPED_TWO, F_FORUMS, F_CHAT],
   directoryEntries: true,
 };
 

@@ -20,3 +20,5 @@ plan's defect.
   content edge.
 - **Also recorded in:** `.planning/WINDOWS.md` (entry 15, kind `lint-warning`,
   status `open`), so it is visible to the ship gate rather than only here.
+- status: resolved
+- **Resolution:** chart-fill now polls until layout settles (see 3ebfd46); WINDOWS entry 15 closed.

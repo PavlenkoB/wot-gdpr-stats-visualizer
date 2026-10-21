@@ -15,7 +15,13 @@ import { listEntryPaths } from './zip-paths.ts';
 import { createInflateFilter } from './inflate-bounds.ts';
 import { digestFile } from './hash.ts';
 import { parseCsvFile } from './csv-parse.ts';
-import { fileMatchesSpec, isNewDataFile, projectRow, specFor } from './new-data-allowlist.ts';
+import {
+  fileMatchesSpec,
+  isFamilyCategory,
+  isNewDataFile,
+  projectRow,
+  specFor,
+} from './new-data-allowlist.ts';
 import { newDataPaneFacts } from './new-data-facts.ts';
 import {
   extractAccountRecord,
@@ -1115,8 +1121,20 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
         // even when its file is in the family. What it buys is that the presence
         // fact below can be written from the same decision the rows were written
         // from, instead of from the parse alone.
+        //
+        // Phase 12, D-03: the family test has a CATEGORY half as well as the
+        // NAME half. A freshly promoted folder (`Surveys`) is a container whose
+        // contents the app has not seen, and a name-only rule leaves a hole in
+        // it: a file whose name no pattern knows would fall through to the last
+        // branch of the storage expression and be stored RAW. So a file in a
+        // family CATEGORY is a family file whatever its name, and — because
+        // `spec` is still looked up with the entry's OWN category, and
+        // `storeFile` still requires a spec and a per-file header match — it
+        // stores NOTHING unless a spec names it in that very category
+        // (12-RESEARCH Finding 2, T-12-04). The category half only ever makes
+        // a file fail CLOSED; it never widens what is stored.
         const rowData = parsed.rows.map((row) => row.data);
-        const family = isNewDataFile(resolved.sourceFile);
+        const family = isNewDataFile(resolved.sourceFile) || isFamilyCategory(entry.name);
         const spec = family ? specFor(entry.name, resolved.sourceFile) : null;
         const storeFile =
           storeRows && (!family || (spec !== null && fileMatchesSpec(rowData, spec)));
@@ -1261,7 +1279,15 @@ async function handleIngest(jobId: number, file: File): Promise<void> {
           // "this root stored something" is a fact about rows that really
           // reached `allRows` and never about folders that merely existed.
           if (storeFile) root.storedRows += 1;
-          if (storeFile && userInfo) {
+          // 12-08 (research Finding 4, T-12-25): a FAMILY file never feeds the
+          // identity or Account-record pools. The three history files sit in
+          // User_Info and now store a past-nickname column on purpose, and
+          // `extractIdentity` falls back to the first pooled row's NAME when no
+          // ID matches the root, so a historic nickname could otherwise become
+          // the account's nickname. The lazy rebuild in db.ts applies the same
+          // exclusion: the two paths must agree ("rebuild equals import",
+          // Phase 9).
+          if (storeFile && userInfo && !family) {
             const isAccountInfo = resolved.sourceFile.toLowerCase().endsWith('account_info.csv');
             // Into the OWNING ROOT's pools only. A per-root pool is what stops
             // an account with no User_Info inheriting a sibling's nickname, and

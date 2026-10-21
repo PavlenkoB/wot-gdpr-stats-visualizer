@@ -21,6 +21,8 @@ import {
   MALFORMED_ROW_EXPECTED_SKIPPED_COUNT,
   RAGGED_OVERFLOW_MARKER,
   SAMPLE_ROW_COUNTS,
+  SAMPLE_UNKNOWN_FILE,
+  SAMPLE_UNKNOWN_FOLDER,
   VARIANT_CREATED_AT,
   VARIANT_NICKNAME,
   VARIANT_OVERFLOW_CANARY,
@@ -864,13 +866,15 @@ describe('03-01 — the sample identity constants match the fixture file', () =>
 
     // `overrides` can ADD a file in a folder the sample never had.
     const added = buildCustomExport({
-      overrides: { 'Bans/Extra.csv': 'ID;REASON\n1;synthetic\n' },
+      overrides: { [`${SAMPLE_UNKNOWN_FOLDER}/Extra.csv`]: 'ID;REASON\n1;synthetic\n' },
     });
     const onAdded = await ingest(added, 'custom-override.zip');
     expect(onAdded.type).toBe('done');
     if (onAdded.type !== 'done') return;
-    const bans = onAdded.result.categories.find((c) => c.name.toLowerCase() === 'bans');
-    expect(bans?.fileCount).toBe(2);
+    const unknownFolder = onAdded.result.categories.find(
+      (c) => c.name.toLowerCase() === SAMPLE_UNKNOWN_FOLDER.toLowerCase(),
+    );
+    expect(unknownFolder?.fileCount).toBe(2);
   });
 });
 
@@ -2845,7 +2849,7 @@ describe('02-05 -- CR-03: a ragged LOGIN;BIRTH_DATE file persists no sensitive v
 // record BETWEEN valid ones. The parser is what is fixed.
 // =============================================================================
 
-describe('02-05 -- CR-01/CR-02: the real-shape malformed Bans file through the real worker', () => {
+describe('02-05 -- CR-01/CR-02: the real-shape malformed unknown-folder file through the real worker', () => {
   let postSpy: ReturnType<typeof vi.fn>;
   let savedSelf: unknown;
 
@@ -2867,29 +2871,31 @@ describe('02-05 -- CR-01/CR-02: the real-shape malformed Bans file through the r
     }
   });
 
-  test('Bans keeps its three valid rows and counts exactly one skip; no other category skips', async () => {
+  test('the unknown folder keeps its three valid rows and counts exactly one skip; no other category skips', async () => {
     const terminal = await ingestWith(postSpy, buildMalformedRowsExport(), 'malformed.zip');
     expect(terminal.type).toBe('done');
     if (terminal.type !== 'done') return;
 
-    const bans = terminal.result.categories.find((c) => c.name === 'Bans');
-    expect(bans, 'Bans category present').toBeDefined();
-    expect(bans!.rowCount).toBe(MALFORMED_ROW_EXPECTED_ROW_COUNT);
-    expect(bans!.skippedRowCount).toBe(MALFORMED_ROW_EXPECTED_SKIPPED_COUNT);
+    const unknown = terminal.result.categories.find((c) => c.name === SAMPLE_UNKNOWN_FOLDER);
+    expect(unknown, 'the unknown folder is present').toBeDefined();
+    expect(unknown!.rowCount).toBe(MALFORMED_ROW_EXPECTED_ROW_COUNT);
+    expect(unknown!.skippedRowCount).toBe(MALFORMED_ROW_EXPECTED_SKIPPED_COUNT);
 
     for (const entry of terminal.result.categories) {
-      if (entry.name === 'Bans') continue;
+      if (entry.name === SAMPLE_UNKNOWN_FOLDER) continue;
       expect(entry.skippedRowCount ?? 0, `category ${entry.name} skippedRowCount`).toBe(0);
     }
 
-    // Phase 9 (D-18): `Bans` is an unknown category, so its rows are parsed for
+    // Phase 9 (D-18): the stand-in folder is an UNKNOWN category, so its rows are parsed for
     // these counts and never stored. The counts above are therefore read from
     // the WORKER result — the only place they now exist — and the per-row
     // values are asserted on the function the worker calls, on the same bytes.
     const { db } = await importWorkerDb();
-    expect((await db.rows.toArray()).filter((r) => r.category === 'Bans')).toHaveLength(0);
+    expect(
+      (await db.rows.toArray()).filter((r) => r.category === SAMPLE_UNKNOWN_FOLDER),
+    ).toHaveLength(0);
 
-    const parsed = parseCsvFile(MALFORMED_BANS_CSV, 'Bans', 'Bans.csv');
+    const parsed = parseCsvFile(MALFORMED_BANS_CSV, SAMPLE_UNKNOWN_FOLDER, SAMPLE_UNKNOWN_FILE);
     expect(parsed.rows.length).toBe(MALFORMED_ROW_EXPECTED_ROW_COUNT);
     expect(parsed.skippedCount).toBe(MALFORMED_ROW_EXPECTED_SKIPPED_COUNT);
     // The three surviving rows are the valid ones, in source order.
@@ -3047,7 +3053,7 @@ describe('02-06 -- W-1: a lookalike LOGIN / BIRTH_DATE header persists no sensit
 // worker
 // =============================================================================
 //
-// 02-VERIFICATION.md W-2. Before the change the Bans file below imported two
+// 02-VERIFICATION.md W-2. Before the change the unknown-folder file below imported two
 // rows (the others were glued into neighbouring cells) with skippedRowCount 0.
 // =============================================================================
 
@@ -3076,16 +3082,18 @@ describe('02-06 -- W-2: mixed terminators through the real worker', () => {
   const BANS_HEADER = 'BAN_DT;BAN_REASON;BAN_EXPIRES_AT';
   const record = (n: number): string => `2020-0${n}-01 00:00:00;reason_${n};2020-0${n}-08 00:00:00`;
 
-  async function ingestBans(text: string) {
-    const bytes = buildCustomExport({ overrides: { 'Bans/Bans.csv': text } });
+  async function ingestUnknownFolder(text: string) {
+    const bytes = buildCustomExport({
+      overrides: { [`${SAMPLE_UNKNOWN_FOLDER}/${SAMPLE_UNKNOWN_FILE}`]: text },
+    });
     const terminal = await ingestWith(postSpy, bytes, 'mixed-terminators.zip');
     expect(terminal.type).toBe('done');
     if (terminal.type !== 'done') throw new Error('not done');
-    const bans = terminal.result.categories.find((c) => c.name === 'Bans');
-    expect(bans, 'Bans category present').toBeDefined();
+    const unknown = terminal.result.categories.find((c) => c.name === SAMPLE_UNKNOWN_FOLDER);
+    expect(unknown, 'the unknown folder is present').toBeDefined();
     const { db } = await importWorkerDb();
-    const rows = (await db.rows.toArray()).filter((r) => r.category === 'Bans');
-    return { bans: bans!, rows };
+    const rows = (await db.rows.toArray()).filter((r) => r.category === SAMPLE_UNKNOWN_FOLDER);
+    return { entry: unknown!, rows };
   }
 
   test('CRLF, LF, CR, CRLF, LF: every record is its own row, values hold no line break', async () => {
@@ -3100,15 +3108,16 @@ describe('02-06 -- W-2: mixed terminators through the real worker', () => {
       '\r\n' +
       record(4) +
       '\n';
-    const { bans, rows } = await ingestBans(text);
+    const { entry, rows } = await ingestUnknownFolder(text);
 
-    expect(bans.rowCount).toBe(4);
-    expect(bans.skippedRowCount).toBe(0);
-    // D-18: `Bans` is unknown, so none of those rows is stored. The per-record
-    // assertions move to the function the worker calls, on the same text.
+    expect(entry.rowCount).toBe(4);
+    expect(entry.skippedRowCount).toBe(0);
+    // D-18: an unknown folder stores nothing, so none of those rows is stored.
+    // The per-record assertions move to the function the worker calls, on the
+    // same text.
     expect(rows).toHaveLength(0);
 
-    const parsed = parseCsvFile(text, 'Bans', 'Bans.csv');
+    const parsed = parseCsvFile(text, SAMPLE_UNKNOWN_FOLDER, SAMPLE_UNKNOWN_FILE);
     expect(parsed.rows.map((r) => r.data['BAN_REASON'])).toEqual([
       'reason_1',
       'reason_2',
@@ -3136,13 +3145,13 @@ describe('02-06 -- W-2: mixed terminators through the real worker', () => {
       '\r' +
       record(4) +
       '\r\n';
-    const { bans, rows } = await ingestBans(text);
+    const { entry, rows } = await ingestUnknownFolder(text);
 
-    expect(bans.rowCount).toBe(3);
-    expect(bans.skippedRowCount).toBe(1);
+    expect(entry.rowCount).toBe(3);
+    expect(entry.skippedRowCount).toBe(1);
     expect(rows).toHaveLength(0);
 
-    const parsed = parseCsvFile(text, 'Bans', 'Bans.csv');
+    const parsed = parseCsvFile(text, SAMPLE_UNKNOWN_FOLDER, SAMPLE_UNKNOWN_FILE);
     expect(parsed.rows.map((r) => r.data['BAN_REASON'])).toEqual([
       'reason_1',
       'reason_3',

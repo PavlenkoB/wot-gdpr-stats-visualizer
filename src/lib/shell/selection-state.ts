@@ -28,6 +28,8 @@ import {
   formatAccountCount,
   formatFolderCount,
   formatHeatRowSummary,
+  formatPerksRowSummary,
+  formatTimelineRowSummary,
   formatRowCount,
   formatRowSummary,
   formatSectionStatus,
@@ -43,9 +45,9 @@ import { accountCountOf, hasMultipleRoots } from './identity-model.ts';
 //
 // The list pane, the Overview grid and the detail pane all describe the same
 // export. This module is the ONE place that turns a `ClassifyResult` into the
-// rows the list shows — the nine always-present ones plus the two optional
-// new-game panes of 11-05 — so a list row, an Overview card and a detail pane
-// cannot disagree (the Phase 3 D-08 rule, carried forward).
+// rows the list shows — the nine always-present ones plus the three optional
+// new-game panes of 11-05 and 12-02 — so a list row, an Overview card and a
+// detail pane cannot disagree (the Phase 3 D-08 rule, carried forward).
 //
 // Three consequences worth stating, because all three are load-bearing:
 //
@@ -94,24 +96,33 @@ export const PANE_IDS = [
   'not-yet-supported',
 ] as const;
 
-/** One of the nine pane ids. */
+/** One of the pane ids: the nine always-present ones and the optional ones. */
 export type PaneId = (typeof PANE_IDS)[number] | NewDataPaneId;
 
 /**
- * The panes an export may or may not hold (11-05, D-01/D-03).
+ * The panes an export may or may not hold (11-05, D-01/D-03; 12-02 for Perks).
  *
  * THE SHARED CONSTANT, not a copy of it: `NEW_DATA_PANE_IDS` is the one
  * vocabulary the ingest worker and this shell both read, so a pane cannot be
  * spelled one way in the worker and another here. `new-data-shared.ts` has no
  * imports at all, which is exactly what makes that import legal.
+ *
+ * The ORDER of this tuple is the order the panes were added, NOT the order the
+ * list shows them: the two game-data panes sit after Vehicles and the Perks
+ * pane sits with the money rows, so `PANE_ORDER` names the positions.
  */
 export const OPTIONAL_PANE_IDS = NEW_DATA_PANE_IDS;
 
 /**
- * The eleven panes in the order the list shows them (UI-SPEC Surface 2).
+ * The thirteen panes in the order the list shows them (UI-SPEC Surface 2).
  *
- * The two optional ones sit directly after `vehicles`, with the other
- * game-data row, and the money and device rows keep the order v1.0 gave them.
+ * EXPLICIT, and no longer a spread of `OPTIONAL_PANE_IDS` (12-02, 12-RESEARCH
+ * Pitfall 6). A spread cannot say where an optional pane belongs: the two
+ * game-data panes sit directly after `vehicles`, the Perks pane sits with the
+ * money rows, and the Account timeline pane (plan 12-11) sits directly above
+ * `account`. A spread puts every optional pane in one place, so the order had
+ * to become a list a reader can read.
+ *
  * `paneEntries` walks THIS, not `PANE_IDS`, and drops an optional pane the
  * result does not carry.
  */
@@ -120,10 +131,13 @@ export const PANE_ORDER = [
   'playtime',
   'login-history',
   'vehicles',
-  ...OPTIONAL_PANE_IDS,
+  'heat',
+  'warships-storage',
   'finance',
   'payments',
+  'perks',
   'device-info',
+  'account-timeline',
   'account',
   'not-yet-supported',
 ] as const satisfies readonly PaneId[];
@@ -139,11 +153,16 @@ export const DEFAULT_PANE: PaneId = 'overview';
  * views of one folder, so they are muted or available together. A folder with
  * zero rows mutes both, and a missing folder mutes both, with the same reason.
  *
- * The two optional panes are `null` (11-05): neither reads ONE folder — a HEAT
- * or a Warships crews pane is built from files the export may place anywhere —
- * so there is no `NavId` whose availability could stand for the pane's. Their
- * availability comes from `result.newDataPanes` instead, and `paneEntries`
- * never routes them through `navEntries`.
+ * The optional panes are `null` (11-05): none of them reads ONE folder — a
+ * HEAT or a Warships crews pane is built from files the export may place
+ * anywhere — so there is no `NavId` whose availability could stand for the
+ * pane's. Their availability comes from `result.newDataPanes` instead, and
+ * `paneEntries` never routes them through `navEntries`.
+ *
+ * The Perks pane (12-02) is `null` for the same reason: its four cards live in
+ * four different folders, and one folder's status could not stand for the
+ * pane's. So is the Account timeline (12-11): its five files live in three
+ * folders (User_Info, Bans and Authorized_Third_Parties).
  */
 export const PANE_SECTION: Record<PaneId, NavId | null> = {
   overview: null,
@@ -157,6 +176,8 @@ export const PANE_SECTION: Record<PaneId, NavId | null> = {
   'not-yet-supported': 'not-yet-supported',
   heat: null,
   'warships-storage': null,
+  perks: null,
+  'account-timeline': null,
 };
 
 /** One row of the list pane. */
@@ -201,6 +222,14 @@ function isOptionalPane(id: PaneId): id is NewDataPaneId {
  *
  * Headline and summary come from constants and the pane's two integers; no
  * file name and no cell can reach either (T-11-16).
+ *
+ * ## Why the summary is a `switch` and not a ternary
+ *
+ * A two-way ternary over the pane id reads well with two panes and silently
+ * mislabels every pane after the second: a third optional pane would inherit
+ * the Warships summary without a word of complaint (12-RESEARCH Pitfall 5). A
+ * `switch` with a `never`-typed default turns that silence into a TYPE ERROR
+ * — the fifth optional pane cannot be added without saying what its row says.
  */
 function optionalPaneEntry(id: NewDataPaneId, facts: NewDataPaneFacts): PaneEntry {
   if (facts.rowCount === 0) {
@@ -212,10 +241,28 @@ function optionalPaneEntry(id: NewDataPaneId, facts: NewDataPaneFacts): PaneEntr
       summary: formatSectionStatus('empty', PANE_TITLES[id]),
     };
   }
-  const summary =
-    id === 'heat'
-      ? formatHeatRowSummary(facts.fileCount)
-      : formatWowsStorageRowSummary(facts.fileCount);
+  let summary: string;
+  switch (id) {
+    case 'heat':
+      summary = formatHeatRowSummary(facts.fileCount);
+      break;
+    case 'warships-storage':
+      summary = formatWowsStorageRowSummary(facts.fileCount);
+      break;
+    case 'perks':
+      summary = formatPerksRowSummary(facts.fileCount);
+      break;
+    case 'account-timeline':
+      summary = formatTimelineRowSummary(facts.fileCount);
+      break;
+    default: {
+      // The exhaustiveness check: an optional pane this switch does not name
+      // has no row of its own, and a pane with no row of its own must not
+      // borrow another pane's words.
+      const unhandled: never = id;
+      throw new Error(`optional pane without a row summary: ${String(unhandled)}`);
+    }
+  }
   return { id, muted: false, reason: null, headline: formatRowCount(facts.rowCount), summary };
 }
 
@@ -225,7 +272,7 @@ function optionalPaneEntry(id: NewDataPaneId, facts: NewDataPaneFacts): PaneEntr
  *
  * The nine always-present panes are derived exactly as they were in v1.0, in
  * the same order, so every existing spec and fixture sees identical output.
- * The two optional ones are ADDED: a row exists only when
+ * The three optional ones are ADDED: a row exists only when
  * `result.newDataPanes` names that pane, which is why an export with no HEAT
  * data has no HEAT row, no muted placeholder and no "not in this export"
  * sentence (D-01: shown only when the export holds HEAT data).

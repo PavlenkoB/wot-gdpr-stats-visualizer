@@ -1,0 +1,39 @@
+FILE ACCT-B/Authorized_Third_Parties/Authorized_Third_Parties.csv bytes 283 nonempty_lines 6
+DELIM ,
+HDR THIRD_PARTY_SITE|CREATED_AT
+FILE ACCT-B/Bans/Bans.csv bytes 314 nonempty_lines 2
+DELIM ,
+HDR DESCRIPTION|STARTED_AT|EXPIRED_AT|REASON|STATUS
+FILE ACCT-B/Bonus_Codes/Bonus_Code_Usage.csv bytes 499 nonempty_lines 10
+DELIM ,
+HDR CREATED_AT|CODE_KEY|USER_IP
+FILE ACCT-B/Personal_Coupons/Personal_Coupons.csv bytes 157335 nonempty_lines 50
+DELIM ,
+HDR INSERTED_AT|UPDATED_AT|EXPIRED_AT|STATUS|CODE|PREREQUISITE
+FILE ACCT-B/Subscriptions/Subscriptions.csv bytes 1660 nonempty_lines 26
+DELIM ,
+HDR SUBSCRIPTION|SUBSCRIBED
+FILE ACCT-B/Surveys/HEAT_Surveys.csv bytes 653 nonempty_lines 7
+DELIM ,
+HDR PROFILE_ID|BATTLE_ID|QUESTION_ID|PLAYER_ANSWER|SKIPPED_BY_PLAYER|MESSAGE_TS
+FILE ACCT-B/User_Info/Account_Name_History.csv bytes 111 nonempty_lines 2
+DELIM ,
+HDR CREATED_AT|IP|OLD_NAME|NEW_NAME
+FILE ACCT-B/User_Info/External_Services_History.csv bytes 965 nonempty_lines 12
+DELIM ,
+HDR CREATED_AT|IP|OPERATION|NAME|UID
+FILE ACCT-B/User_Info/Language_And_Country_History.csv bytes 104 nonempty_lines 2
+DELIM ,
+HDR CREATED_AT|OPERATION|NAME|VALUE
+FILE ACCT-C/Subscriptions/Subscriptions.csv bytes 1660 nonempty_lines 26
+DELIM ,
+HDR SUBSCRIPTION|SUBSCRIBED
+FILE ACCT-C/User_Info/External_Services_History.csv bytes 965 nonempty_lines 12
+DELIM ,
+HDR CREATED_AT|IP|OPERATION|NAME|UID
+FILE ACCT-C/User_Info/Language_And_Country_History.csv bytes 104 nonempty_lines 2
+DELIM ,
+HDR CREATED_AT|OPERATION|NAME|VALUE
+FILE ACCT-A/Bonus_Codes/Bonus_Code_Usage.csv bytes 599 nonempty_lines 12
+DELIM ,
+HDR CREATED_AT|CODE_KEY|USER_IP

@@ -26,14 +26,14 @@
 
 ### Account timeline
 
-- [ ] **TIMELINE-01**: Name history, external-services history and language/country history are shown as an account timeline; emails and IPs are masked
-- [ ] **TIMELINE-02**: Bans and Authorized_Third_Parties are shown; IPs stay masked
+- [x] **TIMELINE-01**: Name history, external-services history and language/country history are shown as an account timeline; emails and IPs are masked
+- [x] **TIMELINE-02**: Bans and Authorized_Third_Parties are shown; IPs stay masked
 
 ### Perks
 
-- [ ] **PERKS-01**: Subscriptions are shown
-- [ ] **PERKS-02**: Personal coupons and bonus-code usage are shown; codes and user IP are masked by default
-- [ ] **PERKS-03**: Surveys are shown
+- [x] **PERKS-01**: Subscriptions are shown
+- [x] **PERKS-02**: Personal coupons and bonus-code usage are shown; codes and user IP are masked by default
+- [x] **PERKS-03**: Surveys are shown
 
 ### Cross-cutting
 
@@ -72,11 +72,11 @@
 | GAMES-02 | Phase 11 | Complete |
 | GAMES-03 | Phase 11 | Complete |
 | GAMES-04 | Phase 11 | Complete |
-| TIMELINE-01 | Phase 12 | Pending |
-| TIMELINE-02 | Phase 12 | Pending |
-| PERKS-01 | Phase 12 | Pending |
-| PERKS-02 | Phase 12 | Pending |
-| PERKS-03 | Phase 12 | Pending |
+| TIMELINE-01 | Phase 12 | Complete |
+| TIMELINE-02 | Phase 12 | Complete |
+| PERKS-01 | Phase 12 | Complete |
+| PERKS-02 | Phase 12 | Complete |
+| PERKS-03 | Phase 12 | Complete |
 | PRIV-01 | Phase 11 | Complete |
 | PRIV-02 | Phase 11 | Complete |
 | SCALE-01 | Phase 10 | Complete |

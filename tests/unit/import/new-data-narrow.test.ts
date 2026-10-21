@@ -26,6 +26,7 @@ import type { AccountMeta, DatasetFile, DatasetRow } from '../../../src/lib/work
 import { isNewDataFile } from '../../../src/lib/worker/new-data-allowlist.ts';
 import { NEW_DATA_SPEC_FILES, type SpecFile } from '../../../src/lib/worker/new-data-specs.ts';
 import { NG_ROOT_A, NG_ROOT_B } from '../../fixtures/new-data-fixtures.ts';
+import { CAPTURED_FILES } from '../../fixtures/new-data-headers.ts';
 import {
   deleteActiveDatabase,
   importWorkerDb,
@@ -80,6 +81,31 @@ function legacyRow(
 }
 
 /**
+ * The FOLDER a spec's file was captured in, spelled as the archive spells it.
+ *
+ * The spec's own category decides it, because the narrowing step looks the
+ * spec up with the row's OWN category: a row filed under a folder the spec was
+ * never seen in matches no spec and is deleted rather than narrowed, which is
+ * the rule the misfiled-copy case proves.
+ */
+function folderOf(spec: SpecFile): string {
+  // The Phase 12 files are filed under the folder the capture printed (12-08),
+  // spelled as the archive spells it, so the seeded category is the spec's own.
+  const captured = CAPTURED_FILES.find((entry) => entry.key === spec.key);
+  if (captured !== undefined && captured.folder.toLowerCase() === spec.category) {
+    return captured.folder;
+  }
+  switch (spec.category) {
+    case 'activity_history':
+      return 'Activity_History';
+    case 'surveys':
+      return 'Surveys';
+    default:
+      return 'Player_Statistics';
+  }
+}
+
+/**
  * A pre-allowlist row of a spec file: the file's OWN first column, a personal
  * column the spec never names, and a surplus array no column list can see into
  * — the three shapes a legacy cache holds and a projection must remove.
@@ -87,7 +113,7 @@ function legacyRow(
 function legacySpecRow(spec: SpecFile, rowIndex: number, account = NG_ROOT_A): DatasetRow {
   const header = spec.columns[0]?.header ?? 'UNKNOWN';
   return legacyRow(
-    spec.category === 'activity_history' ? 'Activity_History' : 'Player_Statistics',
+    folderOf(spec),
     spec.key,
     rowIndex,
     {

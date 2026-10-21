@@ -3,7 +3,12 @@
   import { SCROLLER_MAX_PX, windowRange } from '../../core/windowing.ts';
   import AccountTag from '../../shell/AccountTag.svelte';
   import { tagLabel, type AccountTagModel } from '../../shell/identity-model.ts';
-  import { formatDeviceTableLabel, formatNewDataColumnLabel } from '../../ui-copy.ts';
+  import {
+    formatAccountOverflow,
+    formatDeviceTableLabel,
+    formatNewDataColumnLabel,
+  } from '../../ui-copy.ts';
+  import { accountChipsOf } from '../logins/login-model.ts';
   import { formatNewDataCell } from './new-data-cell.ts';
   import type { NewDataColumnKind, NewDataColumnView, NewDataRowView } from './new-data-shared.ts';
   import { shouldWindow } from './new-data-state.ts';
@@ -63,9 +68,26 @@
     revealed: boolean;
     /** The id of the column shown as `Battle type {code}`, or null. */
     battleTypeColumnId: string | null;
+    /**
+     * Whether a row may carry several account tags (a merged row, D-10).
+     *
+     * False (the default) keeps the first cell EXACTLY the single-tag markup the
+     * HEAT and Warships panes have always drawn. True draws one tag per account in
+     * `row.accounts`, at most three, then a muted `+N`, and widens the first column.
+     */
+    severalTags?: boolean;
   }
 
-  let { columns, rows, fileKey, tableLabel, tags, revealed, battleTypeColumnId }: Props = $props();
+  let {
+    columns,
+    rows,
+    fileKey,
+    tableLabel,
+    tags,
+    revealed,
+    battleTypeColumnId,
+    severalTags = false,
+  }: Props = $props();
 
   const regionName = $derived(formatDeviceTableLabel(tableLabel));
   const windowed = $derived(shouldWindow(rows.length));
@@ -105,32 +127,45 @@
    * class is what the stylesheet uses, because the CSP forbids writing a width
    * into a `style` attribute. Keeping both halves in one record is what stops a
    * kind that gets a class from missing the map and falling back to the wrong
-   * width. `taggedCls` is the same column one account tag wider.
+   * width. `taggedCls` is the same column one account tag wider and `manyCls`
+   * two tags wider (a table whose rows may carry several tags).
    */
   const KIND_GEOMETRY: Readonly<
-    Record<NewDataColumnKind, { px: number; cls: string; taggedCls: string }>
+    Record<NewDataColumnKind, { px: number; cls: string; taggedCls: string; manyCls: string }>
   > = {
-    text: { px: 176, cls: 'w-text', taggedCls: 'w-text-tagged' },
-    date: { px: 176, cls: 'w-date', taggedCls: 'w-date-tagged' },
-    number: { px: 120, cls: 'w-number', taggedCls: 'w-number-tagged' },
-    address: { px: 176, cls: 'w-address', taggedCls: 'w-address-tagged' },
+    text: { px: 176, cls: 'w-text', taggedCls: 'w-text-tagged', manyCls: 'w-text-many' },
+    date: { px: 176, cls: 'w-date', taggedCls: 'w-date-tagged', manyCls: 'w-date-many' },
+    number: { px: 120, cls: 'w-number', taggedCls: 'w-number-tagged', manyCls: 'w-number-many' },
+    address: {
+      px: 176,
+      cls: 'w-address',
+      taggedCls: 'w-address-tagged',
+      manyCls: 'w-address-many',
+    },
+    code: { px: 176, cls: 'w-code', taggedCls: 'w-code-tagged', manyCls: 'w-code-many' },
   };
 
   /** What the first column grows by when it carries an account tag (24px chip, 4px gap, 4px margin). */
   const TAG_EXTRA_PX = 32;
+
+  /** The growth when rows may carry several tags: room for two chips (zero-one-many). */
+  const SEVERAL_TAGS_EXTRA_PX = 64;
 
   const tagged = $derived(tags !== null);
 
   /** One column's pixel width; the first column is wider only when tags exist. */
   function widthOf(column: NewDataColumnView, index: number): number {
     const base = KIND_GEOMETRY[column.kind].px;
-    return index === 0 && tagged ? base + TAG_EXTRA_PX : base;
+    return index === 0 && tagged
+      ? base + (severalTags ? SEVERAL_TAGS_EXTRA_PX : TAG_EXTRA_PX)
+      : base;
   }
 
   /** One column's width class, from the same record the width comes from. */
   function widthClass(column: NewDataColumnView, index: number): string {
     const geometry = KIND_GEOMETRY[column.kind];
-    return index === 0 && tagged ? geometry.taggedCls : geometry.cls;
+    if (index === 0 && tagged) return severalTags ? geometry.manyCls : geometry.taggedCls;
+    return geometry.cls;
   }
 
   /** The sum of the drawn columns' widths, in pixels. */
@@ -242,7 +277,34 @@
               revealed,
               battleTypeColumnId,
             })}
-            {#if cellIndex === 0}
+            {#if cellIndex === 0 && severalTags}
+              <!--
+                A table whose rows may carry several account tags (D-10): shown
+                tags in the identity header's order, the rest as visually hidden
+                phrases, then a muted plain-text +N. Every piece sits flush against
+                the next with no whitespace between, exactly like the Login table.
+                The chips are keyed by position because the same account repeats
+                across rows.
+              -->
+              <td
+                class="{widthClass(column, cellIndex)} sticky-first"
+                class:num={column.kind === 'number'}
+                >{#if tags !== null}{@const chips = accountChipsOf(
+                    row.accounts ?? [row.account],
+                    tags,
+                  )}{#each chips.shown as tag, tagIndex (tagIndex)}<AccountTag
+                      letter={tag.letter}
+                      label={tagLabel(tag)}
+                    />{/each}{#each chips.hiddenTags as tag, tagIndex (tagIndex)}<AccountTag
+                      letter={tag.letter}
+                      label={tagLabel(tag)}
+                      visual={false}
+                    />{/each}{#if chips.extra > 0}<span class="more"
+                      >{formatAccountOverflow(chips.extra)}</span
+                    >{/if}{/if}{#if cell.muted}<span class="not-reported">{cell.text}</span
+                  >{:else}{cell.text}{/if}</td
+              >
+            {:else if cellIndex === 0}
               <!--
                 The account tag, flush before the text. The `{#if}`, the tag and
                 the text sit against each other with no whitespace between them:
@@ -387,6 +449,15 @@
     text-align: right;
   }
 
+  /* The overflow count of a several-tags cell. Muted, plain text and never a
+     chip: a chip-shaped `+2` would be read as an account named `+2`. */
+  .more {
+    margin-right: 4px;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.4;
+  }
+
   /* The chip's 4px gap to the text after it. Declared here because the same
      component renders in the identity header, where the gap comes from the row's
      own gap. `:global` because the chip is another component's markup. */
@@ -410,15 +481,27 @@
      than inline styles. The tagged classes are the same width plus 32px. */
   .w-text,
   .w-date,
-  .w-address {
+  .w-address,
+  .w-code {
     width: 176px;
   }
   .w-number {
     width: 120px;
   }
+  /* A table whose rows may carry several tags: the same widths plus 64px. */
+  .w-text-many,
+  .w-date-many,
+  .w-address-many,
+  .w-code-many {
+    width: 240px;
+  }
+  .w-number-many {
+    width: 184px;
+  }
   .w-text-tagged,
   .w-date-tagged,
-  .w-address-tagged {
+  .w-address-tagged,
+  .w-code-tagged {
     width: 208px;
   }
   .w-number-tagged {

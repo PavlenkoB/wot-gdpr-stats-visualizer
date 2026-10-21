@@ -16,7 +16,13 @@ import {
 import { isLoginsFileName, isLoginsRow } from '../features/logins/login-aggregate.ts';
 import type { LoginSource } from '../features/logins/login-aggregate.ts';
 import { classifyFolder } from './categories.ts';
-import { fileMatchesSpec, isNewDataFile, projectRow, specFor } from './new-data-allowlist.ts';
+import {
+  fileMatchesSpec,
+  isFamilyCategory,
+  isNewDataFile,
+  projectRow,
+  specFor,
+} from './new-data-allowlist.ts';
 import type { AccountRowGroup } from './csv-columns.ts';
 import { accountsOfMeta } from './account-summary.ts';
 
@@ -771,6 +777,11 @@ export async function readLoginRowData(): Promise<{
           // row stamped with another root can never be used to describe the one
           // account that IS this dataset.
           if (accountOf(row, meta) !== onlyRoot) continue;
+          // 12-08 (research Finding 4, T-12-25): a family file stores a
+          // past-nickname column on purpose (the name history), so it is never
+          // a pool row. ingest.worker.ts skips it at the same point on import;
+          // the two paths must agree ("rebuild equals import", Phase 9).
+          if (isNewDataFile(row.sourceFile)) continue;
           if (row.sourceFile.toLowerCase().endsWith(ACCOUNT_INFO_SUFFIX)) {
             accountPool.push(row.data);
           } else {
@@ -813,6 +824,16 @@ export interface RowsSnapshot {
    * their own headers.
    */
   rows: Map<string, AccountRowGroup[]>;
+  /**
+   * The roots of the stored account list, in stored order (one legacy root for an
+   * absent or empty list), from `accountsOfMeta` like every other reader.
+   *
+   * It is the identity header's order, which is what breaks a tie between two
+   * accounts' entries at the same instant in the Account timeline (UI-SPEC
+   * Recorded Choice 2): the worker can sort once, in the pure builder, instead of
+   * the page re-sorting a posted list.
+   */
+  accounts: readonly string[];
 }
 
 /**
@@ -938,7 +959,12 @@ export async function readRowsByFile(
       }
       if (byAccount.size > 0) rows.set(name, [...byAccount.values()]);
     }
-    return { importedAt: meta.importedAt, files: meta.files ?? null, rows };
+    return {
+      importedAt: meta.importedAt,
+      files: meta.files ?? null,
+      rows,
+      accounts: accountsOfMeta(meta).map((account) => account.root),
+    };
   });
 }
 
@@ -1159,6 +1185,25 @@ function narrowGroupKey(account: string, sourceFile: string, category: string): 
  * a copy of a family file filed under a different folder is judged on the pair it
  * really has, and a family file this build has no spec for stores nothing.
  *
+ * ## Why there are TWO walks (phase 12, D-03)
+ *
+ * The walk by NAME above misses a promoted folder entirely: `Bans`,
+ * `Bonus_Codes`, `Personal_Coupons`, `Subscriptions`, `Authorized_Third_Parties`
+ * and `Surveys` hold files whose names the app does not list, and an unlisted
+ * name is not a family name. Promoting the folder is also exactly what makes the
+ * D-21 purge stop deleting its legacy rows (the purge only removes categories
+ * that are NOT supported), so without a second walk a v1.0 cache would keep those
+ * rows — IPs, codes, possibly emails — at rest for good. The second walk goes
+ * over the `category` index, `isFamilyCategory`, and decides every group the
+ * name walk did not already visit. It is index-only for the same reason the
+ * first is: the keys are read from the index, and only a family category's rows
+ * are ever loaded.
+ *
+ * Both walks hand each group to ONE local function, so the delete-or-project
+ * decision is a single piece of code. It is also the same pair of functions
+ * (`specFor`, `projectRow`) the import calls, so an import and a narrowing of
+ * the same rows cannot disagree.
+ *
  * The group is per ACCOUNT as well as per category, because two accounts
  * contribute the same file name (D-12) and one account's drifted header must not
  * delete the other account's good rows.
@@ -1214,65 +1259,114 @@ export async function narrowStoredNewDataRows(): Promise<number> {
     // No dataset, no facts, nothing to narrow.
     if (meta === undefined) return 0;
 
-    // The index walk this file already uses: index-only, and the LIST form of a
-    // `sourceFile` query must never appear here (its cost is a function of the
-    // number of KEYS, not of the rows — RESEARCH Pattern 2, measured).
-    const keys = await db.rows.orderBy('sourceFile').uniqueKeys();
-    let changed = 0;
     // How many rows each group HOLDS once this run is done, keyed as in
     // `narrowGroupKey`. A group absent from this map was never visited, so its
-    // facts are left exactly as written.
+    // facts are left exactly as written. Summed, because two index keys that
+    // differ only in letter case are one group as far as the facts go.
     const stored = new Map<string, number>();
+    let changed = 0;
 
-    for (const key of keys) {
-      if (typeof key !== 'string' || !isNewDataFile(key)) continue;
-      const matches = await db.rows.where('sourceFile').equals(key).toArray();
-      if (matches.length === 0) continue;
+    /**
+     * Decide one group and act on it: the ONE copy of the delete-or-project
+     * rule, shared by the name walk and the category walk so the two cannot
+     * disagree about what a row is allowed to keep.
+     */
+    const narrowGroup = async (
+      groupKey: string,
+      group: DatasetRow[],
+      sourceFile: string,
+    ): Promise<void> => {
+      const spec = specFor(group[0]!.category, sourceFile);
+      // No spec for this name in this category, or headers that match no
+      // column of it: rows a current import would not have stored must not
+      // survive at rest (D-15). Decided for the GROUP, so one account's
+      // drifted copy cannot delete its sibling's rows.
+      //
+      // 12-08: a group whose every row is ALREADY an empty object is a file an
+      // import stored whose allowlisted cells were all dropped (the email guard,
+      // or an all-blank column). It has no header left to match, but it holds
+      // nothing either, and deleting it on the SECOND run would make the
+      // narrowing differ from the import that wrote it. So it is left alone.
+      const alreadyEmpty = group.every((row) => Object.keys(row.data).length === 0);
+      if (
+        spec === null ||
+        (!alreadyEmpty &&
+          !fileMatchesSpec(
+            group.map((row) => row.data),
+            spec,
+          ))
+      ) {
+        await db.rows.bulkDelete(group.map((row) => row.id!));
+        changed += group.length;
+        stored.set(groupKey, stored.get(groupKey) ?? 0);
+        return;
+      }
+      const narrowed: DatasetRow[] = [];
+      for (const row of group) {
+        const projected = projectRow(row.data, spec);
+        // Only the CHANGED rows are written: that is what makes a second run
+        // write nothing at all.
+        if (sameRowData(row.data, projected)) continue;
+        // The spread keeps `id`, `category`, `sourceFile`, `rowIndex` and
+        // `account` — this is the same row, narrower, never a replacement that
+        // would renumber the file or move it to another account (D-12).
+        (narrowed as DatasetRow[]).push({ ...row, data: projected });
+      }
+      if (narrowed.length > 0) {
+        await db.rows.bulkPut(narrowed);
+        changed += narrowed.length;
+      }
+      stored.set(groupKey, (stored.get(groupKey) ?? 0) + group.length);
+    };
 
+    /** Group rows by (account, file, category), the identity the facts use. */
+    const groupRows = (
+      rows: readonly DatasetRow[],
+      fileOf: (row: DatasetRow) => string,
+    ): Map<string, DatasetRow[]> => {
       const groups = new Map<string, DatasetRow[]>();
-      for (const row of matches) {
-        const groupKey = narrowGroupKey(accountOf(row, meta), key, row.category);
+      for (const row of rows) {
+        const groupKey = narrowGroupKey(accountOf(row, meta), fileOf(row), row.category);
         const group = groups.get(groupKey);
         // The accumulator behind the array; see the same pattern in the readers
         // above.
         if (group === undefined) groups.set(groupKey, [row]);
         else (group as DatasetRow[]).push(row);
       }
+      return groups;
+    };
 
-      for (const [groupKey, group] of groups) {
-        const spec = specFor(group[0]!.category, key);
-        // No spec for this name in this category, or headers that match no
-        // column of it: rows a current import would not have stored must not
-        // survive at rest (D-15). Decided for the GROUP, so one account's
-        // drifted copy cannot delete its sibling's rows.
-        if (
-          spec === null ||
-          !fileMatchesSpec(
-            group.map((row) => row.data),
-            spec,
-          )
-        ) {
-          await db.rows.bulkDelete(group.map((row) => row.id!));
-          changed += group.length;
-          stored.set(groupKey, 0);
-          continue;
-        }
-        const narrowed: DatasetRow[] = [];
-        for (const row of group) {
-          const projected = projectRow(row.data, spec);
-          // Only the CHANGED rows are written: that is what makes a second run
-          // write nothing at all.
-          if (sameRowData(row.data, projected)) continue;
-          // The spread keeps `id`, `category`, `sourceFile`, `rowIndex` and
-          // `account` — this is the same row, narrower, never a replacement that
-          // would renumber the file or move it to another account (D-12).
-          (narrowed as DatasetRow[]).push({ ...row, data: projected });
-        }
-        if (narrowed.length > 0) {
-          await db.rows.bulkPut(narrowed);
-          changed += narrowed.length;
-        }
-        stored.set(groupKey, group.length);
+    // Walk 1, by NAME. The index walk this file already uses: index-only, and
+    // the LIST form of a `sourceFile` query must never appear here (its cost is
+    // a function of the number of KEYS, not of the rows — RESEARCH Pattern 2,
+    // measured).
+    const visited = new Set<string>();
+    const keys = await db.rows.orderBy('sourceFile').uniqueKeys();
+    for (const key of keys) {
+      if (typeof key !== 'string' || !isNewDataFile(key)) continue;
+      const matches = await db.rows.where('sourceFile').equals(key).toArray();
+      if (matches.length === 0) continue;
+
+      for (const [groupKey, group] of groupRows(matches, () => key)) {
+        visited.add(groupKey);
+        await narrowGroup(groupKey, group, key);
+      }
+    }
+
+    // Walk 2, by CATEGORY (phase 12, D-03). A promoted folder's files can carry
+    // any name, and an unlisted name is not a family name, so the walk above
+    // never reads them. Index-only again, with the same `uniqueKeys` form the
+    // purge uses. A group the name walk already decided is skipped: its rows
+    // were judged on the same pair by the same function.
+    const categories = await db.rows.orderBy('category').uniqueKeys();
+    for (const category of categories) {
+      if (typeof category !== 'string' || !isFamilyCategory(category)) continue;
+      const matches = await db.rows.where('category').equals(category).toArray();
+      if (matches.length === 0) continue;
+
+      for (const [groupKey, group] of groupRows(matches, (row) => row.sourceFile)) {
+        if (visited.has(groupKey)) continue;
+        await narrowGroup(groupKey, group, group[0]!.sourceFile);
       }
     }
 
@@ -1285,7 +1379,7 @@ export async function narrowStoredNewDataRows(): Promise<number> {
       if (files === null || files === undefined) return { files, changed: false };
       let touched = false;
       const next = files.map((file) => {
-        if (!isNewDataFile(file.sourceFile)) return file;
+        if (!isNewDataFile(file.sourceFile) && !isFamilyCategory(file.category)) return file;
         const count = stored.get(
           narrowGroupKey(file.account ?? meta.accountRoot, file.sourceFile, file.category),
         );

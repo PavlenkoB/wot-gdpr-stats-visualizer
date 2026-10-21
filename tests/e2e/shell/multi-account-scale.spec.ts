@@ -1,5 +1,12 @@
 import '../_support/pin-locale';
-import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import {
+  expect,
+  test,
+  type Browser,
+  type BrowserContext,
+  type Page,
+  type TestInfo,
+} from '@playwright/test';
 
 import { MAX_LOGIN_IPS } from '../../../src/lib/features/logins/login-shared.ts';
 import * as copy from '../../../src/lib/ui-copy.ts';
@@ -12,6 +19,7 @@ import {
   currencyBlock,
   loginHistoryBlock,
   openSection,
+  pickExportFromDisk,
   playerStatsBlock,
   playtimeBlock,
   spendBlock,
@@ -298,7 +306,7 @@ test.describe('10-06 scale: a three-account export with 54,000 currency rows, in
   let context: BrowserContext;
   let page: Page;
 
-  test.beforeAll(async ({ browser }: { browser: Browser }) => {
+  test.beforeAll(async ({ browser }: { browser: Browser }, testInfo: TestInfo) => {
     test.setTimeout(SCALE_BEFORE_ALL_TIMEOUT_MS);
     const bytes = large().bytes;
 
@@ -317,11 +325,10 @@ test.describe('10-06 scale: a three-account export with 54,000 currency rows, in
     expect(workerUrls, 'exactly one worker before the import').toHaveLength(1);
 
     const started = Date.now();
-    await page.getByTestId('file-input').setInputFiles({
-      name: 'multi-account-scale-export.zip',
-      mimeType: 'application/zip',
-      buffer: Buffer.from(bytes),
-    });
+    // By PATH, not by in-memory buffer: Playwright decodes a buffer on the page's
+    // MAIN thread, a harness long task proportional to the payload that the
+    // observer below would count against the app (see `pickExportFromDisk`).
+    await pickExportFromDisk(page, testInfo, 'multi-account-scale-export.zip', bytes);
     await awaitLanded(page);
     // An import lands on Overview, where the Playtime block is not mounted, so
     // the pane that owns it is opened and its own state attribute is the signal.

@@ -30,9 +30,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ClassifyResult } from '../../../src/lib/core/types/worker-messages.ts';
 import type { AccountMeta, DatasetFile, DatasetMeta } from '../../../src/lib/worker/db.ts';
 import { newDataPaneFacts } from '../../../src/lib/worker/new-data-facts.ts';
+import { TIMELINE_FILE_IDS } from '../../../src/lib/features/account-timeline/timeline-shared.ts';
 import {
   NEW_DATA_PANE_FILES,
   NEW_DATA_PANE_IDS,
+  TIMELINE_FILE_KEYS,
   type NewDataPaneId,
 } from '../../../src/lib/features/new-data/new-data-shared.ts';
 import {
@@ -372,6 +374,63 @@ describe('11-04 — newDataPaneFacts, the one pane derivation', () => {
     expect(newDataPaneFacts(files)).toEqual({});
   });
 
+  it('counts a Surveys fact toward the Perks pane, with the STORED count', () => {
+    // 12-02. The one Perks file the capture holds, in the category it was
+    // captured in.
+    const files = [fact('heat_surveys.csv', 3, 'Surveys')];
+
+    expect(newDataPaneFacts(files)).toEqual({ perks: { fileCount: 1, rowCount: 3 } });
+  });
+
+  it('counts a Surveys file filed under another category toward no pane', () => {
+    // The same name, the wrong folder: a copy of the Surveys file under
+    // `Payment_History` matches no spec, so it counts toward no pane at all
+    // (T-11-14, and the same rule the misfiled HEAT case above proves).
+    const files = [fact('heat_surveys.csv', 3, 'Payment_History')];
+
+    expect(newDataPaneFacts(files)).toEqual({});
+  });
+
+  it('counts a name-history fact toward the Account timeline pane, with the STORED count', () => {
+    // 12-11. A history file in the category it was captured in.
+    const files = [fact('account_name_history.csv', 3, 'User_Info')];
+
+    expect(newDataPaneFacts(files)).toEqual({ 'account-timeline': { fileCount: 1, rowCount: 3 } });
+  });
+
+  it('sums the five timeline files across their three folders', () => {
+    const files = [
+      fact('account_name_history.csv', 1, 'User_Info'),
+      fact('external_services_history.csv', 2, 'User_Info'),
+      fact('language_and_country_history.csv', 3, 'User_Info'),
+      fact('bans.csv', 4, 'Bans'),
+      fact('authorized_third_parties.csv', 5, 'Authorized_Third_Parties'),
+    ];
+
+    expect(newDataPaneFacts(files)).toEqual({
+      'account-timeline': { fileCount: 5, rowCount: 15 },
+    });
+  });
+
+  it('counts a timeline file filed under another category toward no pane', () => {
+    // The right name in the wrong folder, for each of the three folders.
+    const files = [
+      fact('account_name_history.csv', 3, 'Payment_History'),
+      fact('bans.csv', 3, 'User_Info'),
+      fact('authorized_third_parties.csv', 3, 'Bans'),
+    ];
+
+    expect(newDataPaneFacts(files)).toEqual({});
+  });
+
+  it('counts a HEAT file toward the HEAT pane and never toward the Account timeline', () => {
+    const files = [fact('heat_account_statistics.csv', 4)];
+
+    const panes = newDataPaneFacts(files);
+    expect(panes['account-timeline']).toBeUndefined();
+    expect(Object.keys(panes)).toEqual(['heat']);
+  });
+
   it('counts a fact whose category carries no spec for that file toward no pane', () => {
     const files = [fact('heat_account_statistics.csv', 4, 'Device_Info')];
 
@@ -480,15 +539,21 @@ describe('11-04 — the three payloads publish the same pane facts', () => {
     expect(terminal.result.newDataPanes).toEqual({});
   });
 
-  it('publishes the exact HEAT and Warships counts on done, duplicate and cache-status', async () => {
+  it('publishes the exact HEAT, Warships and Perks counts on done, duplicate and cache-status', async () => {
     const panes = await paneFactsOfEveryPayload(buildNewDataFilesExport(), 'pane-files.zip');
 
     // Typed in BY HAND from the fixture: four HEAT pane files and two Warships
-    // ones, three body rows each, so 12 and 6. Never computed with
-    // `newDataPaneFacts`, which is the function under test.
+    // ones, three body rows each, so 12 and 6, plus the four Perks files
+    // (Subscriptions, Personal coupons, Bonus codes, Surveys) with their three
+    // rows each, so 4 and 12, plus the five Account timeline files (name,
+    // services, language and country, bans, third parties) with their three
+    // rows each, so 5 and 15. Never computed with `newDataPaneFacts`, which is
+    // the function under test.
     expect(panes.done).toEqual({
       heat: { fileCount: 4, rowCount: 12 },
       'warships-storage': { fileCount: 2, rowCount: 6 },
+      perks: { fileCount: 4, rowCount: 12 },
+      'account-timeline': { fileCount: 5, rowCount: 15 },
     });
     expect(panes.duplicate).toEqual(panes.done);
     expect(panes.cached).toEqual(panes.done);
@@ -506,6 +571,18 @@ describe('11-04 — the three payloads publish the same pane facts', () => {
 // The contract the counts above were typed against
 // -----------------------------------------------------------------------------
 
+describe('12-11 — the timeline file table and the pane contract agree', () => {
+  it('keys the file table by exactly the five timeline file ids, in file order', () => {
+    expect(Object.keys(TIMELINE_FILE_KEYS)).toEqual([...TIMELINE_FILE_IDS]);
+  });
+
+  it('lists the non-null file keys as the pane files, in file order', () => {
+    expect(NEW_DATA_PANE_FILES['account-timeline']).toEqual(
+      Object.values(TIMELINE_FILE_KEYS).filter((file) => file !== null),
+    );
+  });
+});
+
 describe('11-04 — the pane contract matches the captured files', () => {
   it('names a file that has a fixture and a spec, for every pane file', () => {
     for (const [id, names] of Object.entries(NEW_DATA_PANE_FILES)) {
@@ -515,8 +592,17 @@ describe('11-04 — the pane contract matches the captured files', () => {
     }
   });
 
-  it('holds four HEAT files and two Warships files', () => {
+  it('holds four HEAT files, two Warships files and the four Perks files', () => {
     expect(NEW_DATA_PANE_FILES.heat).toHaveLength(4);
     expect(NEW_DATA_PANE_FILES['warships-storage']).toHaveLength(2);
+    // The Perks pane's list is COMPUTED from the card contract, so it holds
+    // exactly the cards that name a file, in card order: the Wave 0 capture
+    // named all four (12-08).
+    expect(NEW_DATA_PANE_FILES.perks).toEqual([
+      'subscriptions.csv',
+      'personal_coupons.csv',
+      'bonus_code_usage.csv',
+      'heat_surveys.csv',
+    ]);
   });
 });

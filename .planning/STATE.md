@@ -3,18 +3,18 @@ gsd_state_version: "1.0"
 milestone: v1.1
 milestone_name: Multi-account & new data
 current_phase: 12
-current_phase_name: Account Timeline & Perks
-status: "Phase 11 shipped — PR #18"
-stopped_at: Phase 11 complete, ready to plan Phase 12
-last_updated: "2026-10-19T20:02:04.535Z"
+status: completed
+stopped_at: Phase 12 complete — all phases complete
+last_updated: "2026-10-20T19:48:07.051Z"
 last_activity: 2026-10-20
-state_head: d2333a9cf7f6a74781a362b438f4d253bcd7d26d
+last_activity_desc: Phase 12 complete
+state_head: f0459e16d57fd0ba22f935062eadb4ff60a08e51
 progress:
   total_phases: 4
-  completed_phases: 3
-  total_plans: 28
-  completed_plans: 28
-  percent: 75
+  completed_phases: 4
+  total_plans: 41
+  completed_plans: 41
+  percent: 100
 ---
 
 # Project State
@@ -24,22 +24,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-16)
 
 **Core value:** Your data never leaves your machine. Zero network requests after page load, enforced by CI and a CSP.
-**Current focus:** Phase 11 — New Game Data
+**Current focus:** Phase 12 — Account Timeline & Perks
 
 ## Current Position
 
-Phase: 12 — Account Timeline & Perks
+Phase: 12
 Plan: Not started
-Status: Phase 11 shipped — PR #18
-Last activity: 2026-10-20
+Status: All phases complete
+Last activity: 2026-10-20 — Phase 12 complete
 
-Progress: [████████░░] 75% (v1.1: 0 of 4 phases)
+Progress: [██████████] 100% (v1.1: 0 of 4 phases)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 130
+- Total plans completed: 143
 - Average duration: -
 - Total execution time: 0.0 hours
 
@@ -57,6 +57,7 @@ Progress: [████████░░] 75% (v1.1: 0 of 4 phases)
 | 09 | 11 | - | - |
 | 10 | 6 | - | - |
 | 11 | 11 | - | - |
+| 12 | 13 | - | - |
 
 **Recent Trend:**
 
@@ -167,6 +168,19 @@ Progress: [████████░░] 75% (v1.1: 0 of 4 phases)
 | Phase 11 P09 | 20min | 3 tasks | 7 files |
 | Phase 11 P10 | 20min | 2 tasks | 13 files |
 | Phase 11 P11 | 38min | 3 tasks | 17 files |
+| Phase 12 P02 | 25min | 2 tasks | 23 files |
+| Phase 12 P03 | 3min | 1 tasks | 3 files |
+| Phase 12 P04 | 33min | 2 tasks | 21 files |
+| Phase 12 P05 | 13 | 2 tasks | 7 files |
+| Phase 12 P01 | 3h | 3 tasks | 6 files |
+| Phase 12 P06 | 20 min | 3 tasks | 13 files |
+| Phase 12 P07 | 15 min | 2 tasks | 3 files |
+| Phase 12 P08 | 30min | 3 tasks | 14 files |
+| Phase 12 P09 | 14min | 2 tasks | 6 files |
+| Phase 12 P10 | 12 min | 2 tasks | 4 files |
+| Phase 12 P11 | 24 min | 3 tasks | 19 files |
+| Phase 12 P12 | 8min | 3 tasks | 10 files |
+| Phase 12 P13 | 24 min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -489,6 +503,32 @@ CI budget at 07-03: no limit moved. `playwright test --list` counts BOTH project
 - [Phase 11]: 11-09: optional panes mount through newDataSectionProps (counts from result.newDataPanes, ready even at zero rows) and an optional DashboardSection provenanceLabel; the Warships pane passes revealed=false so any future address column stays masked
 - [Phase 11]: 11-10: the Warplanes account block is built before the no-rows branch so an empty plane file still shows account statistics; only columns a contributing row carries are listed
 - [Phase 11]: 11-11: no CI limit raised; 263 listed e2e tests fit the 264 the 31/33/41 minute limits cover
+- [Phase 12]: The Perks card contract sits ABOVE the pane tables in new-data-shared.ts, because NEW_DATA_PANE_FILES.perks is COMPUTED from PERKS_CARD_FILES, so the pane table and the card map cannot drift apart and one table is the only place plan 12-08 edits.
+- [Phase 12]: A field-less data channel accepts EXACTLY the one own field channel; every other field is rejected rather than ignored, so a smuggled field can never start being trusted by accident (T-12-06).
+- [Phase 12]: PERKS-03 is NOT marked complete: it reads 'Surveys are shown' and this plan shows no pane - the Dashboard has no Perks branch until plan 12-09. PRIV-01 was already Complete from phase 11.
+- [Phase 12]: 12-03: raised the three CI e2e limits together to G = 32 min / W = 34 min / J = 42 min BEFORE plan 12-13 adds its two listed tests, with a 273-test ceiling derived from the guard's own projection (E(N) = 330 + 5*(N-105) + 304): 265 tests project 1434 s and a 1864.2 s floor, which 31 min no longer covers.
+- [Phase 12]: Phase 12: promotion is a one-line list edit and its consequence is asserted by name, never by position (12-04). Two tests failed on the rename because they read categories.at(-1) / banners.last() inside a status-sorted list, which was only true while the sample's unknown folder was spelled 'Bans'; both now locate the entry by name. Standing lesson: an assertion that depends on a name's POSITION in a sorted list is a claim about the spelling, not about the code.
+- [Phase 12]: Phase 12: the three User_Info history files join the allowlist family by an ANCHORED WHOLE-NAME pattern, not a prefix (12-04, T-12-11). Account_Info.csv sits beside them in the same SUPPORTED folder and feeds the identity pick, so a prefix rule would have stopped the account header storing at all. With no spec until 12-08 they store nothing — the fail-closed direction for data that was already at rest behind the LOGIN/BIRTH_DATE deny-list.
+- [Phase 12]: The cross-account merge keys on a JSON signature over the caller's WHOLE allowlisted column list plus an occurrence index counted per group, in a Map - so a looser key cannot hide a real per-account difference, an empty string stays distinct from an absent cell, a repeat inside one account is never collapsed, and an account root named __proto__ is an ordinary key.
+- [Phase 12]: flattenGroups returns the SAME MergeResult shape as mergeIdenticalAcrossAccounts, so a file that never merges is a substitution in a builder rather than a second code path, and it reports mergedAway: 0 truthfully.
+- [Phase 12]: The timeline contract (kinds, file ids, merged files, entry and view shapes) lives in one module whose imports are TYPE-ONLY, which is what lets plan 12-11's worker builder and plan 12-12's pane agree without depending on each other.
+- [Phase 12]: parseTimelineInstant reuses parseSessionTimestamp for all four date shapes rather than reimplementing the range check, and constructs no Date - an unparseable date makes an entry undated and sorts it last while the display text stays the export's own.
+- [Phase 12]: No copy formatter in the Phase 12 block interpolates anything but formatNumber; the T-12-15 rule is enforced by a source scan with comments stripped rather than by review.
+- [Phase 12]: 12-01: all nine Phase 12 cards and kinds mapped; Subscriptions is flag-only (SUBSCRIBED) because SUBSCRIPTION was excluded as possible free text
+- [Phase 12]: 12-01: roles follow the deterministic rule (first allowed non-date column is primary), not display preference
+- [Phase 12]: 12-06: emailGuard is a per-spec flag, off for all current specs; the over-long-cell check scans the raw 2,000-character head because the clamp can cut an address
+- [Phase 12]: 12-06: code is a column kind rendered only through formatNewDataCell/maskCode; the several-tags cell is a separate branch behind severalTags so HEAT and Warships markup is unchanged
+- [Phase 12]: 12-07: narrowStoredNewDataRows gains a category walk over FAMILY_CATEGORIES sharing one per-group function with the name walk; no Dexie version bump (verno stays 2)
+- [Phase 12]: 12-07: D-02 delivered as a regression guard; Game_Forums stays unpromoted, counted and never stored
+- [Phase 12]: 12-08: nine Phase 12 specs transcribe the allow rows of 12-HEADERS.md, all with emailGuard; PLAYER_ANSWER allowed as the user's enumerated rating, PROFILE_ID and BATTLE_ID excluded
+- [Phase 12]: 12-08: the five promoted-folder file names join FAMILY_PATTERNS, so a misfiled copy stores nothing; family files never feed the identity or Account-record pools on import or rebuild
+- [Phase 12]: 12-09: the Perks mask toggle is gated by hasMaskableRows over the coupons and bonus-codes cards only; the merge note needs mergedAway > 0 and two or more accounts
+- [Phase 12]: 12-10: Subscriptions merges across accounts at read time over the spec's whole column list; coupons, bonus codes and surveys never merge, and mergedAway is the Subscriptions removal count
+- [Phase 12]: 12-11: Language_And_Country_History is read through its NAME discriminator (one entry per row, VALUE as primary, OPERATION secondary); the discriminator is matched tolerantly because the capture records that it discriminates, not its tokens
+- [Phase 12]: 12-11: no timeline date shape needed instant widening; every recorded shape is YYYY-MM-DD HH:MM:SS.mmm and a mapping test fails by file, column and shape otherwise
+- [Phase 12]: 12-12: the timeline showing line is one persistent live region outside the state branches, carrying loading, showing and mask announcement text
+- [Phase 12]: 12-13: the Account timeline renders no mask toggle (no address column in the history files); the single reveal is proved through the Perks toggle and Login history
+- [Phase 12]: 12-13: composed Phase 12 archive = real-shape export overlaid with the timeline and Perks fixtures re-rooted by position; ATP_EXPECTED re-states the source oracles in its tag letters
 
 ### Pending Todos
 
@@ -587,8 +627,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-19T15:37:08.428Z
-Stopped at: Phase 11 complete, ready to plan Phase 12
+Last session: 2026-10-20T11:57:41.695Z
+Stopped at: Phase 12 complete — all phases complete
 Resume file: None
 
 ## Operator Next Steps

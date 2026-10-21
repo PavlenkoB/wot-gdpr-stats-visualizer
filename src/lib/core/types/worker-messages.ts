@@ -13,9 +13,11 @@ import type {
   HeatView,
   NewDataPaneFacts,
   NewDataPaneId,
+  PerksView,
   WarshipsStorageView,
 } from '../../features/new-data/new-data-shared.ts';
 import type { CityView } from '../../features/logins/city-shared.ts';
+import type { TimelineView } from '../../features/account-timeline/timeline-shared.ts';
 
 export type CategoryStatus = 'supported' | 'known-deferred' | 'unknown';
 
@@ -425,7 +427,16 @@ export type DataQuery =
   // channel union. Neither takes a further field, so `isDataQuery` rejects a
   // `title` or `battleType` smuggled into either, exactly as for device-info.
   | { channel: 'heat' }
-  | { channel: 'warships-storage' };
+  | { channel: 'warships-storage' }
+  // 12-02. The Perks pane asks for its four cards through the same channel
+  // union. It takes no further field, so `isDataQuery` rejects a `title` or a
+  // `battleType` smuggled into it exactly as it does for every other
+  // field-less channel (T-12-06).
+  | { channel: 'perks' }
+  // 12-11. The Account timeline asks for its one merged chronology through the
+  // same channel union. It takes no further field, so a smuggled `title` or
+  // `battleType` is rejected with the fixed `invalid query` detail (T-12-34).
+  | { channel: 'account-timeline' };
 
 /**
  * The answer to one `DataQuery`, discriminated by the same channel as the
@@ -439,7 +450,9 @@ export type DataResult =
   | { channel: 'logins'; view: LoginsView }
   | { channel: 'device-info'; view: DeviceInfoView }
   | { channel: 'heat'; view: HeatView }
-  | { channel: 'warships-storage'; view: WarshipsStorageView };
+  | { channel: 'warships-storage'; view: WarshipsStorageView }
+  | { channel: 'perks'; view: PerksView }
+  | { channel: 'account-timeline'; view: TimelineView };
 
 export interface ParsingProgress {
   category: string;

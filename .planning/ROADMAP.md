@@ -30,7 +30,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md). Audit: [
 - [x] **Phase 9: Multi-account Import & Account Identity** - A zip with several account-ID folders imports, is cached as one dataset, and every account is listed in the identity header (completed 2026-10-18)
 - [x] **Phase 10: Merged Dashboard Across Accounts** - Playtime, finance, vehicles and login history read as one combined history, with a game filter, no double-counting and a source account on every row (completed 2026-10-18)
 - [x] **Phase 11: New Game Data** - HEAT, WoT Console, World of Warplanes account and plane stats, and WoWS crews and storage, each through the fail-closed PII strip (completed 2026-10-19)
-- [ ] **Phase 12: Account Timeline & Perks** - Name, service, language/country history, bans, authorized third parties, subscriptions, coupons, bonus codes and surveys, with emails, IPs and codes masked
+- [x] **Phase 12: Account Timeline & Perks** - Name, service, language/country history, bans, authorized third parties, subscriptions, coupons, bonus codes and surveys, with emails, IPs and codes masked (completed 2026-10-20)
 
 ## Phase Details
 
@@ -163,7 +163,21 @@ Plans:
   4. Personal coupons and bonus-code usage are shown. Codes and the user IP are masked by default.
   5. The new panes honour the cross-cutting rules owned by earlier phases: planted synthetic emails never appear in clear text on any page, codes and IPs appear only masked until the single global reveal, the zero-network assertion covers each pane, and large tables are windowed or aggregated.
 
-**Plans**: TBD
+**Plans**: 13/13 plans complete
+- [x] 12-01-PLAN.md
+- [x] 12-02-PLAN.md
+- [x] 12-03-PLAN.md
+- [x] 12-04-PLAN.md
+- [x] 12-05-PLAN.md
+- [x] 12-06-PLAN.md
+- [x] 12-07-PLAN.md
+- [x] 12-08-PLAN.md
+- [x] 12-09-PLAN.md
+- [x] 12-10-PLAN.md
+- [x] 12-11-PLAN.md
+- [x] 12-12-PLAN.md
+- [x] 12-13-PLAN.md
+
 **UI hint**: yes
 
 ## Planning Notes
@@ -188,4 +202,4 @@ Phases execute in numeric order: 9 → 10 → 11 → 12
 | 9. Multi-account Import & Account Identity | v1.1 | 11/11 | Complete    | 2026-10-18 |
 | 10. Merged Dashboard Across Accounts | v1.1 | 6/6 | Complete    | 2026-10-18 |
 | 11. New Game Data | v1.1 | 11/11 | Complete    | 2026-10-19 |
-| 12. Account Timeline & Perks | v1.1 | 0/TBD | Not started | - |
+| 12. Account Timeline & Perks | v1.1 | 13/13 | Complete    | 2026-10-20 |

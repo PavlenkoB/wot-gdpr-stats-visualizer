@@ -247,7 +247,11 @@ test('(a) shows stage feedback while busy, then account, summary and grouped bad
   // pixel positions are no longer the contract). The sample export holds the two
   // Warships crews and storage files, so that optional row is listed after
   // Vehicles; it holds no HEAT file, so there is no HEAT row (D-01, plan 11-11).
-  expect(await listRowIdsInOrder(page)).toEqual(PANE_ORDER.filter((id) => id !== 'heat'));
+  // It holds no Surveys file either, so there is no Perks row (12-02), and no
+  // Account timeline file, so there is no Account timeline row (12-13).
+  expect(await listRowIdsInOrder(page)).toEqual(
+    PANE_ORDER.filter((id) => id !== 'heat' && id !== 'perks' && id !== 'account-timeline'),
+  );
 
   // Each data pane: open it, exactly one section is mounted, its import line is
   // the summary built by the SAME formatter the component uses, and the list

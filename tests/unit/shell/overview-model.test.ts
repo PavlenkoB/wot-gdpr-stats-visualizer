@@ -14,8 +14,10 @@ import {
   formatAccountCount,
   formatCreatedDate,
   formatEarliestCreated,
+  formatRowCount,
   formatSectionStatus,
 } from '../../../src/lib/ui-copy.ts';
+import { SAMPLE_UNKNOWN_FOLDER } from '../../fixtures/export-fixtures.ts';
 import type {
   AccountIdentity,
   AccountSummary,
@@ -76,7 +78,7 @@ const FULL_SUPPORTED: EntrySpec[] = [
 
 const UNSUPPORTED: EntrySpec[] = [
   ['Chat_history', 'known-deferred', 1, 40],
-  ['Bans', 'unknown', 1, 0],
+  [SAMPLE_UNKNOWN_FOLDER, 'unknown', 1, 0],
   ['Clans', 'known-deferred', 1, 3],
 ];
 
@@ -555,6 +557,70 @@ describe('overviewCards: the optional new-game panes', () => {
     expect(storage.reason).toBe('empty');
     expect(storage.headline).toBe(ROW_HEADLINE_NONE);
     expect(storage.summary).toBe('This export contains no rows for Warships crews & storage');
+  });
+
+  test('a present Perks card says what its list row says (12-02)', () => {
+    const result = withPanes({ perks: { fileCount: 1, rowCount: 3 } });
+    const perks = overviewCards(result).find((card) => card.id === 'perks')!;
+    expect(perks.title).toBe(PANE_TITLES.perks);
+    expect(perks.title).toBe('Perks');
+    expect(perks.available).toBe(true);
+    expect(perks.reason).toBeNull();
+    expect(perks.headline).toBe('3 rows');
+    expect(perks.summary).toBe('Subscriptions, coupons, codes, surveys · 1 file');
+    // The Overview never rewords a row (D-08), so the two are equal objects.
+    const row = paneEntries(result).find((entry) => entry.id === 'perks')!;
+    expect(perks.headline).toBe(row.headline);
+    expect(perks.summary).toBe(row.summary);
+  });
+
+  test('the two Phase 12 cards sit around Device info and say what their list rows say (12-11)', () => {
+    const result = withPanes({
+      perks: { fileCount: 1, rowCount: 3 },
+      'account-timeline': { fileCount: 2, rowCount: 7 },
+    });
+    const cards = overviewCards(result);
+    const ids = cards.map((card) => card.id);
+    // Perks after Payments and before Device info; the timeline after Device
+    // info and before Account (12-UI-SPEC Recorded Choice 1).
+    expect(ids.indexOf('perks')).toBe(ids.indexOf('payments') + 1);
+    expect(ids.indexOf('device-info')).toBe(ids.indexOf('perks') + 1);
+    expect(ids.indexOf('account-timeline')).toBe(ids.indexOf('device-info') + 1);
+    expect(ids.indexOf('account')).toBe(ids.indexOf('account-timeline') + 1);
+
+    const timeline = cards.find((card) => card.id === 'account-timeline')!;
+    expect(timeline.title).toBe('Account timeline');
+    expect(timeline.available).toBe(true);
+    expect(timeline.reason).toBeNull();
+    expect(timeline.headline).toBe(formatRowCount(7));
+    expect(timeline.summary).toBe('Names, services, bans, third parties \u00b7 2 files');
+    const row = paneEntries(result).find((entry) => entry.id === 'account-timeline')!;
+    expect(timeline.headline).toBe(row.headline);
+    expect(timeline.summary).toBe(row.summary);
+
+    const perks = cards.find((card) => card.id === 'perks')!;
+    expect(perks.available).toBe(true);
+    expect(perks.reason).toBeNull();
+    expect(perks.headline).toBe(formatRowCount(3));
+
+    // Both are sections with data: two more than the seven of the plain sample.
+    expect(overviewChips(result)).toEqual({ withData: 9, absent: 0, unsupported: 3 });
+  });
+
+  test('without their facts neither Phase 12 card exists and neither chip counts it', () => {
+    const cards = overviewCards(withPanes({ heat: { fileCount: 4, rowCount: 12 } }));
+    expect(cards.some((card) => card.id === 'perks')).toBe(false);
+    expect(cards.some((card) => card.id === 'account-timeline')).toBe(false);
+    expect(overviewChips(withPanes({}))).toEqual({ withData: 7, absent: 0, unsupported: 3 });
+  });
+
+  test('a present Account timeline at rowCount 0 is an unavailable card, in neither chip', () => {
+    const empty = withPanes({ 'account-timeline': { fileCount: 3, rowCount: 0 } });
+    const timeline = overviewCards(empty).find((card) => card.id === 'account-timeline')!;
+    expect(timeline.available).toBe(false);
+    expect(timeline.reason).toBe('empty');
+    expect(timeline.headline).toBe(ROW_HEADLINE_NONE);
+    expect(overviewChips(empty)).toEqual({ withData: 7, absent: 0, unsupported: 3 });
   });
 
   test('an absent optional pane has no card and is in neither chip (A2)', () => {

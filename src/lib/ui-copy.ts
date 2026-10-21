@@ -11,7 +11,16 @@ import type { HourGridBasis, SplitColumn } from './features/playtime/playtime-sh
 // Type-only: the new-game pane ids the optional rows and their provenance
 // labels are keyed by (11-05). `new-data-shared.ts` has no imports at all, so a
 // type read across it is free of runtime cycles in either direction.
-import type { HeatCardId, NewDataPaneId, WowsCardId } from './features/new-data/new-data-shared.ts';
+import type {
+  HeatCardId,
+  NewDataPaneId,
+  PerksCardId,
+  WowsCardId,
+} from './features/new-data/new-data-shared.ts';
+// Type-only: the kind labels are keyed by the timeline's own kind union. The
+// contract module has no runtime import at all, so reading a type across it
+// cannot create a cycle in either direction (12-05).
+import type { TimelineKind } from './features/account-timeline/timeline-shared.ts';
 // A RUNTIME import, unlike the two above: `civilFromDays` and `weekdayOfDay`
 // are the pure integer date arithmetic every calendar string is built from
 // (04-01). They construct no `Date`, which is what keeps a cell's date the
@@ -3362,11 +3371,14 @@ export const PANE_TITLES: Record<PaneId, string> = {
   'device-info': 'Device info',
   account: 'Account',
   'not-yet-supported': 'Not yet supported',
-  // The two OPTIONAL panes of 11-05 (D-01, D-03). They are titled here whether
-  // or not the export holds them: the title is a constant, and which rows are
-  // RENDERED is `paneEntries`' decision, not this table's.
+  // The two OPTIONAL panes of 11-05 (D-01, D-03) and the Perks pane of 12-02.
+  // They are titled here whether or not the export holds them: the title is a
+  // constant, and which rows are RENDERED is `paneEntries`' decision, not this
+  // table's.
   heat: 'HEAT',
   'warships-storage': 'Warships crews & storage',
+  perks: 'Perks',
+  'account-timeline': 'Account timeline',
 };
 
 /** The headline of a row that has nothing to count: an em dash. */
@@ -3394,7 +3406,8 @@ export function formatFolderCount(n: number): string {
 }
 
 // =============================================================================
-// Phase 11 — the two optional new-game panes (11-05-PLAN Task 1)
+// Phase 11 — the optional new-game panes (11-05-PLAN Task 1), extended by
+// phase 12 with the Perks row (12-02)
 // =============================================================================
 //
 // D-01 gives HEAT its own list row and D-03 gives the Warships crews and
@@ -3434,6 +3447,32 @@ export function formatWowsStorageRowSummary(fileCount: number): string {
 }
 
 /**
+ * The Perks row's summary: `Subscriptions, coupons, codes, surveys · {n
+ * files}` (12-02, 12-UI-SPEC Surface 1).
+ *
+ * The four words are the four CARDS the pane stacks, not the files themselves,
+ * so the row says what the reader will find rather than what the export
+ * happened to name. The count goes through {@link formatFileCount}, so "1 file"
+ * never reads "1 files".
+ */
+export function formatPerksRowSummary(fileCount: number): string {
+  return `Subscriptions, coupons, codes, surveys · ${formatFileCount(fileCount)}`;
+}
+
+/**
+ * The Account timeline row's summary: `Names, services, bans, third parties ·
+ * {n files}` (12-11, 12-UI-SPEC Surface 1).
+ *
+ * The four words are the wording UI-SPEC fixes for the row (language and
+ * country entries are in the pane, the row's brevity does not name them), not
+ * the files themselves. The count goes through {@link formatFileCount}, so
+ * "1 file" never reads "1 files".
+ */
+export function formatTimelineRowSummary(fileCount: number): string {
+  return `Names, services, bans, third parties · ${formatFileCount(fileCount)}`;
+}
+
+/**
  * What each optional pane's provenance line names, for
  * {@link formatProvenanceFrom}: `From HEAT data ·` and `From Warships crews and
  * storage files ·`.
@@ -3445,6 +3484,12 @@ export function formatWowsStorageRowSummary(fileCount: number): string {
 export const NEW_DATA_PROVENANCE_LABELS: Record<NewDataPaneId, string> = {
   heat: 'HEAT data',
   'warships-storage': 'Warships crews and storage files',
+  // 12-02. The Perks pane's files live in four folders, so there is no single
+  // folder to name; the line reads "From perks files · N files, N rows".
+  perks: 'perks files',
+  // 12-11. The timeline's files live in three folders, so there is no single
+  // folder to name; the line reads "From account history files · N files, N rows".
+  'account-timeline': 'account history files',
 };
 
 /**
@@ -3767,6 +3812,10 @@ export const WOWS_STORAGE_ERROR =
  * Each pane file's name as the export spells it, keyed by the lower-cased record
  * type. Taken from the header capture (`tests/fixtures/new-data-headers.ts`), so
  * a card caption is a constant and an archive's own entry name is never printed.
+ *
+ * The Perks pane's card files are in this table too (12-02): a card caption is
+ * a caption whichever pane shows it, and a Perks file with no label would print
+ * its lower-cased key instead.
  */
 export const NEW_DATA_FILE_LABELS: Readonly<Record<string, string>> = {
   'heat_account_statistics.csv': 'HEAT_Account_Statistics.csv',
@@ -3775,6 +3824,18 @@ export const NEW_DATA_FILE_LABELS: Readonly<Record<string, string>> = {
   'heat_session_geolocation.csv': 'HEAT_Session_Geolocation.csv',
   'wows_crews.csv': 'WOWS_Crews.csv',
   'wows_account_storage.csv': 'WOWS_Account_Storage.csv',
+  // 12-02. The Perks pane's Surveys card, from the one captured file name.
+  'heat_surveys.csv': 'HEAT_Surveys.csv',
+  // 12-08. The five Account timeline files, as the Phase 12 capture spelled them.
+  'account_name_history.csv': 'Account_Name_History.csv',
+  'external_services_history.csv': 'External_Services_History.csv',
+  'language_and_country_history.csv': 'Language_And_Country_History.csv',
+  'bans.csv': 'Bans.csv',
+  'authorized_third_parties.csv': 'Authorized_Third_Parties.csv',
+  // 12-08. The three Perks card files the capture named.
+  'subscriptions.csv': 'Subscriptions.csv',
+  'personal_coupons.csv': 'Personal_Coupons.csv',
+  'bonus_code_usage.csv': 'Bonus_Code_Usage.csv',
 };
 
 /**
@@ -3784,6 +3845,9 @@ export const NEW_DATA_FILE_LABELS: Readonly<Record<string, string>> = {
  * Complete by construction: a unit test walks the worker's spec table and fails,
  * naming the file and the id, if a column has no entry here. Warplanes files are
  * not in this table (they feed Vehicles, plan 11-10).
+ *
+ * The Perks pane's card files are covered by the same rule (12-02), so a
+ * Survey column can never reach a card without a plain-language heading.
  */
 export const NEW_DATA_COLUMN_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   'heat_account_statistics.csv': {
@@ -3841,6 +3905,59 @@ export const NEW_DATA_COLUMN_LABELS: Readonly<Record<string, Readonly<Record<str
   'wows_account_storage.csv': {
     ITEM_DESC: 'Item',
     AMOUNT: 'Amount',
+  },
+  // 12-02, widened by 12-08. The Surveys card's four allowlisted columns. Plain-language
+  // headings, never the export's own header text, and never a column the
+  // allowlist does not name.
+  'heat_surveys.csv': {
+    QUESTION_ID: 'Question',
+    PLAYER_ANSWER: 'Answer',
+    SKIPPED_BY_PLAYER: 'Skipped',
+    MESSAGE_TS: 'Answered',
+  },
+  // 12-08. The Account timeline files. The timeline shows no column heading, but
+  // the table stays complete so a later view cannot print a raw header.
+  'account_name_history.csv': {
+    CREATED_AT: 'Changed',
+    OLD_NAME: 'Previous nickname',
+    NEW_NAME: 'New nickname',
+  },
+  'external_services_history.csv': {
+    CREATED_AT: 'Changed',
+    OPERATION: 'Operation',
+    NAME: 'Service',
+  },
+  'language_and_country_history.csv': {
+    CREATED_AT: 'Changed',
+    OPERATION: 'Operation',
+    NAME: 'Setting',
+    VALUE: 'Value',
+  },
+  'bans.csv': {
+    STARTED_AT: 'Started',
+    EXPIRED_AT: 'Ends',
+    STATUS: 'Status',
+  },
+  'authorized_third_parties.csv': {
+    THIRD_PARTY_SITE: 'Site',
+    CREATED_AT: 'Authorized',
+  },
+  // 12-08. The Perks cards' columns. A code column reads Code and the redeeming
+  // address reads IP address; both are masked by the shared cell formatter.
+  'subscriptions.csv': {
+    SUBSCRIBED: 'Subscribed',
+  },
+  'personal_coupons.csv': {
+    INSERTED_AT: 'Added',
+    UPDATED_AT: 'Updated',
+    EXPIRED_AT: 'Expires',
+    STATUS: 'Status',
+    CODE: 'Code',
+  },
+  'bonus_code_usage.csv': {
+    CREATED_AT: 'Redeemed',
+    CODE_KEY: 'Code',
+    USER_IP: 'IP address',
   },
 };
 
@@ -4003,3 +4120,165 @@ export const WOWP_ACCOUNT_COLUMN_LABELS: Readonly<Record<string, string>> = {
   P_KILL_MAX: 'P most kills',
   ZONE_CAPTURE: 'Zone captures',
 };
+
+// =============================================================================
+// Phase 12 - Account timeline and Perks
+// =============================================================================
+//
+// Every sentence the two new panes show, worded by the 12-UI-SPEC Copywriting
+// Contract and pinned by `tests/unit/shell/ui-copy.test.ts`.
+//
+// ## Nothing here can print an untrusted string (T-12-15)
+//
+// A zip entry name, a nickname and an account id are untrusted content. The two
+// formatters below therefore take COUNTS and nothing else, and every
+// interpolation goes through `formatNumber`, so no sentence in this block can
+// carry a word out of the archive. File labels are not here at all: they come
+// from the constant `NEW_DATA_FILE_LABELS` table keyed by record type, above.
+//
+// ## Two mask wordings over ONE reveal (UI-SPEC conditional copy)
+//
+// The Account timeline reuses the IP-only `MASK_*` constants verbatim, so this
+// block does not redefine them. Perks needs its own because a coupon code and
+// a bonus code sit under the same global reveal, and a toggle that says "IP
+// addresses" while hiding a coupon code understates what it is hiding. The
+// IP-only wording that Login history and HEAT already ship is unchanged.
+//
+// Reused from above and deliberately not redefined here:
+// `formatAboutThis`, `DEVICE_NOT_REPORTED`, `DEVICE_TABLE_NOT_IN_EXPORT`,
+// `formatDeviceNoRows`, `formatNewDataSkipped`, `formatCombinedCaption`,
+// `formatOpenSectionLink` and `formatDeviceTableLabel`.
+// =============================================================================
+
+/** Copywriting Contract, "Timeline intro". Says the direction, so it is never implicit. */
+export const TIMELINE_INTRO =
+  'What your accounts were called, which services were linked, which language and country they were registered under, what was enforced against them and which third parties were authorised. Newest first.';
+
+/** Copywriting Contract, "Perks intro". */
+export const PERKS_INTRO =
+  'The subscriptions, personal coupons, bonus codes and surveys your export lists.';
+
+/** Copywriting Contract, "Kind filter label"; it is also the radiogroup's accessible name. */
+export const TIMELINE_KIND_FILTER_LABEL = 'Filter by kind';
+
+/** Copywriting Contract, "Kind filter all option". */
+export const TIMELINE_KIND_ALL = 'All entries';
+
+/**
+ * Copywriting Contract, "Kind labels": the badge word and the chip word are
+ * ONE table, so a kind cannot be labelled two ways in two places.
+ */
+export const TIMELINE_KIND_LABELS: Readonly<Record<TimelineKind, string>> = {
+  name: 'Name',
+  service: 'Service',
+  language: 'Language',
+  country: 'Country',
+  ban: 'Ban',
+  thirdParty: 'Third party',
+};
+
+/** Copywriting Contract, "Timeline column headers": three columns, fixed. */
+export const TIMELINE_COLUMN_LABELS = {
+  date: 'Date',
+  kind: 'Kind',
+  entry: 'Entry',
+} as const;
+
+/**
+ * Copywriting Contract, "Showing line": how many entries are on screen out of
+ * how many the pane holds.
+ *
+ * This line is also the pane's one live region, so it carries the loading
+ * sentence while the model builds and the showing sentence after. The
+ * "all {n}" variant exists because "Showing 3 of 3 entries" states a filter
+ * that was never applied, and there is no filter to remove.
+ */
+export function formatTimelineShowing(shown: number, total: number): string {
+  return shown === total
+    ? `Showing all ${formatNumber(total)} entries`
+    : `Showing ${formatNumber(shown)} of ${formatNumber(total)} entries`;
+}
+
+/**
+ * Copywriting Contract, "Merge note".
+ *
+ * It reconciles two numbers a reader would otherwise have to reconcile alone:
+ * the list headline and the provenance count STORED rows (UI-SPEC Recorded
+ * Choice 7), while the table shows the rows the merge kept. Singular at
+ * exactly one, because "1 entries" is a sentence no careful writer ships.
+ */
+export function formatMergeNote(k: number): string {
+  return k === 1
+    ? '1 entry is identical on more than one account and is shown once, with a tag for each account.'
+    : `${formatNumber(k)} entries are identical on more than one account and are shown once, with a tag for each account.`;
+}
+
+/** Copywriting Contract, "Perks card titles", in the pane's fixed card order (D-08). */
+export const PERKS_CARD_TITLES: Readonly<Record<PerksCardId, string>> = {
+  subscriptions: 'Subscriptions',
+  coupons: 'Personal coupons',
+  bonusCodes: 'Bonus codes',
+  surveys: 'Surveys',
+};
+
+/** Copywriting Contract, "Perks mask toggle", masked. */
+export const PERKS_MASK_TOGGLE_SHOW = 'Show full codes and IP addresses';
+
+/** Copywriting Contract, "Perks mask toggle", revealed. */
+export const PERKS_MASK_TOGGLE_HIDE = 'Hide full codes and IP addresses';
+
+/** Copywriting Contract, "Perks mask caption, masked". */
+export const PERKS_MASK_CAPTION_MASKED =
+  'Codes and IP addresses are masked: most of each code and the last part of each address are hidden.';
+
+/** Copywriting Contract, "Perks mask caption, revealed". */
+export const PERKS_MASK_CAPTION_REVEALED =
+  'Full codes and IP addresses are shown. Hide them again before sharing your screen.';
+
+/** Copywriting Contract, "Perks mask announcements", revealed. State words only, never a value. */
+export const PERKS_MASK_ANNOUNCE_SHOWN = 'Full codes and IP addresses are now shown.';
+
+/** Copywriting Contract, "Perks mask announcements", masked. */
+export const PERKS_MASK_ANNOUNCE_MASKED = 'Codes and IP addresses are now masked.';
+
+/**
+ * Copywriting Contract, "Timeline About name". It is a NAME, not a heading:
+ * `formatAboutThis` builds "About this timeline" from it.
+ */
+export const ABOUT_NAME_TIMELINE = 'timeline';
+
+/**
+ * Copywriting Contract, "Timeline About body".
+ *
+ * This is the ONLY place in the whole copy module where the word "email"
+ * appears, and it says the guarantee rather than the mechanism: no address in
+ * these files is read, stored or shown. A reader who asks about their email
+ * here gets the answer; a cell, a state line or a tooltip never names one.
+ */
+export const TIMELINE_ABOUT =
+  'Entries from your name, service, language and country, ban and authorised-third-party files are listed together, newest first; entries without a usable date come last. Email addresses in these files are never read, stored or shown. IP addresses stay masked until you choose to show them. When accounts hold an identical service, language or country entry, it is shown once with a tag for each account.';
+
+/** Copywriting Contract, "Perks About name"; `formatAboutThis` builds "About this perks pane". */
+export const ABOUT_NAME_PERKS = 'perks pane';
+
+/** Copywriting Contract, "Perks About body". Says what the pane leaves out, in the reader's terms. */
+export const PERKS_ABOUT =
+  'Coupon codes, bonus codes and the IP address used to redeem a bonus code stay masked until you choose to show them. Only the fields this viewer reads are listed. When accounts hold an identical subscription, it is shown once with a tag for each account.';
+
+/** Copywriting Contract, "Loading"; the ellipsis is part of the copy, as elsewhere. */
+export const TIMELINE_LOADING = 'Reading account timeline...';
+
+/** Copywriting Contract, "Loading". */
+export const PERKS_LOADING = 'Reading perks...';
+
+/**
+ * Copywriting Contract, "Error state". FIXED text: the worker's detail is never
+ * shown (T-11-29's rule, carried forward), because a failure message carrying a
+ * file or column name would put archive text on the screen.
+ */
+export const TIMELINE_ERROR =
+  'Account timeline could not be read from this export. Your imported data is unchanged. Drop the export again to retry.';
+
+/** Copywriting Contract, "Error state". Fixed text, same rule. */
+export const PERKS_ERROR =
+  'Perks could not be read from this export. Your imported data is unchanged. Drop the export again to retry.';

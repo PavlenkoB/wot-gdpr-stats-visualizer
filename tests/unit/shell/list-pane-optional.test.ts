@@ -10,11 +10,11 @@
 // belongs in the file that makes it.
 //
 // WHY IT MATTERS. `PANE_IDS` is still the nine always-present panes (11-05
-// widened the vocabulary rather than the tuple), and two of those nine are
+// widened the vocabulary rather than the tuple), and the optional panes are
 // OPTIONAL: a row exists only when the worker reported that pane. A `j`/`k` step
 // computed over `PANE_IDS` would land the selection on a row that is not on
 // screen, and `paneOf` resolving ids out of `PANE_IDS` would read a row button
-// as "not a pane" for exactly the two ids that are new. Both are the same
+// as "not a pane" for exactly the ids that are optional. Both are the same
 // mistake — reading the vocabulary instead of the rendered list.
 // =============================================================================
 
@@ -65,10 +65,15 @@ describe('ListPane: the keyboard steps over the rows that are rendered', () => {
     }
   });
 
-  test('both optional ids are renderable: they exist in the model vocabulary', () => {
+  test('every optional id is renderable: they exist in the model vocabulary', () => {
     // The guard is about the component, so this is the fixture side of it: an
     // id that is not in the pane model could never be a row button.
-    expect([...OPTIONAL_PANE_IDS]).toEqual(['heat', 'warships-storage']);
+    expect([...OPTIONAL_PANE_IDS]).toEqual([
+      'heat',
+      'warships-storage',
+      'perks',
+      'account-timeline',
+    ]);
     for (const id of OPTIONAL_PANE_IDS) expect(PANE_ORDER).toContain(id);
   });
 });

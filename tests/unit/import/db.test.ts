@@ -18,6 +18,7 @@ import type {
 } from '../../../src/lib/core/types/worker-messages.ts';
 import type { AccountMeta, DatasetRow } from '../../../src/lib/worker/db.ts';
 import type { LoginAggregates } from '../../../src/lib/features/logins/login-shared.ts';
+import { SAMPLE_UNKNOWN_FOLDER } from '../../fixtures/export-fixtures.ts';
 
 // =============================================================================
 // db — Dexie schema + transactional writeDataset + checkCache (RESEARCH.md Pattern 3)
@@ -1062,7 +1063,7 @@ describe('09-03 — purgeUnsupportedCategoryRows (D-21)', () => {
     'CHAT_HISTORY',
     'chat_history',
     'CLANS',
-    'Bans',
+    SAMPLE_UNKNOWN_FOLDER,
     'Game_Forums',
     'game_forums',
     'Some_Folder_This_Build_Never_Heard_Of',

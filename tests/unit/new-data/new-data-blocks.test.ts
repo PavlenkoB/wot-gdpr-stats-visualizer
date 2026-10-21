@@ -125,6 +125,23 @@ describe('formatNewDataCell', () => {
     expect(out.text).not.toContain('@');
   });
 
+  it('masks a code-kind cell by default and shows the stored text only on the reveal (D-13, T-12-17)', () => {
+    const column = { id: 'COUPON_CODE', kind: 'code' } as const;
+    const masked = formatNewDataCell('AB7K-QX42', column, options);
+    expect(masked).toEqual({ text: 'ABxxx', muted: false });
+    expect(masked.text).not.toContain('7K');
+    expect(formatNewDataCell('AB7K-QX42', column, { ...options, revealed: true })).toEqual({
+      text: 'AB7K-QX42',
+      muted: false,
+    });
+    // A short code masks to the fixed text alone; a null code is "not reported".
+    expect(formatNewDataCell('SHORT', column, options).text).toBe('xxx');
+    expect(formatNewDataCell(null, column, options)).toEqual({
+      text: DEVICE_NOT_REPORTED,
+      muted: true,
+    });
+  });
+
   it('never reads a non-address column through the mask formatter', () => {
     // A text cell that looks like an address is data the allowlist kept as text;
     // it is not an address and is not masked or revealed as one.
@@ -226,7 +243,11 @@ describe('NewDataTable.svelte contract', () => {
     expect(source).toContain('tags === null ? null : (tags.get(row.account) ?? null)');
     // One geometry record: the first column is wider only when tags exist.
     expect(source).toContain('const TAG_EXTRA_PX = 32');
-    expect(source).toMatch(/index === 0 && tagged \? base \+ TAG_EXTRA_PX : base/);
+    // A table whose rows may carry several tags grows it by 64px instead (12-06).
+    expect(source).toContain('const SEVERAL_TAGS_EXTRA_PX = 64');
+    expect(source).toMatch(
+      /index === 0 && tagged\s*\? base \+ \(severalTags \? SEVERAL_TAGS_EXTRA_PX : TAG_EXTRA_PX\)\s*: base/,
+    );
     expect(source).toMatch(
       /\.sticky-first :global\(\[data-testid='account-tag'\]\)\s*\{[^}]*margin-right:\s*4px/,
     );
@@ -248,6 +269,54 @@ describe('NewDataTable.svelte contract', () => {
     const source = clean(TABLE_FILE);
     const keys = [...source.matchAll(/^\s*\{#each [^\n]*\(([^()]*)\)\s*\}\s*$/gm)].map((m) => m[1]);
     expect(keys.sort()).toEqual(['cellIndex', 'columnIndex', 'rowIndex']);
+  });
+});
+
+// -----------------------------------------------------------------------------
+// 12-06: the several-tags first cell and the code column
+// -----------------------------------------------------------------------------
+
+describe('NewDataTable.svelte: the several-tags first cell (12-06, D-10, D-13)', () => {
+  it('draws the chips through accountChipsOf, behind the severalTags prop only', () => {
+    const source = clean(TABLE_FILE);
+    expect(source).toContain('accountChipsOf');
+    expect(source).toContain('severalTags?: boolean');
+    expect(source).toContain('severalTags = false');
+    // The several-tags branch is guarded by the prop; the plain branch is the old one.
+    expect(source).toMatch(/\{#if cellIndex === 0 && severalTags\}/);
+    expect(source).toMatch(/\{:else if cellIndex === 0\}/);
+    expect(source).toContain('row.accounts ?? [row.account]');
+  });
+
+  it('keys the chip blocks by position and shows hidden phrases and a plain-text +N', () => {
+    const html = markup(clean(TABLE_FILE));
+    expect(html).toMatch(/\{#each chips\.shown as tag, tagIndex \(tagIndex\)\}/);
+    expect(html).toMatch(/\{#each chips\.hiddenTags as tag, tagIndex \(tagIndex\)\}/);
+    expect(html).toContain('visual={false}');
+    expect(html).toContain('formatAccountOverflow(chips.extra)');
+    expect(html).toMatch(/<span class="more"/);
+  });
+
+  it('keeps the chips flush against the text: no whitespace between them', () => {
+    const source = clean(TABLE_FILE);
+    expect(source).toMatch(/\}\{\/if\}\{#if cell\.muted\}/);
+    expect(source).toMatch(/\/>\{\/each\}\{#each chips\.hiddenTags/);
+  });
+
+  it('has the code geometry, the many-tags geometry and no attribute that carries a cell', () => {
+    const source = clean(TABLE_FILE);
+    const html = markup(source);
+    expect(source).toContain("cls: 'w-code'");
+    expect(source).toMatch(/\.w-code\s*[,{]/);
+    expect(source).toMatch(/\.w-code-many\s*[,{]/);
+    expect(html).not.toMatch(/\stitle\s*=/);
+    expect(html).not.toMatch(/aria-label=\{[^}]*(cell|row)/);
+  });
+
+  it('is forwarded by the card', () => {
+    const source = clean(CARD_FILE);
+    expect(source).toContain('severalTags?: boolean');
+    expect(source).toMatch(/\{severalTags\}/);
   });
 });
 

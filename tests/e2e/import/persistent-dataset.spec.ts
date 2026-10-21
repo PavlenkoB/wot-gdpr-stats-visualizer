@@ -8,6 +8,7 @@ import {
   SAMPLE_FILE_COUNTS,
   SAMPLE_NICKNAME,
   SAMPLE_ROW_COUNTS,
+  SAMPLE_UNKNOWN_FOLDER,
   SCALE_10X_FILES_PER_CATEGORY,
   SCALE_10X_ROWS_PER_FILE,
   SCALE_TEMPLATES_BY_FOLDER,
@@ -311,7 +312,8 @@ test.describe('persistent-dataset auto-load', () => {
   });
 
   // -----------------------------------------------------------------------------
-  // (a-skip) D-04 / D-09: an import with one malformed row in Bans.csv surfaces
+  // (a-skip) D-04 / D-09: an import with one malformed row in the unknown
+  //     folder's CSV surfaces
   //     the skip-count tag on that category's banner, and only there.
   //     The skip-count survives a reload (D-09) because it is persisted in
   //     DatasetMeta.categories, not just on the in-memory ClassifyResult.
@@ -334,16 +336,16 @@ test.describe('persistent-dataset auto-load', () => {
     ]);
     await expectSlimBar(page);
 
-    // D-04: the Bans banner (the only category with skips in this
+    // D-04: the unknown folder's banner (the only category with skips in this
     // fixture) carries a "1 row skipped" tag. It lives in the Not yet
     // supported pane. We locate the banner by its folder name to be robust to
     // worker ordering.
     await openSection(page, 'not-yet-supported');
-    const bansBanner = page
-      .getByTestId('unsupported-banner')
-      .filter({ has: page.getByTestId('banner-folder').getByText('Bans', { exact: true }) });
-    await expect(bansBanner).toHaveCount(1);
-    await expect(bansBanner.getByTestId('skip-tag')).toHaveText('1 row skipped');
+    const unknownBanner = page.getByTestId('unsupported-banner').filter({
+      has: page.getByTestId('banner-folder').getByText(SAMPLE_UNKNOWN_FOLDER, { exact: true }),
+    });
+    await expect(unknownBanner).toHaveCount(1);
+    await expect(unknownBanner.getByTestId('skip-tag')).toHaveText('1 row skipped');
 
     // D-09 / D-04 prohibition: a category with NO skips must NOT show
     // the skip-count tag. Every other card in the malformed fixture has
@@ -351,7 +353,7 @@ test.describe('persistent-dataset auto-load', () => {
     // carries exactly one tag in this pane, and every data pane, opened in
     // turn, carries none (page-wide and inside its own section).
     const skippedTags = page.getByTestId('skip-tag');
-    await expect(skippedTags).toHaveCount(1); // exactly one skip tag, on Bans
+    await expect(skippedTags).toHaveCount(1); // exactly one skip tag, on the unknown folder
     for (const pane of DATA_PANE_IDS) {
       await openSection(page, pane);
       await expect(skippedTags).toHaveCount(0);
@@ -374,7 +376,9 @@ test.describe('persistent-dataset auto-load', () => {
     await expect(
       page
         .getByTestId('unsupported-banner')
-        .filter({ has: page.getByTestId('banner-folder').getByText('Bans', { exact: true }) })
+        .filter({
+          has: page.getByTestId('banner-folder').getByText(SAMPLE_UNKNOWN_FOLDER, { exact: true }),
+        })
         .getByTestId('skip-tag'),
     ).toHaveText('1 row skipped');
     await expect(page.getByTestId('skip-tag')).toHaveCount(1);

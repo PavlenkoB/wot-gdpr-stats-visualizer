@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { CapturedFile, CapturedHeaders } from '../../fixtures/new-data-headers.ts';
+import type {
+  CapturedFile,
+  CapturedHeaders,
+  ColumnRisk,
+  DateShapeRow,
+  PaneMappingRow,
+} from '../../fixtures/new-data-headers.ts';
 
 // =============================================================================
 // Phase 11 captured-header constants guard (plan 11-02 Task 3, T-11-06).
@@ -72,12 +78,12 @@ const keysOf = (list: readonly CapturedFile[]): string[] => list.map((file) => f
 /**
  * Every file key plan 11-02's interface block names, except the Surveys file.
  *
- * `HEAT_Surveys.csv` is deliberately absent from the REQUIRED list: it sits in
- * the unknown `Surveys` folder and belongs to Phase 12 (PERKS-03), so a capture
- * may legitimately hold it or not. `HEAT_Device_Info.csv` IS required — it is a
- * target file with a deliberate "no spec, stores nothing (D-15)" decision, so
- * its absence would mean the capture silently missed a target file rather than
- * that it was out of scope.
+ * `HEAT_Surveys.csv` is absent from THIS list because Phase 11 captured it only
+ * as an unknown-folder file; since Phase 12 (PERKS-03, plan 12-02) it has a spec
+ * and is asserted by PHASE_12_KEYS below. `HEAT_Device_Info.csv` IS required — it
+ * is a target file with a deliberate "no spec, stores nothing (D-15)" decision,
+ * so its absence would mean the capture silently missed a target file rather
+ * than that it was out of scope.
  */
 const REQUIRED_KEYS: readonly string[] = [
   'heat_game_sessions.csv',
@@ -94,6 +100,31 @@ const REQUIRED_KEYS: readonly string[] = [
   'wows_crews.csv',
   'wows_account_storage.csv',
 ];
+
+/**
+ * Every file key plan 12-01's capture holds and a pane can use (the Pane mapping
+ * of `12-HEADERS.md`). `heat_surveys.csv` was already captured in Phase 11 and is
+ * not entered twice.
+ */
+const PHASE_12_KEYS: readonly string[] = [
+  'authorized_third_parties.csv',
+  'bans.csv',
+  'bonus_code_usage.csv',
+  'personal_coupons.csv',
+  'subscriptions.csv',
+  'heat_surveys.csv',
+  'account_name_history.csv',
+  'external_services_history.csv',
+  'language_and_country_history.csv',
+];
+
+const NEW_PHASE_12_KEYS = PHASE_12_KEYS.filter((key) => key !== 'heat_surveys.csv');
+
+/** The Phase 12 constants; empty before GREEN so each lint fails on its own terms. */
+const riskAnswers: Readonly<Record<string, Readonly<Record<string, ColumnRisk>>>> =
+  loaded?.COLUMN_RISK_ANSWERS ?? {};
+const paneMapping: readonly PaneMappingRow[] = loaded?.PANE_MAPPING ?? [];
+const dateShapes: readonly DateShapeRow[] = loaded?.DATE_SHAPES ?? [];
 
 describe('the names-only capture module', () => {
   it('exists and is importable', () => {
@@ -220,6 +251,185 @@ describe('headersOf', () => {
       const found = headersOf(key);
       expect(found?.headers.length ?? 0).toBeGreaterThan(0);
       expect(found?.headers ?? []).not.toContain(SUPPRESSED);
+    }
+  });
+});
+
+// =============================================================================
+// Phase 12 additions (plan 12-01 Task 3): files, risk answers, mapping, shapes.
+// =============================================================================
+
+const ANSWERS = ['yes', 'no', 'unsure'];
+const RISK_FIELDS = ['email', 'personName', 'freeText', 'ip', 'code'] as const;
+
+/** Files whose IP column rule (d) admits. */
+const IP_FILES = ['bans.csv', 'authorized_third_parties.csv', 'bonus_code_usage.csv'];
+/** Files whose code column rule (e) admits. */
+const CODE_FILES = ['personal_coupons.csv', 'bonus_code_usage.csv'];
+
+const EXPECTED_CARDS: readonly (readonly [string, string])[] = [
+  ['timeline', 'Name'],
+  ['timeline', 'Service'],
+  ['timeline', 'Language and country'],
+  ['timeline', 'Ban'],
+  ['timeline', 'Third party'],
+  ['perks', 'Subscriptions'],
+  ['perks', 'Personal coupons'],
+  ['perks', 'Bonus codes'],
+  ['perks', 'Surveys'],
+];
+
+const mappedColumns = (row: PaneMappingRow): string[] =>
+  [row.primary, row.language, row.country, row.date, ...row.secondary].filter(
+    (column): column is string => column !== null,
+  );
+
+describe('Phase 12 captured files', () => {
+  it('holds every file key the Pane mapping can use', () => {
+    const seen = keysOf(files);
+    for (const key of PHASE_12_KEYS) {
+      expect(seen, `captured key ${key}`).toContain(key);
+    }
+  });
+
+  it('enters HEAT_Surveys once, not once per capture', () => {
+    expect(keysOf(files).filter((key) => key === 'heat_surveys.csv')).toHaveLength(1);
+  });
+
+  it('adds only the new Phase 12 keys with a folder inside the six promoted ones or User_Info', () => {
+    const allowed = [
+      'Authorized_Third_Parties',
+      'Bans',
+      'Bonus_Codes',
+      'Personal_Coupons',
+      'Subscriptions',
+      'Surveys',
+      'User_Info',
+    ];
+    for (const file of files.filter((f) => NEW_PHASE_12_KEYS.includes(f.key))) {
+      expect(allowed, `${file.key} folder`).toContain(file.folder);
+    }
+  });
+
+  it('never captures Account_Info.csv or anything from Game_Forums (D-02, D-04)', () => {
+    for (const file of files) {
+      expect(file.key).not.toBe('account_info.csv');
+      expect(file.folder.toLowerCase()).not.toBe('game_forums');
+    }
+  });
+});
+
+describe('COLUMN_RISK_ANSWERS', () => {
+  it('answers yes, no or unsure on all five fields for every column of every Phase 12 file', () => {
+    for (const key of PHASE_12_KEYS) {
+      const headers = headersOf(key)?.headers ?? [];
+      const answered = riskAnswers[key] ?? {};
+      expect(headers.length, `${key} captured`).toBeGreaterThan(0);
+      for (const header of headers) {
+        const row = answered[header];
+        expect(row, `${key}.${header} has an answer`).toBeDefined();
+        for (const field of RISK_FIELDS) {
+          expect(ANSWERS, `${key}.${header}.${field}`).toContain(row?.[field]);
+        }
+      }
+    }
+  });
+
+  it('answers only for columns the capture holds', () => {
+    for (const [key, columns] of Object.entries(riskAnswers)) {
+      expect(PHASE_12_KEYS, `${key} is a Phase 12 key`).toContain(key);
+      for (const column of Object.keys(columns)) {
+        expect(headersOf(key)?.headers ?? [], `${key}.${column}`).toContain(column);
+      }
+    }
+  });
+});
+
+describe('PANE_MAPPING', () => {
+  it('has exactly one row per timeline kind and Perks card', () => {
+    expect(paneMapping.map((row) => [row.pane, row.cardOrKind])).toEqual(EXPECTED_CARDS);
+  });
+
+  it('points every mapped row at a captured file in its own folder, using captured columns', () => {
+    for (const row of paneMapping.filter((r) => r.status === 'mapped')) {
+      expect(row.fileKey, `${row.cardOrKind} file`).not.toBeNull();
+      const captured = files.find((file) => file.key === row.fileKey);
+      expect(captured, `${row.cardOrKind} captured`).toBeDefined();
+      expect(captured?.folder, `${row.cardOrKind} folder`).toBe(row.folder);
+      const headers = headersOf(row.fileKey ?? '')?.headers ?? [];
+      for (const column of mappedColumns(row)) {
+        expect(headers, `${row.cardOrKind} column ${column}`).toContain(column);
+      }
+    }
+  });
+
+  it('gives every mapped Perks row a primary and every mapped timeline row a primary or a language or country column', () => {
+    for (const row of paneMapping.filter((r) => r.status === 'mapped')) {
+      if (row.pane === 'perks') {
+        expect(row.primary, `${row.cardOrKind} primary`).not.toBeNull();
+      } else if (row.cardOrKind === 'Language and country') {
+        expect(row.language !== null || row.country !== null, `${row.cardOrKind}`).toBe(true);
+      } else {
+        expect(row.primary, `${row.cardOrKind} primary`).not.toBeNull();
+      }
+    }
+  });
+
+  it('leaves a removed row with no file key and no columns', () => {
+    for (const row of paneMapping.filter((r) => r.status === 'removed')) {
+      expect(row.fileKey, `${row.cardOrKind} file`).toBeNull();
+      expect(mappedColumns(row), `${row.cardOrKind} columns`).toEqual([]);
+    }
+  });
+
+  it('never maps a column the risk answers mark yes or unsure for email, a person name or free text (rule g)', () => {
+    for (const row of paneMapping.filter((r) => r.status === 'mapped')) {
+      for (const column of mappedColumns(row)) {
+        const risk = riskAnswers[row.fileKey ?? '']?.[column];
+        expect(risk, `${row.cardOrKind}.${column} answered`).toBeDefined();
+        expect(risk?.email, `${row.cardOrKind}.${column} email`).toBe('no');
+        expect(risk?.personName, `${row.cardOrKind}.${column} personName`).toBe('no');
+        expect(risk?.freeText, `${row.cardOrKind}.${column} freeText`).toBe('no');
+      }
+    }
+  });
+
+  it('admits an address column only in Bans, Authorized_Third_Parties and Bonus_Code_Usage, a code column only in Personal_Coupons and Bonus_Code_Usage (rules d, e)', () => {
+    for (const row of paneMapping.filter((r) => r.status === 'mapped')) {
+      for (const column of mappedColumns(row)) {
+        const risk = riskAnswers[row.fileKey ?? '']?.[column];
+        if (risk?.ip !== 'no')
+          expect(IP_FILES, `${row.cardOrKind}.${column} ip`).toContain(row.fileKey);
+        if (risk?.code !== 'no')
+          expect(CODE_FILES, `${row.cardOrKind}.${column} code`).toContain(row.fileKey);
+      }
+    }
+  });
+});
+
+describe('DATE_SHAPES', () => {
+  it('names a captured file and column, and its file is a mapped row', () => {
+    for (const shape of dateShapes) {
+      const headers = headersOf(shape.fileKey)?.headers ?? [];
+      expect(headers, `${shape.fileKey}.${shape.column}`).toContain(shape.column);
+      const mapped = paneMapping.find(
+        (row) => row.status === 'mapped' && row.fileKey === shape.fileKey,
+      );
+      expect(mapped, `${shape.fileKey} is a mapped row`).toBeDefined();
+      expect(shape.shape.length, `${shape.fileKey}.${shape.column} shape`).toBeGreaterThan(0);
+    }
+  });
+
+  it('covers the date column of every mapped row that has one', () => {
+    for (const row of paneMapping.filter((r) => r.status === 'mapped' && r.date !== null)) {
+      const found = dateShapes.find((s) => s.fileKey === row.fileKey && s.column === row.date);
+      expect(found, `${row.cardOrKind} date shape`).toBeDefined();
+    }
+  });
+
+  it('holds a shape pattern, never a date value', () => {
+    for (const shape of dateShapes) {
+      expect(shape.shape, `${shape.fileKey}.${shape.column}`).not.toMatch(/\d/);
     }
   });
 });

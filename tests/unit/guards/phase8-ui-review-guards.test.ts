@@ -235,6 +235,7 @@ const ALLOWED_COLOUR_LITERALS: readonly AllowedColourLiteral[] = [
     literal: '#c5221f',
     reason: STATUS_REASON,
     files: [
+      'src/lib/features/account-timeline/AccountTimelinePane.svelte',
       'src/lib/features/device-info/DeviceInfo.svelte',
       'src/lib/features/finance/CurrencyBlock.svelte',
       'src/lib/features/finance/PremiumBlock.svelte',
@@ -242,6 +243,7 @@ const ALLOWED_COLOUR_LITERALS: readonly AllowedColourLiteral[] = [
       'src/lib/features/logins/CityOptIn.svelte',
       'src/lib/features/logins/LoginHistory.svelte',
       'src/lib/features/new-data/HeatPane.svelte',
+      'src/lib/features/new-data/PerksPane.svelte',
       'src/lib/features/new-data/WarshipsStoragePane.svelte',
       'src/lib/features/playtime/Playtime.svelte',
       'src/lib/features/vehicles/PlayerStats.svelte',
@@ -253,6 +255,7 @@ const ALLOWED_COLOUR_LITERALS: readonly AllowedColourLiteral[] = [
     literal: '#fce8e6',
     reason: STATUS_REASON,
     files: [
+      'src/lib/features/account-timeline/AccountTimelinePane.svelte',
       'src/lib/features/device-info/DeviceInfo.svelte',
       'src/lib/features/finance/CurrencyBlock.svelte',
       'src/lib/features/finance/PremiumBlock.svelte',
@@ -260,6 +263,7 @@ const ALLOWED_COLOUR_LITERALS: readonly AllowedColourLiteral[] = [
       'src/lib/features/logins/CityOptIn.svelte',
       'src/lib/features/logins/LoginHistory.svelte',
       'src/lib/features/new-data/HeatPane.svelte',
+      'src/lib/features/new-data/PerksPane.svelte',
       'src/lib/features/new-data/WarshipsStoragePane.svelte',
       'src/lib/features/playtime/Playtime.svelte',
       'src/lib/features/vehicles/PlayerStats.svelte',
@@ -271,6 +275,7 @@ const ALLOWED_COLOUR_LITERALS: readonly AllowedColourLiteral[] = [
     literal: '#8a1c17',
     reason: STATUS_REASON,
     files: [
+      'src/lib/features/account-timeline/AccountTimelinePane.svelte',
       'src/lib/features/device-info/DeviceInfo.svelte',
       'src/lib/features/finance/CurrencyBlock.svelte',
       'src/lib/features/finance/PremiumBlock.svelte',
@@ -278,6 +283,7 @@ const ALLOWED_COLOUR_LITERALS: readonly AllowedColourLiteral[] = [
       'src/lib/features/logins/CityOptIn.svelte',
       'src/lib/features/logins/LoginHistory.svelte',
       'src/lib/features/new-data/HeatPane.svelte',
+      'src/lib/features/new-data/PerksPane.svelte',
       'src/lib/features/new-data/WarshipsStoragePane.svelte',
       'src/lib/features/playtime/Playtime.svelte',
       'src/lib/features/vehicles/PlayerStats.svelte',

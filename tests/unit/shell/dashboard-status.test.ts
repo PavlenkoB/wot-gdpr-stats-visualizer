@@ -13,6 +13,7 @@ import {
   unsupportedSectionStatus,
   type SectionId,
 } from '../../../src/lib/shell/dashboard-status.ts';
+import { SAMPLE_UNKNOWN_FOLDER } from '../../fixtures/export-fixtures.ts';
 import {
   NAV_STATUS_SUFFIX,
   SECTION_TITLES,
@@ -90,7 +91,7 @@ const SAMPLE: EntrySpec[] = [
   ...FULL_SUPPORTED,
   ['Chat_history', 'known-deferred', 1, 40],
   ['Clans', 'known-deferred', 1, 2],
-  ['Bans', 'unknown', 1, 0],
+  [SAMPLE_UNKNOWN_FOLDER, 'unknown', 1, 0],
 ];
 
 // -----------------------------------------------------------------------------
@@ -426,20 +427,20 @@ describe('unsupported block', () => {
     expect(unsupportedEntries(result).map((c) => c.name)).toEqual([
       'Chat_history',
       'Clans',
-      'Bans',
+      SAMPLE_UNKNOWN_FOLDER,
     ]);
     for (const entry of unsupportedEntries(result)) {
       expect(entry.status).not.toBe('supported');
     }
   });
 
-  test("unsupported entries 'Bans' and 'bans' both stay separate list items", () => {
+  test('two case-spellings of one unknown folder both stay separate list items', () => {
     // The adjacency rule runs the other way here: supported entries that
     // differ only in case MERGE into one section, unsupported ones stay
     // separate, because merging would hide a folder that really is there.
     const result = resultOf([
-      ['Bans', 'unknown', 1, 0],
-      ['bans', 'unknown', 1, 0],
+      [SAMPLE_UNKNOWN_FOLDER, 'unknown', 1, 0],
+      [SAMPLE_UNKNOWN_FOLDER.toLowerCase(), 'unknown', 1, 0],
     ]);
     expect(unsupportedEntries(result)).toHaveLength(2);
     expect(unsupportedBlockStatus(result)).toBe('has-items');
@@ -551,9 +552,11 @@ describe('the footer is not derived from newDataPanes (11-05, A5)', () => {
   });
 
   test('an unknown folder is still listed, exactly once, whichever panes exist', () => {
-    const result = resultOf([...FULL_SUPPORTED, ['Bans', 'unknown', 1, 0]]);
+    const result = resultOf([...FULL_SUPPORTED, [SAMPLE_UNKNOWN_FOLDER, 'unknown', 1, 0]]);
     const withPanes: ClassifyResult = { ...result, newDataPanes: WITH_PANES };
-    expect(unsupportedEntries(withPanes).map((entry) => entry.name)).toEqual(['Bans']);
+    expect(unsupportedEntries(withPanes).map((entry) => entry.name)).toEqual([
+      SAMPLE_UNKNOWN_FOLDER,
+    ]);
     expect(unsupportedBlockStatus(withPanes)).toBe('has-items');
   });
 

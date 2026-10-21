@@ -34,12 +34,21 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   MAX_NEW_DATA_CELL,
   fileMatchesSpec,
+  isFamilyCategory,
   isNewDataFile,
+  looksLikeEmail,
   projectRow,
   specFor,
+  type AllowlistSpec,
 } from '../../../src/lib/worker/new-data-allowlist.ts';
-import { NEW_DATA_SPEC_FILES } from '../../../src/lib/worker/new-data-specs.ts';
-import { CAPTURED_FILES, headersOf } from '../../fixtures/new-data-headers.ts';
+import { NEW_DATA_SPEC_FILES, type SpecColumn } from '../../../src/lib/worker/new-data-specs.ts';
+import {
+  CAPTURED_FILES,
+  COLUMN_RISK_ANSWERS,
+  PANE_MAPPING,
+  headersOf,
+  type ColumnRisk,
+} from '../../fixtures/new-data-headers.ts';
 import {
   deleteActiveDatabase,
   importWorkerDb,
@@ -73,18 +82,29 @@ function aSpec() {
 // -----------------------------------------------------------------------------
 
 /**
- * The twelve files the spec table must name: the two session specs plan 11-01
- * wrote, plus one entry per pane and Warplanes file in `11-HEADERS.md`.
+ * The files the spec table must name: the two session specs plan 11-01 wrote,
+ * plus one entry per pane and Warplanes file in `11-HEADERS.md`, plus the
+ * Surveys file plan 12-02 gave a spec, plus the Phase 12 timeline and Perks
+ * files plan 12-08 transcribed from `12-HEADERS.md`.
  *
  * Spelled out rather than derived from the spec table, because a list derived
  * from the thing it checks asserts only that the check reads what it wrote.
  */
 const SPEC_KEYS: readonly string[] = [
+  'account_name_history.csv',
+  'authorized_third_parties.csv',
+  'bans.csv',
+  'bonus_code_usage.csv',
+  'external_services_history.csv',
   'heat_account_statistics.csv',
   'heat_account_storage.csv',
   'heat_battle_types_statistics.csv',
   'heat_game_sessions.csv',
   'heat_session_geolocation.csv',
+  'heat_surveys.csv',
+  'language_and_country_history.csv',
+  'personal_coupons.csv',
+  'subscriptions.csv',
   'wotc_game_sessions.csv',
   'wowp_19_account_statistics.csv',
   'wowp_19_plane_statistics.csv',
@@ -257,7 +277,97 @@ const IDENTITY_EXCEPTIONS: Readonly<Record<string, Readonly<Record<string, strin
   'wowp_19_plane_statistics.csv': {
     VEHICLE_NAME: 'Rule (d): the vehicle identifier the Vehicles builder reads, not a person.',
   },
+  'heat_surveys.csv': {
+    SKIPPED_BY_PLAYER:
+      'Rule (a) would exclude it, but the column is a flag; the match is the IP inside SKIPPED.',
+  },
+  // 12-08. The Phase 12 columns the identity pattern flags, each with the decision rule that admits it.
+  'account_name_history.csv': {
+    OLD_NAME:
+      'Rule (c) of 12-HEADERS.md: a past nickname is admitted in this one file only (orchestrator default 4).',
+    NEW_NAME:
+      'Rule (c) of 12-HEADERS.md: a past nickname is admitted in this one file only (orchestrator default 4).',
+  },
+  'external_services_history.csv': {
+    NAME: 'Rule (f): a lower-case service token the user rated no risk, not a person (12-HEADERS.md).',
+  },
+  'language_and_country_history.csv': {
+    NAME: 'Rule (f): it discriminates whether VALUE holds a language or a country, not a person.',
+  },
+  'bonus_code_usage.csv': {
+    USER_IP:
+      'Rule (d) of 12-HEADERS.md: the Bonus_Codes file may store the redeeming address, masked on screen (D-14).',
+  },
 };
+
+// -----------------------------------------------------------------------------
+// 12-08: the Phase 12 specs against the user's own per-column risk answers
+// -----------------------------------------------------------------------------
+
+/**
+ * The nine Phase 12 spec keys, spelled out. They are the rows of the Pane mapping
+ * of `12-HEADERS.md`; a test below pins the list to the typed mapping so neither
+ * can drift on its own.
+ */
+const PHASE12_KEYS: readonly string[] = [
+  'account_name_history.csv',
+  'authorized_third_parties.csv',
+  'bans.csv',
+  'bonus_code_usage.csv',
+  'external_services_history.csv',
+  'heat_surveys.csv',
+  'language_and_country_history.csv',
+  'personal_coupons.csv',
+  'subscriptions.csv',
+];
+
+/** The only files a coupon or bonus code may be stored in (D-13). */
+const CODE_FILES: readonly string[] = ['personal_coupons.csv', 'bonus_code_usage.csv'];
+
+/** The only files an IP address may be stored in (D-14). */
+const ADDRESS_FILES: readonly string[] = [
+  'bans.csv',
+  'authorized_third_parties.csv',
+  'bonus_code_usage.csv',
+];
+
+/** The name history file key: the mapped Name row of the Pane mapping. */
+const NAME_HISTORY_KEY: string | null =
+  PANE_MAPPING.find((row) => row.cardOrKind === 'Name' && row.status === 'mapped')?.fileKey ?? null;
+
+/** A yes or an unsure counts as a yes for every risk question (12-HEADERS.md). */
+const flagged = (answer: ColumnRisk[keyof ColumnRisk]): boolean =>
+  answer === 'yes' || answer === 'unsure';
+
+/**
+ * Every way ONE spec column breaks the user's own answers about it.
+ *
+ * Pure: it takes the column, the answers recorded for it (or `undefined`) and the
+ * name history file key. Each message names the file, the column and the field,
+ * so a failing lint says which decision was overruled.
+ */
+function riskViolations(
+  fileKey: string,
+  column: { readonly header: string; readonly kind: string },
+  answers: ColumnRisk | undefined,
+  nameHistoryKey: string | null,
+): string[] {
+  const where = `${fileKey} / ${column.header}`;
+  if (answers === undefined) return [`${where}: no recorded answer`];
+  const out: string[] = [];
+  if (flagged(answers.email)) out.push(`${where}: email answer is ${answers.email}`);
+  if (flagged(answers.freeText)) out.push(`${where}: freeText answer is ${answers.freeText}`);
+  if (flagged(answers.personName) && fileKey !== nameHistoryKey) {
+    out.push(`${where}: personName answer is ${answers.personName} outside the name history`);
+  }
+  if (flagged(answers.ip) && column.kind !== 'address') {
+    out.push(`${where}: ip answer is ${answers.ip} but the kind is ${column.kind}`);
+  }
+  if (flagged(answers.code) && column.kind !== 'code') {
+    out.push(`${where}: code answer is ${answers.code} but the kind is ${column.kind}`);
+  }
+  return out;
+}
 
 // -----------------------------------------------------------------------------
 // Pure: which file is a new-data file, and which spec applies to it
@@ -310,6 +420,77 @@ describe('isNewDataFile: the family test is by NAME and ignores the folder', () 
   });
 });
 
+describe('isFamilyCategory: the CATEGORY half of the family test (12-02, T-12-04)', () => {
+  it('is true for each of the SIX promoted folders, in either spelling', () => {
+    expect(isFamilyCategory('Surveys')).toBe(true);
+    expect(isFamilyCategory('surveys')).toBe(true);
+    expect(isFamilyCategory('SURVEYS')).toBe(true);
+    // 12-04 promoted the other five Phase 12 folders. Each one is now a folder
+    // the app READS, so each one has to be a folder whose every file fails
+    // closed until a spec names it (D-03, T-12-09).
+    expect(isFamilyCategory('Authorized_Third_Parties')).toBe(true);
+    expect(isFamilyCategory('Bans')).toBe(true);
+    expect(isFamilyCategory('Bonus_Codes')).toBe(true);
+    expect(isFamilyCategory('Personal_Coupons')).toBe(true);
+    expect(isFamilyCategory('Subscriptions')).toBe(true);
+    expect(isFamilyCategory('bans')).toBe(true);
+    expect(isFamilyCategory('BONUS_CODES')).toBe(true);
+    expect(isFamilyCategory('personal_coupons')).toBe(true);
+    expect(isFamilyCategory('subscriptions')).toBe(true);
+    expect(isFamilyCategory('authorized_third_parties')).toBe(true);
+  });
+
+  it('is false for every other category, and for the empty one', () => {
+    // The set holds the six promoted folders and nothing else. A category that
+    // opts in has EVERY file in it fail closed, so the set is the promotion's
+    // ledger and grows only beside the `SUPPORTED` change that made the folder
+    // readable.
+    //
+    // `Game_Forums` is the one that must NOT be here: D-02 leaves it
+    // unpromoted precisely because its header carries an EMAIL, and putting it
+    // in this set would be the quiet way to promote it (T-12-10).
+    expect(isFamilyCategory('Game_Forums')).toBe(false);
+    expect(isFamilyCategory('game_forums')).toBe(false);
+    expect(isFamilyCategory('Activity_History')).toBe(false);
+    expect(isFamilyCategory('Player_Statistics')).toBe(false);
+    expect(isFamilyCategory('User_Info')).toBe(false);
+    expect(isFamilyCategory('')).toBe(false);
+  });
+});
+
+describe('isNewDataFile: the three User_Info history files join the family (12-04)', () => {
+  it('is true for each of the three history file names, in any case', () => {
+    // These three are not in a promoted folder: they sit in `User_Info`,
+    // beside `Account_Info.csv`, which is SUPPORTED since Phase 1 — so without
+    // this rule they are stored column for column today (12-RESEARCH
+    // Finding 1). Making them family files is the NARROWING, not a promotion,
+    // and it fails closed: with no spec yet (plan 12-08) they store nothing.
+    expect(isNewDataFile('Account_Name_History.csv')).toBe(true);
+    expect(isNewDataFile('External_Services_History.csv')).toBe(true);
+    expect(isNewDataFile('Language_And_Country_History.csv')).toBe(true);
+    expect(isNewDataFile('account_name_history.csv')).toBe(true);
+    expect(isNewDataFile('EXTERNAL_SERVICES_HISTORY.CSV')).toBe(true);
+    expect(isNewDataFile('language_and_country_history.csv')).toBe(true);
+  });
+
+  it('leaves Account_Info.csv — and every near-miss name — outside the family', () => {
+    // The pattern is deliberately NOT a prefix. `Account_Info.csv` is the file
+    // the identity pick and the Account record read; a prefix rule would make
+    // it a family file with no spec and the whole account header would stop
+    // storing, which is the opposite of what this change is for.
+    expect(isNewDataFile('Account_Info.csv')).toBe(false);
+    expect(isNewDataFile('account_info.csv')).toBe(false);
+    // Anchored at BOTH ends: a longer or shorter name is a different file.
+    expect(isNewDataFile('Account_Name_History_Extra.csv')).toBe(false);
+    expect(isNewDataFile('OLD_Account_Name_History.csv')).toBe(false);
+    expect(isNewDataFile('Account_Name_History')).toBe(false);
+    expect(isNewDataFile('External_Services_History_Extra.csv')).toBe(false);
+    expect(isNewDataFile('Language_And_Country.csv')).toBe(false);
+    expect(isNewDataFile('Account_History.csv')).toBe(false);
+    expect(isNewDataFile('')).toBe(false);
+  });
+});
+
 describe('specFor: a name, a category, or neither', () => {
   it('answers a spec for each of the two session files', () => {
     expect(HEAT_SPEC).not.toBeNull();
@@ -334,6 +515,23 @@ describe('specFor: a name, a category, or neither', () => {
   it('answers null for a name outside the family at all', () => {
     expect(specFor('activity_history', 'WOT_Game_Sessions.csv')).toBeNull();
     expect(specFor('activity_history', 'Sessions.csv')).toBeNull();
+  });
+
+  it('answers the Surveys spec for its own category, and null in any other', () => {
+    // Four columns, each mapping to itself, and the two captured columns it
+    // excludes (PROFILE_ID, BATTLE_ID) absent by OMISSION.
+    const surveys = specFor('surveys', 'HEAT_Surveys.csv');
+    expect(surveys).not.toBeNull();
+    expect(surveys?.category).toBe('surveys');
+    expect(surveys?.key).toBe('heat_surveys.csv');
+    expect([...(surveys?.columns.keys() ?? [])].sort()).toEqual([
+      'MESSAGE_TS',
+      'PLAYER_ANSWER',
+      'QUESTION_ID',
+      'SKIPPED_BY_PLAYER',
+    ]);
+    // The same name under another category stores nothing.
+    expect(specFor('payment_history', 'HEAT_Surveys.csv')).toBeNull();
   });
 
   it('is case-insensitive on BOTH arguments', () => {
@@ -439,6 +637,89 @@ describe('projectRow: only spec columns, under spec constants', () => {
   });
 });
 
+describe('projectRow: the value-level email guard (12-06, D-01, T-12-16)', () => {
+  /** A hand-built spec: two text columns, with the guard on or off. */
+  function guarded(emailGuard: boolean): AllowlistSpec {
+    const columns = new Map<string, SpecColumn>([
+      ['SERVICE', { header: 'SERVICE', id: 'SERVICE', kind: 'text' }],
+      ['NOTE', { header: 'NOTE', id: 'NOTE', kind: 'text' }],
+    ]);
+    return { category: 'bans', key: 'x.csv', columns, emailGuard };
+  }
+
+  it('omits a cell whose value is an email and leaves the others unchanged', () => {
+    const out = projectRow(
+      { SERVICE: 'twitch', NOTE: 'write to someone@example.com' },
+      guarded(true),
+    );
+    expect(out).toEqual({ SERVICE: 'twitch' });
+    expect('NOTE' in out).toBe(false);
+  });
+
+  it('keeps an at-sign with no dot after it, a lone at-sign, a spaced handle and a nickname', () => {
+    const row = { SERVICE: 'a@b', NOTE: '@' };
+    expect(projectRow(row, guarded(true))).toEqual({ SERVICE: 'a@b', NOTE: '@' });
+    expect(projectRow({ SERVICE: 'someone @ home', NOTE: 'Tank_Ace_77' }, guarded(true))).toEqual({
+      SERVICE: 'someone @ home',
+      NOTE: 'Tank_Ace_77',
+    });
+  });
+
+  it('drops an over-long cell with an at-sign near its start even when the clamp cuts the address', () => {
+    const cut = 'x'.repeat(MAX_NEW_DATA_CELL - 5) + 'someone@exa' + 'mple.com';
+    const out = projectRow({ SERVICE: cut, NOTE: 'ok' }, guarded(true));
+    expect(out).toEqual({ NOTE: 'ok' });
+  });
+
+  it('clamps and keeps a long cell that has no at-sign', () => {
+    const long = 'y'.repeat(MAX_NEW_DATA_CELL + 500);
+    const out = projectRow({ SERVICE: long }, guarded(true));
+    expect(out.SERVICE).toHaveLength(MAX_NEW_DATA_CELL);
+  });
+
+  it('is byte-for-byte the old projection with the guard off', () => {
+    const row = { SERVICE: 'someone@example.com', NOTE: 'z'.repeat(MAX_NEW_DATA_CELL + 9) };
+    const out = projectRow(row, guarded(false));
+    expect(out.SERVICE).toBe('someone@example.com');
+    expect(out.NOTE).toHaveLength(MAX_NEW_DATA_CELL);
+  });
+
+  it('is idempotent: projecting its own output again gives the same contents', () => {
+    const spec = guarded(true);
+    const once = projectRow(
+      { SERVICE: 'someone@example.com', NOTE: 'w'.repeat(MAX_NEW_DATA_CELL + 40) },
+      spec,
+    );
+    expect(projectRow(once, spec)).toEqual(once);
+  });
+
+  it('looksLikeEmail needs a dot after the at-sign and is cheap on a hostile string', () => {
+    expect(looksLikeEmail('a@b.c')).toBe(true);
+    expect(looksLikeEmail('a@b')).toBe(false);
+    expect(looksLikeEmail('@@@@@@@@@@' + '.'.repeat(190))).toBe(false);
+  });
+
+  it('leaves fileMatchesSpec unchanged by the flag', () => {
+    expect(fileMatchesSpec([{ SERVICE: 'x' }], guarded(true))).toBe(true);
+    expect(fileMatchesSpec([{ OTHER: 'x' }], guarded(true))).toBe(false);
+    expect(fileMatchesSpec([{ SERVICE: 'x' }], guarded(false))).toBe(true);
+  });
+
+  it('exactly the nine Phase 12 specs set the flag, and no Phase 11 spec does (12-08)', () => {
+    // The guard is value-level and would re-narrow an existing Phase 11 cache, so
+    // it stays off there (D-03). Every Phase 12 file can carry an email as the
+    // VALUE of an allowlisted column, so it is on for all of them (D-01, PRIV-01).
+    const guarded = NEW_DATA_SPEC_FILES.filter((spec) => spec.emailGuard === true).map(
+      (spec) => spec.key,
+    );
+    expect([...guarded].sort()).toEqual([...PHASE12_KEYS].sort());
+    expect(PHASE12_KEYS).toHaveLength(9);
+    for (const spec of NEW_DATA_SPEC_FILES) {
+      if (!PHASE12_KEYS.includes(spec.key)) expect(spec.emailGuard === true, spec.key).toBe(false);
+    }
+  });
+});
+
 describe('fileMatchesSpec: decided per FILE, never per row', () => {
   it('is true when ONE row of many carries a spec column', () => {
     expect(
@@ -525,8 +806,8 @@ describe('the spec table: every stored column is evidence-backed', () => {
     }
   });
 
-  it('gives every column a unique id equal to its header and one of the four kinds', () => {
-    const kinds = new Set(['text', 'number', 'date', 'address']);
+  it('gives every column a unique id equal to its header and one of the five kinds', () => {
+    const kinds = new Set(['text', 'number', 'date', 'address', 'code']);
     for (const spec of NEW_DATA_SPEC_FILES) {
       const ids = new Set<string>();
       for (const column of spec.columns) {
@@ -582,6 +863,176 @@ describe('the spec table: every stored column is evidence-backed', () => {
       // And the capture really does carry it, so this is a narrowing and not a
       // file that never had one.
       expect(capturedHeaders(key).has('NAME'), `${key} capture carries NAME`).toBe(true);
+    }
+  });
+});
+
+describe("every Phase 12 spec column against the user's per-column risk answers (12-08, T-12-23)", () => {
+  it('walks every spec the risk answers cover, and the answers cover the nine Phase 12 files', () => {
+    expect(Object.keys(COLUMN_RISK_ANSWERS).sort()).toEqual([...PHASE12_KEYS].sort());
+    const mapped = PANE_MAPPING.filter((row) => row.status === 'mapped').map((row) => row.fileKey);
+    expect([...mapped].sort()).toEqual([...PHASE12_KEYS].sort());
+    expect(NAME_HISTORY_KEY).toBe('account_name_history.csv');
+  });
+
+  it('passes for every column of every spec that has recorded answers', () => {
+    const violations: string[] = [];
+    for (const spec of NEW_DATA_SPEC_FILES) {
+      const answers = COLUMN_RISK_ANSWERS[spec.key];
+      if (answers === undefined) continue;
+      for (const column of spec.columns) {
+        violations.push(
+          ...riskViolations(
+            spec.key,
+            column,
+            Object.hasOwn(answers, column.header) ? answers[column.header] : undefined,
+            NAME_HISTORY_KEY,
+          ),
+        );
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
+  describe('the lint itself fails on a hand-built column', () => {
+    const no: ColumnRisk = { email: 'no', personName: 'no', freeText: 'no', ip: 'no', code: 'no' };
+
+    it('accepts a column whose answers are all no', () => {
+      expect(riskViolations('bans.csv', { header: 'STATUS', kind: 'text' }, no, 'n.csv')).toEqual(
+        [],
+      );
+    });
+
+    it('names file, column and field when the email answer is unsure', () => {
+      const out = riskViolations(
+        'bans.csv',
+        { header: 'REASON', kind: 'text' },
+        { ...no, email: 'unsure' },
+        'n.csv',
+      );
+      expect(out).toEqual(['bans.csv / REASON: email answer is unsure']);
+    });
+
+    it('fails a free-text yes, with no exception for an address or code kind', () => {
+      for (const kind of ['text', 'address', 'code']) {
+        const out = riskViolations(
+          'bans.csv',
+          { header: 'DESCRIPTION', kind },
+          { ...no, freeText: 'yes' },
+          'n.csv',
+        );
+        expect(out.join(), kind).toContain('freeText answer is yes');
+      }
+    });
+
+    it('fails an IP yes with kind text and passes it with kind address', () => {
+      const answers = { ...no, ip: 'yes' } as const;
+      expect(
+        riskViolations('bans.csv', { header: 'IP', kind: 'text' }, answers, 'n.csv').join(),
+      ).toContain('ip answer is yes but the kind is text');
+      expect(
+        riskViolations('bans.csv', { header: 'IP', kind: 'address' }, answers, 'n.csv'),
+      ).toEqual([]);
+    });
+
+    it('fails a code yes with kind text and passes it with kind code', () => {
+      const answers = { ...no, code: 'unsure' } as const;
+      expect(
+        riskViolations('personal_coupons.csv', { header: 'CODE', kind: 'text' }, answers, 'n.csv')
+          .length,
+      ).toBe(1);
+      expect(
+        riskViolations('personal_coupons.csv', { header: 'CODE', kind: 'code' }, answers, 'n.csv'),
+      ).toEqual([]);
+    });
+
+    it('allows a person-name yes in the name history file only', () => {
+      const answers = { ...no, personName: 'yes' } as const;
+      const column = { header: 'OLD_NAME', kind: 'text' };
+      expect(riskViolations('n.csv', column, answers, 'n.csv')).toEqual([]);
+      expect(riskViolations('other.csv', column, answers, 'n.csv').join()).toContain(
+        'personName answer is yes outside the name history',
+      );
+    });
+
+    it('fails a column with no recorded answer', () => {
+      expect(
+        riskViolations('bans.csv', { header: 'NEW', kind: 'text' }, undefined, 'n.csv'),
+      ).toEqual(['bans.csv / NEW: no recorded answer']);
+    });
+  });
+});
+
+describe('the Phase 12 kind placement (12-08, D-13, D-14)', () => {
+  it('stores a code column only in the coupon and bonus-code specs', () => {
+    for (const spec of NEW_DATA_SPEC_FILES) {
+      if (!PHASE12_KEYS.includes(spec.key)) continue;
+      for (const column of spec.columns) {
+        if (column.kind !== 'code') continue;
+        expect(CODE_FILES, `${spec.key} / ${column.header} is a code column`).toContain(spec.key);
+      }
+    }
+  });
+
+  it('stores an address column only in the bans, third-party and bonus-code specs', () => {
+    for (const spec of NEW_DATA_SPEC_FILES) {
+      if (!PHASE12_KEYS.includes(spec.key)) continue;
+      for (const column of spec.columns) {
+        if (column.kind !== 'address') continue;
+        expect(ADDRESS_FILES, `${spec.key} / ${column.header} is an address column`).toContain(
+          spec.key,
+        );
+      }
+    }
+  });
+
+  it('names a past-nickname column only in the name history spec', () => {
+    for (const spec of NEW_DATA_SPEC_FILES) {
+      for (const column of spec.columns) {
+        if (column.header !== 'OLD_NAME' && column.header !== 'NEW_NAME') continue;
+        expect(spec.key, `${spec.key} / ${column.header} is a past nickname`).toBe(
+          NAME_HISTORY_KEY,
+        );
+        expect(column.kind).toBe('text');
+      }
+    }
+  });
+
+  it('names PLAYER_ANSWER only because the recorded answers allow it, as kind text', () => {
+    // Orchestrator default 3: the column stays out unless the user's checkpoint
+    // statement says it is an enumerated rating. The statement is recorded as
+    // `no` on email, person name and free text in COLUMN_RISK_ANSWERS.
+    const spec = NEW_DATA_SPEC_FILES.find((candidate) => candidate.key === 'heat_surveys.csv');
+    const column = spec?.columns.find((candidate) => candidate.header === 'PLAYER_ANSWER');
+    const answers = COLUMN_RISK_ANSWERS['heat_surveys.csv']?.['PLAYER_ANSWER'];
+    expect(answers, 'no recorded answer for PLAYER_ANSWER').toBeDefined();
+    const allowed =
+      answers !== undefined &&
+      !flagged(answers.email) &&
+      !flagged(answers.personName) &&
+      !flagged(answers.freeText);
+    expect(column !== undefined, 'PLAYER_ANSWER presence follows the recorded answers').toBe(
+      allowed,
+    );
+    if (column !== undefined) expect(column.kind).toBe('text');
+  });
+
+  it('names no column the decision table excluded, in any Phase 12 spec', () => {
+    // The excluded columns of 12-HEADERS.md, by file. Absent from a spec by
+    // omission, which is the fail-closed direction (D-01).
+    const excluded: Readonly<Record<string, readonly string[]>> = {
+      'bans.csv': ['DESCRIPTION', 'REASON'],
+      'personal_coupons.csv': ['PREREQUISITE'],
+      'subscriptions.csv': ['SUBSCRIPTION'],
+      'heat_surveys.csv': ['PROFILE_ID', 'BATTLE_ID'],
+      'account_name_history.csv': ['IP'],
+      'external_services_history.csv': ['IP', 'UID'],
+    };
+    for (const [key, headers] of Object.entries(excluded)) {
+      const spec = NEW_DATA_SPEC_FILES.find((candidate) => candidate.key === key);
+      if (spec === undefined) continue;
+      const named = new Set(spec.columns.map((column) => column.header));
+      for (const header of headers) expect(named.has(header), `${key} names ${header}`).toBe(false);
     }
   });
 });

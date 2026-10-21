@@ -16,6 +16,8 @@
   import DeviceInfo from '../features/device-info/DeviceInfo.svelte';
   import FinancialData from '../features/finance/FinancialData.svelte';
   import HeatPane from '../features/new-data/HeatPane.svelte';
+  import AccountTimelinePane from '../features/account-timeline/AccountTimelinePane.svelte';
+  import PerksPane from '../features/new-data/PerksPane.svelte';
   import type { NewDataPaneId } from '../features/new-data/new-data-shared.ts';
   import WarshipsStoragePane from '../features/new-data/WarshipsStoragePane.svelte';
   import ListPane from './ListPane.svelte';
@@ -465,6 +467,32 @@
       -->
       <DashboardSection {...newDataSectionProps('warships-storage')}>
         <WarshipsStoragePane {result} client={ingestClient.data} />
+      </DashboardSection>
+    {:else if active === 'perks'}
+      <!--
+        The `perks` channel (12-09, D-08, D-13): subscriptions, personal coupons,
+        bonus codes and surveys, four cards. Per-channel superseding as above. It
+        takes the shell's ONE reveal for its codes and the bonus-code address and
+        NOT the game filter: Perks is a pane of its own (D-07).
+      -->
+      <DashboardSection {...newDataSectionProps('perks')}>
+        <PerksPane {result} client={ingestClient.data} {revealed} onRevealChange={setRevealed} />
+      </DashboardSection>
+    {:else if active === 'account-timeline'}
+      <!--
+        The `account-timeline` channel (12-12, D-05, D-06, D-07, D-14): five
+        history files as one merged chronology with a pane-local kind filter. Per-
+        channel superseding as above. It takes the shell's ONE reveal for the
+        addresses in bans and third parties and NOT the game filter: the timeline
+        is a pane of its own (D-07).
+      -->
+      <DashboardSection {...newDataSectionProps('account-timeline')}>
+        <AccountTimelinePane
+          {result}
+          client={ingestClient.data}
+          {revealed}
+          onRevealChange={setRevealed}
+        />
       </DashboardSection>
     {:else if active === 'account'}
       <!-- No block of its own: the identity lives in the list pane header, so

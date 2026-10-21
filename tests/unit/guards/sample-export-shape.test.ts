@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'vitest';
 import { unzipSync } from 'fflate';
-import { SAMPLE_ACCOUNT_ROOT, buildSampleExport } from '../../fixtures/export-fixtures.ts';
+import {
+  SAMPLE_ACCOUNT_ROOT,
+  SAMPLE_UNKNOWN_FILE,
+  SAMPLE_UNKNOWN_FOLDER,
+  buildSampleExport,
+} from '../../fixtures/export-fixtures.ts';
 import {
   PLAYER_STATS_SAMPLE_FILES,
   STATS_NAME_CANARY,
@@ -144,7 +149,7 @@ describe('05-06 shared sample physical shape', () => {
         'User_Info/Account_Info.csv',
         'Chat_history/Messages.csv',
         'Clans/Clan_membership.csv',
-        'Bans/Bans.csv',
+        `${SAMPLE_UNKNOWN_FOLDER}/${SAMPLE_UNKNOWN_FILE}`,
       ];
       for (const relative of crlfFolders) {
         const text = new TextDecoder('utf-8').decode(

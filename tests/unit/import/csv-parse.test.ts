@@ -145,6 +145,10 @@ describe('parseCsvFile — skip-row accounting (D-04)', () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     try {
+      // The category and file are LABEL arguments: `parseCsvFile` never
+      // classifies, so these say nothing about any folder's status (12-04
+      // moved the unknown-folder stand-in elsewhere for exactly that reason —
+      // this is not one of the sites that had to move).
       const { rows, skippedCount } = parseCsvFile(text, 'Bans', 'Bans.csv');
 
       // Skipped count matches the documented single-row contract (D-04).

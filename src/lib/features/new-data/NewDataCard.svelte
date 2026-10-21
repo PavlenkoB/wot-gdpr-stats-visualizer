@@ -60,6 +60,8 @@
     battleTypeColumnId: string | null;
     /** Content under the caption (the geolocation note and the mask toggle). */
     header?: Snippet;
+    /** Whether a row may carry several account tags (a merged row); forwarded to the table. */
+    severalTags?: boolean;
   }
 
   let {
@@ -73,6 +75,7 @@
     revealed,
     battleTypeColumnId,
     header,
+    severalTags = false,
   }: Props = $props();
 
   /** The first row of each account, for the `blocks` layout; empty unless ready. */
@@ -138,6 +141,7 @@
       {tags}
       {revealed}
       {battleTypeColumnId}
+      {severalTags}
     />
   {/if}
 </section>

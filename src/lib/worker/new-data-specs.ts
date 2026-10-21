@@ -18,7 +18,7 @@
 //
 // ## Where every column below comes from
 //
-// A stored column is named here only if ONE of three sources admits it, and the
+// A stored column is named here only if ONE of four sources admits it, and the
 // scope of each source is narrow (D-08, D-12, D-15):
 //
 //   1. THE CAPTURE. Every HEAT, WoWS-crews/storage and Warplanes column comes
@@ -39,6 +39,17 @@
 //      count (D-08, D-10). Those seven are pinned in the test that also proves
 //      each one is a quoted literal in the module that reads it.
 //
+//   4. THE PHASE 12 CAPTURE, for the nine Phase 12 files only (the five Account
+//      timeline files, the three Perks files and the Surveys file). Every
+//      column comes from the `allow` rows of
+//      `.planning/phases/12-account-timeline-perks/12-HEADERS.md`, which is the
+//      user's own per-column risk answers applied to the rules there. Those nine
+//      specs ALL set `emailGuard`, because an allowlisted column can still hold
+//      an email as its VALUE (D-01, PRIV-01), and an email-bearing,
+//      person-identifying, free-text or surrogate-identifier column is excluded
+//      BY OMISSION (`IP` in the two history files, `UID`, `DESCRIPTION`,
+//      `REASON`, `PREREQUISITE`, `SUBSCRIPTION`, `PROFILE_ID`, `BATTLE_ID`).
+//
 // A column admitted by source 2 or 3 is a SUPERSET of the capture, never a
 // substitute for it: the two session specs keep all seven whatever the captured
 // headers carry, and the Warplanes specs keep every builder header whatever the
@@ -51,8 +62,17 @@
 // retroactively change a returning user's cache: the old rows are still there
 // under the old shape, and a reader that has been reading both shapes has to
 // keep reading both. That is why each new-game plan APPENDS an entry rather than
-// editing one, and why `heat_device_info.csv` and `heat_surveys.csv` have no
-// entry at all — they are family files that count as present and store nothing.
+// editing one, and why `heat_device_info.csv` alone has no entry at all — it
+// is a family file that counts as present and stores nothing.
+//
+// `heat_surveys.csv` is the entry phase 12 (D-03) added first, and it is the
+// reason the rule above is stated as it is. It stores four columns
+// (`QUESTION_ID`, `PLAYER_ANSWER`, `SKIPPED_BY_PLAYER`, `MESSAGE_TS`) and
+// excludes `PROFILE_ID` and `BATTLE_ID` BY OMISSION. `PLAYER_ANSWER` was
+// excluded by default until the user stated, at the plan 12-01 checkpoint, that
+// it is an enumerated rating (one numeric character, no free text); widening an
+// entry costs a cache rebuild, narrowing it is free, so the default held until
+// that statement was recorded in `12-HEADERS.md`.
 //
 // ## Why `id` equals `header` here
 //
@@ -71,12 +91,14 @@
  * parse it.
  *
  * `date` is a wall-clock stamp with no timezone (D-01); `address` is an IP the
- * login pane masks before it reaches the screen; `number` is a count. The kind
+ * login pane masks before it reaches the screen; `code` is a coupon or bonus
+ * code (stored in clear in the user's own IndexedDB because the single reveal
+ * requires it, masked on screen); `number` is a count. The kind
  * is documentation and a check-in seam — nothing in the worker branches on it
  * today, because the aggregators already resolve their own columns and validate
  * their own values, and a second validation path would be a second answer.
  */
-export type SpecColumnKind = 'text' | 'number' | 'date' | 'address';
+export type SpecColumnKind = 'text' | 'number' | 'date' | 'address' | 'code';
 
 /**
  * ONE column a new-game file may contribute, and the stored header it becomes.
@@ -110,6 +132,17 @@ export interface SpecFile {
   readonly category: string;
   /** The columns this file may store, in no particular order. */
   readonly columns: readonly SpecColumn[];
+  /**
+   * When true, `projectRow` also drops any cell whose VALUE looks like an email
+   * address.
+   *
+   * A header allowlist cannot see inside an allowlisted column: a service
+   * identifier, a ban comment or a third-party contact can carry an email as
+   * its value, and D-01 says emails are never stored. Set on the nine Phase 12
+   * specs; deliberately left unset on the Phase 11 specs so no existing cache
+   * is re-narrowed by it (D-03, PRIV-01).
+   */
+  readonly emailGuard?: boolean;
 }
 
 /**
@@ -154,10 +187,19 @@ function sessionColumns(): readonly SpecColumn[] {
  * and it is why this list growing is the mechanism by which a new game becomes
  * readable rather than a step in a general rule that happens to admit it.
  *
- * `heat_device_info.csv` and `heat_surveys.csv` are named NOWHERE in this file,
- * on purpose: both are family files, both are counted as present, and neither
- * stores a cell (11-HEADERS.md, D-15 Open Question 7). A guard test asserts
- * their absence so a later plan cannot add them by reflex.
+ * `heat_device_info.csv` is named NOWHERE in this file, on purpose: it is a
+ * family file, it is counted as present, and it stores no cell
+ * (11-HEADERS.md, D-15 Open Question 7). A guard test asserts its absence so a
+ * later plan cannot add it by reflex.
+ *
+ * `heat_surveys.csv` IS named here, since phase 12 (D-03): the `Surveys` folder
+ * was promoted, and its one file's four allowlisted columns are the whole of
+ * what the Perks pane may ever show of a survey answer.
+ *
+ * The eight other Phase 12 files are named here too (plan 12-08), each with
+ * `emailGuard`: three Account timeline history files filed under `User_Info`,
+ * the Bans and Authorized_Third_Parties files, and the Subscriptions,
+ * Personal_Coupons and Bonus_Codes files the Perks pane reads.
  */
 export const NEW_DATA_SPEC_FILES: readonly SpecFile[] = [
   {
@@ -466,6 +508,113 @@ export const NEW_DATA_SPEC_FILES: readonly SpecFile[] = [
       { header: 'BATTLES_COUNT', id: 'BATTLES_COUNT', kind: 'number' },
       { header: 'GAMES_PLAYED', id: 'GAMES_PLAYED', kind: 'number' },
       { header: 'PREMIUM_EXPIRES_AT', id: 'PREMIUM_EXPIRES_AT', kind: 'date' },
+    ],
+  },
+  {
+    key: 'heat_surveys.csv',
+    category: 'surveys',
+    emailGuard: true,
+    // The survey answer, reduced to the four columns that are neither an identifier
+    // of a person or a battle nor free text (phase 12, D-03). `QUESTION_ID` is a
+    // survey-question identifier, a game object. `PLAYER_ANSWER` is admitted by
+    // rule (h): the user stated it is an enumerated rating, one character, no free
+    // text. `SKIPPED_BY_PLAYER` is a flag and `MESSAGE_TS` the answer's stamp.
+    //
+    // Excluded BY OMISSION, whatever the file's header says: `PROFILE_ID` is a
+    // profile identifier and `BATTLE_ID` a battle identifier (rules a and b). The
+    // email guard stays on even for the rating, so a hand-edited file that puts an
+    // address in that cell cannot store it.
+    columns: [
+      { header: 'QUESTION_ID', id: 'QUESTION_ID', kind: 'text' },
+      { header: 'PLAYER_ANSWER', id: 'PLAYER_ANSWER', kind: 'text' },
+      { header: 'SKIPPED_BY_PLAYER', id: 'SKIPPED_BY_PLAYER', kind: 'text' },
+      { header: 'MESSAGE_TS', id: 'MESSAGE_TS', kind: 'date' },
+    ],
+  },
+  {
+    key: 'account_name_history.csv',
+    category: 'user_info',
+    emailGuard: true,
+    // Account timeline / Name. Rule (c) admits the two past-nickname columns in THIS file only; `IP` is excluded by rule (d) (an address is admitted only in the Bans, Authorized_Third_Parties and Bonus_Codes files).
+    columns: [
+      { header: 'CREATED_AT', id: 'CREATED_AT', kind: 'date' },
+      { header: 'OLD_NAME', id: 'OLD_NAME', kind: 'text' },
+      { header: 'NEW_NAME', id: 'NEW_NAME', kind: 'text' },
+    ],
+  },
+  {
+    key: 'external_services_history.csv',
+    category: 'user_info',
+    emailGuard: true,
+    // Account timeline / Service. An operation enumeration, a lower-case service token and a stamp; `IP` is excluded by rule (d) and `UID` by rules (a) and (g) (it carries an at-sign).
+    columns: [
+      { header: 'CREATED_AT', id: 'CREATED_AT', kind: 'date' },
+      { header: 'OPERATION', id: 'OPERATION', kind: 'text' },
+      { header: 'NAME', id: 'NAME', kind: 'text' },
+    ],
+  },
+  {
+    key: 'language_and_country_history.csv',
+    category: 'user_info',
+    emailGuard: true,
+    // Account timeline / Language and country. `VALUE` is a two-letter code and `NAME` says whether it is a language or a country; both are enumerations the user rated no risk.
+    columns: [
+      { header: 'CREATED_AT', id: 'CREATED_AT', kind: 'date' },
+      { header: 'OPERATION', id: 'OPERATION', kind: 'text' },
+      { header: 'NAME', id: 'NAME', kind: 'text' },
+      { header: 'VALUE', id: 'VALUE', kind: 'text' },
+    ],
+  },
+  {
+    key: 'bans.csv',
+    category: 'bans',
+    emailGuard: true,
+    // Account timeline / Ban. Two stamps (`EXPIRED_AT` may hold the `\N` null marker for an open ban) and a status enumeration; `DESCRIPTION` and `REASON` are free text, excluded by rule (g).
+    columns: [
+      { header: 'STARTED_AT', id: 'STARTED_AT', kind: 'date' },
+      { header: 'EXPIRED_AT', id: 'EXPIRED_AT', kind: 'date' },
+      { header: 'STATUS', id: 'STATUS', kind: 'text' },
+    ],
+  },
+  {
+    key: 'authorized_third_parties.csv',
+    category: 'authorized_third_parties',
+    emailGuard: true,
+    // Account timeline / Third party. A site name the user rated no risk and the stamp it was authorized; the email guard still drops a site cell that is an address.
+    columns: [
+      { header: 'THIRD_PARTY_SITE', id: 'THIRD_PARTY_SITE', kind: 'text' },
+      { header: 'CREATED_AT', id: 'CREATED_AT', kind: 'date' },
+    ],
+  },
+  {
+    key: 'subscriptions.csv',
+    category: 'subscriptions',
+    emailGuard: true,
+    // Perks / Subscriptions. One column: the TRUE/FALSE flag. `SUBSCRIPTION` is excluded because the user could not rule out free text (rule g, recorded unsure), so the card can say subscribed or not and never what to.
+    columns: [{ header: 'SUBSCRIBED', id: 'SUBSCRIBED', kind: 'text' }],
+  },
+  {
+    key: 'personal_coupons.csv',
+    category: 'personal_coupons',
+    emailGuard: true,
+    // Perks / Personal coupons. Three stamps, a status enumeration and the coupon code, which rule (e) admits in THIS file and the bonus-code file only (stored in clear, masked on screen, D-13); `PREREQUISITE` is free text up to about 10k characters, excluded by rule (g).
+    columns: [
+      { header: 'INSERTED_AT', id: 'INSERTED_AT', kind: 'date' },
+      { header: 'UPDATED_AT', id: 'UPDATED_AT', kind: 'date' },
+      { header: 'EXPIRED_AT', id: 'EXPIRED_AT', kind: 'date' },
+      { header: 'STATUS', id: 'STATUS', kind: 'text' },
+      { header: 'CODE', id: 'CODE', kind: 'code' },
+    ],
+  },
+  {
+    key: 'bonus_code_usage.csv',
+    category: 'bonus_codes',
+    emailGuard: true,
+    // Perks / Bonus codes. The stamp, the bonus code (rule e) and the IP the user redeemed it from (rule d admits an address in this file, the Bans file and the third-party file only, masked on screen, D-14).
+    columns: [
+      { header: 'CREATED_AT', id: 'CREATED_AT', kind: 'date' },
+      { header: 'CODE_KEY', id: 'CODE_KEY', kind: 'code' },
+      { header: 'USER_IP', id: 'USER_IP', kind: 'address' },
     ],
   },
 ];

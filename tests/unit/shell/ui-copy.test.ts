@@ -42,10 +42,33 @@ import type { IngestStage } from '../../../src/lib/core/types/worker-messages.ts
 // reuses this import.
 import * as playtimeCopy from '../../../src/lib/ui-copy.ts';
 import { DURATION_BIN_COUNT } from '../../../src/lib/features/playtime/playtime-shared.ts';
-import { NEW_DATA_PANE_FILES } from '../../../src/lib/features/new-data/new-data-shared.ts';
+import {
+  NEW_DATA_PANE_FILES,
+  PERKS_CARD_FILES,
+} from '../../../src/lib/features/new-data/new-data-shared.ts';
 import { NEW_DATA_SPEC_FILES } from '../../../src/lib/worker/new-data-specs.ts';
-import { CAPTURED_FILES } from '../../fixtures/new-data-headers.ts';
+import { CAPTURED_FILES, PANE_MAPPING } from '../../fixtures/new-data-headers.ts';
 import { wowpAccountColumns } from '../../../src/lib/features/vehicles/vehicle-aggregate.ts';
+
+/**
+ * Every file the new-data label table may name, sorted.
+ *
+ * The PANE files plus the PERKS card files: a card caption is a caption
+ * whichever pane shows it, so the label table covers both. The Perks pane joins
+ * the pane tables in plan 12-02's Task 2 and the union is the same set before
+ * and after that, so this one list serves both stages. Plan 12-08 adds the
+ * Account timeline files (the mapped timeline rows of the Pane mapping): the
+ * timeline shows no column heading, but the label table stays complete.
+ */
+const LABELLED_FILES: readonly string[] = [
+  ...new Set([
+    ...Object.values(NEW_DATA_PANE_FILES).flat(),
+    ...Object.values(PERKS_CARD_FILES).filter((file): file is string => file !== null),
+    ...PANE_MAPPING.filter((row) => row.pane === 'timeline' && row.status === 'mapped').flatMap(
+      (row) => (row.fileKey === null ? [] : [row.fileKey]),
+    ),
+  ]),
+].sort();
 
 // =============================================================================
 // ui-copy — formatter tests (01-05-PLAN Task 1, RED then GREEN)
@@ -1980,7 +2003,7 @@ describe('05-08 export inventory', () => {
 // Literals are typed out here, not read back from the constants, so a paraphrase
 // in ui-copy.ts fails here rather than reaching a user.
 describe('08-01 pane and row copy', () => {
-  test('PANE_TITLES names the nine panes and the two optional ones (11-05)', () => {
+  test('PANE_TITLES names the nine panes and the four optional ones (11-05, 12-02, 12-11)', () => {
     expect(playtimeCopy.PANE_TITLES).toEqual({
       overview: 'Overview',
       playtime: 'Playtime',
@@ -1993,7 +2016,22 @@ describe('08-01 pane and row copy', () => {
       'not-yet-supported': 'Not yet supported',
       heat: 'HEAT',
       'warships-storage': 'Warships crews & storage',
+      perks: 'Perks',
+      'account-timeline': 'Account timeline',
     });
+  });
+
+  test('the Account timeline row summary joins its four kinds with the file count (12-11)', () => {
+    expect(playtimeCopy.formatTimelineRowSummary(1)).toBe(
+      'Names, services, bans, third parties \u00b7 1 file',
+    );
+    expect(playtimeCopy.formatTimelineRowSummary(4)).toBe(
+      'Names, services, bans, third parties \u00b7 4 files',
+    );
+    // Its own words: never the Perks or HEAT summary.
+    expect(playtimeCopy.formatTimelineRowSummary(2)).not.toBe(
+      playtimeCopy.formatPerksRowSummary(2),
+    );
   });
 
   test('the row constants', () => {
@@ -2539,13 +2577,33 @@ describe('11-05 optional pane copy', () => {
     expect(playtimeCopy.formatWowsStorageRowSummary(1)).toBe('Crews and account storage · 1 file');
   });
 
+  test('the Perks row summary names the four cards and takes its count from formatFileCount', () => {
+    // 12-UI-SPEC Surface 1: `Subscriptions, coupons, codes, surveys · {n files}`.
+    expect(playtimeCopy.formatPerksRowSummary(1)).toBe(
+      'Subscriptions, coupons, codes, surveys · 1 file',
+    );
+    expect(playtimeCopy.formatPerksRowSummary(3)).toBe(
+      'Subscriptions, coupons, codes, surveys · 3 files',
+    );
+  });
+
   test('the provenance labels are prose, used with formatProvenanceFrom', () => {
     expect(playtimeCopy.NEW_DATA_PROVENANCE_LABELS).toEqual({
       heat: 'HEAT data',
       'warships-storage': 'Warships crews and storage files',
+      perks: 'perks files',
+      'account-timeline': 'account history files',
     });
+    expect(
+      playtimeCopy.formatProvenanceFrom(
+        playtimeCopy.NEW_DATA_PROVENANCE_LABELS['account-timeline'],
+      ),
+    ).toBe('From account history files \u00b7');
     expect(playtimeCopy.formatProvenanceFrom(playtimeCopy.NEW_DATA_PROVENANCE_LABELS.heat)).toBe(
       'From HEAT data ·',
+    );
+    expect(playtimeCopy.formatProvenanceFrom(playtimeCopy.NEW_DATA_PROVENANCE_LABELS.perks)).toBe(
+      'From perks files ·',
     );
   });
 
@@ -2634,11 +2692,24 @@ describe('11-08 HEAT and Warships pane copy', () => {
       'heat_session_geolocation.csv': 'HEAT_Session_Geolocation.csv',
       'wows_crews.csv': 'WOWS_Crews.csv',
       'wows_account_storage.csv': 'WOWS_Account_Storage.csv',
+      'heat_surveys.csv': 'HEAT_Surveys.csv',
+      'account_name_history.csv': 'Account_Name_History.csv',
+      'external_services_history.csv': 'External_Services_History.csv',
+      'language_and_country_history.csv': 'Language_And_Country_History.csv',
+      'bans.csv': 'Bans.csv',
+      'authorized_third_parties.csv': 'Authorized_Third_Parties.csv',
+      'subscriptions.csv': 'Subscriptions.csv',
+      'personal_coupons.csv': 'Personal_Coupons.csv',
+      'bonus_code_usage.csv': 'Bonus_Code_Usage.csv',
     });
   });
 
-  test('the file-label keys equal the pane file key set and the captured display names', () => {
-    const paneKeys = Object.values(NEW_DATA_PANE_FILES).flat().sort();
+  test('the file-label keys equal the labelled file set and the captured display names', () => {
+    // The labelled set is the PANE files plus the PERKS card files: the label
+    // table covers every file a card may name, whichever pane shows it. The
+    // Perks pane joins the pane tables in plan 12-02's Task 2, and the union is
+    // the same set before and after that.
+    const paneKeys = LABELLED_FILES;
     // heat_game_sessions.csv and heat_device_info.csv are not pane files (11-01, D-15).
     expect(Object.keys(playtimeCopy.NEW_DATA_FILE_LABELS).sort()).toEqual(paneKeys);
     for (const key of paneKeys) {
@@ -2648,9 +2719,9 @@ describe('11-08 HEAT and Warships pane copy', () => {
     }
   });
 
-  test('every spec column of every pane file has a non-empty label', () => {
+  test('every spec column of every labelled file has a non-empty label', () => {
     const missing: string[] = [];
-    for (const key of Object.values(NEW_DATA_PANE_FILES).flat()) {
+    for (const key of LABELLED_FILES) {
       const spec = NEW_DATA_SPEC_FILES.find((candidate) => candidate.key === key);
       expect(spec, `${key} has a spec`).toBeDefined();
       for (const column of spec!.columns) {
@@ -2661,10 +2732,10 @@ describe('11-08 HEAT and Warships pane copy', () => {
     expect(missing, `columns without a label: ${missing.join(', ')}`).toEqual([]);
   });
 
-  test('the column-label table names no file that is not a pane file and no column that is not in its spec', () => {
-    const paneKeys = new Set(Object.values(NEW_DATA_PANE_FILES).flat());
+  test('the column-label table names no file that is not a labelled file and no column that is not in its spec', () => {
+    const paneKeys = new Set(LABELLED_FILES);
     for (const [key, labels] of Object.entries(playtimeCopy.NEW_DATA_COLUMN_LABELS)) {
-      expect(paneKeys.has(key), `${key} is a pane file`).toBe(true);
+      expect(paneKeys.has(key), `${key} is a labelled file`).toBe(true);
       const spec = NEW_DATA_SPEC_FILES.find((candidate) => candidate.key === key)!;
       const ids = new Set(spec.columns.map((column) => column.id));
       for (const id of Object.keys(labels)) expect(ids.has(id), `${key} / ${id}`).toBe(true);
@@ -2750,5 +2821,213 @@ describe('Warplanes account statistics copy (plan 11-10)', () => {
       expect(label, `${id} has no underscore`).not.toContain('_');
     }
     expect(Object.keys(playtimeCopy.WOWP_ACCOUNT_COLUMN_LABELS)).not.toContain('NAME');
+  });
+});
+
+// =============================================================================
+// 12-05 - Account timeline and Perks pane copy
+// =============================================================================
+//
+// Every sentence the two new panes show is a named constant or a formatter,
+// pinned here with its exact text. Three of the pins are about what the copy
+// may NOT do: it may not interpolate anything but a number (T-12-15), the Perks
+// mask wording differs from the IP-only wording the timeline reuses, and the
+// word "email" appears in the About body and nowhere else (UI-SPEC copy rules).
+// =============================================================================
+
+describe('12-05 Account timeline and Perks copy', () => {
+  const CONSTANT_ROWS = [
+    [
+      'TIMELINE_INTRO',
+      'What your accounts were called, which services were linked, which language and country they were registered under, what was enforced against them and which third parties were authorised. Newest first.',
+    ],
+    [
+      'PERKS_INTRO',
+      'The subscriptions, personal coupons, bonus codes and surveys your export lists.',
+    ],
+    ['TIMELINE_KIND_FILTER_LABEL', 'Filter by kind'],
+    ['TIMELINE_KIND_ALL', 'All entries'],
+    ['PERKS_MASK_TOGGLE_SHOW', 'Show full codes and IP addresses'],
+    ['PERKS_MASK_TOGGLE_HIDE', 'Hide full codes and IP addresses'],
+    [
+      'PERKS_MASK_CAPTION_MASKED',
+      'Codes and IP addresses are masked: most of each code and the last part of each address are hidden.',
+    ],
+    [
+      'PERKS_MASK_CAPTION_REVEALED',
+      'Full codes and IP addresses are shown. Hide them again before sharing your screen.',
+    ],
+    ['PERKS_MASK_ANNOUNCE_SHOWN', 'Full codes and IP addresses are now shown.'],
+    ['PERKS_MASK_ANNOUNCE_MASKED', 'Codes and IP addresses are now masked.'],
+    ['ABOUT_NAME_TIMELINE', 'timeline'],
+    [
+      'TIMELINE_ABOUT',
+      'Entries from your name, service, language and country, ban and authorised-third-party files are listed together, newest first; entries without a usable date come last. Email addresses in these files are never read, stored or shown. IP addresses stay masked until you choose to show them. When accounts hold an identical service, language or country entry, it is shown once with a tag for each account.',
+    ],
+    ['ABOUT_NAME_PERKS', 'perks pane'],
+    [
+      'PERKS_ABOUT',
+      'Coupon codes, bonus codes and the IP address used to redeem a bonus code stay masked until you choose to show them. Only the fields this viewer reads are listed. When accounts hold an identical subscription, it is shown once with a tag for each account.',
+    ],
+    ['TIMELINE_LOADING', 'Reading account timeline...'],
+    ['PERKS_LOADING', 'Reading perks...'],
+    [
+      'TIMELINE_ERROR',
+      'Account timeline could not be read from this export. Your imported data is unchanged. Drop the export again to retry.',
+    ],
+    [
+      'PERKS_ERROR',
+      'Perks could not be read from this export. Your imported data is unchanged. Drop the export again to retry.',
+    ],
+  ] as const;
+
+  test.each(CONSTANT_ROWS)('%s is the approved wording', (name, literal) => {
+    expect(playtimeCopy[name]).toBe(literal);
+  });
+
+  test('the kind labels, column headers and card titles are pinned', () => {
+    expect(playtimeCopy.TIMELINE_KIND_LABELS).toEqual({
+      name: 'Name',
+      service: 'Service',
+      language: 'Language',
+      country: 'Country',
+      ban: 'Ban',
+      thirdParty: 'Third party',
+    });
+    expect(playtimeCopy.TIMELINE_COLUMN_LABELS).toEqual({
+      date: 'Date',
+      kind: 'Kind',
+      entry: 'Entry',
+    });
+    expect(playtimeCopy.PERKS_CARD_TITLES).toEqual({
+      subscriptions: 'Subscriptions',
+      coupons: 'Personal coupons',
+      bonusCodes: 'Bonus codes',
+      surveys: 'Surveys',
+    });
+  });
+
+  test('the showing line reads "all" when nothing is filtered out', () => {
+    expect(playtimeCopy.formatTimelineShowing(3, 3)).toBe('Showing all 3 entries');
+    expect(playtimeCopy.formatTimelineShowing(0, 0)).toBe('Showing all 0 entries');
+  });
+
+  test('the showing line counts both figures through the locale formatter', () => {
+    expect(playtimeCopy.formatTimelineShowing(3, 1200)).toBe(
+      `Showing 3 of ${playtimeCopy.formatNumber(1200)} entries`,
+    );
+    expect(playtimeCopy.formatTimelineShowing(3, 1200)).toContain(playtimeCopy.formatNumber(1200));
+  });
+
+  test('the merge note is singular for exactly one merged row', () => {
+    expect(playtimeCopy.formatMergeNote(1)).toBe(
+      '1 entry is identical on more than one account and is shown once, with a tag for each account.',
+    );
+    expect(playtimeCopy.formatMergeNote(4)).toBe(
+      `${playtimeCopy.formatNumber(4)} entries are identical on more than one account and are shown once, with a tag for each account.`,
+    );
+    expect(playtimeCopy.formatMergeNote(2)).toContain('entries are identical');
+    expect(playtimeCopy.formatMergeNote(1)).not.toContain('entries are identical');
+  });
+
+  test('the Perks mask set says codes AND addresses, and the IP-only set is untouched', () => {
+    // The timeline reuses the IP-only constants verbatim; Perks needs its own
+    // wording because a coupon code sits under the same reveal.
+    expect(playtimeCopy.PERKS_MASK_TOGGLE_SHOW).not.toBe(playtimeCopy.MASK_TOGGLE_SHOW);
+    expect(playtimeCopy.PERKS_MASK_TOGGLE_HIDE).not.toBe(playtimeCopy.MASK_TOGGLE_HIDE);
+    expect(playtimeCopy.PERKS_MASK_CAPTION_MASKED).not.toBe(playtimeCopy.MASK_CAPTION_MASKED);
+    expect(playtimeCopy.PERKS_MASK_CAPTION_REVEALED).not.toBe(playtimeCopy.MASK_CAPTION_REVEALED);
+    expect(playtimeCopy.PERKS_MASK_ANNOUNCE_SHOWN).not.toBe(playtimeCopy.MASK_ANNOUNCE_SHOWN);
+    expect(playtimeCopy.PERKS_MASK_ANNOUNCE_MASKED).not.toBe(playtimeCopy.MASK_ANNOUNCE_MASKED);
+    expect(playtimeCopy.PERKS_MASK_CAPTION_MASKED).toContain('Codes and IP addresses');
+    expect(playtimeCopy.MASK_CAPTION_MASKED).not.toContain('Codes');
+
+    // The IP-only wording Login history and HEAT already ship, byte for byte.
+    expect(playtimeCopy.MASK_TOGGLE_SHOW).toBe('Show full IP addresses');
+    expect(playtimeCopy.MASK_TOGGLE_HIDE).toBe('Hide full IP addresses');
+    expect(playtimeCopy.MASK_CAPTION_MASKED).toBe(
+      'IP addresses are masked: the last part of each one is hidden.',
+    );
+    expect(playtimeCopy.MASK_CAPTION_REVEALED).toBe(
+      'Full IP addresses are shown. Hide them again before sharing your screen.',
+    );
+    expect(playtimeCopy.MASK_ANNOUNCE_SHOWN).toBe('Full IP addresses are now shown.');
+    expect(playtimeCopy.MASK_ANNOUNCE_MASKED).toBe('IP addresses are now masked.');
+  });
+
+  test('every loading sentence ends in three ASCII dots and every error is fixed text', () => {
+    for (const loading of [playtimeCopy.TIMELINE_LOADING, playtimeCopy.PERKS_LOADING]) {
+      expect(loading.endsWith('...')).toBe(true);
+      expect(loading).not.toContain('…');
+    }
+    for (const error of [playtimeCopy.TIMELINE_ERROR, playtimeCopy.PERKS_ERROR]) {
+      expect(
+        error.endsWith('Your imported data is unchanged. Drop the export again to retry.'),
+      ).toBe(true);
+      expect(error).not.toMatch(/[{}$]/);
+      // No file, no account and no worker's detail: the sentence names the pane
+      // and nothing else (T-12-15).
+      expect(error).not.toMatch(/\.csv|account id|A1|Error:/i);
+    }
+  });
+
+  test('the About disclosures read the way the headings promise', () => {
+    expect(playtimeCopy.formatAboutThis(playtimeCopy.ABOUT_NAME_TIMELINE)).toBe(
+      'About this timeline',
+    );
+    expect(playtimeCopy.formatAboutThis(playtimeCopy.ABOUT_NAME_PERKS)).toBe(
+      'About this perks pane',
+    );
+  });
+
+  test('the word email appears in the timeline About body and in no other Phase 12 string', () => {
+    const strings: readonly (string | Record<string, string>)[] = [
+      playtimeCopy.TIMELINE_INTRO,
+      playtimeCopy.PERKS_INTRO,
+      playtimeCopy.TIMELINE_KIND_FILTER_LABEL,
+      playtimeCopy.TIMELINE_KIND_ALL,
+      playtimeCopy.TIMELINE_KIND_LABELS,
+      playtimeCopy.TIMELINE_COLUMN_LABELS,
+      playtimeCopy.PERKS_CARD_TITLES,
+      playtimeCopy.PERKS_MASK_TOGGLE_SHOW,
+      playtimeCopy.PERKS_MASK_TOGGLE_HIDE,
+      playtimeCopy.PERKS_MASK_CAPTION_MASKED,
+      playtimeCopy.PERKS_MASK_CAPTION_REVEALED,
+      playtimeCopy.PERKS_MASK_ANNOUNCE_SHOWN,
+      playtimeCopy.PERKS_MASK_ANNOUNCE_MASKED,
+      playtimeCopy.TIMELINE_LOADING,
+      playtimeCopy.PERKS_LOADING,
+      playtimeCopy.TIMELINE_ERROR,
+      playtimeCopy.PERKS_ERROR,
+      playtimeCopy.PERKS_ABOUT,
+    ];
+    for (const value of strings) {
+      const text = typeof value === 'string' ? value : Object.values(value).join(' ');
+      expect(text.toLowerCase()).not.toContain('email');
+    }
+    expect(playtimeCopy.TIMELINE_ABOUT.toLowerCase()).toContain('email');
+  });
+
+  test('the Phase 12 block interpolates a NUMBER and nothing else (T-12-15)', () => {
+    // A zip entry name, a nickname or an account id is untrusted content: if a
+    // formatter ever takes one, the only thing that can be true of the result
+    // is that the copy lied about where the word came from. The scan reads the
+    // block with its comments stripped, so prose about the rule cannot satisfy
+    // the rule.
+    const source = readFileSync(path.join(REPO_ROOT, 'src/lib/ui-copy.ts'), 'utf8');
+    const marker = source.indexOf('// Phase 12 - Account timeline and Perks');
+    expect(marker, 'the Phase 12 block carries its own header').toBeGreaterThan(-1);
+    const block = source
+      .slice(marker)
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^[ \t]*\/\/.*$/gm, '');
+
+    const templates = [...block.matchAll(/`([^`]*)`/g)].map((match) => match[1] ?? '');
+    expect(templates.length).toBeGreaterThan(0);
+    for (const template of templates) {
+      for (const interpolation of template.matchAll(/\$\{([^}]*)\}/g)) {
+        expect(interpolation[1]).toMatch(/^formatNumber\(/);
+      }
+    }
   });
 });

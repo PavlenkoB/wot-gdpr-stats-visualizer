@@ -185,6 +185,31 @@ import config from '../../../playwright.config';
 // of 1857.7 s). The research estimate for the allowance was 30 s, which would have
 // held up to 268; the measurement came out higher, so the ceiling is 264.
 //
+// Phase 12 (Account Timeline and Perks) raised all three AGAIN, and did it
+// BEFORE the two listed tests plan 12-13 adds exist. Phase 11 closed at 263
+// tests in 30 files against the 264-test ceiling above, so exactly one more
+// listed test fitted; Phase 12 spends two (one spec file carrying the Account
+// timeline test and the Perks test — extending the long zero-network test with
+// the two panes adds none, as Phase 11 did), so N = 265:
+//
+//   L = 263 tests in 30 files, MEASURED at Phase 11 planning, + 2 in plan 12-13
+//   E = 330 + 5 * (265 - 86 - 5 - 5 - 5 - 2 - 2) + 120 + 90 + 13 + 32 + 49
+//     = 330 + 5 * (265 - 105) + 304
+//     = 330 + 800 + 304
+//     = 1434 s
+//   1.3 * E = 1864.2 s, and ceil(1864.2 / 60) = 32 min
+//
+// The 1.3 * E floor is what forces the raise rather than taste: 1864.2 s is
+// past the 1860 s that 31 min gave, so 265 tests cannot run inside it. So
+// G = 32 min (1920 s), W = 34 min (2040 s) and J = 42 min (2520 s): all THREE
+// moved together, the same G + 2 and W + 8 relationship every raise before them
+// used, and 32 min holds up to 273 listed tests (273 project 1474 s and a floor
+// of 1916.2 s against 1920 s; 274 would project 1479 s and a floor of 1922.7 s,
+// which fails). Raising the limits BEFORE the tests exist is safe because the
+// limits only ever get LOOSER: nothing Phase 12 builds up to that point can be
+// cut short by them, and the decision, its arithmetic and its pins stay in one
+// reviewable change instead of being split across the plan that adds the tests.
+//
 // Every constant below is either MEASURED in this repository or an ESTIMATE
 // carried forward from an earlier phase, and is labelled as such. The
 // estimation lives here, not in a comment, because `globalTimeout` is
@@ -498,6 +523,34 @@ describe('CI e2e budget', () => {
     // - 5 - 5 - 2 - 2) + 120 + 90 + 13 + 32 + 49 = 1409. The floor is 1831.7 s,
     // which is past the 1800 s that 30 min gave, so this is the raise 10-06 made.
     expect(projectedE2eSeconds(260)).toBe(1409);
+    // Every count from 260 up shares one closed form, because all three
+    // scale-spec blocks and both long blocks are already held back and priced
+    // by then: E(N) = 330 + 5 * (N - 105) + 304, where 105 is 86 + five scale
+    // tests + five finance-scale + five login-scale + two Phase 9 long + two
+    // Phase 10 scale, and 304 is 120 + 90 + 13 + 32 + 49. The four cases below
+    // are hand-derived from that form and are what the Phase 12 raise was
+    // computed from.
+    //
+    // 264, the ceiling 10-06 set: 330 + 5 * (264 - 105) + 304 = 1429, a floor
+    // of 1857.7 s against the 1860 s that 31 min gave.
+    expect(projectedE2eSeconds(264)).toBe(1429);
+    // 265, what Phase 12 plans against (the 263 Phase 11 closed at plus the two
+    // tests plan 12-13 adds): 330 + 5 * (265 - 105) + 304 = 1434, a floor of
+    // 1864.2 s — past 1860 s, which is why 265 needs 32 min and why the raise
+    // landed before the tests existed.
+    expect(projectedE2eSeconds(265)).toBe(1434);
+    // 273, the ceiling 32 min covers: 330 + 5 * (273 - 105) + 304 = 1474, a
+    // floor of 1916.2 s against 1920 s.
+    expect(projectedE2eSeconds(273)).toBe(1474);
+    // 274, one past it: 330 + 5 * (274 - 105) + 304 = 1479, a floor of
+    // 1922.7 s, past 1920 s. These two together are what make 273 the ceiling
+    // rather than a round number chosen for looks.
+    expect(projectedE2eSeconds(274)).toBe(1479);
+    // The two margin assertions the ceiling rests on, pinned so a later edit to
+    // any constant has to move the pins above with it.
+    expect(projectedE2eSeconds(273) * MIN_GLOBAL_MARGIN).toBeLessThanOrEqual(1920);
+    expect(projectedE2eSeconds(274) * MIN_GLOBAL_MARGIN).toBeGreaterThan(1920);
+    expect(smallestPassingMinutes(projectedE2eSeconds(265))).toBe(32);
     // One test beyond the baseline and ALL THREE scale specs is worth exactly
     // one increment; the projection never falls below the baseline + the three
     // allowances, even when a caller passes a count below the baseline.
@@ -526,23 +579,23 @@ describe('CI e2e budget', () => {
     ).toBeGreaterThanOrEqual(e * MIN_GLOBAL_MARGIN);
   });
 
-  test('phase 10 raised all three limits together to 31 / 33 / 41 min', () => {
+  test('phase 12 raised all three limits together to 32 / 34 / 42 min', () => {
     const { wrapperSeconds, jobSeconds } = workflowTimeouts();
     const raiseRule =
-      'Phase 10 raised G = 1860 s, W = 1980 s and J = 2460 s together (Phase 9 held 1800 / 1920 / ' +
-      '2400). A listed count above 264 needs all three raised again (G + 2 min, W + 8 min per the ' +
-      'rule in this file), never one.';
+      'Phase 12 raised G = 1860 s -> 1920 s, W = 1980 s -> 2040 s and J = 2460 s -> 2520 s ' +
+      'together, the same G + 2 min and W + 8 min every raise before it used. A listed count above ' +
+      '273 needs all three raised again (G + 2 min, W + 8 min per the rule in this file), never one.';
 
-    expect(globalTimeoutSeconds(), raiseRule).toBe(1860);
-    expect(wrapperSeconds, raiseRule).toBe(1980);
-    expect(jobSeconds, raiseRule).toBe(2460);
+    expect(globalTimeoutSeconds(), raiseRule).toBe(1920);
+    expect(wrapperSeconds, raiseRule).toBe(2040);
+    expect(jobSeconds, raiseRule).toBe(2520);
 
     const { total } = listedTestTotal();
     expect(
       total,
-      `${total} listed tests is above the 264-test ceiling of a 1860 s globalTimeout ` +
+      `${total} listed tests is above the 273-test ceiling of a 1920 s globalTimeout ` +
         `(E = ${projectedE2eSeconds(total)} s, floor ${projectedE2eSeconds(total) * MIN_GLOBAL_MARGIN} s). ${raiseRule}`,
-    ).toBeLessThanOrEqual(264);
+    ).toBeLessThanOrEqual(273);
   });
 
   test('the shell wrapper outlives globalTimeout by at least 90 s', () => {

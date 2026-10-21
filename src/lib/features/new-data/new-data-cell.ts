@@ -14,6 +14,7 @@
  */
 
 import { displayIp } from '../logins/login-model.ts';
+import { maskCode } from './code-mask.ts';
 import { DEVICE_NOT_REPORTED, formatBattleTypeLabel, formatNumber } from '../../ui-copy.ts';
 import type { NewDataCell, NewDataColumnView } from './new-data-shared.ts';
 
@@ -26,7 +27,7 @@ export interface FormattedNewDataCell {
 
 /** What a cell's rendering depends on besides the cell and its column. */
 export interface NewDataCellOptions {
-  /** The single global IP reveal. Only an address-kind cell reads it. */
+  /** The single global reveal. Only an address-kind or code-kind cell reads it. */
   readonly revealed: boolean;
   /** The id of the column shown as `Battle type {code}`, or null for none. */
   readonly battleTypeColumnId: string | null;
@@ -40,6 +41,8 @@ export interface NewDataCellOptions {
  *   - an address-kind cell goes through `displayIp` and nowhere else. The view
  *     carries a canonical address string or null for these cells (11-07), so the
  *     reveal can only ever show an address; it is masked by default.
+ *   - a code-kind cell is masked like an address: `maskCode` until the single
+ *     global reveal, the stored text after it (D-13).
  *   - the battle-type column reads `Battle type {code}` and is never named.
  *   - a number is grouped by `formatNumber`; text and dates are shown exactly as
  *     the export wrote them (no timezone claim).
@@ -54,6 +57,11 @@ export function formatNewDataCell(
   }
   if (column.kind === 'address') {
     return { text: displayIp({ ip: String(cell) }, options.revealed), muted: false };
+  }
+  if (column.kind === 'code') {
+    // A coupon or bonus code: stored in clear, shown only through the mask until
+    // the single global reveal. The reveal shows the stored text, never a number.
+    return { text: options.revealed ? String(cell) : maskCode(cell), muted: false };
   }
   if (options.battleTypeColumnId !== null && column.id === options.battleTypeColumnId) {
     return { text: formatBattleTypeLabel(String(cell)), muted: false };

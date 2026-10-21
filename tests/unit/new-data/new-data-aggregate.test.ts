@@ -3,6 +3,7 @@ import {
   buildHeatView,
   buildNewDataCard,
   buildWarshipsStorageView,
+  cellOf,
   type NewDataCardInput,
 } from '../../../src/lib/features/new-data/new-data-aggregate.ts';
 import {
@@ -260,5 +261,33 @@ describe('the two view builders', () => {
         key,
       ).toBe(true);
     }
+  });
+});
+
+// =============================================================================
+// Plan 12-06 Task 2 - the code kind of cellOf
+// =============================================================================
+
+describe('cellOf: the code kind (12-06, T-12-17)', () => {
+  it('keeps a number-looking code as its trimmed string, leading zeros intact', () => {
+    expect(cellOf('00012345678', 'code')).toBe('00012345678');
+    expect(cellOf('  00012345678  ', 'code')).toBe('00012345678');
+    // The same text under the number kind is a number: the code kind is the difference.
+    expect(cellOf('12345678', 'number')).toBe(12345678);
+    expect(cellOf('12345678', 'code')).toBe('12345678');
+  });
+
+  it('returns null for blank, N/A and N/D, and for a missing value', () => {
+    expect(cellOf('', 'code')).toBeNull();
+    expect(cellOf('   ', 'code')).toBeNull();
+    expect(cellOf('N/A', 'code')).toBeNull();
+    expect(cellOf('n/d', 'code')).toBeNull();
+    expect(cellOf(undefined, 'code')).toBeNull();
+  });
+
+  it('clamps an over-long code to the cell bound', () => {
+    const out = cellOf('Z'.repeat(5000), 'code');
+    expect(typeof out).toBe('string');
+    expect((out as string).length).toBeLessThanOrEqual(200);
   });
 });

@@ -102,9 +102,19 @@ async function paneOverflow(page: Page): Promise<{ offenders: string[]; page: nu
 
 async function expectNoOverflow(page: Page, label: string): Promise<void> {
   await expect(detailPane(page)).toHaveAttribute('data-pane', 'finance');
-  const result = await paneOverflow(page);
-  expect(result.offenders, `${label}: elements past the pane content edge`).toEqual([]);
-  expect(result.page, `${label}: the page scrolls sideways`).toBeLessThanOrEqual(0);
+  // The layout follows the window through a resize observer, so right after a
+  // setViewportSize a loaded worker can still be on the old geometry. Poll until it
+  // settles; an overflow that persists still fails once the timeout runs out.
+  await expect
+    .poll(async () => (await paneOverflow(page)).offenders, {
+      message: `${label}: elements past the pane content edge`,
+    })
+    .toEqual([]);
+  await expect
+    .poll(async () => (await paneOverflow(page)).page, {
+      message: `${label}: the page scrolls sideways`,
+    })
+    .toBeLessThanOrEqual(0);
 }
 
 /** A premium file with the hand rows plus one unrecognised 300-character token. */

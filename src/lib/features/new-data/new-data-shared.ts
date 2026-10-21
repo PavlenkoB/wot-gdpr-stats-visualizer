@@ -28,14 +28,84 @@
  * they hold twelve rows, and never learns what those rows say.
  */
 
+// =============================================================================
+// The Perks card contract (plan 12-02)
+// =============================================================================
+//
+// The Perks pane is four cards in a FIXED order (D-08): Subscriptions, Personal
+// coupons, Bonus codes, Surveys. Their file names come from the Wave 0 header
+// capture (plan 12-01, `12-HEADERS.md` Pane mapping) and were written into the
+// contract by plan 12-08.
+//
+// A `null` names NO FILE, and a card with no file answers `not-in-export`.
+// That is not a placeholder: it is the honest answer for an export that holds
+// no such file, and it is the same answer a reader of the real export would
+// get. No card is `null` today because the capture held a file for each, but
+// the type keeps the case so a removed card needs no new shape. The order of
+// the four ids is fixed and never re-derived.
+//
+// This block sits ABOVE the pane tables on purpose: the pane's own file list
+// is computed from the card files, so the two cannot drift apart and one
+// table (the card map) is the only place a later plan has to edit.
+export const PERKS_CARD_IDS = ['subscriptions', 'coupons', 'bonusCodes', 'surveys'] as const;
+
+/** One Perks card's id. */
+export type PerksCardId = (typeof PERKS_CARD_IDS)[number];
+
+/**
+ * Which lower-cased file feeds each Perks card, or `null` when the card names
+ * no file yet.
+ *
+ * A `null` is a card with no file, and the card answers `not-in-export`. It is
+ * NOT a "not implemented" marker: the export really may hold no such file.
+ */
+export const PERKS_CARD_FILES: Readonly<Record<PerksCardId, string | null>> = {
+  subscriptions: 'subscriptions.csv',
+  coupons: 'personal_coupons.csv',
+  bonusCodes: 'bonus_code_usage.csv',
+  surveys: 'heat_surveys.csv',
+};
+
+// =============================================================================
+// The Account timeline file contract (plan 12-11)
+// =============================================================================
+//
+// The Account timeline pane reads five history files (D-06, D-07). Their file
+// names come from the Wave 0 header capture (plan 12-01, `12-HEADERS.md` Pane
+// mapping). The keys are spelled out as inline literals, in the file order of
+// `TIMELINE_FILE_IDS` (`account-timeline/timeline-shared.ts`), because this
+// module may not import it: the two are kept aligned by a unit test instead.
+//
+// A `null` names NO FILE (the kind was removed at the completeness gate), and
+// the timeline builder answers it `not-in-export`. None is null today because
+// the capture held a file for each.
+export const TIMELINE_FILE_KEYS: Readonly<
+  Record<'name' | 'service' | 'languageCountry' | 'bans' | 'thirdParties', string | null>
+> = {
+  name: 'account_name_history.csv',
+  service: 'external_services_history.csv',
+  languageCountry: 'language_and_country_history.csv',
+  bans: 'bans.csv',
+  thirdParties: 'authorized_third_parties.csv',
+};
+
 /**
  * The pane ids, in the order the list shows them.
  *
  * A tuple rather than a set of string literals so `NewDataPaneId` cannot drift
  * away from the ids the file table names, and so a caller can iterate the panes
  * in presentation order without carrying its own list.
+ *
+ * The third id is the Perks pane (12-02). It is the THIRD optional pane and
+ * the first one whose list position is NOT next to the other two: the Perks
+ * row sits with the money rows (12-UI-SPEC Recorded Choice 1), which is a
+ * `PANE_ORDER` edit rather than an edit here.
+ *
+ * The fourth id is the Account timeline pane (12-11), the fifth optional pane
+ * of the milestone's plan but the FOURTH id here (HEAT, Warships and Perks come
+ * first). It sits directly above Account, again a `PANE_ORDER` edit.
  */
-export const NEW_DATA_PANE_IDS = ['heat', 'warships-storage'] as const;
+export const NEW_DATA_PANE_IDS = ['heat', 'warships-storage', 'perks', 'account-timeline'] as const;
 
 /** One new-game pane's id. */
 export type NewDataPaneId = (typeof NEW_DATA_PANE_IDS)[number];
@@ -54,6 +124,12 @@ export type NewDataPaneId = (typeof NEW_DATA_PANE_IDS)[number];
  * Not pane files, and the omissions are decisions rather than gaps:
  * `heat_game_sessions.csv` belongs to Playtime and `heat_device_info.csv` has
  * no card to sit on (11-01, D-15).
+ *
+ * The Perks pane's list is COMPUTED from the card contract above rather than
+ * written out again, so the pane's files and the cards' files cannot drift
+ * apart: one table (the card map) is the only place a later plan has to edit.
+ * The Account timeline pane's list is computed the same way, from
+ * {@link TIMELINE_FILE_KEYS}.
  */
 export const NEW_DATA_PANE_FILES: Readonly<Record<NewDataPaneId, readonly string[]>> = {
   heat: [
@@ -63,6 +139,14 @@ export const NEW_DATA_PANE_FILES: Readonly<Record<NewDataPaneId, readonly string
     'heat_session_geolocation.csv',
   ],
   'warships-storage': ['wows_crews.csv', 'wows_account_storage.csv'],
+  perks: PERKS_CARD_IDS.map((id) => PERKS_CARD_FILES[id]).filter(
+    (file): file is string => file !== null,
+  ),
+  // 12-11. Computed from the timeline file table, in file order, so the pane's
+  // files and the reader's files cannot drift apart.
+  'account-timeline': Object.values(TIMELINE_FILE_KEYS).filter(
+    (file): file is string => file !== null,
+  ),
 };
 
 /**
@@ -87,7 +171,7 @@ export interface NewDataPaneFacts {
 }
 
 // =============================================================================
-// The pane views (plan 11-07)
+// The pane views (plan 11-07, extended by plan 12-02)
 // =============================================================================
 //
 // A pane's DETAIL view is asked for by a worker query (`heat`,
@@ -110,7 +194,7 @@ export const MAX_NEW_DATA_CELL_LENGTH = 200;
 export type NewDataCell = string | number | null;
 
 /** What a column's cells are, mirrored from the worker's spec kinds. */
-export type NewDataColumnKind = 'text' | 'number' | 'date' | 'address';
+export type NewDataColumnKind = 'text' | 'number' | 'date' | 'address' | 'code';
 
 /** One column of a ready card: the spec's stored id and its kind. */
 export interface NewDataColumnView {
@@ -127,6 +211,13 @@ export interface NewDataColumnView {
  */
 export interface NewDataRowView {
   readonly account: string;
+  /**
+   * Every contributing account root of a MERGED row (at least two), with
+   * `account` always the first of them. Absent on every row the Phase 11
+   * builders produce, so the optional field keeps every Phase 11 consumer
+   * unchanged (D-10).
+   */
+  readonly accounts?: readonly string[];
   readonly cells: readonly NewDataCell[];
 }
 
@@ -191,4 +282,23 @@ export interface HeatView {
 export interface WarshipsStorageView {
   status: 'ready';
   cards: Record<WowsCardId, NewDataCardView>;
+}
+
+/**
+ * The Perks pane's detail view (plan 12-02).
+ *
+ * The top level is ALWAYS `ready`, exactly like the HEAT and Warships views, so
+ * the shared finance state functions apply unchanged and each card carries its
+ * own state (D-08: a card whose file is absent shows an empty state, never an
+ * error).
+ *
+ * `mergedAway` is how many STORED rows the cross-account merge removed — zero
+ * until plan 12-10 adds the merge, and a number rather than a flag so the pane
+ * can word the merge note without a second shape (D-10).
+ */
+export interface PerksView {
+  status: 'ready';
+  cards: Record<PerksCardId, NewDataCardView>;
+  /** Stored rows the cross-account merge collapsed. Zero until plan 12-10. */
+  mergedAway: number;
 }

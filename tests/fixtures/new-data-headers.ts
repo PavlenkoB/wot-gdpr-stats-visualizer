@@ -33,6 +33,16 @@
 // actually end?" by reading one committed file instead of re-running a script
 // against a zip that is not in the repository.
 //
+// ## Phase 12 additions (plan 12-01)
+//
+// The user ran `header_capture_12.py` on the same export and the nine files it
+// printed (HEAT_Surveys.csv was already here and is not entered twice) are
+// appended below, followed by three typed names-only constants transcribed from
+// the user's own answers: COLUMN_RISK_ANSWERS, PANE_MAPPING and DATE_SHAPES. The
+// `ACCT-X` labels of that capture are sort-order stand-ins like the first
+// capture's. The decision tables those constants back live in
+// `.planning/phases/12-account-timeline-perks/12-HEADERS.md`.
+//
 // ## The accounts are relabelled, and the relabel is load-bearing
 //
 // `ACCT-A` and `ACCT-B` are sort-order stand-ins assigned by the capture script,
@@ -705,6 +715,126 @@ export const CAPTURED_FILES: readonly CapturedFile[] = [
     bytes: 840,
     nonEmptyLines: 11,
   },
+  {
+    key: 'authorized_third_parties.csv',
+    fileName: 'Authorized_Third_Parties.csv',
+    folder: 'Authorized_Third_Parties',
+    account: 'ACCT-B',
+    delimiter: ',',
+    headers: ['THIRD_PARTY_SITE', 'CREATED_AT'],
+    bytes: 283,
+    nonEmptyLines: 6,
+  },
+  {
+    key: 'bans.csv',
+    fileName: 'Bans.csv',
+    folder: 'Bans',
+    account: 'ACCT-B',
+    delimiter: ',',
+    headers: ['DESCRIPTION', 'STARTED_AT', 'EXPIRED_AT', 'REASON', 'STATUS'],
+    bytes: 314,
+    nonEmptyLines: 2,
+  },
+  {
+    key: 'bonus_code_usage.csv',
+    fileName: 'Bonus_Code_Usage.csv',
+    folder: 'Bonus_Codes',
+    account: 'ACCT-B',
+    delimiter: ',',
+    headers: ['CREATED_AT', 'CODE_KEY', 'USER_IP'],
+    bytes: 499,
+    nonEmptyLines: 10,
+  },
+  {
+    key: 'personal_coupons.csv',
+    fileName: 'Personal_Coupons.csv',
+    folder: 'Personal_Coupons',
+    account: 'ACCT-B',
+    delimiter: ',',
+    headers: ['INSERTED_AT', 'UPDATED_AT', 'EXPIRED_AT', 'STATUS', 'CODE', 'PREREQUISITE'],
+    bytes: 157335,
+    nonEmptyLines: 50,
+  },
+  {
+    key: 'subscriptions.csv',
+    fileName: 'Subscriptions.csv',
+    folder: 'Subscriptions',
+    account: 'ACCT-B',
+    delimiter: ',',
+    headers: ['SUBSCRIPTION', 'SUBSCRIBED'],
+    bytes: 1660,
+    nonEmptyLines: 26,
+  },
+  {
+    key: 'account_name_history.csv',
+    fileName: 'Account_Name_History.csv',
+    folder: 'User_Info',
+    account: 'ACCT-B',
+    delimiter: ',',
+    headers: ['CREATED_AT', 'IP', 'OLD_NAME', 'NEW_NAME'],
+    bytes: 111,
+    nonEmptyLines: 2,
+  },
+  {
+    key: 'external_services_history.csv',
+    fileName: 'External_Services_History.csv',
+    folder: 'User_Info',
+    account: 'ACCT-B',
+    delimiter: ',',
+    headers: ['CREATED_AT', 'IP', 'OPERATION', 'NAME', 'UID'],
+    bytes: 965,
+    nonEmptyLines: 12,
+  },
+  {
+    key: 'language_and_country_history.csv',
+    fileName: 'Language_And_Country_History.csv',
+    folder: 'User_Info',
+    account: 'ACCT-B',
+    delimiter: ',',
+    headers: ['CREATED_AT', 'OPERATION', 'NAME', 'VALUE'],
+    bytes: 104,
+    nonEmptyLines: 2,
+  },
+  {
+    key: 'subscriptions.csv',
+    fileName: 'Subscriptions.csv',
+    folder: 'Subscriptions',
+    account: 'ACCT-C',
+    delimiter: ',',
+    headers: ['SUBSCRIPTION', 'SUBSCRIBED'],
+    bytes: 1660,
+    nonEmptyLines: 26,
+  },
+  {
+    key: 'external_services_history.csv',
+    fileName: 'External_Services_History.csv',
+    folder: 'User_Info',
+    account: 'ACCT-C',
+    delimiter: ',',
+    headers: ['CREATED_AT', 'IP', 'OPERATION', 'NAME', 'UID'],
+    bytes: 965,
+    nonEmptyLines: 12,
+  },
+  {
+    key: 'language_and_country_history.csv',
+    fileName: 'Language_And_Country_History.csv',
+    folder: 'User_Info',
+    account: 'ACCT-C',
+    delimiter: ',',
+    headers: ['CREATED_AT', 'OPERATION', 'NAME', 'VALUE'],
+    bytes: 104,
+    nonEmptyLines: 2,
+  },
+  {
+    key: 'bonus_code_usage.csv',
+    fileName: 'Bonus_Code_Usage.csv',
+    folder: 'Bonus_Codes',
+    account: 'ACCT-A',
+    delimiter: ',',
+    headers: ['CREATED_AT', 'CODE_KEY', 'USER_IP'],
+    bytes: 599,
+    nonEmptyLines: 12,
+  },
 ];
 
 // Built as a mutable Map and only ever READ as one: the divergence pass below
@@ -747,3 +877,272 @@ const BY_KEY: ReadonlyMap<string, CapturedHeaders> = byKey;
 export function headersOf(key: string): CapturedHeaders | null {
   return BY_KEY.get(key) ?? null;
 }
+
+// =============================================================================
+// Phase 12: per-column risk answers, the pane mapping and the date shapes.
+// =============================================================================
+//
+// All three are transcribed from the user's own names-only answers to the plan
+// 12-01 checkpoint and mirror the "Machine-readable record" block of
+// `12-HEADERS.md`. They hold column NAMES, file keys, card names and a date
+// SHAPE PATTERN; none holds a cell value.
+//
+// The scan the user ran reports FLAGS only. A flag it raised is recorded here as
+// `yes`; a flag it did not raise is recorded as `no`; a column the user called
+// possibly free text is `unsure`. A column the user did not answer at all would be
+// `unsure` on all five, and there is none.
+
+/** One answer to "could this column's VALUES hold <thing>?". Unsure counts as yes. */
+export type RiskAnswer = 'yes' | 'no' | 'unsure';
+
+/** The five questions asked per column. */
+export interface ColumnRisk {
+  readonly email: RiskAnswer;
+  readonly personName: RiskAnswer;
+  readonly freeText: RiskAnswer;
+  readonly ip: RiskAnswer;
+  readonly code: RiskAnswer;
+}
+
+const NO_RISK: ColumnRisk = {
+  email: 'no',
+  personName: 'no',
+  freeText: 'no',
+  ip: 'no',
+  code: 'no',
+};
+
+/**
+ * The risk answers, by file key then captured column. A date column is `no` on
+ * all five because its shape was stated as a timestamp pattern. A nickname column
+ * is `no` for person name: the user admitted it as a past nickname (rule c), which
+ * is the one place a nickname is allowed.
+ */
+export const COLUMN_RISK_ANSWERS: Readonly<Record<string, Readonly<Record<string, ColumnRisk>>>> = {
+  'authorized_third_parties.csv': {
+    THIRD_PARTY_SITE: NO_RISK,
+    CREATED_AT: NO_RISK,
+  },
+  'bans.csv': {
+    DESCRIPTION: { ...NO_RISK, freeText: 'yes' },
+    STARTED_AT: NO_RISK,
+    EXPIRED_AT: NO_RISK,
+    REASON: { ...NO_RISK, freeText: 'yes' },
+    STATUS: NO_RISK,
+  },
+  'bonus_code_usage.csv': {
+    CREATED_AT: NO_RISK,
+    CODE_KEY: { ...NO_RISK, code: 'yes' },
+    USER_IP: { ...NO_RISK, ip: 'yes' },
+  },
+  'personal_coupons.csv': {
+    INSERTED_AT: NO_RISK,
+    UPDATED_AT: NO_RISK,
+    EXPIRED_AT: NO_RISK,
+    STATUS: NO_RISK,
+    CODE: { ...NO_RISK, code: 'yes' },
+    PREREQUISITE: { ...NO_RISK, freeText: 'yes' },
+  },
+  'subscriptions.csv': {
+    SUBSCRIPTION: { ...NO_RISK, freeText: 'unsure' },
+    SUBSCRIBED: NO_RISK,
+  },
+  'heat_surveys.csv': {
+    PROFILE_ID: NO_RISK,
+    BATTLE_ID: NO_RISK,
+    QUESTION_ID: NO_RISK,
+    PLAYER_ANSWER: NO_RISK,
+    SKIPPED_BY_PLAYER: NO_RISK,
+    MESSAGE_TS: NO_RISK,
+  },
+  'account_name_history.csv': {
+    CREATED_AT: NO_RISK,
+    IP: { ...NO_RISK, ip: 'yes' },
+    OLD_NAME: NO_RISK,
+    NEW_NAME: NO_RISK,
+  },
+  'external_services_history.csv': {
+    CREATED_AT: NO_RISK,
+    IP: { ...NO_RISK, ip: 'yes' },
+    OPERATION: NO_RISK,
+    NAME: NO_RISK,
+    UID: { ...NO_RISK, email: 'yes' },
+  },
+  'language_and_country_history.csv': {
+    CREATED_AT: NO_RISK,
+    OPERATION: NO_RISK,
+    NAME: NO_RISK,
+    VALUE: NO_RISK,
+  },
+};
+
+/** One row of the Pane mapping: which file feeds which Perks card or timeline kind. */
+export interface PaneMappingRow {
+  /** The folder inside the account, exactly as captured. */
+  readonly folder: string;
+  /** The file key, or null when the card or kind was removed. */
+  readonly fileKey: string | null;
+  readonly pane: 'timeline' | 'perks';
+  readonly cardOrKind: string;
+  readonly status: 'mapped' | 'removed';
+  /** The first allowed non-date column in file order, or null. */
+  readonly primary: string | null;
+  /** Up to two further allowed columns in file order (never a date). */
+  readonly secondary: readonly string[];
+  /** The column holding a language, or null. */
+  readonly language: string | null;
+  /** The column holding a country, or null. */
+  readonly country: string | null;
+  /** The first allowed date-kind column in file order, or null. */
+  readonly date: string | null;
+  /**
+   * The column whose value says which of language or country another column
+   * holds, or null. Names only: the Language_And_Country_History VALUE column is
+   * both, and NAME discriminates.
+   */
+  readonly discriminator: string | null;
+}
+
+const NO_COLUMNS = {
+  primary: null,
+  secondary: [],
+  language: null,
+  country: null,
+  date: null,
+  discriminator: null,
+} as const;
+
+/**
+ * The nine mapped rows, in the order of the Pane mapping table. Nothing was
+ * removed: every row passed the completeness gate with a primary column (or, for
+ * Language and country, a language and country column).
+ */
+export const PANE_MAPPING: readonly PaneMappingRow[] = [
+  {
+    ...NO_COLUMNS,
+    folder: 'User_Info',
+    fileKey: 'account_name_history.csv',
+    pane: 'timeline',
+    cardOrKind: 'Name',
+    status: 'mapped',
+    primary: 'OLD_NAME',
+    secondary: ['NEW_NAME'],
+    date: 'CREATED_AT',
+  },
+  {
+    ...NO_COLUMNS,
+    folder: 'User_Info',
+    fileKey: 'external_services_history.csv',
+    pane: 'timeline',
+    cardOrKind: 'Service',
+    status: 'mapped',
+    primary: 'OPERATION',
+    secondary: ['NAME'],
+    date: 'CREATED_AT',
+  },
+  {
+    ...NO_COLUMNS,
+    folder: 'User_Info',
+    fileKey: 'language_and_country_history.csv',
+    pane: 'timeline',
+    cardOrKind: 'Language and country',
+    status: 'mapped',
+    primary: 'OPERATION',
+    secondary: ['NAME', 'VALUE'],
+    language: 'VALUE',
+    country: 'VALUE',
+    date: 'CREATED_AT',
+    discriminator: 'NAME',
+  },
+  {
+    ...NO_COLUMNS,
+    folder: 'Bans',
+    fileKey: 'bans.csv',
+    pane: 'timeline',
+    cardOrKind: 'Ban',
+    status: 'mapped',
+    primary: 'STATUS',
+    date: 'STARTED_AT',
+  },
+  {
+    ...NO_COLUMNS,
+    folder: 'Authorized_Third_Parties',
+    fileKey: 'authorized_third_parties.csv',
+    pane: 'timeline',
+    cardOrKind: 'Third party',
+    status: 'mapped',
+    primary: 'THIRD_PARTY_SITE',
+    date: 'CREATED_AT',
+  },
+  {
+    ...NO_COLUMNS,
+    folder: 'Subscriptions',
+    fileKey: 'subscriptions.csv',
+    pane: 'perks',
+    cardOrKind: 'Subscriptions',
+    status: 'mapped',
+    primary: 'SUBSCRIBED',
+  },
+  {
+    ...NO_COLUMNS,
+    folder: 'Personal_Coupons',
+    fileKey: 'personal_coupons.csv',
+    pane: 'perks',
+    cardOrKind: 'Personal coupons',
+    status: 'mapped',
+    primary: 'STATUS',
+    secondary: ['CODE'],
+    date: 'INSERTED_AT',
+  },
+  {
+    ...NO_COLUMNS,
+    folder: 'Bonus_Codes',
+    fileKey: 'bonus_code_usage.csv',
+    pane: 'perks',
+    cardOrKind: 'Bonus codes',
+    status: 'mapped',
+    primary: 'CODE_KEY',
+    secondary: ['USER_IP'],
+    date: 'CREATED_AT',
+  },
+  {
+    ...NO_COLUMNS,
+    folder: 'Surveys',
+    fileKey: 'heat_surveys.csv',
+    pane: 'perks',
+    cardOrKind: 'Surveys',
+    status: 'mapped',
+    primary: 'QUESTION_ID',
+    secondary: ['PLAYER_ANSWER', 'SKIPPED_BY_PLAYER'],
+    date: 'MESSAGE_TS',
+  },
+];
+
+/** One date column and the shape the user said its values have (a pattern, never a value). */
+export interface DateShapeRow {
+  readonly fileKey: string;
+  readonly column: string;
+  readonly shape: string;
+}
+
+const SHAPE = 'YYYY-MM-DD HH:MM:SS.mmm';
+const SHAPE_OR_UNSET = 'YYYY-MM-DD HH:MM:SS.mmm, or the null marker when unset';
+
+/**
+ * Every date column of every captured Phase 12 file, one row each. All use one
+ * shape: millisecond precision, space separator, no timezone. Bans.EXPIRED_AT may
+ * instead hold the export's null marker, which means an open ban.
+ */
+export const DATE_SHAPES: readonly DateShapeRow[] = [
+  { fileKey: 'account_name_history.csv', column: 'CREATED_AT', shape: SHAPE },
+  { fileKey: 'external_services_history.csv', column: 'CREATED_AT', shape: SHAPE },
+  { fileKey: 'language_and_country_history.csv', column: 'CREATED_AT', shape: SHAPE },
+  { fileKey: 'bans.csv', column: 'STARTED_AT', shape: SHAPE },
+  { fileKey: 'bans.csv', column: 'EXPIRED_AT', shape: SHAPE_OR_UNSET },
+  { fileKey: 'authorized_third_parties.csv', column: 'CREATED_AT', shape: SHAPE },
+  { fileKey: 'personal_coupons.csv', column: 'INSERTED_AT', shape: SHAPE },
+  { fileKey: 'personal_coupons.csv', column: 'UPDATED_AT', shape: SHAPE },
+  { fileKey: 'personal_coupons.csv', column: 'EXPIRED_AT', shape: SHAPE },
+  { fileKey: 'bonus_code_usage.csv', column: 'CREATED_AT', shape: SHAPE },
+  { fileKey: 'heat_surveys.csv', column: 'MESSAGE_TS', shape: SHAPE },
+];

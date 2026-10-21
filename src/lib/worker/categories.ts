@@ -18,6 +18,39 @@ import type { CategoryStatus } from '../core/types/worker-messages.ts';
  * import, the cache replay (`resultFromMeta` re-derives every status from the
  * stored name, so a stale cache that stored it as unknown is repaired at read
  * time with no Dexie version bump) and the Not yet supported list.
+ *
+ * `Surveys` joins them for the same reason (phase 12, D-03): it is a REAL
+ * top-level folder holding the survey answers, and it was filed under "Not yet
+ * supported" until the Perks pane could read its file. The promotion is
+ * therefore a STATUS change and nothing else — the status changes everywhere at
+ * once (the import, the cache replay, which re-derives every status from the
+ * stored name so a stale cache is repaired at read time, and the Not yet
+ * supported list), and NO Dexie version is bumped, because a status is derived
+ * from a folder NAME rather than stored in a row's shape.
+ *
+ * What the promotion does NOT do is store the folder's rows: a `Surveys` file
+ * reaches storage ONLY through the category-scoped family rule in
+ * `new-data-allowlist.ts` (`isFamilyCategory`), so a file in this folder whose
+ * name the name patterns do not know, and a file with no spec, store NOTHING.
+ * Promotion changes what the folder's rows may be stored AS, never whether
+ * they are stored at all.
+ *
+ * The other five Phase 12 folders join them for that same reason (D-03,
+ * 12-04): `Authorized_Third_Parties`, `Bans`, `Bonus_Codes`, `Personal_Coupons`
+ * and `Subscriptions` are real top-level folders, each is in `FAMILY_CATEGORIES`
+ * so every file in them fails closed until a spec names it, and none of them can
+ * store anything today — their specs arrive with the panes, in plan 12-08.
+ *
+ * `Game_Forums` is DELIBERATELY ABSENT from this list (D-02, D-09). It is a real
+ * folder and its `WOT_Forum_User_Info.csv` header carries `EMAIL`, `IP_ADDRESS`
+ * and `BDAY_*`, so promoting it for an empty allowlist would store nothing AND
+ * drop the folder from the "Not yet supported" footer, which is the one place
+ * the user is told it is there and not shown. It stays counted-only.
+ *
+ * No Dexie version is bumped by any of this: a category's status is re-derived
+ * from the stored folder NAME on every replay (`resultFromMeta` →
+ * `classifyFolder`), so a cache written by an older build is repaired at read
+ * time rather than at upgrade time.
  */
 export const SUPPORTED: readonly string[] = [
   'Activity_history',
@@ -26,6 +59,12 @@ export const SUPPORTED: readonly string[] = [
   'Payment_history',
   'Financial_data',
   'Device_info',
+  'Surveys',
+  'Authorized_Third_Parties',
+  'Bans',
+  'Bonus_Codes',
+  'Personal_Coupons',
+  'Subscriptions',
 ];
 
 /**

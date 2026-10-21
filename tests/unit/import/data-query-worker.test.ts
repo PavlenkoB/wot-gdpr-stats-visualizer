@@ -6,7 +6,11 @@ import {
 } from '../../../src/lib/features/finance/finance-aggregate.ts';
 import { buildVehicleView } from '../../../src/lib/features/vehicles/vehicle-aggregate.ts';
 import { parseCsvFile } from '../../../src/lib/worker/csv-parse.ts';
-import { buildSampleExport, buildCustomExport } from '../../fixtures/export-fixtures.ts';
+import {
+  SAMPLE_UNKNOWN_FOLDER,
+  buildSampleExport,
+  buildCustomExport,
+} from '../../fixtures/export-fixtures.ts';
 import {
   CURRENCY_HAND_ROWS,
   CURRENCY_OPS_HEADER,
@@ -41,8 +45,10 @@ import type { VehicleView } from '../../../src/lib/features/vehicles/vehicle-sha
 import type { VehicleFileFacts } from '../../../src/lib/features/vehicles/vehicle-aggregate.ts';
 import type { LoginsView } from '../../../src/lib/features/logins/login-shared.ts';
 import type { DeviceInfoView } from '../../../src/lib/features/device-info/device-info-shared.ts';
+import type { TimelineView } from '../../../src/lib/features/account-timeline/timeline-shared.ts';
 import type {
   HeatView,
+  PerksView,
   WarshipsStorageView,
 } from '../../../src/lib/features/new-data/new-data-shared.ts';
 import type {
@@ -206,7 +212,7 @@ describe('05-07 tracer: premium through the real worker and Dexie snapshot', () 
     }
     expect(categories.has('Device_info')).toBe(true);
     expect(categories.has('User_Info')).toBe(false);
-    expect(categories.has('Bans')).toBe(false);
+    expect(categories.has(SAMPLE_UNKNOWN_FOLDER)).toBe(false);
 
     // The premium file is there with its real row count.
     const premium = list.find((f) => f.sourceFile === PREMIUM_FILE);
@@ -315,7 +321,8 @@ function dataResult(
  * shape it expects, and the channel check above is what has already proved the
  * reply belongs to the question that was asked.
  *
- * `HeatView` and `WarshipsStorageView` joined it in 11-07, for the same reason.
+ * `HeatView` and `WarshipsStorageView` joined it in 11-07, for the same reason,
+ * and `PerksView` joined it in 12-02 and `TimelineView` in 12-11.
  * `LoginsView` joined that union in 06-01, when the `logins` channel was added
  * to `DataResult`. This file never asks for it — `logins-worker.test.ts` owns
  * that channel — but the parameter is typed by `DataQuery['channel']`, so a
@@ -335,7 +342,9 @@ function viewOf(
   | LoginsView
   | DeviceInfoView
   | HeatView
-  | WarshipsStorageView {
+  | WarshipsStorageView
+  | PerksView
+  | TimelineView {
   const result = dataResult(reply).result;
   if (result === null) throw new Error(`expected a ${channel} result, got null`);
   if (result.channel !== channel) {

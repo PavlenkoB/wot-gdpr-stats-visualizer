@@ -24,3 +24,5 @@ finding under an unrelated diff.
   The new `tests/fixtures/multi-account-fixtures.ts` is clean: it uses only made-up ids
   (`2000002`, `500000001`, `1000000003`, `200`, `300`…), `*.example.invalid` e-mail domains
   and RFC 5737 addresses.
+- status: resolved
+- **Resolution:** replaced with a synthetic id in 3ebfd46; no match for the real id remains under src or tests.

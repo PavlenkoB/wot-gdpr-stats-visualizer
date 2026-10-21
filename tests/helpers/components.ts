@@ -19,6 +19,7 @@ export const COMPONENT_DIRS: readonly string[] = [
   'features/logins',
   'features/device-info',
   'features/new-data',
+  'features/account-timeline',
 ].map((dir) => path.join(LIB, dir));
 
 /**

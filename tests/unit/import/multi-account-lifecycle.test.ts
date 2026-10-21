@@ -18,6 +18,7 @@ import {
   MA_ROOT_EU,
   MA_ROOT_NA,
   MA_ROOT_RU,
+  MA_UNKNOWN_FOLDERS,
   buildOneAccountExport,
   buildRealShapeThreeAccountExport,
   buildTwoAccountExport,
@@ -812,7 +813,8 @@ const PURGE_CANARIES = [MA_FORUM_EMAIL_CANARY, MA_FORUM_IP_CANARY, MA_CHAT_CANAR
 /**
  * The rows a v1.0 build would have stored for the unsupported folders of the
  * three-account archive's EU root: the forum file with its `EMAIL` and
- * `IP_ADDRESS` cells, a chat row with its message body, and a Bans row.
+ * `IP_ADDRESS` cells, a chat row with its message body, and one row of the
+ * first UNKNOWN stand-in folder (12-04).
  *
  * No `account` field, exactly as v1.0 wrote it — so the purge has to decide on
  * the row's own CATEGORY and cannot lean on the account stamp.
@@ -838,8 +840,8 @@ async function seedLegacyUnsupportedRows(): Promise<number> {
       data: { MESSAGE_DT: '04.03.2024 21:11', CHANNEL_ID: '1', MESSAGE_BODY: MA_CHAT_CANARY },
     },
     {
-      category: 'Bans',
-      sourceFile: 'Bans.csv',
+      category: MA_UNKNOWN_FOLDERS[0],
+      sourceFile: `${MA_UNKNOWN_FOLDERS[0]}.csv`,
       rowIndex: 0,
       data: { BAN_DT: '02.05.2020 12:00', BAN_REASON: 'synthetic_reason' },
     },
@@ -917,7 +919,7 @@ describe('Phase 9 lifecycle: a returning v1.0 cache is purged on load (D-21)', (
 
     const cached = await checkCache();
     const names = cached.cached?.categories.map((c) => c.name) ?? [];
-    for (const name of ['Game_Forums', 'Chat_History', 'Bans']) {
+    for (const name of ['Game_Forums', 'Chat_History', MA_UNKNOWN_FOLDERS[0]]) {
       const entry = cached.cached?.categories.find((c) => c.name === name);
       expect(entry, `category ${name}`).toBeDefined();
       expect(entry!.rowCount ?? 0, `rowCount of ${name}`).toBeGreaterThan(0);
@@ -953,7 +955,7 @@ describe('Phase 9 lifecycle: a returning v1.0 cache is purged on load (D-21)', (
     await ingestDone(buildSampleExport(), 'sample.zip');
     const { db } = await importWorkerDb();
     // The v1.0 shape, PLUS the rows v1.0 would have stored for the sample's
-    // own Chat_history and Bans folders — the extension of the case above to a
+    // own Chat_history and unknown folders — the extension of the case above to a
     // cache that never had an accounts list at all.
     await db.transaction('rw', db.rows, db.meta, async () => {
       for (const row of await db.rows.toArray()) {

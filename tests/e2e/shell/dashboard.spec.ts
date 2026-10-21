@@ -15,6 +15,7 @@ import {
   SAMPLE_FILE_COUNTS,
   SAMPLE_NICKNAME,
   SAMPLE_ROW_COUNTS,
+  SAMPLE_UNKNOWN_FOLDER,
   buildCaseVariantFoldersExport,
   buildEmptyAccountInfoExport,
   buildLongTextExport,
@@ -626,7 +627,7 @@ test.describe('dashboard shell (03-04 Task 2)', () => {
  * The three non-supported folders of the sample, in the worker's order.
  * Device_info left this list in quick 261012-bog: it is a supported category now.
  */
-const SAMPLE_UNSUPPORTED_ORDER = ['Chat_history', 'Clans', 'Bans'] as const;
+const SAMPLE_UNSUPPORTED_ORDER = ['Chat_history', 'Clans', SAMPLE_UNKNOWN_FOLDER] as const;
 
 /**
  * The computed style of one banner, as the browser resolves it.
@@ -708,11 +709,18 @@ test.describe('not yet supported block (03-04 Task 3)', () => {
     const banners = page.getByTestId('unsupported-banner');
     await expect(banners).toHaveCount(SAMPLE_UNSUPPORTED_ORDER.length + 1, { timeout: 30_000 });
 
-    await expect(banners.getByTestId('banner-folder').last()).toHaveText(EXTRA_UNKNOWN_FOLDER);
-    await expect(banners.last()).toHaveAttribute('data-status', 'unknown');
+    // Located BY NAME, not as the last banner: inside the unknown group the
+    // worker sorts by lower-case name, so which of the archive's two unknown
+    // folders lands last is a fact about their spelling (12-04 renamed the
+    // sample's own unknown folder) and not about this test's claim.
+    const added = banners.filter({
+      has: page.getByTestId('banner-folder').getByText(EXTRA_UNKNOWN_FOLDER, { exact: true }),
+    });
+    await expect(added).toHaveCount(1);
+    await expect(added).toHaveAttribute('data-status', 'unknown');
 
     expect(
-      await readBannerStyle(banners.last()),
+      await readBannerStyle(added),
       'the unknown-folder banner is styled differently from the first one',
     ).toEqual(await readBannerStyle(banners.first()));
   });
@@ -742,10 +750,10 @@ test.describe('not yet supported block (03-04 Task 3)', () => {
     const banners = page.getByTestId('unsupported-banner');
     await expect(banners).toHaveCount(SAMPLE_UNSUPPORTED_ORDER.length, { timeout: 30_000 });
 
-    // Exactly one tag in the open pane, on the Bans banner, reading the one
-    // skipped row.
-    const bansBanner = banners.filter({ hasText: 'Bans' }).first();
-    await expect(bansBanner.getByTestId('skip-tag')).toHaveText(formatSkippedRowCount(1));
+    // Exactly one tag in the open pane, on the unknown folder's banner, reading
+    // the one skipped row.
+    const unknownBanner = banners.filter({ hasText: SAMPLE_UNKNOWN_FOLDER }).first();
+    await expect(unknownBanner.getByTestId('skip-tag')).toHaveText(formatSkippedRowCount(1));
     await expect(page.getByTestId('skip-tag')).toHaveCount(1);
 
     // The tag counts parse diagnostics, not files. The old page-wide count of 1
@@ -770,7 +778,7 @@ test.describe('not yet supported block (03-04 Task 3)', () => {
     await expect(page.getByTestId('skip-tag')).toHaveCount(1);
   });
 
-  test('(case-variants) a lower-case bans folder is its own banner, and User_Info stays one section', async ({
+  test('(case-variants) a lower-case unknown folder is its own banner, and User_Info stays one section', async ({
     page,
   }) => {
     await importExport(page, 'case-variants.zip', buildCaseVariantFoldersExport());
@@ -784,8 +792,8 @@ test.describe('not yet supported block (03-04 Task 3)', () => {
     await expect(banners.getByTestId('banner-folder')).toHaveText([
       'Chat_history',
       'Clans',
-      'Bans',
-      'bans',
+      SAMPLE_UNKNOWN_FOLDER,
+      SAMPLE_UNKNOWN_FOLDER.toLowerCase(),
     ]);
     // The matching side of the same fixture — two folders, one section,
     // summed counts — is asserted in the `(case-sum)` test above. Here the
@@ -808,8 +816,12 @@ test.describe('not yet supported block (03-04 Task 3)', () => {
     // section cards of the single-scroll page no longer exist side by side, so
     // their document-order claim has no subject any more. The sample export holds
     // the two Warships crews and storage files (so that optional row follows
-    // Vehicles) and no HEAT file (so there is no HEAT row): plan 11-11.
-    expect(await listRowIdsInOrder(page)).toEqual(PANE_ORDER.filter((id) => id !== 'heat'));
+    // Vehicles) and no HEAT file (so there is no HEAT row): plan 11-11. It holds
+    // no Surveys file either, so there is no Perks row (12-02), and no Account
+    // timeline file, so there is no Account timeline row (12-13).
+    expect(await listRowIdsInOrder(page)).toEqual(
+      PANE_ORDER.filter((id) => id !== 'heat' && id !== 'perks' && id !== 'account-timeline'),
+    );
     expect(PANE_ORDER[PANE_ORDER.length - 1]).toBe('not-yet-supported');
     // No section is mounted on the landing view, whichever row is current.
     await expect(page.locator('[data-testid^="dashboard-section-"]')).toHaveCount(0);

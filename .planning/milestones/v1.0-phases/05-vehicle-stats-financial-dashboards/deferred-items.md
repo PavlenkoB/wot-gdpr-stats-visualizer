@@ -1,7 +1,7 @@
 - `tests/unit/ui-copy.test.ts:207` fails on this machine because the box's locale
   is `uk_UA.UTF-8` and `formatImportSummary` groups the row count with
   `toLocaleString()` rather than a pinned locale.
-  status: acknowledged
+  status: resolved
   **Found during:** 05-04 Task 3, running the plan's whole-suite gate.
   **Closed by:** 05-08. `formatNumber` now takes an optional locale and defaults
   to the viewer's; `formatRowCount` and `formatSkippedRowCount` group through it

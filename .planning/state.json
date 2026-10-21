@@ -21,13 +21,13 @@
     {
       "number": "12",
       "name": "Account Timeline & Perks",
-      "status": "pending"
+      "status": "complete"
     }
   ],
   "next": {
-    "command": "/gsd-progress --next",
-    "label": "Advance to the next step (plan phase 12)",
-    "reason": "Phase 4 of 4 — needs a plan"
+    "command": "/gsd-new-milestone",
+    "label": "Start a new milestone",
+    "reason": "All phases complete — start a new milestone"
   },
-  "updated_at": "2026-10-19T19:37:33.216Z"
+  "updated_at": "2026-10-20T19:48:07.067Z"
 }

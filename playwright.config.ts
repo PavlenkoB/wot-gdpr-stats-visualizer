@@ -219,7 +219,35 @@ export default defineConfig({
   // floor of 1781 s, 19 s under the 1800 s this raise replaces: it looks
   // passable and is not, because the measured cost of the large import and of the
   // grown Phase 9 tests is nowhere in it.
-  globalTimeout: 31 * 60 * 1000,
+  //
+  // 32 min is 12-03's raise — Raised from 31 to 32 in plan 12-03, for the two
+  // Account Timeline and Perks e2e tests. This comment is where its arithmetic
+  // lives.
+  // It landed BEFORE the tests that need it exist: Phase 11 closed at 263 listed
+  // tests in 30 files against the 264-test ceiling 10-06 set, so exactly one more
+  // browser test fitted, and Phase 12 spends two — one spec file carrying the
+  // Account timeline test and the Perks test. Extending the long zero-network
+  // test with the two new panes adds no listed test, as Phase 11 did, so the
+  // count goes to 265 in 31 files once plan 12-13 writes them.
+  //
+  //   E = 330 + 5 * (265 - 86 - 5 - 5 - 5 - 2 - 2) + 120 + 90 + 13 + 32 + 49
+  //     = 330 + 5 * (265 - 105) + 304
+  //     = 330 + 800 + 304
+  //     = 1434 s
+  //   1.3 * E = 1864.2 s, and ceil(1864.2 / 60) = 32 min
+  //
+  // The floor is what forces this, not taste: 1864.2 s is past the 1860 s that
+  // 31 min gave, so the two tests Phase 12 plans could not have run inside it.
+  //
+  // G = 32, W = 34 and J = 42: all three moved together, the same G + 2 and
+  // W + 8 relationship as every raise before it. 32 min holds up to 273 listed
+  // tests (273 project 1474 s and a floor of 1916.2 s against 1920 s; 274
+  // would project 1479 s and a floor of 1922.7 s, which fails). Raising the
+  // limits before the tests exist is safe because they only ever get LOOSER:
+  // nothing Phase 12 builds up to that point can be cut short by them, and the
+  // decision, its arithmetic and its pins stay in one reviewable change instead
+  // of being split across the plan that adds the tests.
+  globalTimeout: 32 * 60 * 1000,
   timeout: 120000,
   webServer: {
     // Direct binary invocation (NOT `pnpm run build && pnpm run preview`).

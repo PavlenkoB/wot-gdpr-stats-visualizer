@@ -108,3 +108,22 @@ export function viewSummary(view: {
   }
   return summary;
 }
+
+/**
+ * Whether any of these cards has something the single global reveal governs
+ * (plan 12-09, D-13): it is ready, holds at least one row and has a column of
+ * kind `code` or `address`.
+ *
+ * It generalises the HEAT pane's address-only test to the code kind. A pane with
+ * nothing to mask has no toggle (UI-SPEC Surface 4), because a button that
+ * governs nothing is a control that lies. Only the status, the row count and the
+ * column kinds are read, never a cell.
+ */
+export function hasMaskableRows(cards: readonly NewDataCardView[]): boolean {
+  return cards.some(
+    (card) =>
+      card.status === 'ready' &&
+      card.rows.length > 0 &&
+      card.columns.some((column) => column.kind === 'code' || column.kind === 'address'),
+  );
+}

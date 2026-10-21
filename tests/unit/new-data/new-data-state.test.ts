@@ -3,11 +3,15 @@ import {
   PLAIN_TABLE_MAX_ROWS,
   cardSummary,
   firstRowPerAccount,
+  hasMaskableRows,
   orderRowsByAccount,
   shouldWindow,
   viewSummary,
 } from '../../../src/lib/features/new-data/new-data-state.ts';
-import type { NewDataCardView } from '../../../src/lib/features/new-data/new-data-shared.ts';
+import type {
+  NewDataCardView,
+  NewDataColumnKind,
+} from '../../../src/lib/features/new-data/new-data-shared.ts';
 import type { AccountTagModel } from '../../../src/lib/shell/identity-model.ts';
 
 // =============================================================================
@@ -116,5 +120,61 @@ describe('orderRowsByAccount over any element with an account (plan 11-10)', () 
       'z',
     ]);
     expect(orderRowsByAccount(blocks, null)).toBe(blocks);
+  });
+});
+
+describe('hasMaskableRows (plan 12-09, D-13)', () => {
+  const readyWith = (kinds: NewDataColumnKind[], rowCount: number): NewDataCardView => ({
+    status: 'ready',
+    columns: kinds.map((kind, i) => ({ id: `c${i}`, kind })),
+    rows: Array.from({ length: rowCount }, () => ({
+      account: 'A',
+      cells: kinds.map(() => null),
+    })),
+    rowCount,
+  });
+
+  it('is false for an empty list', () => {
+    expect(hasMaskableRows([])).toBe(false);
+  });
+
+  it('is true for a ready card with a row and a code column', () => {
+    expect(hasMaskableRows([readyWith(['text', 'code'], 1)])).toBe(true);
+  });
+
+  it('is true for a ready card with a row and an address column', () => {
+    expect(hasMaskableRows([readyWith(['address'], 2)])).toBe(true);
+  });
+
+  it('is true when only one of several cards qualifies', () => {
+    expect(
+      hasMaskableRows([{ status: 'skipped' }, readyWith(['text'], 3), readyWith(['code'], 1)]),
+    ).toBe(true);
+  });
+
+  it('is false for not-in-export, no-rows and skipped cards', () => {
+    expect(
+      hasMaskableRows([{ status: 'not-in-export' }, { status: 'no-rows' }, { status: 'skipped' }]),
+    ).toBe(false);
+  });
+
+  it('is false for a ready card with zero rows', () => {
+    expect(hasMaskableRows([readyWith(['code', 'address'], 0)])).toBe(false);
+  });
+
+  it('is false for a ready card whose columns are all text, number and date', () => {
+    expect(hasMaskableRows([readyWith(['text', 'number', 'date'], 4)])).toBe(false);
+  });
+
+  it('reads only status, row count and column kinds, never a cell', () => {
+    const card: NewDataCardView = {
+      status: 'ready',
+      columns: [{ id: 'code', kind: 'code' }],
+      rows: [{ account: 'A', cells: ['SECRET-CODE'] }],
+      rowCount: 1,
+    };
+    const spy = JSON.stringify(card);
+    expect(hasMaskableRows([card])).toBe(true);
+    expect(JSON.stringify(card)).toBe(spy);
   });
 });

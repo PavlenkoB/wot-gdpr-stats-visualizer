@@ -8,6 +8,8 @@ import {
 import {
   SAMPLE_ACCOUNT_ROOT,
   SAMPLE_NICKNAME,
+  SAMPLE_UNKNOWN_FILE,
+  SAMPLE_UNKNOWN_FOLDER,
   buildCustomExport,
   buildSampleExport,
 } from '../../fixtures/export-fixtures.ts';
@@ -129,7 +131,7 @@ const REPAIRED_ORDER = [
   'User_Info',
   'Chat_history',
   'Clans',
-  'Bans',
+  SAMPLE_UNKNOWN_FOLDER,
 ] as const;
 
 /** The four categories a Phase-4 build already knew were supported. */
@@ -178,7 +180,8 @@ describe('05-03 tracer: Financial_data supported on import and on replay', () =>
 
     // `counts` is derived from the same status list, so it moves with it —
     // the four pre-existing supported folders plus the new one, and Device_info
-    // (promoted by quick 261012-bog), with Bans the one remaining unknown.
+    // (promoted by quick 261012-bog), with the unknown stand-in folder the one
+    // remaining unknown.
     expect(terminal.result.counts).toEqual({ supported: 6, 'known-deferred': 2, unknown: 1 });
 
     // It sits in the SUPPORTED GROUP, in lower-case name order, rather than
@@ -259,7 +262,7 @@ describe('05-03 tracer: Financial_data supported on import and on replay', () =>
     );
   });
 
-  test('a stale cache that stored Device_info as unknown replays it as supported, re-sorted, with Bans still unknown', async () => {
+  test('a stale cache that stored Device_info as unknown replays it as supported, re-sorted, with the unknown folder still unknown', async () => {
     await ingestExport(postSpy, buildFinancialExport(), 'financial.zip');
     await seedStaleUnknownStatus(['Device_info']);
 
@@ -271,7 +274,7 @@ describe('05-03 tracer: Financial_data supported on import and on replay', () =>
     const categories = status.cached!.categories;
     const byName = new Map(categories.map((c) => [c.name, c.status]));
     expect(byName.get('Device_info')).toBe('supported');
-    expect(byName.get('Bans')).toBe('unknown');
+    expect(byName.get(SAMPLE_UNKNOWN_FOLDER)).toBe('unknown');
     // Repaired out of the unknown group and back into lower-case order.
     expect(categories.map((c) => c.name)).toEqual([...REPAIRED_ORDER]);
     expect(status.cached!.counts).toEqual({ supported: 6, 'known-deferred': 2, unknown: 1 });
@@ -315,7 +318,7 @@ describe('05-03 tracer: Financial_data supported on import and on replay', () =>
     // unknown/deferred folders too.
     expect(byName.get('Chat_history')).toBe('known-deferred');
     expect(byName.get('Clans')).toBe('known-deferred');
-    expect(byName.get('Bans')).toBe('unknown');
+    expect(byName.get(SAMPLE_UNKNOWN_FOLDER)).toBe('unknown');
     // Device_info was unknown until quick 261012-bog promoted it; an import now
     // stores it as supported and the replay keeps it so.
     expect(byName.get('Device_info')).toBe('supported');
@@ -492,7 +495,7 @@ describe('the sample export carries the real Financial_data headers', () => {
 describe('sortCategoryEntries', () => {
   test('orders by status group, then lower-case code-unit name, then raw name', () => {
     const entries: CategoryEntry[] = [
-      { name: 'Bans', status: 'unknown', fileCount: 1 },
+      { name: SAMPLE_UNKNOWN_FOLDER, status: 'unknown', fileCount: 1 },
       { name: 'User_Info', status: 'supported', fileCount: 1 },
       { name: 'user_info', status: 'supported', fileCount: 1 },
       { name: 'Clans', status: 'known-deferred', fileCount: 1 },
@@ -512,7 +515,7 @@ describe('sortCategoryEntries', () => {
       // then known-deferred, then unknown
       'Chat_history',
       'Clans',
-      'Bans',
+      SAMPLE_UNKNOWN_FOLDER,
     ]);
   });
 
@@ -521,13 +524,13 @@ describe('sortCategoryEntries', () => {
     // the replay path maps into a fresh list. Returning the input itself
     // would let a caller mutate another list by accident.
     const entries: CategoryEntry[] = [
-      { name: 'Bans', status: 'unknown', fileCount: 1 },
+      { name: SAMPLE_UNKNOWN_FOLDER, status: 'unknown', fileCount: 1 },
       { name: 'Activity_history', status: 'supported', fileCount: 2 },
     ];
     const sorted = sortCategoryEntries(entries);
     expect(sorted).not.toBe(entries);
-    expect(entries.map((e) => e.name)).toEqual(['Bans', 'Activity_history']);
-    expect(sorted.map((e) => e.name)).toEqual(['Activity_history', 'Bans']);
+    expect(entries.map((e) => e.name)).toEqual([SAMPLE_UNKNOWN_FOLDER, 'Activity_history']);
+    expect(sorted.map((e) => e.name)).toEqual(['Activity_history', SAMPLE_UNKNOWN_FOLDER]);
   });
 
   test('sorts an analyzeExport result to itself — the two paths cannot disagree', () => {
@@ -542,7 +545,7 @@ describe('sortCategoryEntries', () => {
       '123456789/Payment_history/Orders.csv',
       '123456789/Chat_history/Messages.csv',
       '123456789/Clans/Clan_membership.csv',
-      '123456789/Bans/Bans.csv',
+      `123456789/${SAMPLE_UNKNOWN_FOLDER}/${SAMPLE_UNKNOWN_FILE}`,
       '123456789/Device_info/WOT_Device_Info.csv',
     ]);
     expect(outcome.ok).toBe(true);
