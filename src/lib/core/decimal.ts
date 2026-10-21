@@ -120,7 +120,13 @@ export function parseDecimalUnits(raw: string | undefined): bigint | null {
   const body = match[2] ?? '';
   const dot = body.indexOf('.');
   const whole = dot === -1 ? body : body.slice(0, dot);
-  const fraction = dot === -1 ? '' : body.slice(dot + 1);
+  // Trailing zeros past the scale carry no precision (`230.000000000` in the
+  // 2026 export), so they are trimmed before the precision check below.
+  const rawFraction = dot === -1 ? '' : body.slice(dot + 1);
+  const fraction =
+    rawFraction.length > MICRO_SCALE
+      ? rawFraction.slice(0, MICRO_SCALE) + rawFraction.slice(MICRO_SCALE).replace(/0+$/, '')
+      : rawFraction;
   // A lone `.` has no digits on either side and is not a number.
   if (whole === '' && fraction === '') return null;
   // More precision than the scale holds is excluded rather than rounded: a

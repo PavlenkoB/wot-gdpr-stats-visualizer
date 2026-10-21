@@ -63,6 +63,10 @@ describe('05-04 exact decimal arithmetic', () => {
     // Seven fraction digits cannot be represented at scale 6, so rounding them
     // would invent precision the file does not have.
     expect(decimal.parseDecimalUnits('0.1234567')).toBeNull();
+    // The 2026 export pads amounts to nine decimals; padding zeros carry no precision.
+    expect(decimal.parseDecimalUnits('230.000000000')).toBe(230000000n);
+    expect(decimal.parseDecimalUnits('0.1234560000')).toBe(123456n);
+    expect(decimal.parseDecimalUnits('1.0000001')).toBeNull();
     // A 41-digit cell is a denial-of-service vector, not an amount (T-05-07).
     expect(decimal.parseDecimalUnits('1'.repeat(41))).toBeNull();
     // The bound is 40 characters, so exactly 40 is still parsed.
