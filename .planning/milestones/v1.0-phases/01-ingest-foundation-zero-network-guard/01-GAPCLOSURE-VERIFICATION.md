@@ -189,7 +189,7 @@ CI type-check program.
   the CSP meta assertion). This closes the Playwright half of criterion 4 and
   WINDOWS #1. See "Post-verification addendum" below for what it changed.
 - ~~Browser-observed rendering~~ — **RESOLVED 2026-09-30** (see human-verification
-  item 2). Real rows render in a real browser: 4,276 in `Activity_history`, 476
+  item 2). Real rows render in a real browser: 3,910 in `Activity_history`, 431
   in `Player_statistics`, Account ID 1234567 extracted. The limit: that is the
   wrapper-around-account shape, not the transparent-wrapper shape `42aeef5`
   repaired, so that specific path remains covered only by its unit guard.
@@ -237,7 +237,7 @@ The maintainer ran `pnpm run test:e2e` on a normal machine: **86 passed
    2026-09-30, with a screenshot.** The rendered dashboard shows a non-empty
    import: account `PLAYER`, an EU region, account created 2015-05-06, **Account ID
    1234567**, and category tabs `Activity_history` (4 files, **3,910 rows**),
-   `Player_statistics` (20 files, **476 rows**), `Payment_history`,
+   `Player_statistics` (20 files, **431 rows**), `Payment_history`,
    `User_Info`, and a "Not yet supported" tab. Non-zero row counts in a real
    browser confirm the end-to-end import path, and the extracted Account ID
    confirms identity extraction.

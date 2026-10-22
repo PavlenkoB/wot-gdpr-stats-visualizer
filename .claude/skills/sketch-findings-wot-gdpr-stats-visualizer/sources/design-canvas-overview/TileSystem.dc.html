@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tile system</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width:1280px;height:1500px;box-sizing:border-box;padding:48px 56px;background:#ffffff;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.5;color:#3a3a3a;display:flex;flex-direction:column;gap:36px">
+  <div>
+    <h1 style="margin:0;font-size:32px;line-height:1.2;font-weight:600;color:#111111">Overview tile system</h1>
+    <p style="margin:6px 0 0;max-width:70ch;color:#5c5c5c">One tile component, three sizes, four states. Everything on the Overview is a tile; every figure carries its rule on the tile and its definition when opened.</p>
+  </div>
+
+  <div style="display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:48px">
+    <div>
+      <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5c5c5c;font-weight:600;margin-bottom:12px">Three sizes on a 4 / 2 / 1 column grid, 12 px gap</div>
+      <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;grid-auto-rows:64px">
+        <div style="grid-column:span 2;grid-row:span 2;border:1px solid #111111;border-radius:8px;background:#ffffff;padding:12px"><div style="font-weight:600;color:#111111">Hero</div><div style="font-size:12.5px;color:#5c5c5c">2 columns × 2 rows. The one thing a group is about: big number plus a chart. First in the DOM so it leads on phone.</div></div>
+        <div style="border:1px solid #dcdcdc;border-radius:8px;background:#f5f5f5;padding:12px"><div style="font-weight:600;color:#111111">Metric</div><div style="font-size:12.5px;color:#5c5c5c">1 × 1</div></div>
+        <div style="border:1px solid #dcdcdc;border-radius:8px;background:#f5f5f5;padding:12px"><div style="font-weight:600;color:#111111">Metric</div><div style="font-size:12.5px;color:#5c5c5c">1 × 1</div></div>
+        <div style="grid-column:span 2;border:1px solid #1f7a74;border-radius:8px;background:#ffffff;padding:12px"><div style="font-weight:600;color:#111111">Feature</div><div style="font-size:12.5px;color:#5c5c5c">2 × 1. A figure with a small chart or list.</div></div>
+      </div>
+      <p style="margin:12px 0 0;font-size:12.5px;color:#5c5c5c">Columns follow the width of the content area, not the window: 4 from 880 px, 2 from 480 to 879 px, 1 below 480 px. Importance order, not desktop position, decides the stacking order. A group never ends on a part-empty row: the last tiles widen to fill it.</p>
+    </div>
+
+    <div>
+      <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5c5c5c;font-weight:600;margin-bottom:12px">Anatomy</div>
+      <div style="display:flex;gap:20px;align-items:flex-start">
+        <div style="flex:0 0 250px;border:1px solid #dcdcdc;border-radius:8px;padding:16px;position:relative;background:#ffffff">
+          <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5c5c5c;padding-right:36px">Longest streak</div>
+          <div style="display:flex;align-items:baseline;gap:8px;margin:4px 0 2px"><span style="font-size:32px;font-weight:650;line-height:1.15;color:#111111">41</span><span style="font-size:14px;color:#5c5c5c">days</span></div>
+          <div style="font-size:12.5px;color:#5c5c5c">3 Mar to 12 Apr 2023</div>
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style="position:absolute;top:12px;right:14px"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" fill="none" stroke="#8c8c8c" stroke-width="1.7" stroke-linejoin="round"></path></svg>
+        </div>
+        <ol style="margin:0;padding-left:18px;font-size:13px;color:#3a3a3a;display:flex;flex-direction:column;gap:6px">
+          <li><b style="color:#111111">Label</b> 12 px caps, muted</li>
+          <li><b style="color:#111111">Value</b> 32 px (hero 56), ink, 650</li>
+          <li><b style="color:#111111">Unit</b> 14 px, muted</li>
+          <li><b style="color:#111111">Rule</b> 12.5 px, what it counts</li>
+          <li><b style="color:#111111">Pin</b> star, 44 px target</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5c5c5c;font-weight:600;margin-bottom:12px">States</div>
+    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px">
+      <sc-for list="{{states}}" as="s" hint-placeholder-count="4">
+        <div>
+          <div style="background:{{s.bg}};border:1px {{s.bstyle}} {{s.border}};border-radius:8px;box-shadow:{{s.ring}};padding:14px 16px;min-height:{{s.h}}px;box-sizing:border-box">
+            <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5c5c5c">{{s.k}}</div>
+            <div style="font-size:{{s.vs}}px;font-weight:600;line-height:1.2;color:{{s.vc}};margin:4px 0 2px">{{s.v}}</div>
+            <div style="font-size:12.5px;color:#5c5c5c">{{s.rule}}</div>
+            <sc-if value="{{s.open}}" hint-placeholder-val="{{false}}">
+              <div style="margin-top:10px;padding-top:10px;border-top:1px solid #dcdcdc;font-size:13px;color:#111111">How it is computed: consecutive days with a session. <span style="display:block;margin-top:6px;font-weight:600;text-decoration:underline">Open Playtime →</span></div>
+            </sc-if>
+          </div>
+          <div style="margin-top:8px;font-weight:600;color:#111111">{{s.name}}</div>
+          <div style="font-size:12.5px;color:#5c5c5c">{{s.note}}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:48px">
+    <div>
+      <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5c5c5c;font-weight:600;margin-bottom:10px">Colour</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px">
+        <sc-for list="{{swatches}}" as="c" hint-placeholder-count="12">
+          <div style="width:84px"><div style="height:36px;border-radius:6px;background:{{c.hex}};border:1px solid #dcdcdc"></div><div style="font-size:12px;color:#111111;margin-top:4px;font-weight:600">{{c.name}}</div><div style="font-size:11.5px;color:#5c5c5c">{{c.hex}}</div></div>
+        </sc-for>
+      </div>
+      <p style="margin:10px 0 0;font-size:12.5px;color:#5c5c5c">Chrome stays neutral ink. Colour on tiles is limited to a group dot beside headings and labels and an amber star on pinned tiles; tiles are white and numbers are ink. Value charts (years, hours, top 5) are coloured by value, see the scale below; categorical charts (the class split) keep the teal ramp. #8c8c8c is decoration and dashed borders, never text.</p>
+      <div style="margin-top:14px"><div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5c5c5c;font-weight:600;margin-bottom:6px">Chart value scale</div>
+        <div style="height:14px;border-radius:7px;background:linear-gradient(to right,#4fb27f,#6b8a14,#8c6400)"></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:#5c5c5c;margin-top:4px"><span>low</span><span>value relative to the chart's peak</span><span>peak</span></div>
+        <p style="margin:8px 0 0;font-size:12.5px;color:#5c5c5c">Light green #4fb27f, olive #6b8a14, dark gold #8c6400, eased so most bars stay green and only the highest turn gold. Lightness falls as the value rises, so the peak is still the darkest bar in greyscale and for colour-blind users. Fills measure 2.6 : 1, 4.0 : 1 and 5.3 : 1 against white; the peak is also named in text above the bar and the bar length carries the value, which meets WCAG 1.4.11 for graphics that repeat text. A small low-to-peak legend sits in the heading of every group that contains a chart. Grafana's bright yellow (#f2cc0c, 1.5 : 1) would make the peak the faintest bar.</p></div>
+    </div>
+    <div>
+      <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5c5c5c;font-weight:600;margin-bottom:10px">Behaviour</div>
+      <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:13px;color:#3a3a3a">
+        <li>Opening grows the tile <b style="color:#111111">downward in its own column</b>; it never moves sideways or changes width.</li>
+        <li>Siblings keep their natural height while a tile is open.</li>
+        <li>Changes animate for 260 ms and are skipped under reduced motion; scroll is anchored to the changed tile.</li>
+        <li>Esc closes and returns focus to the tile; arrow keys move between tiles.</li>
+        <li>Absent data is a dashed tile saying so, never a zero.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1500}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const states = [
+      { name: 'Default', note: 'White card, hairline border, faint shadow. The tile is one button.', k: 'Longest session', v: '11.8 h', vs: 32, vc: '#111111', rule: '9 Nov 2014 · one login to logout', bg: '#ffffff', bstyle: 'solid', border: '#dcdcdc', ring: '0 1px 2px rgba(17,17,17,.05)', h: 96, open: false },
+      { name: 'Hover and focus', note: 'Border unchanged; the shadow deepens on hover-capable devices. Keyboard focus adds the 3 px blue ring.', k: 'Longest session', v: '11.8 h', vs: 32, vc: '#111111', rule: '9 Nov 2014 · one login to logout', bg: '#ffffff', bstyle: 'solid', border: '#dcdcdc', ring: '0 4px 12px rgba(17,17,17,.08)', h: 96, open: false },
+      { name: 'Open', note: 'Ink edge (border plus outline), strongest shadow, definition and source below the figure.', k: 'Longest streak', v: '41 days', vs: 32, vc: '#111111', rule: '3 Mar to 12 Apr 2023', bg: '#ffffff', bstyle: 'solid', border: '#111111', ring: 'inset 0 0 0 1px #111111, 0 8px 24px rgba(17,17,17,.10)', h: 96, open: true },
+      { name: 'Not in this export', note: 'Dashed, grey, flat, no star, cannot open. Shown once per group as a row when nothing in the group is pinned.', k: 'Most damage, one battle', v: 'Not in this export', vs: 18, vc: '#5c5c5c', rule: 'Needs account statistics', bg: '#f5f5f5', bstyle: 'dashed', border: '#8c8c8c', ring: 'none', h: 96, open: false }
+    ];
+    const swatches = [['Ink', '#111111'], ['Text', '#3a3a3a'], ['Muted', '#5c5c5c'], ['Faint', '#8c8c8c'], ['Border', '#dcdcdc'], ['Surface', '#f5f5f5'], ['Selected', '#e0e0e0'], ['Hover', '#ececec'], ['Focus', '#1a73e8'], ['Time dot', '#1f7a74'], ['Tanks dot', '#c26a1b'], ['Records dot', '#8f4a80'], ['Totals dot', '#3a6aa8'], ['Pinned star', '#e0a020'], ['Teal 1', '#b2dcd4'], ['Teal 2', '#7cc7bc'], ['Teal 3', '#43a89c'], ['Teal 4', '#1f7a74'], ['Teal 5', '#0d4f4c']].map((a) => ({ name: a[0], hex: a[1] }));
+    return { states, swatches };
+  }
+}
+</script>
+</body>
+</html>

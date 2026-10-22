@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Overview, phone</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.card{box-shadow:0 1px 2px rgba(17,17,17,.05),0 1px 1px rgba(17,17,17,.03)}
+@media (forced-colors:active){.vb{forced-color-adjust:none;background:Highlight !important;outline:1px solid CanvasText}.dot{forced-color-adjust:none;background:CanvasText !important}.card{border-color:CanvasText !important}}
+</style>
+</helmet>
+<div style="width:390px;min-height:2500px;box-sizing:border-box;background:#ffffff;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.5;color:#3a3a3a">
+  <div style="display:flex;align-items:center;gap:4px;padding:0 8px;height:56px;border-bottom:1px solid #dcdcdc;box-sizing:border-box;background:#f5f5f5">
+    <button style="min-width:48px;min-height:48px;border:0;background:none;font-size:15px;font-weight:600;color:#111111;cursor:pointer;text-align:left;text-decoration:underline">← Sections</button>
+  </div>
+  <div style="padding:20px 16px 40px">
+    <h2 style="margin:0;font-size:26px;line-height:1.3;font-weight:600;color:#111111">Overview</h2>
+    <p style="margin:2px 0 14px;font-size:12.5px;color:#5c5c5c">Computed on this device from 3 account folders · World of Tanks · Mar 2013 to Aug 2026</p>
+    <div style="display:flex;border:1px solid #dcdcdc;border-radius:8px;overflow:hidden;margin:0 0 14px">
+      <button style="flex:1;min-height:48px;padding:0 6px;border:0;border-right:1px solid #dcdcdc;background:#111111;color:#ffffff">World of Tanks</button>
+      <button style="flex:1;min-height:48px;padding:0 6px;border:0;border-right:1px solid #dcdcdc;background:#ffffff">Blitz · 1.9 d</button>
+      <button style="flex:1;min-height:48px;padding:0 6px;border:0;background:#ffffff">Ships · 0.4 d</button>
+    </div>
+    <p style="margin:0 0 18px;font-size:12.5px;color:#5c5c5c">Tap a tile to see how it is computed. Star a tile to pin it.</p>
+    <sc-for list="{{sections}}" as="s" hint-placeholder-count="4">
+      <section style="margin:0 0 22px">
+        <h3 style="margin:0 0 10px;display:flex;align-items:center;gap:10px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:{{s.ink}};font-weight:600"><span class="dot" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:{{s.dot}}"></span>{{s.name}}<span style="font-weight:400;letter-spacing:0;color:#5c5c5c">{{s.count}}</span><span style="flex:1;height:1px;background:#dcdcdc"></span>
+          <sc-if value="{{s.legend}}" hint-placeholder-val="{{false}}"><span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;letter-spacing:0;text-transform:none;font-weight:400;color:#5c5c5c"><span>low</span><span class="vb" style="display:inline-block;width:40px;height:8px;border-radius:4px;background:linear-gradient(to right,#4fb27f,#6b8a14,#8c6400)"></span><span>peak</span></span></sc-if>
+        </h3>
+        <div style="display:grid;grid-template-columns:minmax(0,1fr);gap:12px">
+          <sc-for list="{{s.tiles}}" as="t" hint-placeholder-count="3">
+            <div style="position:relative">
+              <div class="card" style="background:{{t.bg}};border:1px solid {{t.border}};border-radius:8px;outline:{{t.ring}};outline-offset:-2px">
+                <button aria-expanded="{{t.open}}" style="display:block;width:100%;text-align:left;border:0;background:none;padding:16px;border-radius:8px">
+                  <span style="display:block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5c5c5c;padding-right:44px"><span class="dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:{{t.dot}};margin-right:7px;vertical-align:1px"></span>{{t.k}}</span>
+                  <span style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:4px 0 2px">
+                    <span style="font-size:{{t.vs}}px;font-weight:650;line-height:1.15;color:{{t.vc}};overflow-wrap:anywhere">{{t.v}}</span>
+                    <span style="font-size:14px;color:#5c5c5c">{{t.u}}</span>
+                  </span>
+                  <span style="display:block;font-size:12.5px;color:#5c5c5c">{{t.rule}}</span>
+                  <sc-if value="{{t.hasChart}}" hint-placeholder-val="{{false}}"><span class="sr">{{t.summary}}</span></sc-if>
+                  <sc-if value="{{t.hasBars}}" hint-placeholder-val="{{false}}">
+                    <span aria-hidden="true" style="display:block;position:relative;margin-top:28px">
+                      <span style="position:absolute;bottom:calc(100% + 4px);{{t.peakStyle}};font-size:12px;font-weight:600;color:#111111;white-space:nowrap">{{t.peakLabel}}</span>
+                      <span style="display:flex;align-items:flex-end;gap:3px;height:80px;border-bottom:1px solid #8c8c8c">
+                        <sc-for list="{{t.bars}}" as="b" hint-placeholder-count="8"><span class="vb" style="display:block;flex:1;height:{{b.h}}%;background:{{b.c}};border-radius:2px 2px 0 0;min-height:2px"></span></sc-for>
+                      </span>
+                      <span style="display:flex;justify-content:space-between;font-size:12px;color:#5c5c5c;margin-top:4px"><span>2013</span><span>2026</span></span>
+                    </span>
+                  </sc-if>
+                  <sc-if value="{{t.hasRows}}" hint-placeholder-val="{{false}}">
+                    <span aria-hidden="true" style="display:block;margin-top:12px">
+                      <sc-for list="{{t.rows}}" as="r" hint-placeholder-count="5">
+                        <span style="display:grid;grid-template-columns:20px minmax(0,1fr) 56px;gap:8px;align-items:center;margin:9px 0;font-size:13px">
+                          <span style="font-weight:700;color:#5c5c5c;text-align:center">{{r.n}}</span>
+                          <span><span style="display:block;font-weight:600;color:#111111;overflow-wrap:anywhere">{{r.name}}</span><span style="display:block;height:6px;border-radius:3px;background:#ececec;overflow:hidden;margin-top:4px"><span class="vb" style="display:block;height:6px;width:{{r.w}}%;background:{{r.c}}"></span></span></span>
+                          <span style="text-align:right;color:#5c5c5c">{{r.val}}</span>
+                        </span>
+                      </sc-for>
+                    </span>
+                  </sc-if>
+                </button>
+                <sc-if value="{{t.open}}" hint-placeholder-val="{{false}}">
+                  <div style="margin:0 16px 16px;padding-top:12px;border-top:1px solid #dcdcdc">
+                    <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5c5c5c">How it is computed</div>
+                    <div style="font-size:13.5px;color:#111111;margin:2px 0 10px">{{t.def}}</div>
+                    <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5c5c5c">Reads</div>
+                    <div style="font-size:13.5px;color:#111111;margin:2px 0 4px">{{t.src}}</div>
+                    <a href="#" style="display:inline-block;padding:12px 0;color:#111111;font-weight:600;text-decoration:underline">Open {{t.tab}} →</a>
+                  </div>
+                </sc-if>
+              </div>
+              <button aria-label="{{t.starLabel}}" aria-pressed="{{t.pinned}}" style="position:absolute;top:0;right:0;width:48px;height:48px;border:0;background:none;border-radius:8px;display:grid;place-items:center">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" fill="{{t.starFill}}" stroke="{{t.starStroke}}" stroke-width="1.7" stroke-linejoin="round"></path></svg>
+              </button>
+            </div>
+          </sc-for>
+        </div>
+      </section>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":2500}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const stops = [[79, 178, 127], [107, 138, 20], [140, 100, 0]];
+    const hc = (t) => { const u = Math.pow(Math.max(0, Math.min(1, t)), 1.5) * 2; const i = u >= 2 ? 1 : Math.floor(u); const f = u - i; const a = stops[i], b = stops[i + 1]; return 'rgb(' + [0, 1, 2].map((k) => Math.round(a[k] + (b[k] - a[k]) * f)).join(',') + ')'; };
+    const H = { Time: { c: '#1f7a74' }, Tanks: { c: '#c26a1b' }, Records: { c: '#8f4a80' }, Totals: { c: '#3a6aa8' } };
+    const years = [520, 580, 820, 1180, 780, 380, 200, 130, 50, 150, 30, 260, 410, 230, 192];
+    const bars = (a) => { const m = Math.max(...a); return a.map((v) => ({ h: Math.max(3, Math.round((v / m) * 100)), c: hc(v / m) })); };
+    const peakStyle = (a) => { const i = a.indexOf(Math.max(...a)), p = ((i + 0.5) / a.length) * 100; return p < 12 ? 'left:0' : p > 88 ? 'right:0' : 'left:' + p.toFixed(1) + '%;transform:translateX(-50%)'; };
+    const top = [['Object 140', 1018], ['Leopard 1', 874], ['AMX 50 B', 702], ['IS-7', 655], ['E 50 M', 590]];
+    const rows = top.map((t, i) => ({ n: i + 1, name: t[0], w: Math.round((t[1] / 1018) * 100), c: hc(t[1] / 1018), val: t[1].toLocaleString('en') }));
+    const G = { logged: 'Time', tank: 'Tanks', dmg: 'Records', streak: 'Time', sess: 'Time', busy: 'Time', cls: 'Tanks', fleet: 'Tanks', xp: 'Records', kills: 'Records', cred: 'Totals' };
+    const T = (id, k, v, u, rule, o) => Object.assign({ id, k, v, u, rule, vs: 32, open: false, pinned: false, def: '', src: '', tab: '', hasChart: false, summary: '', hasBars: false, hasRows: false, bars: [], rows: [], peakLabel: '', peakStyle: '', border: '#dcdcdc', ring: 'none', starFill: 'none', starStroke: '#8c8c8c', starLabel: 'Pin ' + k }, o || {});
+    const pin = { pinned: true, starFill: '#e0a020', starStroke: '#a8710a' };
+    const sections = [
+      { name: 'Pinned', count: '3', tiles: [
+        T('logged', 'Logged in', '246', 'days', '5,912 h (24-hour days) since 6 May 2015 · 96 days in battle', Object.assign({ vs: 52, hasChart: true, summary: 'Chart: logged hours per year, 14 years, peak 2015 with 1,180 hours.', hasBars: true, bars: bars(years), peakLabel: '1,180 h · 2015', peakStyle: peakStyle(years) }, pin)),
+        T('tank', 'Most-played tank', 'Object 140', 'medium · T10 · USSR', '1,018 battles · 3.1% of all · 54.6% wins', Object.assign({ hasChart: true, summary: 'Top 5 tanks by battles: ' + top.map((t) => t[0] + ' ' + t[1].toLocaleString('en')).join(', ') + '.', hasRows: true, rows }, pin)),
+        T('dmg', 'Most damage, one battle', '7,412', '', 'on E 50 M (medium, tier 9)', pin)
+      ] },
+      { name: 'Time', count: '', tiles: [
+        T('streak', 'Longest streak', '41', 'days', '3 Mar to 12 Apr 2023', { open: true, border: '#111111', ring: '1px solid #111111', def: 'Most consecutive calendar days with at least one session. Wall clock as recorded, no timezone.', src: 'Activity history · WoT game sessions', tab: 'Playtime' }),
+        T('sess', 'Longest session', '11.8', 'h', '9 Nov 2014 · one login to logout'),
+        T('busy', 'Busiest day', '13.2', 'h', '21 Jun 2015 · logged hours in one day')
+      ] },
+      { name: 'Tanks', count: '', tiles: [
+        T('cls', 'Favourite class', 'Heavy', '', '31% of battles'),
+        T('fleet', 'Tanks played', '312', '', 'different tanks')
+      ] },
+      { name: 'Records', count: '', tiles: [
+        T('xp', 'Most XP, one battle', '2,318', '', 'on KV-1S (heavy, tier 5)'),
+        T('kills', 'Most kills, one battle', '9', '', 'on T-34 (medium, tier 5)')
+      ] },
+      { name: 'Totals', count: '', tiles: [
+        T('cred', 'Credits earned', '840', 'million', 'recorded currency operations only')
+      ] }
+    ];
+    sections.forEach((s) => {
+      s.dot = H[s.name] ? H[s.name].c : '#e0a020'; s.ink = s.name === 'Pinned' ? '#111111' : '#5c5c5c';
+      s.legend = s.tiles.some((t) => t.hasChart);
+      s.tiles.forEach((t) => { const h = H[G[t.id]]; t.bg = '#ffffff'; t.vc = '#111111'; t.dot = h.c; });
+    });
+    return { sections };
+  }
+}
+</script>
+</body>
+</html>

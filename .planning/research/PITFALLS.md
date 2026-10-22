@@ -99,7 +99,7 @@ Financial_data dashboard phase — decide "no conversion, ever, for v1" explicit
 ### Pitfall 5: SVG-per-data-point rendering doesn't survive a large/veteran account
 
 **What goes wrong:**
-The calendar heatmap (year-by-year) and day-of-week × hour-of-day heatmap are hand-rolled SVG, which is fine for the ~4,200-session sample inspected — but PROJECT.md itself flags that "how big can this get" for a veteran multi-year account is an unverified assumption. If the heatmap renders one `<rect>` per session (or even one per active day across many years for a long-tenured account), a sufficiently large account can push into the hundreds-of-thousands-of-DOM-nodes range that's documented to freeze or crash a browser tab. This is a different failure mode than the already-documented "unzip/parse blocks main thread" pitfall — this one happens *after* parsing succeeds, purely at render time.
+The calendar heatmap (year-by-year) and day-of-week × hour-of-day heatmap are hand-rolled SVG, which is fine for the ~3,870-session sample inspected — but PROJECT.md itself flags that "how big can this get" for a veteran multi-year account is an unverified assumption. If the heatmap renders one `<rect>` per session (or even one per active day across many years for a long-tenured account), a sufficiently large account can push into the hundreds-of-thousands-of-DOM-nodes range that's documented to freeze or crash a browser tab. This is a different failure mode than the already-documented "unzip/parse blocks main thread" pitfall — this one happens *after* parsing succeeds, purely at render time.
 
 **Why it happens:**
 Calendar heatmaps are naturally modeled "one shape per day," which feels bounded (365/year × N years is small) — but a session-duration histogram or an hour-of-day breakdown rendered at per-session granularity, or a heatmap that also draws per-session tooltips/hit-targets rather than per-day ones, multiplies node count by session count instead of day count.
@@ -172,7 +172,7 @@ Shortcuts that seem reasonable but create long-term problems.
 
 ## Performance Traps
 
-Patterns that work at small scale (the one 2.2MB / ~4,200-row sample) but fail as the export grows.
+Patterns that work at small scale (the one 2.2MB / ~3,870-row sample) but fail as the export grows.
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|-----------------|

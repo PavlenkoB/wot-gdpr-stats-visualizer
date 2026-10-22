@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sketch 023 - Bento refinements</title>
+<link rel="stylesheet" href="../_shared/overview.css">
+<style>
+.bento{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.s2{grid-column:span 2}.s4{grid-column:span 4}.r2{grid-row:span 2}
+@container (max-width:1000px){.bento{grid-template-columns:repeat(2,minmax(0,1fr))}.s4{grid-column:span 2}}
+@container (max-width:520px){.bento{grid-template-columns:minmax(0,1fr)}.s2,.s4{grid-column:auto}.r2{grid-row:auto}.big{font-size:44px}.barrow{grid-template-columns:90px 1fr 80px}}
+/* B1 grouped */
+.grp{margin:0 0 22px}.grp>h3{margin:0 0 8px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:10px}
+.grp>h3::after{content:"";flex:1;height:1px;background:var(--border)}
+.tile .sub{font-size:12.5px;color:var(--muted)}
+/* B2 story + micro visuals */
+.story{border:1px solid var(--border);border-radius:8px;padding:20px 22px;margin:0 0 14px;font-size:18px;line-height:1.5;color:var(--ink);background:#fff}
+.story b{font-weight:650;border-bottom:2px solid var(--r3)}
+.streakstrip{display:grid;grid-template-columns:repeat(22,1fr);gap:2px;margin:10px 0 4px}.streakstrip i{aspect-ratio:1;border-radius:2px;background:var(--r4)}
+.lolli{display:grid;grid-template-columns:70px 1fr 56px;gap:8px;align-items:center;font-size:12.5px;margin:6px 0}
+.lolli .t{height:2px;background:#ddd;position:relative}.lolli .t i{position:absolute;top:-5px;width:12px;height:12px;border-radius:50%;background:var(--r5)}
+.tiers{display:flex;align-items:flex-end;gap:3px;height:56px;margin-top:8px}.tiers i{flex:1;background:var(--r2);border-radius:2px 2px 0 0}.tiers i.m{background:var(--r5)}
+/* B3 interactive */
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0 0 12px;justify-content:space-between}
+.wrap3{display:grid;grid-template-columns:minmax(0,1fr) 0;gap:0;transition:grid-template-columns .2s ease}
+.wrap3.open{grid-template-columns:minmax(0,1fr) 300px;gap:16px}
+.drawer{overflow:hidden;min-width:0}
+.drawer .card{position:sticky;top:64px}
+@container (max-width:760px){.wrap3.open{grid-template-columns:minmax(0,1fr)}.drawer{order:-1}.drawer .card{position:static}}
+.tile.btnlike{text-align:left;cursor:pointer;width:100%;font:inherit;color:inherit;position:relative}
+.tile.btnlike[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);background:#fff}
+.star{position:absolute;top:8px;right:8px;width:32px;height:32px;border:0;background:none;cursor:pointer;font-size:16px;color:var(--faint)}
+.star.on{color:var(--ink)}
+.bento.compact{gap:8px}.bento.compact .tile{padding:10px 12px}.bento.compact .v{font-size:22px}.bento.compact .rule{display:none}
+.dl dt{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:12px}.dl dd{margin:2px 0 0;color:var(--ink)}
+</style>
+</head>
+<body>
+<div id="variant-nav">
+  <button class="variant-tab active" data-v="1">B1: Grouped bento</button>
+  <button class="variant-tab" data-v="2">B2: Story strip + visual tiles</button>
+  <button class="variant-tab" data-v="3">B3: Interactive (filter, pin, drawer)</button>
+</div>
+<div class="frame-wrap"><div class="frame" id="frame"><div class="shell">
+  <nav class="listpane" aria-label="Sections">
+    <button class="row sel"><b>Overview</b><small>Your story at a glance</small></button>
+    <button class="row"><b>Playtime</b><small>1,234 h logged in</small></button>
+    <button class="row"><b>Login history</b><small>country map</small></button>
+    <button class="row"><b>Vehicles</b><small>381 tanks</small></button>
+    <button class="row"><b>Finance</b><small>currency flows</small></button>
+    <button class="row"><b>Payments</b><small>148 orders</small></button>
+    <button class="row mute"><b>Device info</b><small>not in this export</small></button>
+    <button class="row"><b>Account</b><small>created May 2015</small></button>
+  </nav>
+  <main class="detail">
+    <h2 class="section-title">Overview</h2>
+    <p class="provenance">Computed on this device from 3 account folders · World of Tanks · Mar 2013 to Aug 2026</p>
+    <div class="games" role="group" aria-label="Game"><button class="on" data-g="wot">World of Tanks</button><button data-g="wotb">WoT Blitz · 1.9 d</button><button data-g="wows">Warships · 0.4 d</button></div>
+    <section id="variant-1" class="variant"></section>
+    <section id="variant-2" class="variant" style="display:none"></section>
+    <section id="variant-3" class="variant" style="display:none"></section>
+  </main>
+</div></div></div>
+<div class="toast" id="toast"></div>
+<div id="sketch-tools"><span>View</span><button data-w="375">Phone</button><button data-w="768">Tablet</button><button data-w="1280">Desktop</button></div>
+<script src="../_shared/out.local/data.js"></script>
+<script>if(!window.WG)document.querySelector('.detail').insertAdjacentHTML('afterbegin','<p style="color:#c5221f"><b>No data:</b> run <code>node .planning/sketches/_shared/gen-data.mjs</code> (needs a real export; see README).</p>')</script>
+<script src="../_shared/overview.js"></script>
+<script>
+if (window.WG) (function () {
+const W = WG, T = W.time, K = W.tanks, R = W.records, TT = W.totals;
+const top = K.top[0], topCls = K.classes[0];
+const yrs = Object.keys(T.years), yv = Object.values(T.years);
+const tile = (k, v, rule, o = {}) => `<div class="tile ${o.cls || ''}"><div class="k">${k}</div><div class="v">${v}</div>${o.extra || ''}<div class="rule">${rule}</div></div>`;
+const yearChart = (id) => `<div class="cols" id="${id}" style="margin-top:12px" role="img" aria-label="Logged hours per year"></div><div class="axis"><span>${yrs[0]}</span><span>peak ${yrs[yv.indexOf(Math.max(...yv))]} · ${n(Math.max(...yv))} h</span><span>${yrs.at(-1)}</span></div>`;
+const recTank = (r) => (r.tank ? `on ${r.tank.name} (${CLASS[r.tank.type].toLowerCase()}, tier ${r.tank.tier})` : 'on a tank that is no longer in the game list');
+const stack = () => `<div class="stack" role="img" aria-label="Battles by class">${K.classes.filter(c=>c[0]!=='unknown').map((c) => `<i title="${CLASS[c[0]]} ${pct(c[1], K.total)}" style="width:${(c[1] / K.total) * 100}%;background:${CLASS_CLR[c[0]]}"></i>`).join('')}</div><div class="cap" style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap">${K.classes.filter(c=>c[0]!=='unknown').map((c) => `<span><b style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${CLASS_CLR[c[0]]};margin-right:4px"></b>${CLASS[c[0]]} ${pct(c[1], K.total, 0)}</span>`).join('')}</div>`;
+const top5 = () => K.top.slice(0, 5).map((t) => `<div class="barrow"><span><b style="color:var(--ink)">${t.name}</b><br><span class="cap">${CLASS[t.type]}</span></span><div class="bar"><i style="width:${(t.battles / top.battles) * 100}%"></i></div><span>${n(t.battles)}</span></div>`).join('');
+const hourChart = () => `<div class="cols" id="hrs" style="height:64px" role="img" aria-label="Logged hours by hour of day"></div><div class="axis"><span>00</span><span>06</span><span>12</span><span>18</span><span>23</span></div>`;
+const fmtDate = (s) => new Date(s + 'T00:00:00Z').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+const peakH = T.hourHist.indexOf(Math.max(...T.hourHist));
+
+// ---------- B1: grouped bento ----------
+$('#variant-1').innerHTML = `
+<div class="grp"><h3>Time</h3><div class="bento">
+  ${tile('Logged in', `${T.loggedDays} <small>days</small>`, `Union of sessions over 3 account folders · ${n(T.loggedHours)} h · ${T.battleDays} days of it in battle`, { cls: 'w s2 r2', extra: yearChart('b1y') })}
+  ${tile('Longest streak', `${T.streak.days} <small>days</small>`, `${fmtDate(T.streak.start)} to ${fmtDate(T.streak.end)} · days with at least one session`)}
+  ${tile('Longest session', `${T.longestSession.hours} <small>h</small>`, `${fmtDate(T.longestSession.date)} · one login without a break`)}
+  ${tile('Busiest day', `${T.busiest.hours} <small>h</small>`, `${fmtDate(T.busiest.date)} · logged hours in one day`)}
+  ${tile('Signature hour', `${String(peakH).padStart(2, '0')}:00`, 'Most logged hours, wall clock as recorded')}
+</div></div>
+<div class="grp"><h3>Tanks</h3><div class="bento">
+  ${tile('Most-played tank', `${top.name} <small>${CLASS[top.type].toLowerCase()} · T${top.tier} · ${NATION[top.nation]}</small>`, `${n(top.battles)} battles · ${pct(top.battles, K.total)} of all · ${f1(top.hours)} h in battle · ${pct(top.wins, top.battles)} wins`, { cls: 'w s2', extra: '<div style="margin-top:10px">' + top5() + '</div>' })}
+  ${tile('Favourite class', `${CLASS[topCls[0]]}`, `${pct(topCls[1], K.total)} of battles`, { cls: 's2', extra: '<div style="margin-top:10px">' + stack() + '</div>' })}
+</div></div>
+<div class="grp"><h3>Records</h3><div class="bento">
+  ${tile('Most damage, one battle', n(R.damage.v), recTank(R.damage))}
+  ${tile('Most XP, one battle', n(R.xp.v), recTank(R.xp))}
+  ${tile('Most kills, one battle', R.frags.v, recTank(R.frags))}
+  ${tile('Sniper series', R.sniperSeries, 'Longest run of accurate shots recorded')}
+</div></div>
+<div class="grp"><h3>Money and social</h3><div class="bento">
+  ${tile('Credits earned', (W.economy.creditsEarned / 1e9).toFixed(2) + ' <small>billion</small>', 'Recorded currency operations only')}
+  ${tile('Battles', n(TT.battles), `${pct(TT.wins, TT.battles)} wins · ${(TT.damage / 1e6).toFixed(0)} M damage`)}
+  ${tile('Orders', W.economy.orders, 'Count only · amounts hidden by default')}
+  ${tile('Messages sent', W.economy.chat, 'Count only · text never shown')}
+</div></div>`;
+cols($('#b1y'), yv, yrs);
+
+// ---------- B2: story strip + visual tiles ----------
+$('#variant-2').innerHTML = `
+<p class="story">Since <b>${fmtDate(T.first)}</b> you have logged <b>${T.loggedDays} days</b> in World of Tanks, mostly around <b>${String(peakH).padStart(2, '0')}:00</b> and mostly on <b>${CLASS[topCls[0]].toLowerCase()} tanks</b>, with one unbroken <b>${T.streak.days}-day streak</b> in autumn ${T.streak.end.slice(0, 4)}.</p>
+<div class="bento">
+  ${tile('Time with the game', `${T.loggedDays} <small>days</small>`, `Logged in, ${n(T.loggedHours)} h · ${T.battleDays} days in battle`, { cls: 'w s2 r2', extra: yearChart('b2y') })}
+  ${tile('Hour of day', `${String(peakH).padStart(2, '0')}:00`, 'Rule: logged hours by session start hour, no timezone', { cls: 's2', extra: hourChart() })}
+  ${tile('Longest streak', `${T.streak.days} <small>days</small>`, `${fmtDate(T.streak.start)} to ${fmtDate(T.streak.end)}`, { extra: `<div class="streakstrip">${'<i></i>'.repeat(52)}</div>` })}
+  ${tile('Tier mix', `Tier 8 <small>${pct(K.tiers.find((t) => t[0] === '8')?.[1] || 0, K.total, 0)}</small>`, 'Battles per tier', { extra: `<div class="tiers">${[...Array(11)].map((_, i) => { const b = K.tiers.find((t) => t[0] === String(i + 1))?.[1] || 0; const m = Math.max(...K.tiers.map((t) => t[1])); return `<i class="${b === m ? 'm' : ''}" style="height:${Math.max(3, (b / m) * 100)}%" title="Tier ${i + 1}: ${n(b)}"></i>`; }).join('')}</div>` })}
+  ${tile('Most-played tank', `${top.name}`, `${CLASS[top.type]} · T${top.tier} · ${NATION[top.nation]} · ${n(top.battles)} battles (${pct(top.battles, K.total)}) · ${pct(top.wins, top.battles)} wins`, { cls: 'w s2', extra: '<div style="margin-top:8px">' + stack() + '</div>' })}
+  ${tile('Personal bests', '', 'Each dot sits on its own scale, not comparable across rows', { cls: 's2', extra: `<div class="lolli"><span>Damage</span><div class="t"><i style="left:calc(100% - 12px)"></i></div><span>${n(R.damage.v)}</span></div><div class="lolli"><span>XP</span><div class="t"><i style="left:calc(100% - 12px)"></i></div><span>${n(R.xp.v)}</span></div><div class="lolli"><span>Kills</span><div class="t"><i style="left:calc(100% - 12px)"></i></div><span>${R.frags.v}</span></div><div class="lolli"><span>Sniper</span><div class="t"><i style="left:calc(100% - 12px)"></i></div><span>${R.sniperSeries}</span></div>` })}
+  ${tile('Credits earned', (W.economy.creditsEarned / 1e9).toFixed(2) + ' B', 'Recorded currency operations only')}
+  ${tile('Battles', n(TT.battles), `${pct(TT.wins, TT.battles)} wins`)}
+</div>`;
+cols($('#b2y'), yv, yrs); cols($('#hrs'), T.hourHist, T.hourHist.map((_, i) => String(i).padStart(2, '0') + ':00'));
+
+// ---------- B3: interactive ----------
+const items = [
+  { id: 'time', g: 'Time', k: 'Logged in', v: `${T.loggedDays} days`, rule: `${n(T.loggedHours)} h since ${fmtDate(T.first)}`, def: 'Union of WoT session intervals over all account folders. Sessions can include idle hangar time.', src: 'Activity_History / WOT_Game_Sessions', tab: 'Playtime' },
+  { id: 'battle', g: 'Time', k: 'In battle', v: `${T.battleDays} days`, rule: 'lifetime battle time', def: 'Lifetime time spent inside battles, from the account statistics file. A separate figure, never added to logged-in time.', src: 'Player_Statistics / WOT_Account_Statistics', tab: 'Vehicles' },
+  { id: 'streak', g: 'Time', k: 'Longest streak', v: `${T.streak.days} days`, rule: `${fmtDate(T.streak.start)} to ${fmtDate(T.streak.end)}`, def: 'Most consecutive calendar days with at least one session. Wall clock as recorded, no timezone.', src: 'WOT_Game_Sessions', tab: 'Playtime' },
+  { id: 'sess', g: 'Time', k: 'Longest session', v: `${T.longestSession.hours} h`, rule: fmtDate(T.longestSession.date), def: 'One login to logout without a break. Disconnects or idle time can inflate it.', src: 'WOT_Game_Sessions', tab: 'Playtime' },
+  { id: 'tank', g: 'Tanks', k: 'Most-played tank', v: top.name, rule: `${n(top.battles)} battles · ${pct(top.battles, K.total)}`, def: `${CLASS[top.type]}, tier ${top.tier}, ${NATION[top.nation]}. Ranked by lifetime battles. ${f1(top.hours)} h in battle, ${pct(top.wins, top.battles)} wins.`, src: 'WOT_Vehicle_Statistics + tank table', tab: 'Vehicles' },
+  { id: 'cls', g: 'Tanks', k: 'Favourite class', v: CLASS[topCls[0]], rule: `${pct(topCls[1], K.total)} of battles`, def: 'Battles grouped by tank class using the build-time tank table. Retired tanks are left out.', src: 'WOT_Vehicle_Statistics + tank table', tab: 'Vehicles' },
+  { id: 'fleet', g: 'Tanks', k: 'Garage reach', v: `${K.count} tanks`, rule: 'different tanks played', def: 'Tanks with a row in the lifetime vehicle statistics.', src: 'WOT_Vehicle_Statistics', tab: 'Vehicles' },
+  { id: 'dmg', g: 'Records', k: 'Most damage, one battle', v: n(R.damage.v), rule: recTank(R.damage), def: 'Personal best in a single battle.', src: 'WOT_Account_Statistics', tab: 'Vehicles' },
+  { id: 'xp', g: 'Records', k: 'Most XP, one battle', v: n(R.xp.v), rule: recTank(R.xp), def: 'Personal best in a single battle.', src: 'WOT_Account_Statistics', tab: 'Vehicles' },
+  { id: 'kills', g: 'Records', k: 'Most kills, one battle', v: R.frags.v, rule: recTank(R.frags), def: 'Personal best in a single battle.', src: 'WOT_Account_Statistics', tab: 'Vehicles' },
+  { id: 'snip', g: 'Records', k: 'Sniper series', v: R.sniperSeries, rule: 'longest run recorded', def: 'Longest run recorded in the export. Series definitions can differ by game mode, so this is not a medal.', src: 'WOT_Account_Statistics', tab: 'Vehicles' },
+  { id: 'cred', g: 'Money', k: 'Credits earned', v: (W.economy.creditsEarned / 1e9).toFixed(2) + ' B', rule: 'recorded operations', def: 'Sum of credit deposits in the currency operations log. The log may be incomplete for old years.', src: 'Financial_Data / Virtual_Currencies_Operations', tab: 'Finance' },
+  { id: 'ord', g: 'Money', k: 'Orders', v: W.economy.orders, rule: 'count only', def: 'Number of payment orders. Amounts are hidden by default because they are sensitive.', src: 'Payment_History / Orders', tab: 'Payments' },
+];
+const pins = new Set(['time', 'tank']); let filter = 'All', sel = null, compact = false;
+const groups = ['All', ...new Set(items.map((i) => i.g))];
+$('#variant-3').innerHTML = `<div class="toolbar"><div class="seg" id="b3f" role="group" aria-label="Filter">${groups.map((g, i) => `<button class="${i ? '' : 'on'}" data-f="${g}">${g}</button>`).join('')}</div><div class="seg" id="b3d" role="group" aria-label="Density"><button class="on" data-d="0">Comfortable</button><button data-d="1">Compact</button></div></div>
+<div class="wrap3" id="b3w"><div><div class="bento" id="b3b"></div><p class="cap" style="margin-top:10px">Star a tile to pin it first. Select a tile to read how it is computed.</p></div><aside class="drawer" aria-live="polite" id="b3a"></aside></div>`;
+function draw3() {
+  const list = items.filter((i) => filter === 'All' || i.g === filter).sort((a, b) => (pins.has(b.id) - pins.has(a.id)));
+  $('#b3b').className = 'bento' + (compact ? ' compact' : '');
+  $('#b3b').innerHTML = list.map((i) => `<div style="position:relative"><button class="tile btnlike w ${pins.has(i.id) ? 's2' : ''}" data-id="${i.id}" aria-pressed="${sel === i.id}"><div class="k">${i.k}</div><div class="v">${i.v}</div><div class="rule">${i.rule}</div></button><button class="star ${pins.has(i.id) ? 'on' : ''}" data-star="${i.id}" aria-label="${pins.has(i.id) ? 'Unpin' : 'Pin'} ${i.k}" aria-pressed="${pins.has(i.id)}">${pins.has(i.id) ? '★' : '☆'}</button></div>`).join('');
+  $$('#b3b > div').forEach((d, i) => { if (pins.has(list[i].id)) d.style.gridColumn = 'span 2'; });
+  const it = items.find((i) => i.id === sel);
+  $('#b3w').classList.toggle('open', !!it);
+  $('#b3a').innerHTML = it ? `<div class="card"><div style="display:flex;justify-content:space-between;align-items:start"><div class="k">${it.g}</div><button class="link" id="b3x" aria-label="Close details">Close</button></div><div class="v" style="margin-top:4px">${it.k}</div><div class="big" style="font-size:40px;margin:4px 0 10px">${it.v}</div><dl class="dl" style="margin:0"><dt>How it is computed</dt><dd>${it.def}</dd><dt>Reads</dt><dd>${it.src}</dd><dt>Detail</dt><dd>${it.rule}</dd></dl><p style="margin:14px 0 0"><button class="link" data-toast="Would open ${it.tab}">Open ${it.tab} →</button></p></div>` : '';
+}
+$('#variant-3').addEventListener('click', (e) => {
+  const f = e.target.closest('[data-f]'); if (f) { filter = f.dataset.f; $$('#b3f button').forEach((b) => b.classList.toggle('on', b === f)); sel = null; draw3(); return; }
+  const d = e.target.closest('[data-d]'); if (d) { compact = d.dataset.d === '1'; $$('#b3d button').forEach((b) => b.classList.toggle('on', b === d)); draw3(); return; }
+  const s = e.target.closest('[data-star]'); if (s) { const id = s.dataset.star; pins.has(id) ? pins.delete(id) : pins.add(id); draw3(); say(pins.has(id) ? 'Pinned' : 'Unpinned'); return; }
+  const t = e.target.closest('[data-id]'); if (t) { sel = sel === t.dataset.id ? null : t.dataset.id; draw3(); return; }
+  if (e.target.closest('#b3x')) { sel = null; draw3(); }
+});
+draw3();
+})();
+</script>
+</body>
+</html>

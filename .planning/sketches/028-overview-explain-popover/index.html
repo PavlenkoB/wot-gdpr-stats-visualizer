@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sketch 028 - Explain popover</title>
+<link rel="stylesheet" href="../_shared/overview.css">
+<style>
+/* B1 grouped bento: 3 tile sizes, hero top-left. */
+.bento{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;grid-auto-flow:dense}
+.sz-hero{grid-column:span 2;grid-row:span 2}.sz-feat{grid-column:span 2}
+@container (max-width:1000px){.bento{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@container (max-width:520px){.bento{grid-template-columns:minmax(0,1fr)}.sz-hero,.sz-feat{grid-column:auto;grid-row:auto}.big{font-size:44px}.barrow{grid-template-columns:90px 1fr 80px}}
+.grp{margin:0 0 22px}.grp>h3{margin:0 0 8px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:10px}
+.grp>h3::after{content:"";flex:1;height:1px;background:var(--border)}
+.tw{position:relative;min-width:0}.tw.sz-hero{grid-column:span 2;grid-row:span 2}.tw.sz-feat{grid-column:span 2}
+@container (max-width:1000px){.tw.sz-hero,.tw.sz-feat{grid-column:span 2}}
+@container (max-width:520px){.tw.sz-hero,.tw.sz-feat{grid-column:auto;grid-row:auto}}
+.tile.t{text-align:left;cursor:pointer;width:100%;height:100%;font:inherit;color:inherit;display:block;background:#fff}
+.tile.t[aria-expanded="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.tile .v{margin:2px 0}
+.hint{position:absolute;top:10px;right:12px;width:20px;height:20px;border:1.5px solid var(--faint);border-radius:50%;font:600 12px/17px system-ui;text-align:center;color:var(--muted);pointer-events:none}
+.tw:hover .hint{border-color:var(--ink);color:var(--ink)}
+/* P2 real info button: 44px hit area, 20px visual */
+.info{position:absolute;top:0;right:0;width:44px;height:44px;border:0;background:none;cursor:pointer;border-radius:8px;display:grid;place-items:center;z-index:2}
+.info span{width:20px;height:20px;border:1.5px solid var(--muted);border-radius:50%;font:600 12px/17px system-ui;color:var(--muted);transition:all .15s ease}
+.info:hover span,.info[aria-expanded="true"] span{background:var(--ink);border-color:var(--ink);color:#fff}
+.tw.has-info .tile .k{padding-right:34px}
+/* popover (native Popover API; top layer; positioned with element.style left/top, CSP-safe) */
+.pop{inset:auto;margin:0;padding:0;border:1px solid var(--ink);border-radius:8px;background:#fff;color:var(--text);width:min(340px,calc(100vw - 16px));box-shadow:0 10px 30px rgba(0,0,0,.18);overflow:visible}
+.pop::before{content:"";position:absolute;left:var(--ax,50%);width:12px;height:12px;background:#fff;border:1px solid var(--ink);border-right:0;border-bottom:0;transform:translateX(-50%) rotate(45deg)}
+.pop[data-side="below"]::before{top:-7px}
+.pop[data-side="above"]::before{bottom:-7px;transform:translateX(-50%) rotate(225deg)}
+.pop .in{padding:14px 16px 12px;max-height:min(70vh,420px);overflow:auto}
+.pop .hd{display:flex;justify-content:space-between;align-items:start;gap:8px}
+.pop .ttl{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0}
+.pop .num{font-size:30px;font-weight:650;line-height:1.15;color:var(--ink);margin:2px 0 8px}
+.pop dl{margin:0}.pop dt{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:10px}.pop dd{margin:2px 0 0;color:var(--ink);font-size:13.5px}
+.pop .x{min-width:44px;min-height:44px;margin:-10px -12px 0 0;border:0;background:none;cursor:pointer;color:var(--ink);font-size:18px;border-radius:8px}.pop .x:hover{background:var(--hover)}
+.pop .ft{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:12px;padding-top:6px;border-top:1px solid var(--border)}
+.pop .step{display:flex;align-items:center;gap:4px;color:var(--muted);font-size:12.5px}
+.pop .step button{min-width:44px;min-height:44px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:16px;color:var(--ink)}.pop .step button:hover{background:var(--hover)}
+/* P3 bottom sheet (dialog) on narrow */
+dialog.sheet{inset:auto 0 0 0;margin:0;width:100%;max-width:none;border:0;border-radius:14px 14px 0 0;padding:0;background:#fff;box-shadow:0 -10px 30px rgba(0,0,0,.25)}
+dialog.sheet::before{display:none}
+dialog.sheet::backdrop{background:rgba(0,0,0,.4)}
+dialog.sheet .grab{width:40px;height:4px;border-radius:2px;background:var(--border);margin:8px auto 0}
+dialog.sheet .in{padding:8px 18px 18px;max-height:75vh;overflow:auto}
+.note{font-size:12.5px;color:var(--muted);margin:0 0 12px}
+</style>
+</head>
+<body>
+<div id="variant-nav">
+  <button class="variant-tab active" data-v="1">P1: Click a tile, anchored popover</button>
+  <button class="variant-tab" data-v="2">P2: Info button; tile itself navigates</button>
+  <button class="variant-tab" data-v="3">P3: Popover on desktop, bottom sheet on phone + stepper</button>
+</div>
+<div class="frame-wrap"><div class="frame" id="frame"><div class="shell">
+  <nav class="listpane" aria-label="Sections">
+    <button class="row sel"><b>Overview</b><small>Your story at a glance</small></button>
+    <button class="row"><b>Playtime</b><small>1,234 h logged in</small></button>
+    <button class="row"><b>Login history</b><small>country map</small></button>
+    <button class="row"><b>Vehicles</b><small>381 tanks</small></button>
+    <button class="row"><b>Finance</b><small>currency flows</small></button>
+    <button class="row"><b>Payments</b><small>148 orders</small></button>
+    <button class="row mute"><b>Device info</b><small>not in this export</small></button>
+    <button class="row"><b>Account</b><small>created May 2015</small></button>
+  </nav>
+  <main class="detail">
+    <h2 class="section-title">Overview</h2>
+    <p class="provenance">Computed on this device from 3 account folders · World of Tanks · Mar 2013 to Aug 2026</p>
+    <div class="games" role="group" aria-label="Game"><button class="on" data-g="wot">World of Tanks</button><button data-g="wotb">WoT Blitz · 1.9 d</button><button data-g="wows">Warships · 0.4 d</button></div>
+    <section id="variant-1" class="variant"></section>
+    <section id="variant-2" class="variant" style="display:none"></section>
+    <section id="variant-3" class="variant" style="display:none"></section>
+    <div id="pops"></div>
+  </main>
+</div></div></div>
+<div class="toast" id="toast"></div>
+<div id="sketch-tools"><span>View</span><button data-w="375">Phone</button><button data-w="768">Tablet</button><button data-w="1280">Desktop</button></div>
+<script src="../_shared/out.local/data.js"></script>
+<script>if(!window.WG)document.querySelector('.detail').insertAdjacentHTML('afterbegin','<p style="color:#c5221f"><b>No data:</b> run <code>node .planning/sketches/_shared/gen-data.mjs</code> (needs a real export; see README).</p>')</script>
+<script src="../_shared/overview.js"></script>
+<script src="../_shared/model.js"></script>
+<script>
+if (window.WG) (function () {
+const { items, groups, byId, vizHtml, hydrate } = M;
+const tile = (i, extra = '', hint = '') => `<div class="tw sz-${i.size} ${extra}"><button class="tile t" data-id="${i.id}" aria-haspopup="dialog" aria-expanded="false"><div class="k">${i.k}</div><div class="v">${i.v}</div><div class="rule">${i.rule}</div>${i.viz ? vizHtml(i.viz) : ''}</button>${hint}</div>`;
+const grouped = (fn) => groups.map((g) => `<div class="grp"><h3>${g}</h3><div class="bento">${items.filter((i) => i.g === g).map(fn).join('')}</div></div>`).join('');
+const body = (it, withStep, idx) => `<div class="in"><div class="hd"><p class="ttl" id="pt-${it.id}">${it.g} · ${it.k}</p><button class="x" data-x aria-label="Close explanation">✕</button></div><div class="num">${it.t}</div><dl><dt>How it is computed</dt><dd>${it.def}</dd><dt>Reads</dt><dd>${it.src}</dd><dt>Detail</dt><dd>${it.rule}</dd></dl><div class="ft"><button class="link" data-toast="Would open ${it.tab}">Open ${it.tab} →</button>${withStep ? `<span class="step"><button data-step="-1" aria-label="Previous tile">‹</button><span aria-live="polite">${idx + 1} / ${items.length}</span><button data-step="1" aria-label="Next tile">›</button></span>` : ''}</div></div>`;
+
+// CSP-safe placement: left/top via CSSOM only, as ChartTooltip does. Arrow offset via a CSS variable property write.
+function place(pop, anchor) {
+  const a = anchor.getBoundingClientRect(), pw = pop.offsetWidth, ph = pop.offsetHeight, gap = 10;
+  const below = a.bottom + gap + ph <= innerHeight - 8, above = a.top - gap - ph >= 8;
+  const side = below || !above ? 'below' : 'above';
+  let top = side === 'below' ? Math.min(a.bottom + gap, innerHeight - ph - 8) : a.top - gap - ph;
+  top = Math.max(8, top);
+  const left = Math.min(Math.max(8, a.left + a.width / 2 - pw / 2), innerWidth - pw - 8);
+  pop.style.left = left + 'px'; pop.style.top = top + 'px';
+  pop.style.setProperty('--ax', Math.min(Math.max(18, a.left + a.width / 2 - left), pw - 18) + 'px'); pop.dataset.side = side;
+}
+const follow = { pop: null, anchor: null };
+addEventListener('scroll', () => { if (follow.pop && follow.pop.matches(':popover-open')) place(follow.pop, follow.anchor); else if (follow.pop) follow.pop = null; }, { passive: true });
+addEventListener('resize', () => { if (follow.pop && follow.pop.matches(':popover-open')) place(follow.pop, follow.anchor); });
+
+// ---------- P1: one shared popover, opened by the tile itself ----------
+const r1 = $('#variant-1');
+r1.innerHTML = `<p class="note">Click a tile to see how it is computed. Click again, click elsewhere or press Esc to close; focus returns to the tile.</p>` + grouped((i) => tile(i, '', '<span class="hint" aria-hidden="true">i</span>'));
+hydrate(r1);
+const p1 = document.createElement('div'); p1.className = 'pop'; p1.setAttribute('popover', 'auto'); p1.setAttribute('role', 'dialog'); p1.setAttribute('aria-modal', 'false'); $('#pops').append(p1);
+let p1id = null, closedId = null, closedAt = 0;
+p1.addEventListener('toggle', (e) => { if (e.newState === 'closed') { closedId = p1id; closedAt = performance.now(); r1.querySelectorAll('.t').forEach((t) => t.setAttribute('aria-expanded', 'false')); } });
+r1.addEventListener('click', (e) => {
+  const t = e.target.closest('.t'); if (!t) return; const id = t.dataset.id;
+  if (closedId === id && performance.now() - closedAt < 250) return; // light-dismiss already closed this one: behave as a toggle
+  const isOpen = p1.matches(':popover-open');
+  if (isOpen && p1id === id) { p1.hidePopover(); return; } // keyboard Enter/Space on the open tile: toggle
+  p1id = id; p1.setAttribute('aria-labelledby', 'pt-' + id); p1.innerHTML = body(byId[id], false, 0); r1.querySelectorAll('.t').forEach((x) => x.setAttribute('aria-expanded', String(x === t)));
+  if (!isOpen) p1.showPopover(); place(p1, t); follow.pop = p1; follow.anchor = t;
+});
+p1.addEventListener('click', (e) => { if (e.target.closest('[data-x]')) { p1.hidePopover(); r1.querySelector(`.t[data-id="${p1id}"]`)?.focus(); } });
+
+// ---------- P2: info button opens the explanation; the tile itself navigates ----------
+const r2 = $('#variant-2');
+r2.innerHTML = `<p class="note">The tile goes to its section (like the list rows). The small ⓘ explains the number. Both are buttons, so keyboard and screen readers get two clear actions.</p>` + grouped((i) => `<div class="tw sz-${i.size} has-info"><button class="tile t" data-id="${i.id}" data-go="${i.tab}"><div class="k">${i.k}</div><div class="v">${i.v}</div><div class="rule">${i.rule}</div>${i.viz ? vizHtml(i.viz) : ''}</button><button class="info" popovertarget="pp-${i.id}" popovertargetaction="toggle" aria-label="How is ${i.k} computed?" aria-expanded="false"><span aria-hidden="true">i</span></button></div>`);
+hydrate(r2);
+items.forEach((i) => { const p = document.createElement('div'); p.className = 'pop'; p.id = 'pp-' + i.id; p.setAttribute('popover', 'auto'); p.setAttribute('role', 'dialog'); p.setAttribute('aria-modal', 'false'); p.setAttribute('aria-labelledby', 'pt-' + i.id); p.innerHTML = body(i, false, 0); $('#pops').append(p);
+  p.addEventListener('toggle', (e) => { const btn = r2.querySelector(`[popovertarget="${p.id}"]`); if (btn) btn.setAttribute('aria-expanded', String(e.newState === 'open')); if (e.newState === 'open' && btn) { place(p, btn); follow.pop = p; follow.anchor = btn; } });
+  p.addEventListener('click', (ev) => { if (ev.target.closest('[data-x]')) p.hidePopover(); }); });
+r2.addEventListener('click', (e) => { const t = e.target.closest('[data-go]'); if (t) say('Would open ' + t.dataset.go); });
+
+// ---------- P3: popover (wide) / bottom-sheet dialog (narrow) with a stepper ----------
+const r3 = $('#variant-3');
+r3.innerHTML = `<p class="note">Wide: anchored popover. Narrow: a bottom sheet (native dialog, focus kept inside, Esc closes). Use ‹ › to step through all tiles without closing.</p>` + grouped((i) => tile(i, '', '<span class="hint" aria-hidden="true">i</span>'));
+hydrate(r3);
+const p3 = document.createElement('div'); p3.className = 'pop'; p3.setAttribute('popover', 'auto'); p3.setAttribute('role', 'dialog'); p3.setAttribute('aria-modal', 'false'); $('#pops').append(p3);
+const d3 = document.createElement('dialog'); d3.className = 'sheet pop'; d3.innerHTML = '<div class="grab" aria-hidden="true"></div><div data-body></div>'; $('#pops').append(d3);
+let idx3 = 0, last3 = null, cl = { id: null, t: 0 };
+const narrow = () => $('#frame').getBoundingClientRect().width < 760;
+function fill3() { const it = items[idx3]; const html = body(it, true, idx3); if (narrow()) { d3.querySelector('[data-body]').innerHTML = html; d3.setAttribute('aria-labelledby', 'pt-' + it.id); } else { p3.innerHTML = html; p3.setAttribute('aria-labelledby', 'pt-' + it.id); } }
+function open3(id) {
+  idx3 = items.findIndex((i) => i.id === id); const t = r3.querySelector(`.t[data-id="${id}"]`); last3 = t; fill3(); r3.querySelectorAll('.t').forEach((x) => x.setAttribute('aria-expanded', String(x === t)));
+  if (narrow()) { if (!d3.open) d3.showModal(); } else { if (!p3.matches(':popover-open')) p3.showPopover(); place(p3, t); follow.pop = p3; follow.anchor = t; }
+}
+function step(dir) {
+  idx3 = (idx3 + dir + items.length) % items.length; const t = r3.querySelector(`.t[data-id="${items[idx3].id}"]`); last3 = t; fill3();
+  r3.querySelectorAll('.t').forEach((x) => x.setAttribute('aria-expanded', String(x === t))); t.scrollIntoView({ block: 'nearest' });
+  if (!narrow()) { place(p3, t); follow.anchor = t; } const nb = (narrow() ? d3 : p3).querySelector(`[data-step="${dir}"]`); if (nb) nb.focus();
+}
+r3.addEventListener('click', (e) => { const t = e.target.closest('.t'); if (!t) return; if (cl.id === t.dataset.id && performance.now() - cl.t < 250) return; open3(t.dataset.id); });
+p3.addEventListener('toggle', (e) => { if (e.newState === 'closed') { cl = { id: items[idx3].id, t: performance.now() }; r3.querySelectorAll('.t').forEach((x) => x.setAttribute('aria-expanded', 'false')); } });
+d3.addEventListener('close', () => { r3.querySelectorAll('.t').forEach((x) => x.setAttribute('aria-expanded', 'false')); last3 && last3.focus(); });
+d3.addEventListener('click', (e) => { if (e.target === d3) d3.close(); });
+for (const host of [p3, d3]) host.addEventListener('click', (e) => { const s = e.target.closest('[data-step]'); if (s) return step(+s.dataset.step); if (e.target.closest('[data-x]')) { host === d3 ? d3.close() : (p3.hidePopover(), last3 && last3.focus()); } });
+for (const host of [p3, d3]) host.addEventListener('keydown', (e) => { if (e.key === 'ArrowRight') step(1); else if (e.key === 'ArrowLeft') step(-1); });
+})();
+</script>
+</body>
+</html>

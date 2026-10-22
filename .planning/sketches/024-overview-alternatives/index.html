@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sketch 024 - Overview alternatives</title>
+<link rel="stylesheet" href="../_shared/overview.css">
+<style>
+@container (max-width:520px){.big{font-size:44px}}
+/* D: sentences */
+.prose{max-width:62ch;font-size:19px;line-height:1.75;color:var(--ink)}
+.prose p{margin:0 0 18px}
+.fig{font:inherit;font-weight:650;color:var(--ink);background:none;border:0;border-bottom:2px solid var(--r3);padding:0 1px;cursor:pointer;transition:background .15s ease}
+.fig:hover,.fig[aria-expanded="true"]{background:var(--r1)}
+.note{display:none;margin:-6px 0 18px;padding:12px 14px;border:1px solid var(--border);border-left:3px solid var(--ink);border-radius:0 8px 8px 0;background:var(--list);font-size:13.5px;line-height:1.5;color:var(--text);max-width:62ch}
+.note.on{display:block}
+.facts{margin-top:28px;border-top:1px solid var(--border)}
+.facts table{width:100%;border-collapse:collapse;font-size:13px}
+.facts th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;padding:8px 6px;border-bottom:1px solid var(--border)}
+.facts td{padding:10px 6px;border-bottom:1px solid var(--border)}.facts td:nth-child(2){font-weight:600;color:var(--ink);white-space:nowrap}
+/* E: then vs now */
+.era{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+@container (max-width:760px){.era{grid-template-columns:minmax(0,1fr)}}
+.era h3{margin:0 0 2px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.era .years{font-size:26px;font-weight:650;color:var(--ink);margin-bottom:10px}
+.mrow{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.mrow:last-of-type{border-bottom:0}
+.mrow .l{color:var(--ink);font-weight:600}.mrow .n{font-size:20px;font-weight:650;color:var(--ink);text-align:right}
+.mrow .d{grid-column:1/-1;font-size:12.5px;color:var(--muted)}
+.delta{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;background:var(--hover);font-size:12px;font-weight:600;color:var(--ink)}
+.mini{display:flex;align-items:flex-end;gap:2px;height:44px;margin-top:6px}.mini i{flex:1;background:var(--r3);border-radius:1px 1px 0 0}.mini i.p{background:var(--r5)}
+.gap{margin:14px 0 0;padding:12px 14px;border:1px dashed var(--faint);border-radius:8px;font-size:13px;background:var(--list)}
+/* F: poster */
+.poster{border:1px solid var(--border);border-radius:8px;padding:16px;background:#fff;overflow-x:auto}
+.pgrid{display:grid;grid-template-columns:34px repeat(53,minmax(7px,1fr));gap:2px;min-width:520px;align-items:center}
+.pgrid .yl{font-size:11px;color:var(--muted);text-align:right;padding-right:4px}
+.pgrid .c{aspect-ratio:1;border-radius:2px;background:var(--r0);position:relative}
+.pgrid .c.l1{background:var(--r1)}.pgrid .c.l2{background:var(--r2)}.pgrid .c.l3{background:var(--r3)}.pgrid .c.l4{background:var(--r4)}.pgrid .c.l5{background:var(--r5)}
+.pgrid .c.hl{outline:2px solid #d4690c;outline-offset:0;z-index:1}
+.pgrid .c.dim{opacity:.35}
+.legend{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);margin-top:10px}.legend i{width:12px;height:12px;border-radius:2px;display:inline-block}
+.callouts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr));gap:10px;margin-top:14px}
+.callout{display:block;width:100%;text-align:left;border:1px solid var(--border);border-radius:8px;background:var(--list);padding:12px 14px;cursor:pointer;transition:all .15s ease}
+.callout:hover,.callout[aria-pressed="true"]{border-color:var(--ink);background:#fff}
+.callout .v{font-size:24px}
+.ptip{min-height:22px;font-size:13px;color:var(--ink);margin-top:8px}
+</style>
+</head>
+<body>
+<div id="variant-nav">
+  <button class="variant-tab active" data-v="d">D: Sentences (prose + facts)</button>
+  <button class="variant-tab" data-v="e">E: Then vs now (two eras)</button>
+  <button class="variant-tab" data-v="f">F: 14-year poster (calendar)</button>
+</div>
+<div class="frame-wrap"><div class="frame" id="frame"><div class="shell">
+  <nav class="listpane" aria-label="Sections">
+    <button class="row sel"><b>Overview</b><small>Your story at a glance</small></button>
+    <button class="row"><b>Playtime</b><small>1,234 h logged in</small></button>
+    <button class="row"><b>Login history</b><small>country map</small></button>
+    <button class="row"><b>Vehicles</b><small>381 tanks</small></button>
+    <button class="row"><b>Finance</b><small>currency flows</small></button>
+    <button class="row"><b>Payments</b><small>148 orders</small></button>
+    <button class="row mute"><b>Device info</b><small>not in this export</small></button>
+    <button class="row"><b>Account</b><small>created May 2015</small></button>
+  </nav>
+  <main class="detail">
+    <h2 class="section-title">Overview</h2>
+    <p class="provenance">Computed on this device from 3 account folders · World of Tanks · Mar 2013 to Aug 2026</p>
+    <div class="games" role="group" aria-label="Game"><button class="on" data-g="wot">World of Tanks</button><button data-g="wotb">WoT Blitz · 1.9 d</button><button data-g="wows">Warships · 0.4 d</button></div>
+    <section id="variant-d" class="variant"></section>
+    <section id="variant-e" class="variant" style="display:none"></section>
+    <section id="variant-f" class="variant" style="display:none"></section>
+  </main>
+</div></div></div>
+<div class="toast" id="toast"></div>
+<div id="sketch-tools"><span>View</span><button data-w="375">Phone</button><button data-w="768">Tablet</button><button data-w="1280">Desktop</button></div>
+<script src="../_shared/out.local/data.js"></script>
+<script>if(!window.WG)document.querySelector('.detail').insertAdjacentHTML('afterbegin','<p style="color:#c5221f"><b>No data:</b> run <code>node .planning/sketches/_shared/gen-data.mjs</code> (needs a real export; see README).</p>')</script>
+<script src="../_shared/overview.js"></script>
+<script>
+if (window.WG) (function () {
+const W = WG, T = W.time, K = W.tanks, R = W.records, TT = W.totals, E = W.eras;
+const top = K.top[0], cls0 = K.classes[0];
+const fmtDate = (s) => new Date(s + 'T00:00:00Z').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+const peakH = T.hourHist.indexOf(Math.max(...T.hourHist));
+const yrs = Object.keys(T.years), yv = Object.values(T.years);
+const peakY = yrs[yv.indexOf(Math.max(...yv))];
+
+// ---------- D: sentences ----------
+const figs = [
+  ['t', `${T.loggedDays} days`, `<b>Rule:</b> union of WoT session intervals over all 3 account folders (${n(T.loggedHours)} h, ${n(T.sessions)} sessions, no overlap found). Sessions can include idle hangar time. <b>${T.battleDays} days</b> of that were inside battles (lifetime battle time, a separate figure). <button class="link" data-toast="Would open Playtime">Open Playtime →</button>`],
+  ['p', `${n(T.years[peakY])} hours in ${peakY}`, `<b>Rule:</b> logged hours per year by session start. <button class="link" data-toast="Would open Playtime">Open Playtime →</button>`],
+  ['h', `${String(peakH).padStart(2, '0')}:00`, `<b>Rule:</b> the hour of day with the most logged hours, wall clock as recorded (no timezone).`],
+  ['s', `${T.streak.days}-day streak`, `<b>Rule:</b> consecutive days with at least one session: ${fmtDate(T.streak.start)} to ${fmtDate(T.streak.end)}.`],
+  ['k', top.name, `<b>Rule:</b> most battles in the lifetime vehicle statistics: ${n(top.battles)} battles (${pct(top.battles, K.total)}), ${f1(top.hours)} h in battle, ${pct(top.wins, top.battles)} wins. ${CLASS[top.type]}, tier ${top.tier}, ${NATION[top.nation]}. <button class="link" data-toast="Would open Vehicles">Open Vehicles →</button>`],
+  ['c', `${CLASS[cls0[0]].toLowerCase()} tanks`, `<b>Rule:</b> battles per class: ${K.classes.filter(c => c[0] !== 'unknown').map(c => CLASS[c[0]] + ' ' + pct(c[1], K.total, 0)).join(', ')}. Retired tanks are left out.`],
+  ['b', `${n(TT.battles)} battles`, `<b>Rule:</b> lifetime battles, ${pct(TT.wins, TT.battles)} won. Win rate depends on teammates, so read it as a fact, not a score.`],
+  ['d', `${n(R.damage.v)} damage`, `<b>Rule:</b> personal best in a single battle, from the account statistics.`],
+  ['r', `${R.sniperSeries}`, `<b>Rule:</b> longest sniper series recorded. Series definitions differ by mode; this is not a medal.`],
+  ['m', `${(W.economy.creditsEarned / 1e9).toFixed(2)} billion credits`, `<b>Rule:</b> sum of credit deposits in the recorded currency operations. <button class="link" data-toast="Would open Finance">Open Finance →</button>`],
+];
+const F = Object.fromEntries(figs.map(f => [f[0], f]));
+const fig = (id) => `<button class="fig" data-fig="${id}" aria-expanded="false" aria-controls="note-${id}">${F[id][1]}</button>`;
+const note = (id) => `<div class="note" id="note-${id}" role="note">${F[id][2]}</div>`;
+$('#variant-d').innerHTML = `<div class="prose">
+<p>You started playing World of Tanks on <b>${fmtDate(T.first)}</b>. Since then you have logged ${fig('t')} in the game across ${n(T.activeDays)} different days.</p>${note('t')}
+<p>Your busiest year was ${fig('p')}, and your day usually peaks around ${fig('h')}. Your longest unbroken run was a ${fig('s')}.</p>${note('p')}${note('h')}${note('s')}
+<p>Your most-played tank is the ${fig('k')}, and overall you reach for ${fig('c')} most often.</p>${note('k')}${note('c')}
+<p>Across ${fig('b')} your best single round was ${fig('d')}, and your longest sniper run was ${fig('r')} shots. Along the way you earned ${fig('m')}.</p>${note('b')}${note('d')}${note('r')}${note('m')}
+</div>
+<div class="facts"><table><thead><tr><th>Fact</th><th>Value</th><th>Source</th></tr></thead><tbody>
+<tr><td>Logged in</td><td>${T.loggedDays} days</td><td class="cap">Activity history</td></tr>
+<tr><td>In battle</td><td>${T.battleDays} days</td><td class="cap">Account statistics</td></tr>
+<tr><td>Longest session</td><td>${T.longestSession.hours} h</td><td class="cap">Activity history</td></tr>
+<tr><td>Busiest day</td><td>${T.busiest.hours} h</td><td class="cap">Activity history</td></tr>
+<tr><td>Tanks played</td><td>${K.count}</td><td class="cap">Vehicle statistics</td></tr>
+<tr><td>Orders</td><td>${W.economy.orders}</td><td class="cap">Payment history (count only)</td></tr></tbody></table></div>`;
+$('#variant-d').addEventListener('click', (e) => { const b = e.target.closest('[data-fig]'); if (!b) return; const nt = $('#note-' + b.dataset.fig); const on = !nt.classList.contains('on'); nt.classList.toggle('on', on); b.setAttribute('aria-expanded', on); });
+
+// ---------- E: then vs now ----------
+const e1 = E.early, e2 = E.recent;
+const delta = (a, b, unit = '') => { const d = b - a; return `<span class="delta">${d > 0 ? '+' : d < 0 ? '−' : ''}${Math.abs(d)}${unit} vs then</span>`; };
+const hist = (h) => { const m = Math.max(...h); return `<div class="mini" role="img" aria-label="Logged hours by hour of day">${h.map((v, i) => `<i class="${v === m ? 'p' : ''}" style="height:${Math.max(3, v / m * 100)}%" title="${String(i).padStart(2, '0')}:00 · ${v} h"></i>`).join('')}</div>`; };
+const col = (era, other, title, isNow) => `<div class="card"><h3>${title}</h3><div class="years">${era.years}</div>
+<div class="mrow"><span class="l">Logged hours per year</span><span class="n">${n(era.hoursPerYear)}${isNow ? delta(other.hoursPerYear, era.hoursPerYear) : ''}</span><span class="d">${n(era.sessions)} sessions in these 5 years</span></div>
+<div class="mrow"><span class="l">Typical session</span><span class="n">${era.medianSessionMin} min${isNow ? delta(other.medianSessionMin, era.medianSessionMin, ' min') : ''}</span><span class="d">Median; average ${era.avgSessionMin} min (long sessions pull the average up)</span></div>
+<div class="mrow"><span class="l">Evening share</span><span class="n">${era.eveningShare}%${isNow ? delta(other.eveningShare, era.eveningShare, ' pts') : ''}</span><span class="d">Share of logged time starting at 17:00 or later</span></div>
+<div class="mrow"><span class="l">Weekend share</span><span class="n">${era.weekendShare}%${isNow ? delta(other.weekendShare, era.weekendShare, ' pts') : ''}</span><span class="d">Share of logged time on Saturday or Sunday</span></div>
+<div class="mrow"><span class="l">Hour of day</span><span class="n">${String(era.peakHour).padStart(2, '0')}:00</span><span class="d">${hist(era.hourHist)}</span></div></div>`;
+$('#variant-e').innerHTML = `<div class="era">${col(e1, e2, 'Then', false)}${col(e2, e1, 'Now', true)}</div>
+<div class="gap"><b>Why only habits?</b> The export holds lifetime battle totals, not battles per year, so tank, class and win-rate stories cannot be split into eras. This view compares only what sessions can honestly show. Eras are the first and last five calendar years with data (2018–2021 lies between).</div>
+<p style="margin:14px 0 0"><button class="link" data-toast="Would open Playtime">Open Playtime →</button></p>`;
+
+// ---------- F: poster ----------
+const years = Object.keys(W.daily).map(Number).sort((a, b) => a - b);
+const weekSum = (y, w) => { const start = w * 7 - new Date(Date.UTC(y, 0, 1)).getUTCDay(); let t = 0; for (let d = Math.max(0, start); d < Math.min(366, start + 7); d++) t += W.daily[y][d] || 0; return t; };
+const all = years.flatMap(y => Array.from({ length: 53 }, (_, w) => weekSum(y, w)).filter(v => v > 0)).sort((a, b) => a - b);
+const cut = [0.2, 0.4, 0.6, 0.8].map(p => all[Math.floor(p * all.length)]);
+const lvl = (v) => (v <= 0 ? 0 : v <= cut[0] ? 1 : v <= cut[1] ? 2 : v <= cut[2] ? 3 : v <= cut[3] ? 4 : 5);
+const doyOf = (iso) => { const d = new Date(iso + 'T00:00:00Z'); return [d.getUTCFullYear(), Math.floor((d - Date.UTC(d.getUTCFullYear(), 0, 1)) / 864e5)]; };
+const highlights = {
+  streak: { k: 'Longest streak', v: `${T.streak.days} days`, r: `${fmtDate(T.streak.start)} to ${fmtDate(T.streak.end)}`, cells: (() => { const out = []; let [y, d] = doyOf(T.streak.start); for (let i = 0; i < T.streak.days; i++) { out.push([y, d]); d++; if (d >= (new Date(Date.UTC(y, 1, 29)).getUTCMonth() === 1 ? 366 : 365)) { y++; d = 0; } } return out; })() },
+  busy: { k: 'Busiest day', v: `${T.busiest.hours} h`, r: fmtDate(T.busiest.date), cells: [doyOf(T.busiest.date)] },
+  long: { k: 'Longest session', v: `${T.longestSession.hours} h`, r: fmtDate(T.longestSession.date), cells: [doyOf(T.longestSession.date)] },
+  peak: { k: 'Peak year', v: peakY, r: `${n(T.years[peakY])} logged hours`, cells: Array.from({ length: 366 }, (_, d) => [Number(peakY), d]) },
+};
+let grid = '<div class="pgrid" role="img" aria-label="Calendar poster of logged hours per day, 2013 to 2026">';
+grid += '<span></span>' + Array.from({ length: 53 }, (_, w) => `<span style="font-size:10px;color:var(--muted)">${[0, 13, 26, 39].includes(w) ? ['Jan', 'Apr', 'Jul', 'Oct'][[0, 13, 26, 39].indexOf(w)] : ''}</span>`).join('');
+for (const y of years) {
+  grid += `<span class="yl">${y}</span>`;
+  const jan1 = new Date(Date.UTC(y, 0, 1)).getUTCDay();
+  for (let w = 0; w < 53; w++) {
+    // one cell = one WEEK so 16 rows stay legible on a phone; rank shades per bucket
+    const sum = weekSum(y, w);
+    grid += `<i class="c l${lvl(sum)}" data-y="${y}" data-w="${w}" data-s="${f1(sum)}" data-start="${w * 7 - jan1}"></i>`;
+  }
+}
+grid += '</div>';
+$('#variant-f').innerHTML = `<div class="poster">${grid}<div class="legend">Less ${[0, 1, 2, 3, 4, 5].map(l => `<i class="c l${l}" style="background:var(--r${l})"></i>`).join('')} More <span style="margin-left:10px">One cell = one week of logged hours</span></div><div class="ptip" id="ptip" aria-live="polite">Hover a week, or pick a highlight below.</div></div>
+<div class="callouts" id="calls">${Object.entries(highlights).map(([id, h]) => `<button class="callout" data-h="${id}" aria-pressed="false"><div class="k">${h.k}</div><div class="v">${h.v}</div><div class="rule">${h.r}</div></button>`).join('')}</div>
+<p class="cap" style="margin-top:10px">Rule: weekly sums of logged session hours by session start, wall clock as recorded. Shades are rank-based (percentiles of active weeks), as in Playtime. The heatmap is aggregated per week, never one node per session.</p>`;
+$('#variant-f').addEventListener('mouseover', (e) => { const c = e.target.closest('.c[data-y]'); if (c) $('#ptip').textContent = `${c.dataset.y} · week ${+c.dataset.w + 1}: ${c.dataset.s} h logged`; });
+$('#variant-f').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-h]'); if (!b) return;
+  const on = b.getAttribute('aria-pressed') !== 'true';
+  $$('#calls .callout').forEach(x => x.setAttribute('aria-pressed', 'false')); $$('.pgrid .c').forEach(c => c.classList.remove('hl', 'dim'));
+  if (!on) { $('#ptip').textContent = 'Hover a week, or pick a highlight below.'; return; }
+  b.setAttribute('aria-pressed', 'true');
+  const h = highlights[b.dataset.h]; const cells = $$('.pgrid .c[data-y]');
+  $$('.pgrid .c[data-y]').forEach(c => c.classList.add('dim'));
+  let hit = 0;
+  for (const [y, d] of h.cells) { const c = cells.find(x => +x.dataset.y === y && d >= +x.dataset.start && d < +x.dataset.start + 7); if (c) { c.classList.remove('dim'); c.classList.add('hl'); hit++; } }
+  $('#ptip').textContent = `${h.k}: ${h.v} · ${h.r}`;
+});
+})();
+</script>
+</body>
+</html>

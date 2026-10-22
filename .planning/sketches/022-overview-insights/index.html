@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sketch 022 - Overview insights</title>
+<link rel="stylesheet" href="../themes/default.css">
+<style>
+/* Day 10 tokens (ink + teal ramp kept) - same as the chosen Q2 palette */
+:root{--page:#fff;--list:#f5f5f5;--card:#fff;--border:#dcdcdc;--faint:#8c8c8c;--ink:#111;--text:#3a3a3a;--muted:#5c5c5c;--sel:#e0e0e0;--hover:#ececec;--focus:#1a73e8;
+--r0:#eef0f2;--r1:#b2dcd4;--r2:#7cc7bc;--r3:#43a89c;--r4:#1f7a74;--r5:#0d4f4c}
+*{box-sizing:border-box}
+body{margin:0;padding-top:48px;background:#e9e9e9;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.5;color:var(--text)}
+button{font:inherit;color:inherit}
+a,.link{color:var(--ink);text-decoration:underline;cursor:pointer;background:none;border:0;padding:0;font:inherit;font-weight:600;text-align:left}
+button:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid var(--focus);outline-offset:-3px}
+#variant-nav{position:fixed;top:0;left:0;right:0;z-index:9998;background:#fff;border-bottom:1px solid var(--border);padding:6px 12px;display:flex;gap:8px;flex-wrap:wrap}
+.variant-tab{min-height:36px;padding:4px 12px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;transition:all .15s ease}
+.variant-tab:hover{background:var(--hover)}
+.variant-tab.active{background:var(--ink);border-color:var(--ink);color:#fff}
+.frame-wrap{padding:16px;display:flex;justify-content:center}
+.frame{width:100%;max-width:1280px;background:var(--page);border:1px solid var(--border);border-radius:8px;overflow:hidden;container-type:inline-size;transition:max-width .2s ease}
+/* shell: list pane + detail, list hides under 760px (phone = list screen then detail screen) */
+.shell{display:grid;grid-template-columns:240px 1fr;min-height:640px}
+.listpane{background:var(--list);border-right:1px solid var(--border);padding:12px 0}
+.listpane .row{display:block;width:100%;text-align:left;border:0;background:none;padding:10px 16px;min-height:44px;cursor:default;box-shadow:inset 3px 0 0 transparent}
+.listpane .row b{display:block;color:var(--ink);font-size:14px}
+.listpane .row small{color:var(--muted);font-size:12.5px}
+.listpane .row.sel{background:var(--sel);box-shadow:inset 3px 0 0 var(--ink)}
+.listpane .row:hover:not(.sel){background:var(--hover)}
+.listpane .row.mute b{color:var(--muted)}
+.detail{padding:24px;min-width:0}
+@container (max-width:760px){.shell{grid-template-columns:1fr}.listpane{display:none}.detail{padding:16px}}
+h2.section-title{margin:0;font-size:26px;line-height:1.3;font-weight:600;color:var(--ink)}
+.provenance{color:var(--muted);font-size:12.5px;margin:2px 0 14px}
+.games{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin:0 0 16px}
+.games button{min-height:44px;padding:0 14px;border:0;border-right:1px solid var(--border);background:#fff;cursor:pointer}
+.games button:last-child{border-right:0}
+.games button.on{background:var(--ink);color:#fff}
+.games button:hover:not(.on){background:var(--hover)}
+.card{border:1px solid var(--border);border-radius:8px;padding:20px;background:var(--card);min-width:0}
+.tile{background:var(--list);border:1px solid var(--border);border-radius:8px;padding:14px 16px;min-width:0}
+.k{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.v{font-size:30px;line-height:1.2;font-weight:600;color:var(--ink);overflow-wrap:anywhere}
+.v small{font-size:14px;font-weight:400;color:var(--muted)}
+.rule{font-size:12.5px;color:var(--muted);margin-top:6px}
+.cap{font-size:12.5px;color:var(--muted)}
+.big{font-size:56px;line-height:1.05;font-weight:650;color:var(--ink)}
+.big small{font-size:18px;font-weight:400;color:var(--muted)}
+.bar{height:12px;border-radius:6px;background:#ececec;overflow:hidden}.bar>i{display:block;height:12px;background:var(--r4)}
+.barrow{display:grid;grid-template-columns:110px 1fr 96px;gap:10px;align-items:center;margin:8px 0;font-size:13px}
+.barrow span:last-child{text-align:right;color:var(--muted)}
+.stack{display:flex;height:22px;border-radius:6px;overflow:hidden;gap:2px}
+.stack i{display:block}
+.chip{display:inline-block;padding:2px 10px;border-radius:999px;background:var(--hover);font-size:12.5px;font-weight:600;color:var(--ink)}
+.cols{display:flex;align-items:flex-end;gap:3px;height:96px}
+.cols i{flex:1;background:var(--r3);border-radius:2px 2px 0 0;min-height:2px}
+.cols i.peak{background:var(--r5)}
+.axis{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-top:4px}
+.btn{min-height:44px;padding:8px 14px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--ink);cursor:pointer;transition:all .15s ease}
+.btn:hover{background:var(--hover)}
+.btn.primary{background:var(--ink);border-color:var(--ink);color:#fff}
+details{margin-top:8px}summary{min-height:44px;display:flex;align-items:center;cursor:pointer;color:var(--ink);text-decoration:underline;font-weight:600}
+details p{margin:0 0 8px;color:var(--text);font-size:13px}
+/* A: chapters */
+.chapters-nav{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 16px}
+.chapters-nav a{min-height:36px;display:inline-flex;align-items:center;padding:0 12px;border:1px solid var(--border);border-radius:999px;text-decoration:none;font-weight:600;font-size:13px}
+.chapters-nav a:hover{background:var(--hover)}
+.chapter{border-top:1px solid var(--border);padding:28px 0}
+.chapter:first-of-type{border-top:0;padding-top:8px}
+.chapter .eyebrow{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.chapter .sent{font-size:16px;color:var(--ink);margin:6px 0 14px;max-width:60ch}
+.twocol{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@container (max-width:760px){.twocol{grid-template-columns:1fr}.big{font-size:44px}.barrow{grid-template-columns:90px 1fr 80px}}
+/* B: bento */
+.bento{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.bento .span2{grid-column:span 2}.bento .row2{grid-row:span 2}
+@container (max-width:1000px){.bento{grid-template-columns:repeat(2,1fr)}}
+@container (max-width:520px){.bento{grid-template-columns:1fr}.bento .span2{grid-column:auto}.bento .row2{grid-row:auto}}
+.tile.gone{background:var(--list);border-style:dashed;border-color:var(--faint)}
+.tile.gone .v{color:var(--muted);font-size:18px}
+.tile.hero{background:#fff}
+.statebar{display:flex;gap:6px;align-items:center;margin:0 0 12px;flex-wrap:wrap}
+.statebar button{min-height:36px;padding:0 12px;border:1px solid var(--border);border-radius:999px;background:#fff;cursor:pointer}
+.statebar button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+/* C: dossier */
+.dossier{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px}
+@container (max-width:900px){.dossier{grid-template-columns:1fr}}
+.idhead{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.plate{width:64px;height:64px;border-radius:8px;background:var(--ink);color:#fff;display:grid;place-items:center;font-weight:700;font-size:18px}
+.dl{display:grid;grid-template-columns:1fr auto;gap:2px 16px;margin:0}
+.dl dt{padding:10px 0 0;color:var(--ink);font-weight:600}
+.dl dd{margin:0;padding:10px 0 0;text-align:right;font-weight:600;color:var(--ink);font-size:16px}
+.dl .why{grid-column:1/-1;font-size:12.5px;color:var(--muted);padding-bottom:10px;border-bottom:1px solid var(--border)}
+.toast{position:fixed;left:50%;bottom:64px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:10000}
+.toast.on{opacity:1}
+#sketch-tools{position:fixed;bottom:12px;right:12px;z-index:9999;font-family:system-ui;font-size:12px;background:rgba(0,0,0,.7);color:#fff;padding:8px 12px;border-radius:8px;opacity:.4;transition:opacity .2s;display:flex;gap:6px;align-items:center}
+#sketch-tools:hover{opacity:1}#sketch-tools button{background:#333;color:#fff;border:1px solid #555;border-radius:6px;padding:4px 8px;cursor:pointer}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div id="variant-nav">
+  <button class="variant-tab active" data-v="a">A: Your story (chapters)</button>
+  <button class="variant-tab" data-v="b">B: Hall of Fame bento</button>
+  <button class="variant-tab" data-v="c">C: Player dossier</button>
+</div>
+
+<div class="frame-wrap"><div class="frame" id="frame">
+<div class="shell">
+  <nav class="listpane" aria-label="Sections">
+    <button class="row sel"><b>Overview</b><small>Your story at a glance</small></button>
+    <button class="row"><b>Playtime</b><small>1,234 h logged in</small></button>
+    <button class="row"><b>Login history</b><small>country map</small></button>
+    <button class="row"><b>Vehicles</b><small>381 tanks</small></button>
+    <button class="row"><b>Finance</b><small>currency flows</small></button>
+    <button class="row"><b>Payments</b><small>148 orders</small></button>
+    <button class="row mute"><b>Device info</b><small>not in this export</small></button>
+    <button class="row"><b>Account</b><small>created May 2015</small></button>
+  </nav>
+
+  <main class="detail">
+    <h2 class="section-title">Overview</h2>
+    <p class="provenance">Computed on this device from 3 account folders · World of Tanks · Mar 2013 to Aug 2026</p>
+    <div class="games" role="group" aria-label="Game">
+      <button class="on" data-g="wot">World of Tanks</button>
+      <button data-g="wotb">WoT Blitz · 1.9 d</button>
+      <button data-g="wows">Warships · 0.4 d</button>
+    </div>
+
+    <!-- ================= A ================= -->
+    <section id="variant-a" class="variant">
+      <div class="chapters-nav" aria-label="Chapters">
+        <a href="#a-time">Time</a><a href="#a-fav">Favourite tank</a><a href="#a-class">Style</a><a href="#a-habits">Habits</a><a href="#a-records">Records</a><a href="#a-more">Explore</a>
+      </div>
+
+      <div class="chapter" id="a-time">
+        <div class="eyebrow">1 · Time</div>
+        <div class="big">280 <small>days logged in</small></div>
+        <p class="sent">That is 1,234 hours since your first session on 6 May 2015. 117 of those days were inside battles.</p>
+        <div class="card">
+          <div class="k">Hours logged in per year</div>
+          <div class="cols" id="a-years" role="img" aria-label="Hours per year, peak 2014 with 1,673 hours"></div>
+          <div class="axis"><span>2013</span><span>2014 · 1,673 h</span><span>2026</span></div>
+          <p class="rule">Rule: union of WoT session intervals over all 3 account folders (no overlap found). "In battle" is the lifetime battle time from the account file, a separate figure.</p>
+        </div>
+        <details><summary>About these numbers</summary><p>Time is read as written in the export (wall clock, no timezone). Sessions can include idle time in the hangar or queue, so battle time is much lower.</p></details>
+        <button class="link" data-toast="Would open Playtime">Open Playtime →</button>
+      </div>
+
+      <div class="chapter" id="a-fav">
+        <div class="eyebrow">2 · Favourite tank</div>
+        <div class="big">T-34 <small>medium · tier 5 · USSR</small></div>
+        <p class="sent">1,080 battles, 3.4% of everything you played, 118 hours in battle, 55.6% wins.</p>
+        <div class="card" id="a-top5"></div>
+        <p class="rule">Rule: ranked by battles from per-tank lifetime stats. Win rate only shown for tanks with 100+ battles.</p>
+        <button class="link" data-toast="Would open Vehicles">Open Vehicles →</button>
+      </div>
+
+      <div class="chapter" id="a-class">
+        <div class="eyebrow">3 · Playing style</div>
+        <div class="big">Medium tanks <small>28.7% of battles</small></div>
+        <p class="sent">Mediums lead, with tank destroyers and heavies close behind. About 1 battle in 5 is a tier 8, and you have played 380 different tanks.</p>
+        <div class="card"><div class="stack" id="a-stack" role="img" aria-label="Battles by class"></div><div id="a-legend" class="cap" style="margin-top:10px;display:flex;gap:14px;flex-wrap:wrap"></div></div>
+        <p class="rule">Rule: battles per class from the tank table (31,810 of 12,345 battles classified; 60 on a retired tank).</p>
+      </div>
+
+      <div class="chapter" id="a-habits">
+        <div class="eyebrow">4 · Habits</div>
+        <div class="big">17:00 <small>your signature hour</small></div>
+        <p class="sent">Evenings are yours. Your longest streak was 52 days in a row and your longest single session 12.8 hours.</p>
+        <div class="card">
+          <div class="k">Logged hours by hour of day (all years)</div>
+          <div class="cols" id="a-hours" role="img" aria-label="Logged hours by hour of day, peak at 17:00"></div>
+          <div class="axis"><span>00</span><span>06</span><span>12</span><span>18</span><span>23</span></div>
+          <p class="rule">Rule: session start hour as recorded, no timezone. A day counts toward a streak if it has at least one session.</p>
+        </div>
+      </div>
+
+      <div class="chapter" id="a-records">
+        <div class="eyebrow">5 · Records</div>
+        <div class="big">2,900 <small>damage in one battle</small></div>
+        <p class="sent">Your best single battle. Also: 11 kills in one battle on a T-26, 1,500 XP on a KV-1S, and a sniper series of 131.</p>
+        <button class="link" data-toast="Would jump to the Hall of Fame tiles (variant B)">See all records →</button>
+      </div>
+
+      <div class="chapter" id="a-more">
+        <div class="eyebrow">6 · Explore the details</div>
+        <div class="twocol">
+          <div class="tile"><div class="k">Credits earned</div><div class="v">0.88 B</div><div class="rule">Recorded currency operations only</div><button class="link" data-toast="Would open Finance">Open Finance →</button></div>
+          <div class="tile"><div class="k">Your data</div><div class="v" style="font-size:18px">Never left this device</div><div class="rule">Zero network requests after the page loaded</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= B ================= -->
+    <section id="variant-b" class="variant" style="display:none">
+      <div class="statebar"><span class="cap">Preview data state:</span>
+        <button class="on" data-state="full">Full 2026 export</button><button data-state="old">Old 2021 export</button><button data-state="tiny">Almost empty</button>
+      </div>
+      <div class="bento" id="bento">
+        <div class="tile hero span2 row2" data-need="sessions">
+          <div class="k">Time with the game</div>
+          <div class="big">280 <small>days</small></div>
+          <div class="cols" id="b-years" style="margin-top:12px" role="img" aria-label="Hours per year"></div>
+          <div class="axis"><span>2013</span><span>2026</span></div>
+          <div class="rule">Logged in: union of sessions over 3 account folders. 117 days of it in battle.</div>
+        </div>
+        <div class="tile" data-need="records"><div class="k">Most damage, one battle</div><div class="v">2,900</div><div class="rule">Retired tank, not in tank list</div></div>
+        <div class="tile" data-need="records"><div class="k">Most XP, one battle</div><div class="v">1,500</div><div class="rule">on KV-1S</div></div>
+        <div class="tile" data-need="records"><div class="k">Most kills, one battle</div><div class="v">11</div><div class="rule">on T-26</div></div>
+        <div class="tile" data-need="series"><div class="k">Sniper series</div><div class="v">131</div><div class="rule">Longest run recorded</div></div>
+        <div class="tile span2" data-need="vehicles">
+          <div class="k">Most-played tank</div><div class="v">T-34 <small>medium · T5 · USSR</small></div>
+          <div class="rule">1,080 battles · 3.4% of all · 118 h · 55.6% wins</div>
+        </div>
+        <div class="tile" data-need="sessions"><div class="k">Longest streak</div><div class="v">52 <small>days</small></div><div class="rule">Days with at least one session</div></div>
+        <div class="tile" data-need="sessions"><div class="k">Longest session</div><div class="v">12.8 <small>h</small></div><div class="rule">One login without a break</div></div>
+        <div class="tile" data-need="sessions"><div class="k">Busiest day</div><div class="v">14.9 <small>h</small></div><div class="rule">Logged hours in one day</div></div>
+        <div class="tile" data-need="totals"><div class="k">Battles</div><div class="v">12,345</div><div class="rule">51.2% wins · 38 M damage</div></div>
+        <div class="tile" data-need="vehicles"><div class="k">Favourite class</div><div class="v">Medium</div><div class="rule">28.7% of battles</div></div>
+        <div class="tile" data-need="finance"><div class="k">Credits earned</div><div class="v">0.88 B</div><div class="rule">Recorded operations only</div></div>
+        <div class="tile" data-need="chat"><div class="k">Messages sent</div><div class="v">712</div><div class="rule">Count only, text never shown</div></div>
+      </div>
+      <p class="cap" style="margin-top:12px">Tiles whose source file is missing become dashed "not in this export" tiles instead of a zero. Switch the preview state above.</p>
+    </section>
+
+    <!-- ================= C ================= -->
+    <section id="variant-c" class="variant" style="display:none">
+      <div class="dossier">
+        <div class="card">
+          <div class="idhead">
+            <div class="plate" aria-hidden="true">WoT</div>
+            <div><div class="v" style="font-size:24px">Player since 2013</div><div class="cap">13.2 years · 5,486 sessions</div></div>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+            <span class="chip">Medium-tank main</span><span class="chip">Evening player</span><span class="chip">52-day streaker</span>
+          </div>
+          <p class="rule" style="margin-top:0">Labels are rules, not opinions: top class by battles · most logged hours at 17:00-19:00 · longest daily streak 52 days.</p>
+          <dl class="dl">
+            <dt>Logged in</dt><dd>51 days</dd><div class="why">Union of sessions, 3 account folders, 1,234 h</div>
+            <dt>In battle</dt><dd>117 days</dd><div class="why">Lifetime battle time from the account file</div>
+            <dt>Battles</dt><dd>12,345</dd><div class="why">51.2% wins · 38 M damage · 33,460 enemies destroyed</div>
+            <dt>Longest session</dt><dd>12.8 h</dd><div class="why">One login without a break</div>
+            <dt>Credits earned</dt><dd>0.88 B</dd><div class="why">Recorded currency operations only</div>
+          </dl>
+        </div>
+        <div style="display:grid;gap:16px;align-content:start">
+          <div class="card">
+            <div class="k">Main tank</div>
+            <div class="v">T-34</div>
+            <div class="cap">medium · tier 5 · USSR</div>
+            <div class="stack" style="margin:14px 0 6px"><i style="width:3.4%;background:var(--r5)"></i><i style="flex:1;background:var(--r1)"></i></div>
+            <div class="cap">1,080 of 12,345 battles (3.4%) · 118 h in battle · 55.6% wins</div>
+          </div>
+          <div class="card">
+            <div class="k">Personal bests</div>
+            <div class="barrow"><span>Damage</span><div class="bar"><i style="width:100%"></i></div><span>2,900</span></div>
+            <div class="barrow"><span>XP</span><div class="bar"><i style="width:33%"></i></div><span>1,500</span></div>
+            <div class="barrow"><span>Kills</span><div class="bar"><i style="width:6%"></i></div><span>11</span></div>
+            <p class="rule">Bars are scaled per row to its own record, not to each other.</p>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn primary" id="save">Save card as image</button>
+            <button class="btn" data-toast="Would open Playtime">Open details</button>
+          </div>
+          <p class="cap" style="margin:0">The card never includes your nickname, account id, IP addresses or email.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+</div></div>
+
+<div class="toast" id="toast"></div>
+<div id="sketch-tools"><span>View</span>
+  <button data-w="375">Phone</button><button data-w="768">Tablet</button><button data-w="1280">Desktop</button></div>
+
+<script>
+const years={2013:747,2014:1673,2015:1072,2016:433,2017:212,2018:171,2019:44,2020:205,2021:33,2022:380,2023:637,2024:363,2025:369,2026:371};
+const hours=[25,9,4,2,1,15,45,97,228,371,420,373,460,323,449,493,570,813,742,578,363,186,112,31];
+function cols(el,vals,labels){const m=Math.max(...vals);el.innerHTML=vals.map((v,i)=>`<i class="${v===m?'peak':''}" style="height:${Math.max(2,v/m*100)}%" title="${labels[i]}: ${v.toLocaleString('en')} h"></i>`).join('')}
+cols(document.getElementById('a-years'),Object.values(years),Object.keys(years));
+cols(document.getElementById('b-years'),Object.values(years),Object.keys(years));
+cols(document.getElementById('a-hours'),hours,hours.map((_,i)=>String(i).padStart(2,'0')+':00'));
+const tanks=[['T-34','medium',1080,55.6],['T-70','light',812,51.7],['SU-85','tank destroyer',741,64.1],['T-50','medium',655,59.6],['KV-2','heavy',609,60.7]];
+document.getElementById('a-top5').innerHTML=tanks.map(t=>`<div class="barrow"><span><b style="color:var(--ink)">${t[0]}</b><br><span class="cap" style="text-align:left">${t[1]}</span></span><div class="bar"><i style="width:${t[2]/1080*100}%"></i></div><span>${t[2].toLocaleString('en')} · ${t[3]}%</span></div>`).join('');
+const cls=[['Medium',9150,'var(--r5)'],['Tank destroyer',7610,'var(--r4)'],['Heavy',7420,'var(--r3)'],['Light',5100,'var(--r2)'],['SPG',2590,'var(--r1)']];
+document.getElementById('a-stack').innerHTML=cls.map(c=>`<i title="${c[0]}" style="width:${c[1]/31870*100}%;background:${c[2]}"></i>`).join('');
+document.getElementById('a-legend').innerHTML=cls.map(c=>`<span><b style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${c[2]};margin-right:4px"></b>${c[0]} ${(c[1]/31870*100).toFixed(1)}%</span>`).join('');
+// variants
+document.querySelectorAll('.variant-tab').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.variant').forEach(v=>v.style.display='none');
+  document.querySelectorAll('.variant-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('variant-'+b.dataset.v).style.display='block';b.classList.add('active');}));
+// toast
+const toast=document.getElementById('toast');let tt;
+function say(m){toast.textContent=m;toast.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>toast.classList.remove('on'),1800)}
+document.addEventListener('click',e=>{const t=e.target.closest('[data-toast]');if(t)say(t.dataset.toast)});
+document.getElementById('save').addEventListener('click',()=>say('Saved as PNG (no id, IPs or email)'));
+// games
+document.querySelectorAll('.games button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.games button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  if(b.dataset.g!=='wot')say('Same layout, other game’s numbers (not sketched)');}));
+// B states
+const need={full:['sessions','records','series','vehicles','totals','finance','chat'],old:['sessions','vehicles','totals'],tiny:['sessions']};
+document.querySelectorAll('.statebar button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.statebar button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  const have=need[b.dataset.state];
+  document.querySelectorAll('#bento .tile').forEach(t=>{
+    if(!t.dataset.orig)t.dataset.orig=t.innerHTML;
+    const ok=have.includes(t.dataset.need);
+    t.classList.toggle('gone',!ok);
+    if(!ok){const k=t.querySelector('.k').textContent;t.innerHTML=`<div class="k">${k}</div><div class="v">Not in this export</div><div class="rule">The file this reads is missing</div>`}
+    else t.innerHTML=t.dataset.orig;
+  });
+  cols(document.getElementById('b-years'),Object.values(years),Object.keys(years));}));
+// viewport
+document.querySelectorAll('#sketch-tools button').forEach(b=>b.addEventListener('click',()=>{document.getElementById('frame').style.maxWidth=b.dataset.w+'px'}));
+</script>
+</body>
+</html>

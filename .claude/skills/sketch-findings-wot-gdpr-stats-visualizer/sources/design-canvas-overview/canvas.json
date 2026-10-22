@@ -1,0 +1,70 @@
+{
+  "attachments": {},
+  "boards": {
+    "AlmostEmpty.dc.html": {
+      "h": 980,
+      "title": "Almost-empty export",
+      "w": 1100,
+      "x": 1360,
+      "y": 2950
+    },
+    "Main.dc.html": {
+      "expand": "fill",
+      "h": 2100,
+      "is_interactive": true,
+      "title": "Overview, interactive (click a tile, star to pin)",
+      "w": 1280,
+      "x": 0,
+      "y": 0
+    },
+    "Phone.dc.html": {
+      "h": 2500,
+      "title": "Overview, phone",
+      "w": 390,
+      "x": 1360,
+      "y": 0
+    },
+    "PhoneTwoUp.dc.html": {
+      "h": 2830,
+      "title": "Overview, phone two-up (proposal)",
+      "w": 390,
+      "x": 1830,
+      "y": 0
+    },
+    "TileSystem.dc.html": {
+      "h": 1500,
+      "title": "Tile system",
+      "w": 1280,
+      "x": 0,
+      "y": 2950
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-10-22T16:00:00Z",
+    "v": 1
+  },
+  "designSystems": [],
+  "launch": {
+    "view": "canvas"
+  },
+  "notes": {
+    "t1": {
+      "kind": "title1",
+      "maxW": 2220,
+      "text": "Overview: final direction, hi-fi polish",
+      "w": 240,
+      "x": 0,
+      "y": -260
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "Phone.dc.html",
+    "PhoneTwoUp.dc.html",
+    "TileSystem.dc.html",
+    "AlmostEmpty.dc.html"
+  ],
+  "pages": [],
+  "title": "WG Data Export Viewer - Overview",
+  "v": 3
+}

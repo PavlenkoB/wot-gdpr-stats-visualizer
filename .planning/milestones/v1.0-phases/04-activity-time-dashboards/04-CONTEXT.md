@@ -47,7 +47,7 @@ Not in this phase: login-IP history, geolocation and the world map (Phase 6), pe
 **Downstream agents MUST read these before planning or implementing.**
 
 ### Project planning docs
-- `.planning/PROJECT.md` — Core Value, chart-aggregation-at-scale constraint, the note that only a ~4,200-row 2021 sample has been inspected
+- `.planning/PROJECT.md` — Core Value, chart-aggregation-at-scale constraint, the note that only a ~3,870-row 2021 sample has been inspected
 - `.planning/REQUIREMENTS.md` — ACTIVITY-01 to ACTIVITY-04 (this phase's mapped requirements)
 - `.planning/ROADMAP.md` §"Phase 4: Activity Time Dashboards" — goal and the five success criteria (including the 50k+ session, 10-15 year fixture)
 - `AGENTS.md` — locked stack, hand-rolled charts, no router, worker rules

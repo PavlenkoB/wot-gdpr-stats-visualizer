@@ -33,3 +33,12 @@ WoT stats sites / Grafana (A), Linear / Vercel (B), Spotify Wrapped / NYT charts
 | 019 | fresh-round8 | Trading cards / spreadsheet / metro map? | - | theme, layout |
 | 020 | fresh-round9 | Bauhaus / night sky / weather app? | - | theme, layout, dataviz |
 | 021 | q2-configurator | Which Q2 combination is final? | **light + rows + minimal** | master-detail, synthesis |
+| 022 | overview-insights | Which Overview structure tells the player's story best inside Q2? | - | overview, insights, hall-of-fame |
+| 023 | overview-bento-refinements | Which refinement of the liked bento (022-B)? | - | overview, bento |
+| 024 | overview-alternatives | Prose, then-vs-now, or 14-year poster instead of tiles? | - | overview, alternatives |
+| 025 | overview-grouped-interactive | How to combine grouped bento (B1) with interactive pin/inspect (B3)? | - | overview, bento, a11y |
+| 026 | overview-fresh-a | Small multiples, typical week, or top-5 lists? | - | overview, alternatives |
+| 027 | overview-fresh-b | Ask-your-data, milestones timeline, or sticky chapters? | - | overview, alternatives |
+| 028 | overview-explain-popover | How does a tile explain itself without a side panel (popover / info button / sheet)? | **rejected** (user wants expand-in-place) | overview, bento, popover, a11y |
+| 029 | overview-no-jump-expand | G2 (pinned + expand in place) without the UI jumping? | **R2, down in its column** | overview, bento, layout-shift |
+| 030 | overview-final | Final synthesis: B1 groups + pinned tiles + R2 expand down in its column | **Final synthesis** (review fixes + medium pass 2026-10-22: container breakpoints 880/480, row-fill rule, keyboard roving tabindex + P, optional phone two-up) | overview, bento, pinned, expand, final |

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Almost-empty export</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;font-variant-numeric:tabular-nums}
+@media (forced-colors:active){.vb{forced-color-adjust:none;background:Highlight !important;outline:1px solid CanvasText}.dot{forced-color-adjust:none;background:CanvasText !important}}
+</style>
+</helmet>
+<div style="width:1100px;height:980px;box-sizing:border-box;padding:32px 40px;background:#ffffff;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.5;color:#3a3a3a;overflow:hidden">
+  <h2 style="margin:0;font-size:26px;line-height:1.3;font-weight:600;color:#111111">Overview</h2>
+  <p style="margin:2px 0 6px;font-size:12.5px;color:#5c5c5c">Computed on this device from 1 account folder · World of Tanks · Jun 2013 to Mar 2021</p>
+  <p style="margin:0 0 20px;font-size:13px;color:#111111;max-width:80ch">This export only contains session history. Sections that need other files are listed as not in this export, never shown as zero.</p>
+
+  <section style="margin:0 0 22px">
+    <h3 style="margin:0 0 10px;display:flex;align-items:center;gap:10px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#111111;font-weight:600"><span class="dot" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#e0a020"></span>Pinned<span style="font-weight:400;letter-spacing:0;color:#5c5c5c">1</span><span style="flex:1;height:1px;background:#dcdcdc"></span></h3>
+    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px">
+      <div style="grid-column:span 2;border:1px solid #dcdcdc;border-radius:8px;background:#ffffff;padding:16px;box-shadow:0 1px 2px rgba(17,17,17,.05)">
+        <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5c5c5c"><span class="dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#1f7a74;margin-right:7px;vertical-align:1px"></span>Logged in</div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin:4px 0 2px"><span style="font-size:56px;font-weight:650;line-height:1.15;color:#111111">131</span><span style="font-size:14px;color:#5c5c5c">days</span></div>
+        <div style="font-size:12.5px;color:#5c5c5c">3,140 h (24-hour days) since 21 Jun 2013</div>
+        <div style="position:relative;margin-top:28px">
+          <span style="position:absolute;bottom:calc(100% + 4px);{{peakStyle}};font-size:12px;font-weight:600;color:#111111;white-space:nowrap">900 h · 2016</span>
+          <div style="display:flex;align-items:flex-end;gap:3px;height:64px;border-bottom:1px solid #8c8c8c">
+            <sc-for list="{{bars}}" as="b" hint-placeholder-count="9"><div class="vb" style="flex:1;height:{{b.h}}%;background:{{b.c}};border-radius:2px 2px 0 0;min-height:2px"></div></sc-for>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:#5c5c5c;margin-top:4px"><span>2013</span><span>2021</span></div>
+        </div>
+      </div>
+      <div style="grid-column:span 2;border:1px dashed #8c8c8c;border-radius:8px;background:#f5f5f5;padding:16px;color:#5c5c5c;font-size:13px">Pinned tiles whose file is missing are left out of this row. Most-played tank and Most damage are pinned but not in this export, so they wait here until a fuller export is loaded.</div>
+    </div>
+  </section>
+
+  <section style="margin:0 0 22px">
+    <h3 style="margin:0 0 10px;display:flex;align-items:center;gap:10px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5c5c5c;font-weight:600"><span class="dot" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#1f7a74"></span>Time<span style="flex:1;height:1px;background:#dcdcdc"></span></h3>
+    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px">
+      <sc-for list="{{tiles}}" as="t" hint-placeholder-count="4">
+        <div style="border:1px solid #dcdcdc;border-radius:8px;background:#ffffff;padding:14px 16px;min-height:96px;box-sizing:border-box;box-shadow:0 1px 2px rgba(17,17,17,.05)">
+          <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5c5c5c"><span class="dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#1f7a74;margin-right:7px;vertical-align:1px"></span>{{t.k}}</div>
+          <div style="font-size:32px;font-weight:650;line-height:1.2;color:#111111;margin:4px 0 2px">{{t.v}}</div>
+          <div style="font-size:12.5px;color:#5c5c5c">{{t.rule}}</div>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <sc-for list="{{absent}}" as="a" hint-placeholder-count="3">
+    <section style="margin:0 0 14px">
+      <h3 style="margin:0 0 8px;display:flex;align-items:center;gap:10px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5c5c5c;font-weight:600"><span class="dot" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:{{a.dot}}"></span>{{a.name}}<span style="flex:1;height:1px;background:#dcdcdc"></span></h3>
+      <div style="border:1px dashed #8c8c8c;border-radius:8px;background:#f5f5f5;padding:12px 16px;font-size:13px;color:#5c5c5c"><b style="color:#111111">Not in this export:</b> {{a.names}} · needs {{a.needs}}</div>
+    </section>
+  </sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1100,"height":980}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const stops = [[79, 178, 127], [107, 138, 20], [140, 100, 0]];
+    const hc = (t) => { const u = Math.pow(Math.max(0, Math.min(1, t)), 1.5) * 2; const i = u >= 2 ? 1 : Math.floor(u); const f = u - i; const a = stops[i], b = stops[i + 1]; return 'rgb(' + [0, 1, 2].map((k) => Math.round(a[k] + (b[k] - a[k]) * f)).join(',') + ')'; };
+    const v = [90, 220, 620, 900, 560, 350, 130, 170, 100];
+    const m = Math.max(...v);
+    const bars = v.map((x) => ({ h: Math.max(3, Math.round((x / m) * 100)), c: hc(x / m) }));
+    const pi = v.indexOf(m), pp = ((pi + 0.5) / v.length) * 100;
+    const peakStyle = pp < 12 ? 'left:0' : pp > 88 ? 'right:0' : 'left:' + pp.toFixed(1) + '%;transform:translateX(-50%)';
+    const tiles = [
+      { k: 'Longest streak', v: '19 days', rule: '2 Jan to 20 Jan 2015' },
+      { k: 'Longest session', v: '9.6 h', rule: '12 Dec 2014 · one login to logout' },
+      { k: 'Busiest day', v: '11.1 h', rule: '4 Apr 2015 · logged hours in one day' },
+      { k: 'Signature hour', v: '21:00', rule: 'Wall clock as recorded' }
+    ];
+    const absent = [
+      { name: 'Tanks', dot: '#c26a1b', names: 'Most-played tank, Favourite class, Tanks played, Favourite nation', needs: 'vehicle statistics' },
+      { name: 'Records', dot: '#8f4a80', names: 'Most damage, Most XP, Most kills, Sniper series', needs: 'account statistics' },
+      { name: 'Totals', dot: '#3a6aa8', names: 'Credits earned, Battles, Orders', needs: 'currency operations, account statistics and payment history' }
+    ];
+    return { bars, peakStyle, tiles, absent };
+  }
+}
+</script>
+</body>
+</html>

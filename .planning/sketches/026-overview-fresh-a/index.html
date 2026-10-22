@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sketch 026 - Fresh alternatives A</title>
+<link rel="stylesheet" href="../_shared/overview.css">
+<style>
+@container (max-width:520px){.big{font-size:44px}}
+/* H: small multiples */
+.sm{border:1px solid var(--border);border-radius:8px;background:#fff;overflow:hidden}
+.smrow{display:grid;grid-template-columns:minmax(150px,220px) minmax(0,1fr) 120px;gap:16px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border)}
+.smrow:last-child{border-bottom:0}
+.smrow .name{font-weight:600;color:var(--ink)}.smrow .name small{display:block;font-weight:400;color:var(--muted);font-size:12.5px}
+.smrow .now{text-align:right;font-size:20px;font-weight:650;color:var(--ink)}.smrow .now small{display:block;font-size:12px;font-weight:400;color:var(--muted)}
+.sp{display:grid;grid-template-columns:repeat(16,minmax(0,1fr));gap:3px;align-items:end;height:44px}
+.sp i{display:block;background:var(--r3);border-radius:2px 2px 0 0;min-height:2px}
+.sp i.pk{background:var(--r5)}.sp i.part{background:repeating-linear-gradient(45deg,var(--r2),var(--r2) 3px,var(--r1) 3px,var(--r1) 6px)}
+.sp i.hl{outline:2px solid var(--ink);outline-offset:1px}
+.smhead{display:grid;grid-template-columns:minmax(150px,220px) minmax(0,1fr) 120px;gap:16px;padding:10px 16px;background:var(--list);border-bottom:1px solid var(--border);font-size:12px;color:var(--muted)}
+.xax{display:flex;justify-content:space-between}
+.readout{margin:10px 0 0;font-size:13.5px;color:var(--ink);min-height:22px}
+.scrub{display:flex;gap:12px;align-items:center;margin:12px 0 0}.scrub input{flex:1;min-height:44px}
+@container (max-width:760px){.smrow,.smhead{grid-template-columns:minmax(0,1fr) 100px}.smrow .sp{grid-column:1/-1;order:3}.smhead>:nth-child(2){display:none}}
+/* K: typical week */
+.wk{display:grid;grid-template-columns:44px repeat(24,minmax(0,1fr));gap:2px;align-items:center}
+.wk .dl2{font-size:11.5px;color:var(--muted);text-align:right;padding-right:6px}
+.wk .h2{font-size:10.5px;color:var(--muted);text-align:center}
+.wk .c{aspect-ratio:1;border-radius:2px;background:var(--r0);min-width:0;cursor:default}
+.wk .c.l1{background:var(--r1)}.wk .c.l2{background:var(--r2)}.wk .c.l3{background:var(--r3)}.wk .c.l4{background:var(--r4)}.wk .c.l5{background:var(--r5)}
+.wk .c.pk{outline:2px solid #d4690c;outline-offset:0}
+.wk .c:hover{outline:2px solid var(--ink)}
+.wkgrid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px}
+@container (max-width:900px){.wkgrid{grid-template-columns:minmax(0,1fr)}}
+.wk-scroll{overflow-x:auto}.wk-scroll .wk{min-width:520px}
+/* M: top 5s */
+.tops{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:12px}
+.rk{list-style:none;margin:8px 0 0;padding:0}
+.rk li{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--border)}
+.rk li:last-child{border-bottom:0}
+.rk .no{font-size:18px;font-weight:700;color:var(--muted);text-align:center}.rk li:first-child .no{color:var(--ink)}
+.rk .nm{min-width:0}.rk .nm b{color:var(--ink);display:block;overflow-wrap:anywhere}.rk .nm .cap{display:block}
+.rk .val{font-weight:650;color:var(--ink);text-align:right;white-space:nowrap}
+.rk .bar{margin-top:5px;height:6px}
+</style>
+</head>
+<body>
+<div id="variant-nav">
+  <button class="variant-tab active" data-v="h">H: Small multiples (years)</button>
+  <button class="variant-tab" data-v="k">K: A typical week</button>
+  <button class="variant-tab" data-v="m">M: Your top 5s</button>
+</div>
+<div class="frame-wrap"><div class="frame" id="frame"><div class="shell">
+  <nav class="listpane" aria-label="Sections">
+    <button class="row sel"><b>Overview</b><small>Your story at a glance</small></button>
+    <button class="row"><b>Playtime</b><small>1,234 h logged in</small></button>
+    <button class="row"><b>Login history</b><small>country map</small></button>
+    <button class="row"><b>Vehicles</b><small>381 tanks</small></button>
+    <button class="row"><b>Finance</b><small>currency flows</small></button>
+    <button class="row"><b>Payments</b><small>148 orders</small></button>
+    <button class="row mute"><b>Device info</b><small>not in this export</small></button>
+    <button class="row"><b>Account</b><small>created May 2015</small></button>
+  </nav>
+  <main class="detail">
+    <h2 class="section-title">Overview</h2>
+    <p class="provenance">Computed on this device from 3 account folders · World of Tanks · Mar 2013 to Aug 2026</p>
+    <div class="games" role="group" aria-label="Game"><button class="on" data-g="wot">World of Tanks</button><button data-g="wotb">WoT Blitz · 1.9 d</button><button data-g="wows">Warships · 0.4 d</button></div>
+    <section id="variant-h" class="variant"></section>
+    <section id="variant-k" class="variant" style="display:none"></section>
+    <section id="variant-m" class="variant" style="display:none"></section>
+  </main>
+</div></div></div>
+<div class="toast" id="toast"></div>
+<div id="sketch-tools"><span>View</span><button data-w="375">Phone</button><button data-w="768">Tablet</button><button data-w="1280">Desktop</button></div>
+<script src="../_shared/out.local/data.js"></script>
+<script>if(!window.WG)document.querySelector('.detail').insertAdjacentHTML('afterbegin','<p style="color:#c5221f"><b>No data:</b> run <code>node .planning/sketches/_shared/gen-data.mjs</code> (needs a real export; see README).</p>')</script>
+<script src="../_shared/overview.js"></script>
+<script>
+if (window.WG) (function () {
+const W = WG, T = W.time, K = W.tanks;
+const fmtDate = (s) => new Date(s + 'T00:00:00Z').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+const years = Object.keys(W.perYear), last = years.at(-1);
+
+// ---------- H: small multiples ----------
+const metrics = [
+  ['hours', 'Logged hours', 'in the game per year', (v) => n(v) + ' h'],
+  ['sessions', 'Sessions', 'logins per year', (v) => n(v)],
+  ['avgMin', 'Typical session', 'average minutes', (v) => v + ' min'],
+  ['activeDays', 'Days played', 'distinct days per year', (v) => n(v)],
+  ['eveningPct', 'Evening share', 'time starting 17:00 or later', (v) => v + '%'],
+  ['weekendPct', 'Weekend share', 'time on Sat and Sun', (v) => v + '%'],
+];
+const rowHtml = (m) => { const vals = years.map((y) => W.perYear[y][m[0]]); const mx = Math.max(...vals); const pk = vals.indexOf(mx);
+  return `<div class="smrow"><div class="name">${m[1]}<small>${m[2]}</small></div><div class="sp" role="img" aria-label="${m[1]} per year, peak ${years[pk]}: ${m[3](mx)}">${vals.map((v, i) => `<i data-i="${i}" class="${i === pk ? 'pk' : ''} ${years[i] === last ? 'part' : ''}" style="height:${Math.max(4, (v / mx) * 100)}%"></i>`).join('')}</div><div class="now" data-now="${m[0]}">${m[3](vals.at(-1))}<small>${last} so far</small></div></div>`; };
+$('#variant-h').innerHTML = `<div class="sm"><div class="smhead"><span>Metric</span><span class="xax"><span>${years[0]}</span><span>${years[Math.floor(years.length / 2)]}</span><span>${last}*</span></span><span style="text-align:right">Latest</span></div>${metrics.map(rowHtml).join('')}</div>
+<div class="scrub"><label for="yr" class="cap">Year</label><input id="yr" type="range" min="0" max="${years.length - 1}" value="${years.indexOf('2014')}" aria-describedby="ro"></div>
+<p class="readout" id="ro" aria-live="polite"></p>
+<p class="cap">Same scale idea for every row (each row is scaled to its own peak, darkest bar). Hover a bar or use the slider to compare one year across all six rows. * ${last} is a partial year (to ${fmtDate(T.last)}), shown striped.</p>
+<p class="rule">Rule: sessions grouped by the year they started; evening = start at 17:00 or later, weekend = Saturday or Sunday, wall clock as recorded.</p>`;
+function setYear(i) { document.querySelectorAll('#variant-h .sp i').forEach((b) => b.classList.toggle('hl', +b.dataset.i === i)); const y = years[i], p = W.perYear[y]; $('#ro').innerHTML = `<b>${y}</b> · ${n(p.hours)} h logged · ${n(p.sessions)} sessions · ${p.avgMin} min typical · ${p.activeDays} days played · ${p.eveningPct}% evening · ${p.weekendPct}% weekend`; $('#yr').value = i; }
+$('#variant-h').addEventListener('pointerover', (e) => { const b = e.target.closest('.sp i'); if (b) setYear(+b.dataset.i); });
+$('#yr').addEventListener('input', (e) => setYear(+e.target.value)); setYear(years.indexOf('2014'));
+
+// ---------- K: typical week ----------
+const order = [1, 2, 3, 4, 5, 6, 0], DN = { 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri', 6: 'Sat', 0: 'Sun' }, DF = { 1: 'Monday', 2: 'Tuesday', 3: 'Wednesday', 4: 'Thursday', 5: 'Friday', 6: 'Saturday', 0: 'Sunday' };
+const grid = W.weekGrid; const flat = grid.flat().filter((v) => v > 0).sort((a, b) => a - b);
+const cut = [0.2, 0.4, 0.6, 0.8].map((p) => flat[Math.floor(p * flat.length)]); const lv = (v) => (v <= 0 ? 0 : v <= cut[0] ? 1 : v <= cut[1] ? 2 : v <= cut[2] ? 3 : v <= cut[3] ? 4 : 5);
+let pk = [0, 0, 0]; grid.forEach((r, d) => r.forEach((v, h) => { if (v > pk[0]) pk = [v, d, h]; }));
+const wdTot = order.map((d) => grid[d].reduce((a, b) => a + b, 0)), wdMax = Math.max(...wdTot), tot = wdTot.reduce((a, b) => a + b, 0);
+const night = grid.map((r) => r.slice(0, 5).reduce((a, b) => a + b, 0)).reduce((a, b) => a + b, 0);
+$('#variant-k').innerHTML = `<div class="wkgrid"><div class="card"><div class="k">Logged hours by weekday and hour, all years</div>
+<div class="wk-scroll"><div class="wk" role="img" aria-label="Heatmap of logged hours by weekday and hour. Peak: ${DF[pk[1]]} at ${String(pk[2]).padStart(2, '0')}:00">
+<span></span>${Array.from({ length: 24 }, (_, h) => `<span class="h2">${h % 6 === 0 ? String(h).padStart(2, '0') : ''}</span>`).join('')}
+${order.map((d) => `<span class="dl2">${DN[d]}</span>${grid[d].map((v, h) => `<i class="c l${lv(v)} ${d === pk[1] && h === pk[2] ? 'pk' : ''}" data-d="${d}" data-h="${h}" data-v="${v}"></i>`).join('')}`).join('')}</div></div>
+<div class="legend" style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);margin-top:10px">Less ${[0, 1, 2, 3, 4, 5].map((l) => `<i style="width:12px;height:12px;border-radius:2px;display:inline-block;background:var(--r${l})"></i>`).join('')} More</div>
+<p class="readout" id="wro" aria-live="polite">Peak cell: <b>${DF[pk[1]]} ${String(pk[2]).padStart(2, '0')}:00</b> · ${n(pk[0])} h logged across all years (outlined).</p>
+<p class="rule">Rule: logged session hours by session start weekday and hour, summed over 14 years, wall clock as recorded. Shades are rank-based (percentiles of non-empty cells).</p></div>
+<div style="display:grid;gap:12px;align-content:start"><div class="card"><div class="k">By weekday</div>${order.map((d, i) => `<div class="barrow" style="grid-template-columns:44px 1fr 70px"><span>${DN[d]}</span><div class="bar"><i style="width:${(wdTot[i] / wdMax) * 100}%"></i></div><span>${n(wdTot[i])} h</span></div>`).join('')}</div>
+<div class="tile w"><div class="k">Weekend share</div><div class="v">${Math.round(((wdTot[5] + wdTot[6]) / tot) * 100)}%</div><div class="rule">of logged hours fall on Saturday and Sunday (2 of 7 days = 29%)</div></div>
+<div class="tile w"><div class="k">Small hours</div><div class="v">${Math.round((night / tot) * 100)}%</div><div class="rule">of logged hours start between 00:00 and 04:59</div></div></div></div>`;
+$('#variant-k').addEventListener('pointerover', (e) => { const c = e.target.closest('.c[data-d]'); if (c) $('#wro').innerHTML = `<b>${DF[c.dataset.d]} ${String(c.dataset.h).padStart(2, '0')}:00</b> · ${n(c.dataset.v)} h logged across all years`; });
+
+// ---------- M: top 5s ----------
+const yearsTop = Object.entries(T.years).sort((a, b) => b[1] - a[1]).slice(0, 5);
+const hoursTop = T.hourHist.map((v, h) => [h, v]).sort((a, b) => b[1] - a[1]).slice(0, 5);
+const tiersTop = K.tiers.filter((t) => t[0] !== 'unknown').slice(0, 5);
+const list = (title, rule, rows, tab) => { const mx = Math.max(...rows.map((r) => r.n)); return `<div class="card"><div class="k">${title}</div><ol class="rk">${rows.map((r, i) => `<li><span class="no">${i + 1}</span><span class="nm"><b>${r.name}</b>${r.sub ? `<span class="cap">${r.sub}</span>` : ''}<div class="bar"><i style="width:${(r.n / mx) * 100}%"></i></div></span><span class="val">${r.val}</span></li>`).join('')}</ol><p class="rule">${rule}</p><button class="link" data-toast="Would open ${tab}">Open ${tab} →</button></div>`; };
+$('#variant-m').innerHTML = `<div class="tops">
+${list('Top tanks', 'Rule: lifetime battles per tank. Win rate only from 100+ battles.', K.top.slice(0, 5).map((t) => ({ name: t.name, sub: `${CLASS[t.type]} · T${t.tier} · ${NATION[t.nation]}`, n: t.battles, val: `${n(t.battles)} · ${pct(t.wins, t.battles, 0)}` })), 'Vehicles')}
+${list('Top years', 'Rule: logged hours by year of session start. The current year is partial.', yearsTop.map(([y, h]) => ({ name: y, n: h, val: n(h) + ' h' })), 'Playtime')}
+${list('Top days', 'Rule: logged hours on one calendar day, by session start.', W.topDays.map((d) => ({ name: fmtDate(d.date), n: d.hours, val: d.hours + ' h' })), 'Playtime')}
+${list('Top nations', 'Rule: battles by nation from the vehicle id prefix.', K.nations.slice(0, 5).map((x) => ({ name: NATION[x[0]], n: x[1], val: `${n(x[1])} · ${pct(x[1], K.total, 0)}` })), 'Vehicles')}
+${list('Top hours of day', 'Rule: logged hours by session start hour, wall clock as recorded.', hoursTop.map(([h, v]) => ({ name: String(h).padStart(2, '0') + ':00', n: v, val: n(v) + ' h' })), 'Playtime')}
+${list('Top tiers', 'Rule: battles per tier using the build-time tank table.', tiersTop.map((t) => ({ name: 'Tier ' + t[0], n: t[1], val: `${n(t[1])} · ${pct(t[1], K.total, 0)}` })), 'Vehicles')}
+</div>`;
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sketch 030 - Overview final synthesis</title>
+<link rel="stylesheet" href="../_shared/overview.css">
+<style>
+/* Synthesis: B1 grouped bento (3 sizes) + pinned tiles on top (G2) + R2 expand "down, in its column". */
+/* The tile grid answers to the width of the DETAIL PANE (a container), not the frame or the viewport.
+   Thresholds are the pane's content width: >= 880 -> 4 columns, 480-879 -> 2, < 480 -> 1 (spans reset to auto). */
+.detail{container-type:inline-size}
+.bento{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;grid-auto-flow:dense}
+.tw{position:relative;min-width:0}
+/* --span4 / --span2 / --rows4 are EXTRA spans written by fillSpans() (model.js) so a group never leaves holes; default 0 */
+@container (min-width:480px){
+  .bento{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .tw.sz-hero{grid-column:span 2;grid-row:span 2}.tw.sz-feat{grid-column:span 2}
+  .tw.sz-met{grid-column:span calc(1 + var(--span2,0))}
+}
+@container (min-width:880px){
+  .bento{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .tw.sz-hero{grid-column:span calc(2 + var(--span4,0));grid-row:span 2}
+  .tw.sz-feat{grid-column:span calc(2 + var(--span4,0));grid-row:span calc(1 + var(--rows4,0))}
+  .tw.sz-met{grid-column:span calc(1 + var(--span4,0))}
+}
+@container (max-width:479.98px){.big{font-size:44px}}
+/* hero top-5: name column flexes (never collapses), bar column is clamp(60px,30%,150px), count sizes to its text */
+.barrow{grid-template-columns:minmax(72px,1fr) clamp(60px,30%,150px) auto}
+.barrow>span:first-child{overflow-wrap:anywhere}
+/* short labels (optional `short` on metric items): the full label stays in the accessibility tree, the short one is a visual swap in two-up */
+.ks{display:none}
+.stack.blk{display:flex} /* .blk (display:block) was beating .stack (flex), so the class-split bar rendered empty */
+/* Phone two-up (optional, default off): only when the pane is 340-479 px; hero and feature stay full width, metrics sit two per row */
+@container (min-width:340px) and (max-width:479.98px){
+  [data-phone="two"] .bento{grid-template-columns:repeat(2,minmax(0,1fr))}
+  [data-phone="two"] .tw.sz-hero,[data-phone="two"] .tw.sz-feat{grid-column:1/-1}
+  [data-phone="two"] .tw.sz-met{grid-column:span calc(1 + var(--span2,0))}
+  [data-phone="two"] .tile.x .tog{padding:12px}
+  [data-phone="two"] .tile.x .xb{margin:0 12px 12px}
+  [data-phone="two"] .tw.sz-met .v{font-size:26px}
+  [data-phone="two"] .tw.sz-met .v.long{font-size:18px}
+  [data-phone="two"] .tw.sz-met .rule{font-size:12px}
+  [data-phone="two"] .tw.sz-met .xb dd{font-size:13px;overflow-wrap:anywhere}
+  [data-phone="two"] .tw.has-short .kl{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  [data-phone="two"] .tw.has-short .ks{display:inline}
+}
+.grp{margin:0 0 22px}.grp>h3{margin:0 0 8px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:10px}
+.grp>h3::after{content:"";flex:1;height:1px;background:var(--border)}.grp>h3 .ct{font-weight:400;letter-spacing:0}
+.tile .v{margin:2px 0}
+.tile.x{padding:0;background:#fff;height:100%}
+.tile.x .tog{display:block;width:100%;text-align:left;border:0;background:none;font:inherit;color:inherit;cursor:pointer;padding:14px 16px;border-radius:8px}
+.tile.x .xb{margin:0 16px 14px;padding-top:12px;border-top:1px solid var(--border)}
+.tile.x .xb[hidden]{display:none}
+.xb dl{margin:0}.xb dt{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:8px}.xb dt:first-child{margin-top:0}.xb dd{margin:2px 0 0;color:var(--ink);font-size:13.5px}
+.tile.x{box-shadow:0 1px 2px rgba(17,17,17,.05);transition:box-shadow .15s ease}
+@media (hover:hover){.tile.x:hover{border-color:var(--border);box-shadow:0 4px 12px rgba(17,17,17,.08)}}
+.tile.x.open,.tile.x.open:hover{border-color:var(--ink);outline:1px solid var(--ink);outline-offset:-2px;box-shadow:0 8px 24px rgba(17,17,17,.10)}
+/* review fixes: absent groups collapse into one dashed row; legend sits right of the hairline */
+.absent-row{margin-top:8px;border:1px dashed var(--faint);border-radius:8px;background:var(--list);padding:12px 16px;font-size:13px;color:var(--muted)}.absent-row b{color:var(--ink)}
+.grp>h3::after{order:1}.grp>h3 .lgd{order:2}
+.tog .k,.tog .v,.tog .rule{display:block}
+/* colour is limited to two things: a group dot beside labels/headings, and an amber star on pinned tiles */
+.gd{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px;vertical-align:1px}
+.grp>h3 .gd{width:9px;height:9px;margin-right:0}
+.g-time{background:#1f7a74}.g-tanks{background:#c26a1b}.g-records{background:#8f4a80}.g-money{background:#3a6aa8}.g-pinned{background:#e0a020}.g-none{background:#8c8c8c}
+.star svg{display:block;margin:auto}
+.star svg path{fill:none;stroke:#8c8c8c;stroke-width:1.7;stroke-linejoin:round}
+.star.on svg path{fill:#e0a020;stroke:#a8710a}
+/* while a tile is open, siblings keep their natural height instead of stretching into empty boxes */
+.bento:has(.tile.open){align-items:start}
+.tw .k{padding-right:34px}
+.star{position:absolute;top:2px;right:2px;width:44px;height:44px;border:0;background:none;cursor:pointer;font-size:17px;color:var(--faint);border-radius:8px;z-index:3}
+.star:hover{background:var(--hover)}.star.on{color:var(--ink)}
+.tile.gone{background:var(--list);border:1px dashed var(--faint);height:100%;min-height:104px}.tile.gone:hover{border-color:var(--faint)}
+.tile.gone .v{font-size:18px;color:var(--muted)}
+.emptyp{grid-column:1/-1;border:1px dashed var(--faint);border-radius:8px;padding:18px;color:var(--muted);font-size:13px;background:var(--list)}
+.pgrp .bento{min-height:64px}
+.preview{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 14px}
+::view-transition-group(*){animation-duration:.26s;animation-timing-function:ease}
+@media (prefers-reduced-motion:reduce){::view-transition-group(*){animation-duration:.01s}}
+.hintbar{font-size:12.5px;color:var(--muted);margin:0 0 12px}
+</style>
+</head>
+<body>
+<div id="variant-nav">
+  <button class="variant-tab active" data-v="f">Final: grouped bento + pinned tiles + expand down in its column ★</button>
+</div>
+<div class="frame-wrap"><div class="frame" id="frame"><div class="shell">
+  <nav class="listpane" aria-label="Sections">
+    <button class="row sel"><b>Overview</b><small>Your story at a glance</small></button>
+    <button class="row"><b>Playtime</b><small>1,234 h logged in</small></button>
+    <button class="row"><b>Login history</b><small>country map</small></button>
+    <button class="row"><b>Vehicles</b><small>381 tanks</small></button>
+    <button class="row"><b>Finance</b><small>currency flows</small></button>
+    <button class="row"><b>Payments</b><small>148 orders</small></button>
+    <button class="row mute"><b>Device info</b><small>not in this export</small></button>
+    <button class="row"><b>Account</b><small>created May 2015</small></button>
+  </nav>
+  <main class="detail">
+    <h2 class="section-title">Overview</h2>
+    <p class="provenance">Computed on this device from 3 account folders · World of Tanks · Mar 2013 to Aug 2026</p>
+    <div class="games" role="group" aria-label="Game"><button class="on" data-g="wot">World of Tanks</button><button data-g="wotb">WoT Blitz · 1.9 d</button><button data-g="wows">Warships · 0.4 d</button></div>
+    <section id="variant-f" class="variant"></section>
+  </main>
+</div></div></div>
+<div class="toast" id="toast"></div>
+<div id="sketch-tools"><span>View</span><button data-w="375">Phone</button><button data-w="768">Tablet</button><button data-w="900">Narrow</button><button data-w="1280">Desktop</button></div>
+<script src="../_shared/out.local/data.js"></script>
+<script>if(!window.WG)document.querySelector('.detail').insertAdjacentHTML('afterbegin','<p style="color:#c5221f"><b>No data:</b> run <code>node .planning/sketches/_shared/gen-data.mjs</code> (needs a real export; see README).</p>')</script>
+<script src="../_shared/overview.js"></script>
+<script src="../_shared/model.js"></script>
+<script>
+if (window.WG) (function () {
+const { items, groups, byId, vizHtml, hydrate } = M; // fillSpans comes from model.js
+const idx = Object.fromEntries(items.map((i, n) => [i.id, n]));
+const NEED = { logged: 'sessions', streak: 'sessions', sess: 'sessions', busy: 'sessions', hour: 'sessions', tank: 'vehicles', cls: 'vehicles', fleet: 'vehicles', nat: 'vehicles', dmg: 'records', xp: 'records', kills: 'records', snip: 'records', cred: 'finance', bat: 'totals', ord: 'payments' };
+const GCLS = { Time: 'time', Tanks: 'tanks', Records: 'records', Totals: 'money' };
+const NEEDS = { sessions: 'session history', vehicles: 'vehicle statistics', records: 'account statistics', totals: 'account statistics', finance: 'currency operations', payments: 'payment history' };
+const STATES = { full: null, old: ['sessions', 'vehicles', 'totals', 'payments', 'finance'], tiny: ['sessions'] };
+const reduce = () => matchMedia('(prefers-reduced-motion:reduce)').matches;
+let state = 'full', phone = 'one', curId = null; // phone: 'one' (default) | 'two' (optional two-up metrics on 340-479 px panes)
+let pins; try { pins = new Set(JSON.parse(localStorage.getItem('s030pins') || 'null') || ['logged', 'tank', 'dmg']); } catch (_) { pins = new Set(['logged', 'tank', 'dmg']); }
+const save = () => { try { localStorage.setItem('s030pins', JSON.stringify([...pins])); } catch (_) {} };
+const present = (i) => !STATES[state] || STATES[state].includes(NEED[i.id]);
+const root = $('#variant-f');
+
+function tileHtml(i) {
+  if (!present(i)) return '';
+  const on = pins.has(i.id);
+  return `<div class="tw sz-${i.size}${i.short ? ' has-short' : ''}" data-id="${i.id}"><div class="tile x" id="tile-${i.id}"><button class="tog" data-tog tabindex="-1" aria-expanded="false" aria-controls="xb-${i.id}" aria-keyshortcuts="p"><span class="k blk"><span class="gd g-${GCLS[i.g]}"></span><span class="kl">${i.k}</span>${i.short ? `<span class="ks" aria-hidden="true">${i.short}</span>` : ''}</span><span class="v blk${i.size === 'met' && String(i.v).replace(/<[^>]*>/g, '').length > 9 ? ' long' : ''}">${i.v}</span><span class="rule blk">${i.rule}</span>${i.viz ? vizHtml(i.viz) : ''}</button><div class="xb" id="xb-${i.id}" hidden><dl><dt>How it is computed</dt><dd>${i.def}</dd><dt>Reads</dt><dd>${i.src}</dd></dl><p style="margin:10px 0 0"><button class="link" data-toast="Would open ${i.tab}">Open ${i.tab} →</button></p></div></div><button class="star ${on ? 'on' : ''}" data-star="${i.id}" tabindex="-1" aria-pressed="${on}" aria-label="Pin ${i.k}"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"></path></svg></button></div>`;
+}
+function render() {
+  root.innerHTML = `<div class="preview"><span class="cap">Preview data state:</span><div class="seg" id="st" role="group" aria-label="Preview data state"><button data-s="full">Full 2026 export</button><button data-s="old">Older export</button><button data-s="tiny">Almost empty</button></div><span class="cap">Phone layout:</span><div class="seg" id="pl" role="group" aria-label="Phone layout"><button data-p="one">one column</button><button data-p="two">two-up</button></div></div>
+<p class="hintbar">Star a tile to pin it to the top. Click a tile to see how it is computed; it grows downward and stays where it is. Arrow keys move between tiles, P pins the focused tile, Esc closes.</p>
+<div class="grp pgrp"><h3><span class="gd g-pinned"></span>Pinned <span class="ct" id="pct"></span><span class="lgd" id="pleg" hidden><span>low</span><i class="lgbar"></i><span>peak</span></span></h3><div class="bento" id="p-b"></div></div>
+<div id="rest">${groups.map((g) => `<div class="grp"><h3><span class="gd g-${GCLS[g]}"></span>${g}${items.some((i) => i.g === g && i.viz && present(i)) ? '<span class="lgd"><span>low</span><i class="lgbar"></i><span>peak</span></span>' : ''}</h3><div class="bento" data-g="${g}">${items.filter((i) => i.g === g).map(tileHtml).join('')}</div>${absentRow(g)}</div>`).join('')}</div><div class="sr" role="status" aria-live="polite" id="live"></div>`;
+  $$('#st button').forEach((b) => b.classList.toggle('on', b.dataset.s === state));
+  setPhone(phone);
+  hydrate(root);
+  root.querySelectorAll('.tw').forEach((tw) => { tw.style.viewTransitionName = 't-' + tw.dataset.id; }); // CSSOM write: CSP-safe
+  items.filter((i) => pins.has(i.id) && present(i)).forEach((i) => seat(root.querySelector(`.tw[data-id="${i.id}"]`)));
+  syncPinned();
+}
+function absentRow(g) { const miss = items.filter((i) => i.g === g && !present(i)); if (!miss.length) return ''; const needs = [...new Set(miss.map((i) => NEEDS[NEED[i.id]]))].join(', '); return `<div class="absent-row"><b>Not in this export:</b> ${miss.map((i) => i.k).join(', ')} \u00b7 needs ${needs}</div>`; }
+function announce(msg) { const l = $('#live', root); if (l) l.textContent = msg; say(msg); }
+const home = (tw) => root.querySelector(`#rest .bento[data-g="${byId[tw.dataset.id].g}"]`);
+function seat(tw) { // pinned tiles live in the Pinned group, others in their own group, always in the original order
+  const target = pins.has(tw.dataset.id) && !tw.classList.contains('gone') ? $('#p-b', root) : home(tw);
+  const after = [...target.children].find((c) => c.dataset.id && idx[c.dataset.id] > idx[tw.dataset.id]); target.insertBefore(tw, after || null);
+}
+function syncPinned() {
+  const pb = $('#p-b', root); const n = pb.querySelectorAll('.tw').length; pb.querySelector('.emptyp')?.remove();
+  if (!n) pb.insertAdjacentHTML('afterbegin', '<div class="emptyp">Nothing pinned. Star a tile to keep it here.</div>');
+  $('#pct', root).textContent = n ? n : '';
+  root.querySelectorAll('[data-star]').forEach((b) => { const on = pins.has(b.dataset.star); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
+  const pl = $('#pleg', root); if (pl) pl.hidden = !pb.querySelector('.cols, .stack, .bar');
+  fill(); syncRove();
+}
+// Row fill: each group's tiles get EXTRA spans from the pure fillSpans() so no group leaves holes (see model.js). Written through the CSSOM.
+function fill() {
+  root.querySelectorAll('.bento').forEach((b) => {
+    const tws = [...b.children].filter((c) => c.classList.contains('tw'));
+    const f = fillSpans(tws.map((t) => byId[t.dataset.id].size));
+    tws.forEach((t, k) => { for (const [prop, arr] of [['--span4', f.c4], ['--rows4', f.r4], ['--span2', f.c2]]) arr[k] ? t.style.setProperty(prop, arr[k]) : t.style.removeProperty(prop); });
+  });
+}
+function setPhone(p) { phone = p; root.dataset.phone = p; $$('#pl button', root).forEach((b) => { const on = b.dataset.p === p; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); }); }
+// Roving tabindex: exactly one tile button is tabbable (the last focused one, initially the first in DOM order).
+const togs = () => [...root.querySelectorAll('[data-tog]')].filter((t) => t.offsetParent);
+function syncRove() { const all = togs(); const cur = all.find((t) => t.closest('.tw').dataset.id === curId) || all[0]; all.forEach((t) => { t.tabIndex = t === cur ? 0 : -1; }); if (cur) curId = cur.closest('.tw').dataset.id; }
+function focusTile(t) { curId = t.closest('.tw').dataset.id; syncRove(); t.focus(); } // set the roving stop first, then move focus
+root.addEventListener('focusin', (e) => { const t = e.target.closest && e.target.closest('[data-tog]'); if (t) { curId = t.closest('.tw').dataset.id; syncRove(); } });
+function vertical(cur, dir) { // nearest tile whose horizontal extent overlaps, in the adjacent row (bounding rects, not DOM order)
+  const r = cur.closest('.tw').getBoundingClientRect(); let best = null, bd = Infinity, bo = 0;
+  for (const t of togs()) {
+    if (t === cur) continue; const q = t.closest('.tw').getBoundingClientRect();
+    const dy = dir > 0 ? q.top - r.bottom : r.top - q.bottom; if (dy < -1) continue;
+    const ov = Math.min(r.right, q.right) - Math.max(r.left, q.left); if (ov <= 1) continue;
+    if (dy < bd - 1 || (Math.abs(dy - bd) <= 1 && ov > bo)) { best = t; bd = dy; bo = ov; }
+  }
+  return best;
+}
+// Keep `el` at the same screen position across a layout change; animate it when the browser can (View Transitions).
+function anchored(el, mutate, keep) {
+  const before = el.getBoundingClientRect().top; let done = false; const had = keep || document.activeElement;
+  const run = () => { if (done) return; done = true; mutate(); if (had && had !== document.body && document.activeElement !== had && had.isConnected) had.focus({ preventScroll: true }); /* moving a node drops focus; put it back */ const after = el.getBoundingClientRect().top; if (Math.abs(after - before) > 1) scrollBy(0, after - before); };
+  if (document.startViewTransition && !reduce()) {
+    const t = document.startViewTransition(run);
+    for (const p of [t.ready, t.finished, t.updateCallbackDone]) p.catch(() => {}); // a newer transition may skip this one; that is fine
+    setTimeout(run, 600); // safety net: the state change never depends on the animation running
+  } else run();
+}
+function setOpen(tw, open) { tw.dataset.want = open ? '1' : '0'; /* intent is recorded now; the DOM update may run a frame later */ anchored(tw, () => { const tog = tw.querySelector('[data-tog]'); tog.setAttribute('aria-expanded', open); tw.querySelector('.xb').hidden = !open; tw.querySelector('.tile').classList.toggle('open', open); }); }
+root.addEventListener('click', (e) => {
+  const st = e.target.closest('[data-s]'); if (st) { state = st.dataset.s; render(); return; }
+  const tog = e.target.closest('[data-tog]'); if (tog) { const tw = tog.closest('.tw'); setOpen(tw, tw.dataset.want !== '1'); return; }
+  const s = e.target.closest('[data-star]'); if (s) { togglePin(s.dataset.star, s); s.focus(); return; }
+  const ph = e.target.closest('[data-p]'); if (ph) setPhone(ph.dataset.p);
+});
+function togglePin(id, keep) { const tw = root.querySelector(`.tw[data-id="${id}"]`); pins.has(id) ? pins.delete(id) : pins.add(id); save(); anchored(tw, () => { seat(tw); syncPinned(); }, keep); announce((pins.has(id) ? 'Pinned ' : 'Unpinned ') + byId[id].k + ', ' + pins.size + ' pinned'); }
+root.addEventListener('keydown', (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const tw = e.target.closest && e.target.closest('.tw');
+  if (e.key === 'Escape') { const tog = tw && tw.querySelector('[data-tog]'); if (tog && tw.dataset.want === '1') { setOpen(tw, false); focusTile(tog); } return; }
+  if (!tw || !(e.target.matches('[data-tog]') || e.target.matches('[data-star]'))) return; // keys below act on a focused tile (or its star)
+  const cur = tw.querySelector('[data-tog]');
+  if (e.key === 'p' || e.key === 'P') { e.preventDefault(); curId = tw.dataset.id; togglePin(tw.dataset.id, e.target); return; }
+  const all = togs(), i = all.indexOf(cur); let next = null;
+  if (e.key === 'ArrowRight') next = all[i + 1]; else if (e.key === 'ArrowLeft') next = all[i - 1];
+  else if (e.key === 'ArrowDown') next = vertical(cur, 1); else if (e.key === 'ArrowUp') next = vertical(cur, -1);
+  else if (e.key === 'Home') next = all[0]; else if (e.key === 'End') next = all[all.length - 1]; else return;
+  e.preventDefault(); if (next) focusTile(next);
+});
+render();
+})();
+</script>
+</body>
+</html>

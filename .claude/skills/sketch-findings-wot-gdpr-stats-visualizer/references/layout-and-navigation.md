@@ -31,6 +31,7 @@ Final decisions as of 2026-10-07: Q2 master-detail, **with an Overview landing s
 - **Selection is component state**, not a route. (Optional later: mirror it in `location.hash` so a refresh keeps the section; this keeps the no-router rule and avoids the GitHub Pages refresh-404. Not decided.)
 
 ### Overview content
+> **Superseded 2026-10-22** by the personal-insights Overview in `overview-insights.md` (grouped tiles, pins, expand-in-place, no status chips, no per-section cards). The list-row model above (including the "Overview" row, its default selection and the unavailable-row treatment) still applies. What follows is kept as history.
 - Heading "Overview" and one line: "What your export contains. Open a section for the full charts."
 - Three status chips: "N sections with data", "N not in this export", "N folders not yet supported" (all computed from the same status derivation).
 - A responsive grid (`repeat(auto-fit, minmax(min(300px,100%),1fr))`, 16px gap) of **section cards**: label (13px/600 muted), headline (30px/600 ink), one summary line, a tiny preview where meaningful, and an underlined "Open <Section> →" link.

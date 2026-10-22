@@ -133,7 +133,7 @@ Phases 1–4 are sequential gating phases (each unblocks the next). Phases 6A–
 
 ### Gaps to Address During Planning & Execution
 
-1. **Large account scale is unverified:** Only ~2.2MB / ~4,200 rows from 2021 inspected. Must build synthetic fixtures at 10–50x scale and test all hand-rolled SVG before considering heatmaps done. Pitfall 5 recovery cost is MEDIUM-HIGH.
+1. **Large account scale is unverified:** Only ~2.2MB / ~3,870 rows from 2021 inspected. Must build synthetic fixtures at 10–50x scale and test all hand-rolled SVG before considering heatmaps done. Pitfall 5 recovery cost is MEDIUM-HIGH.
 
 2. **Currency-code diversity unconfirmed:** Only Financial_data (virtual currency) is v1 scope; if Payment_history lands in v1, verify actual dataset contains multiple currencies (USD/RUB/UAH confirmed possible, not yet confirmed present).
 

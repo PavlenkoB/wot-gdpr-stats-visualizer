@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sketch 027 - Fresh alternatives B</title>
+<link rel="stylesheet" href="../_shared/overview.css">
+<style>
+@container (max-width:520px){.big{font-size:44px}.barrow{grid-template-columns:90px 1fr 80px}}
+/* J: ask your data */
+.ask{display:flex;gap:8px;margin:0 0 10px}
+.ask input{flex:1;min-height:48px;padding:0 14px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:16px;background:#fff;color:var(--ink)}
+.ask input:focus-visible{outline:3px solid var(--focus);outline-offset:-3px}
+.qchips{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}
+.qchips button{min-height:44px;padding:0 14px;border:1px solid var(--border);border-radius:999px;background:#fff;cursor:pointer;transition:all .15s ease;color:var(--ink)}
+.qchips button:hover{background:var(--hover)}.qchips button[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.ans{min-height:200px}
+.ans .q{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.ans .sent{font-size:16px;color:var(--ink);margin:6px 0 12px;max-width:62ch}
+.ans ul{margin:8px 0;padding-left:18px}.ans li{margin:4px 0;color:var(--ink)}
+.empty{border:1px dashed var(--faint);border-radius:8px;background:var(--list);padding:18px;color:var(--muted)}
+.priv{font-size:12.5px;color:var(--muted);margin:12px 0 0}
+/* L: milestones */
+.tl{position:relative;margin:4px 0 0;padding:0;list-style:none}
+.tl::before{content:"";position:absolute;left:119px;top:6px;bottom:6px;width:2px;background:var(--border)}
+.tl li{display:grid;grid-template-columns:104px 32px minmax(0,1fr);gap:0;align-items:start;margin:0 0 16px}
+.tl .when{text-align:right;padding-top:14px;font-size:12.5px;color:var(--muted);font-weight:600}
+.tl .dot{width:14px;height:14px;border-radius:50%;background:#fff;border:3px solid var(--ink);margin:16px 0 0 9px;position:relative;z-index:1}
+.tl li.quiet .dot{border-color:var(--faint);border-style:dashed}
+.tl .card{padding:14px 16px}
+.tl .card .v{font-size:26px}
+@container (max-width:520px){.tl::before{left:7px}.tl li{grid-template-columns:24px minmax(0,1fr)}.tl .when{grid-column:2;text-align:left;padding:0 0 4px 8px;order:-1}.tl .dot{grid-column:1;grid-row:2;margin:16px 0 0 0}.tl li>.card{grid-column:2;grid-row:2;margin-left:8px}}
+/* I: sticky chapters */
+.sc{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:28px;align-items:start}
+.sc .vis{position:sticky;top:64px}
+.sc .vis .card{min-height:300px}
+.sc .chap{min-height:70vh;padding:8px 0 40px;opacity:.5;transition:opacity .25s ease}
+.sc .chap.on{opacity:1}
+.sc .chap .eyebrow{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.sc .chap .sent{font-size:16px;color:var(--ink);max-width:56ch}
+.inl{display:none;margin:12px 0}
+@container (max-width:760px){.sc{grid-template-columns:minmax(0,1fr)}.sc .vis{display:none}.inl{display:block}.sc .chap{min-height:0;opacity:1}}
+@media (prefers-reduced-motion:reduce){.sc .chap{transition:none}}
+</style>
+</head>
+<body>
+<div id="variant-nav">
+  <button class="variant-tab active" data-v="j">J: Ask your data</button>
+  <button class="variant-tab" data-v="l">L: Milestones timeline</button>
+  <button class="variant-tab" data-v="i">I: Sticky-visual chapters</button>
+</div>
+<div class="frame-wrap"><div class="frame" id="frame"><div class="shell">
+  <nav class="listpane" aria-label="Sections">
+    <button class="row sel"><b>Overview</b><small>Your story at a glance</small></button>
+    <button class="row"><b>Playtime</b><small>1,234 h logged in</small></button>
+    <button class="row"><b>Login history</b><small>country map</small></button>
+    <button class="row"><b>Vehicles</b><small>381 tanks</small></button>
+    <button class="row"><b>Finance</b><small>currency flows</small></button>
+    <button class="row"><b>Payments</b><small>148 orders</small></button>
+    <button class="row mute"><b>Device info</b><small>not in this export</small></button>
+    <button class="row"><b>Account</b><small>created May 2015</small></button>
+  </nav>
+  <main class="detail">
+    <h2 class="section-title">Overview</h2>
+    <p class="provenance">Computed on this device from 3 account folders · World of Tanks · Mar 2013 to Aug 2026</p>
+    <div class="games" role="group" aria-label="Game"><button class="on" data-g="wot">World of Tanks</button><button data-g="wotb">WoT Blitz · 1.9 d</button><button data-g="wows">Warships · 0.4 d</button></div>
+    <section id="variant-j" class="variant"></section>
+    <section id="variant-l" class="variant" style="display:none"></section>
+    <section id="variant-i" class="variant" style="display:none"></section>
+  </main>
+</div></div></div>
+<div class="toast" id="toast"></div>
+<div id="sketch-tools"><span>View</span><button data-w="375">Phone</button><button data-w="768">Tablet</button><button data-w="1280">Desktop</button></div>
+<script src="../_shared/out.local/data.js"></script>
+<script>if(!window.WG)document.querySelector('.detail').insertAdjacentHTML('afterbegin','<p style="color:#c5221f"><b>No data:</b> run <code>node .planning/sketches/_shared/gen-data.mjs</code> (needs a real export; see README).</p>')</script>
+<script src="../_shared/overview.js"></script>
+<script>
+if (window.WG) (function () {
+const W = WG, T = W.time, K = W.tanks, R = W.records, E = W.eras, TT = W.totals;
+const top = K.top[0], cls0 = K.classes[0];
+const yrs = Object.keys(T.years), yv = Object.values(T.years);
+const fmtDate = (s) => new Date(s + 'T00:00:00Z').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+const peakH = T.hourHist.indexOf(Math.max(...T.hourHist)), hh = (h) => String(h).padStart(2, '0') + ':00';
+const peakY = yrs[yv.indexOf(Math.max(...yv))];
+const recTank = (r) => (r.tank ? `on ${r.tank.name} (${CLASS[r.tank.type].toLowerCase()}, tier ${r.tank.tier})` : 'on a tank no longer in the game list');
+const chart = (kind, id) => kind === 'years' ? `<div class="cols" data-c="years" role="img" aria-label="Logged hours per year, peak ${peakY}"></div><div class="axis"><span>${yrs[0]}</span><span>peak ${peakY} · ${n(Math.max(...yv))} h</span><span>${yrs.at(-1)}</span></div>`
+  : kind === 'hours' ? `<div class="cols" data-c="hours" role="img" aria-label="Logged hours by hour of day, peak ${hh(peakH)}"></div><div class="axis"><span>00</span><span>06</span><span>12</span><span>18</span><span>23</span></div>`
+  : kind === 'stack' ? `<div class="stack" role="img" aria-label="Battles by class">${K.classes.filter(c => c[0] !== 'unknown').map(c => `<i title="${CLASS[c[0]]} ${pct(c[1], K.total)}" style="width:${c[1] / K.total * 100}%;background:${CLASS_CLR[c[0]]}"></i>`).join('')}</div><div class="cap" style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap">${K.classes.filter(c => c[0] !== 'unknown').map(c => `<span><b style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${CLASS_CLR[c[0]]};margin-right:4px"></b>${CLASS[c[0]]} ${pct(c[1], K.total, 0)}</span>`).join('')}</div>`
+  : kind === 'top5' ? K.top.slice(0, 5).map(t => `<div class="barrow"><span><b style="color:var(--ink)">${t.name}</b><br><span class="cap">${CLASS[t.type]}</span></span><div class="bar"><i style="width:${t.battles / top.battles * 100}%"></i></div><span>${n(t.battles)}</span></div>`).join('') : '';
+const hydrate = (root) => { root.querySelectorAll('[data-c="years"]').forEach(el => cols(el, yv, yrs)); root.querySelectorAll('[data-c="hours"]').forEach(el => cols(el, T.hourHist, T.hourHist.map((_, i) => hh(i)))); };
+
+// ---------- J: ask your data ----------
+let pk = [0, 0, 0]; W.weekGrid.forEach((r, d) => r.forEach((v, h) => { if (v > pk[0]) pk = [v, d, h]; }));
+const DF = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const QA = [
+  { q: 'How long have I played?', kw: 'long time played days hours years since start total', a: () => `<div class="big">${T.loggedDays} <small>days logged in</small></div><p class="sent">${n(T.loggedHours)} hours since ${fmtDate(T.first)}, over ${n(T.activeDays)} different days. ${T.battleDays} days of that were inside battles.</p>${chart('years')}<p class="rule">Rule: union of WoT session intervals over all 3 account folders. In-battle time is a separate lifetime figure.</p>` },
+  { q: 'When do I play?', kw: 'when hour evening night morning weekend weekday time of day habit', a: () => `<div class="big">${hh(peakH)} <small>is your signature hour</small></div><p class="sent">${DF[pk[1]]} ${hh(pk[2])} is your single busiest hour of the week; evenings from 17:00 carry ${E.recent.eveningShare}% of your logged time since 2022 (${E.early.eveningShare}% in 2013–2017).</p>${chart('hours')}<p class="rule">Rule: logged hours by session start hour, wall clock as recorded, no timezone.</p>` },
+  { q: 'What is my favourite tank?', kw: 'favourite favorite tank most played vehicle best', a: () => `<div class="big">${top.name} <small>${CLASS[top.type].toLowerCase()} · tier ${top.tier} · ${NATION[top.nation]}</small></div><p class="sent">${n(top.battles)} battles, ${pct(top.battles, K.total)} of everything you played, ${f1(top.hours)} hours in battle, ${pct(top.wins, top.battles)} wins.</p>${chart('top5')}<p class="rule">Rule: ranked by lifetime battles. Win rate only from 100+ battles.</p>` },
+  { q: 'Which class do I play most?', kw: 'class type medium heavy light destroyer spg style', a: () => `<div class="big">${CLASS[cls0[0]]} <small>${pct(cls0[1], K.total)} of battles</small></div><p class="sent">Mediums lead, with tank destroyers and heavies close behind.</p>${chart('stack')}<p class="rule">Rule: battles per class via the build-time tank table; ${K.classes.find(c => c[0] === 'unknown')?.[1] || 0} battles on a retired tank are left out.</p>` },
+  { q: 'What are my records?', kw: 'record best max most hall fame damage xp kills series sniper', a: () => `<div class="big">${n(R.damage.v)} <small>damage in one battle</small></div><ul><li>Most XP in one battle: <b>${n(R.xp.v)}</b> ${recTank(R.xp)}</li><li>Most kills in one battle: <b>${R.frags.v}</b> ${recTank(R.frags)}</li><li>Longest sniper series: <b>${R.sniperSeries}</b></li><li>Longest piercing series: <b>${R.piercingSeries}</b></li><li>Longest kill series: <b>${R.killingSeries}</b></li></ul><p class="rule">Rule: personal bests from the account statistics. Series definitions differ by mode; these are not medals.</p>` },
+  { q: 'Did my habits change?', kw: 'change habits then now compare different earlier recent era', a: () => `<div class="big">${E.early.hoursPerYear} → ${E.recent.hoursPerYear} <small>logged hours per year</small></div><p class="sent">Between 2013–2017 and 2022–2026 your typical session shortened from ${E.early.medianSessionMin} to ${E.recent.medianSessionMin} minutes and evenings grew from ${E.early.eveningShare}% to ${E.recent.eveningShare}% of your time.</p><p class="rule">Rule: first and last five calendar years with session data (median session, share of logged time from 17:00).</p>` },
+  { q: 'What was my longest streak?', kw: 'streak longest consecutive row days best run', a: () => `<div class="big">${T.streak.days} <small>days in a row</small></div><p class="sent">From ${fmtDate(T.streak.start)} to ${fmtDate(T.streak.end)}, with at least one session every day.</p><p class="rule">Rule: consecutive calendar days with a session; wall clock as recorded.</p>` },
+  { q: 'How much did I earn?', kw: 'earn credits money gold currency economy', a: () => `<div class="big">${(W.economy.creditsEarned / 1e9).toFixed(2)} <small>billion credits earned</small></div><p class="sent">Across ${n(TT.battles)} battles. Order amounts stay hidden unless you reveal them.</p><p class="rule">Rule: sum of credit deposits in the recorded currency operations (old years may be incomplete).</p>` },
+];
+let cur = 0;
+$('#variant-j').innerHTML = `<form class="ask" role="search" onsubmit="return false"><input id="qin" type="search" placeholder="Ask your data: when do I play? best tank? records?" aria-label="Ask a question about your export" autocomplete="off"></form>
+<div class="qchips" id="qch" role="group" aria-label="Suggested questions">${QA.map((x, i) => `<button data-i="${i}" aria-pressed="${i === 0}">${x.q}</button>`).join('')}</div>
+<div class="card ans" id="ans" aria-live="polite"></div>
+<p class="priv">Answers are fixed rules computed from your export on this device. No AI model, nothing is sent anywhere.</p>`;
+function show(i) { cur = i; $$('#qch button').forEach((b) => b.setAttribute('aria-pressed', String(+b.dataset.i === i))); $('#ans').innerHTML = `<div class="q">${QA[i].q}</div>` + QA[i].a() + `<p style="margin:12px 0 0"><button class="link" data-toast="Would open the matching section">See the details →</button></p>`; hydrate($('#ans')); }
+function search(t) {
+  t = t.trim().toLowerCase(); if (!t) { show(cur); $$('#qch button').forEach((b) => (b.hidden = false)); return; }
+  const words = t.split(/\s+/); const hit = QA.map((x, i) => [i, words.filter((w) => (x.q + ' ' + x.kw).toLowerCase().includes(w)).length]).filter((h) => h[1] > 0).sort((a, b) => b[1] - a[1]);
+  $$('#qch button').forEach((b) => (b.hidden = !hit.some((h) => h[0] === +b.dataset.i)));
+  if (hit.length) show(hit[0][0]); else { $$('#qch button').forEach((b) => (b.hidden = false)); $('#ans').innerHTML = `<div class="empty"><b>No answer for “${t.replace(/[<>&]/g, '')}” yet.</b> Try one of the questions above. What the export can answer is limited to the rules shown.</div>`; }
+}
+$('#qch').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { $('#qin').value = ''; $$('#qch button').forEach((x) => (x.hidden = false)); show(+b.dataset.i); } });
+$('#qin').addEventListener('input', (e) => search(e.target.value)); show(0);
+
+// ---------- L: milestones timeline ----------
+const q = ['2019', '2020', '2021'].map((y) => W.perYear[y]?.hours || 0).reduce((a, b) => a + b, 0);
+const ev = [
+  { k: '2015-05-06', when: fmtDate(T.first), t: 'First recorded session', v: 'Day one', r: `The earliest session in the activity history of the first account folder.` },
+  { k: '2016-01-23', when: fmtDate(T.longestSession.date), t: 'Longest single session', v: `${T.longestSession.hours} h`, r: 'One login without a break. Disconnects or idle time can inflate it.' },
+  { k: '2014-07', when: peakY, t: 'Your biggest year', v: `${n(Math.max(...yv))} h`, r: `${W.perYear[peakY].sessions} sessions on ${W.perYear[peakY].activeDays} days, about ${W.perYear[peakY].avgMin} minutes each.` },
+  { k: '2016-07-09', when: fmtDate(T.busiest.date), t: 'Busiest single day', v: `${T.busiest.hours} h`, r: 'Most logged hours on one calendar day, by session start.' },
+  { k: '2020', when: '2019–2021', t: 'A quiet stretch', v: `${n(q)} h`, r: 'Logged across three years in total, then play picked up again in 2022.', quiet: true },
+  { k: '2023-01-09', when: `${fmtDate(T.streak.start)} → ${fmtDate(T.streak.end)}`, t: 'Longest daily streak', v: `${T.streak.days} days`, r: 'At least one session every day.' },
+  { k: '2023-02-10', when: fmtDate(W.folders[1].first), t: 'Second account folder begins', v: `${n(W.folders[1].sessions)} sessions`, r: 'Your sessions continue in a second account folder; both are combined here as one timeline (the first folder ends the same day).' },
+  { k: '2026-03-09', when: fmtDate(T.last), t: 'Latest recorded session', v: 'Still playing', r: `${n(T.sessions)} sessions in total.` },
+].sort((a, b) => (a.k < b.k ? -1 : 1));
+$('#variant-l').innerHTML = `<ol class="tl">${ev.map((e) => `<li class="${e.quiet ? 'quiet' : ''}"><span class="when">${e.when}</span><span class="dot" aria-hidden="true"></span><div class="card"><div class="k">${e.t}</div><div class="v">${e.v}</div><div class="rule">${e.r}</div></div></li>`).join('')}</ol>
+<p class="cap">Only dated facts appear here. The export has no per-year battle or tank stats, so milestones come from sessions. Rule: dates are the wall clock as recorded.</p>`;
+
+// ---------- I: sticky-visual chapters ----------
+const ch = [
+  { id: 'c1', eyebrow: '1 · Time', head: `${T.loggedDays} days`, sent: `You have logged ${T.loggedDays} days (${n(T.loggedHours)} hours) since ${fmtDate(T.first)}. Your biggest year was ${peakY}.`, vis: () => `<div class="k">Logged hours per year</div>${chart('years')}`, rule: 'Union of session intervals over 3 account folders.' },
+  { id: 'c2', eyebrow: '2 · Habits', head: hh(peakH), sent: `Your day peaks around ${hh(peakH)}. Your longest streak was ${T.streak.days} days and your longest session ${T.longestSession.hours} hours.`, vis: () => `<div class="k">Logged hours by hour of day</div>${chart('hours')}`, rule: 'Session start hour, wall clock, no timezone.' },
+  { id: 'c3', eyebrow: '3 · Tanks', head: top.name, sent: `${CLASS[top.type]}, tier ${top.tier}, ${NATION[top.nation]}: ${n(top.battles)} battles (${pct(top.battles, K.total)}). Overall you play ${CLASS[cls0[0]].toLowerCase()} tanks most.`, vis: () => `<div class="k">Most-played tanks</div>${chart('top5')}<div style="margin-top:14px">${chart('stack')}</div>`, rule: 'Lifetime battles; class via the build-time tank table.' },
+  { id: 'c4', eyebrow: '4 · Records', head: n(R.damage.v), sent: `Your best single battle: ${n(R.damage.v)} damage. Also ${R.frags.v} kills ${recTank(R.frags)}, and a sniper series of ${R.sniperSeries}.`, vis: () => `<div class="k">Personal bests</div><div class="barrow"><span>Damage</span><div class="bar"><i style="width:100%"></i></div><span>${n(R.damage.v)}</span></div><div class="barrow"><span>XP</span><div class="bar"><i style="width:${R.xp.v / R.damage.v * 100}%"></i></div><span>${n(R.xp.v)}</span></div><div class="barrow"><span>Kills</span><div class="bar"><i style="width:${R.frags.v / R.damage.v * 100}%"></i></div><span>${R.frags.v}</span></div><p class="rule">Bars share one scale only for display; units differ.</p>`, rule: 'Personal bests from the account statistics.' },
+  { id: 'c5', eyebrow: '5 · Money', head: `${(W.economy.creditsEarned / 1e9).toFixed(2)} B`, sent: `You earned ${(W.economy.creditsEarned / 1e9).toFixed(2)} billion credits across ${n(TT.battles)} battles.`, vis: () => `<div class="k">Credits earned</div><div class="big">${(W.economy.creditsEarned / 1e9).toFixed(2)} <small>billion</small></div><p class="rule">Recorded currency operations only.</p>`, rule: 'Sum of credit deposits in the operations log.' },
+];
+$('#variant-i').innerHTML = `<div class="sc"><div class="vis" aria-hidden="false"><div class="card" id="scv"></div></div><div>${ch.map((c, i) => `<section class="chap ${i === 0 ? 'on' : ''}" data-i="${i}" id="${c.id}" aria-labelledby="${c.id}h"><div class="eyebrow">${c.eyebrow}</div><div class="big" id="${c.id}h">${c.head}</div><p class="sent">${c.sent}</p><div class="inl card">${c.vis()}</div><p class="rule">Rule: ${c.rule}</p><button class="link" data-toast="Would open the matching section">Open details →</button></section>`).join('')}</div></div>
+<p class="cap">Wide: the chart on the left follows the chapter in view. Narrow: each chapter carries its own chart. Everything is plain content, nothing is hidden behind scrolling.</p>`;
+const scv = $('#scv'); const setVis = (i) => { scv.innerHTML = ch[i].vis(); hydrate(scv); };
+setVis(0); hydrate($('#variant-i'));
+const io = new IntersectionObserver((es) => { es.forEach((e) => { if (e.isIntersecting) { $$('#variant-i .chap').forEach((c) => c.classList.toggle('on', c === e.target)); setVis(+e.target.dataset.i); } }); }, { rootMargin: '-35% 0px -55% 0px' });
+$$('#variant-i .chap').forEach((c) => io.observe(c));
+})();
+</script>
+</body>
+</html>

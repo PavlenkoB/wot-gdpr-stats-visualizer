@@ -530,7 +530,7 @@ this phase deferred exactly this check to 04-12 on exactly this basis.
 3. **The split-column rule against real data.** `chooseSplit` takes
    `SERVER_NAME` when it holds 2–50 distinct usable values, else
    `CLIENT_PLATFORM`, else no split. It was derived from a sample of about
-   4,200 rows. Whether a real account's server column qualifies, what the value
+   3,870 rows. Whether a real account's server column qualifies, what the value
    list looks like, and whether the excluded count is small or near-total are
    all open. The UI-SPEC's unresolved column-rule row stays unresolved.
 4. **That the zero-network guarantee survives a real file.** The guard was

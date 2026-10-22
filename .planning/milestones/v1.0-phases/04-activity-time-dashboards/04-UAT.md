@@ -84,7 +84,7 @@ expected: |
   The block either recovers to ready on its own or shows a recoverable state - NOT a
   permanent 'Updating charts...' with no way back short of a reload.
 result: pass
-note: "Real export: after another tab cleared the cache, selecting a game showed the amber cached-data-cleared notice; block stayed on WOT (4,960 h, 4,200 sessions, 1,190 active days); no stuck Updating state."
+note: "Real export: after another tab cleared the cache, selecting a game showed the amber cached-data-cleared notice; block stayed on WOT (4,960 h, 3,870 sessions, 1,190 active days); no stuck Updating state."
 why_human: |
   Code-review warning WR-2 (Playtime.svelte:126-127): acceptOutcome could return null for
   an answer stamped with a different importedAt, and load() returned without reconciling

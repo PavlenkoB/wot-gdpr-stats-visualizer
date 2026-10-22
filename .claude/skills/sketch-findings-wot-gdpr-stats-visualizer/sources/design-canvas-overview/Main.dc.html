@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Overview, interactive</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit}
+button:focus-visible{outline:3px solid #1a73e8;outline-offset:-3px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.card{transition:box-shadow .15s ease}
+.el-soft .card{box-shadow:0 1px 2px rgba(17,17,17,.05),0 1px 1px rgba(17,17,17,.03)}
+.el-lifted .card{box-shadow:0 1px 2px rgba(17,17,17,.05)}
+.el-lifted .card:hover{box-shadow:0 4px 12px rgba(17,17,17,.08)}
+.el-lifted .card.on{box-shadow:0 8px 24px rgba(17,17,17,.10)}
+@media (prefers-reduced-motion:reduce){.card{transition:none}}
+@media (forced-colors:active){.vb{forced-color-adjust:none;background:Highlight !important;outline:1px solid CanvasText}.dot{forced-color-adjust:none;background:CanvasText !important}.card{border-color:CanvasText !important}}
+.ov{container:ov/inline-size}
+.grid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;grid-auto-flow:dense}
+.grid:has(.open){align-items:start}
+.tr{display:grid;grid-template-columns:22px minmax(0,1fr) clamp(60px,30%,150px) 60px;gap:8px;align-items:center;margin:9px 0;font-size:13px}
+@container ov (max-width:439px){.tr{grid-template-columns:22px minmax(0,1fr) 60px}.tr .bar{grid-column:2/4;grid-row:2}}
+@container ov (min-width:480px){
+.grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.hero{grid-column:span var(--span2,2);grid-row:span var(--rows2,2)}
+.feat{grid-column:span var(--span2,2);grid-row:span var(--rows2,1)}
+.met{grid-column:span var(--span2,1);grid-row:span var(--rows2,1)}
+}
+@container ov (min-width:880px){
+.grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.hero{grid-column:span var(--span4,2);grid-row:span var(--rows4,2)}
+.feat{grid-column:span var(--span4,2);grid-row:span var(--rows4,1)}
+.met{grid-column:span var(--span4,1);grid-row:span var(--rows4,1)}
+}
+</style>
+</helmet>
+<div class="{{elev}}" style="display:flex;flex-wrap:wrap;min-height:100%;background:#ffffff;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.5;color:#3a3a3a">
+  <nav style="flex:0 0 240px;background:#f5f5f5;border-right:1px solid #dcdcdc;padding:12px 0;box-sizing:border-box">
+    <sc-for list="{{nav}}" as="n" hint-placeholder-count="8">
+      <div style="padding:10px 16px;min-height:44px;box-sizing:border-box;background:{{n.bg}};box-shadow:{{n.bar}}">
+        <div style="font-weight:600;font-size:14px;color:{{n.ink}}">{{n.t}}</div>
+        <div style="font-size:12.5px;color:#5c5c5c">{{n.s}}</div>
+      </div>
+    </sc-for>
+  </nav>
+  <main class="ov" style="flex:999 1 560px;min-width:0;box-sizing:border-box">
+   <div style="padding:24px 28px 40px">
+    <h2 style="margin:0;font-size:26px;line-height:1.3;font-weight:600;color:#111111">Overview</h2>
+    <p style="margin:2px 0 14px;font-size:12.5px;color:#5c5c5c">Computed on this device from 3 account folders · World of Tanks · Mar 2013 to Aug 2026</p>
+    <div style="display:inline-flex;border:1px solid #dcdcdc;border-radius:8px;overflow:hidden;margin:0 0 14px">
+      <button style="min-height:44px;padding:0 16px;border:0;border-right:1px solid #dcdcdc;background:#111111;color:#ffffff;cursor:pointer">World of Tanks</button>
+      <button style="min-height:44px;padding:0 16px;border:0;border-right:1px solid #dcdcdc;background:#ffffff;cursor:pointer">WoT Blitz · 1.9 d</button>
+      <button style="min-height:44px;padding:0 16px;border:0;background:#ffffff;cursor:pointer">Warships · 0.4 d</button>
+    </div>
+    <p style="margin:0 0 18px;font-size:12.5px;color:#5c5c5c">Click a tile to see how it is computed. Star a tile to pin it to the top.</p>
+
+    <sc-for list="{{sections}}" as="s" hint-placeholder-count="5">
+      <section style="margin:0 0 26px">
+        <h3 style="margin:0 0 10px;display:flex;align-items:center;gap:10px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:{{s.ink}};font-weight:600">
+          <span class="dot" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:{{s.dot}}"></span>{{s.name}}<span style="font-weight:400;letter-spacing:0;color:#5c5c5c">{{s.count}}</span><span style="flex:1;height:1px;background:#dcdcdc"></span>
+          <sc-if value="{{s.legend}}" hint-placeholder-val="{{false}}">
+            <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;letter-spacing:0;text-transform:none;font-weight:400;color:#5c5c5c"><span>low</span><span class="vb" style="display:inline-block;width:48px;height:8px;border-radius:4px;background:linear-gradient(to right,#4fb27f,#6b8a14,#8c6400)"></span><span>peak</span></span>
+          </sc-if>
+        </h3>
+        <sc-if value="{{s.empty}}" hint-placeholder-val="{{false}}">
+          <div style="border:1px dashed #8c8c8c;border-radius:8px;background:#f5f5f5;padding:20px;color:#5c5c5c;font-size:13px">Nothing pinned. Star a tile to keep it here.</div>
+        </sc-if>
+        <div class="grid">
+          <sc-for list="{{s.tiles}}" as="t" hint-placeholder-count="3">
+            <div class="{{t.cls}}" style="position:relative;min-width:0;{{t.holes}}">
+              <div class="card {{t.on}}" style="background:{{t.bg}};border:1px solid {{t.border}};border-radius:8px;outline:{{t.ring}};outline-offset:-2px;height:100%;box-sizing:border-box">
+                <button aria-expanded="{{t.open}}" onClick="{{t.toggle}}" style="display:block;width:100%;text-align:left;border:0;background:none;cursor:pointer;padding:{{pad}}px;border-radius:8px">
+                  <span style="display:block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5c5c5c;padding-right:40px"><span class="dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:{{t.dot}};margin-right:7px;vertical-align:1px"></span>{{t.k}}</span>
+                  <span style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:4px 0 2px">
+                    <span style="font-size:{{t.vs}}px;font-weight:650;line-height:1.15;color:{{t.vc}};overflow-wrap:anywhere">{{t.v}}</span>
+                    <span style="font-size:14px;color:#5c5c5c">{{t.u}}</span>
+                  </span>
+                  <span style="display:block;font-size:12.5px;color:#5c5c5c">{{t.rule}}</span>
+                  <sc-if value="{{t.hasChart}}" hint-placeholder-val="{{false}}"><span class="sr">{{t.summary}}</span></sc-if>
+                  <sc-if value="{{t.hasBars}}" hint-placeholder-val="{{false}}">
+                    <span aria-hidden="true" style="display:block;position:relative;margin-top:30px">
+                      <span style="position:absolute;bottom:calc(100% + 4px);{{t.peakStyle}};font-size:12px;font-weight:600;color:#111111;white-space:nowrap">{{t.peakLabel}}</span>
+                      <span style="display:flex;align-items:flex-end;gap:3px;height:96px;border-bottom:1px solid #8c8c8c">
+                        <sc-for list="{{t.bars}}" as="b" hint-placeholder-count="8">
+                          <span class="vb" style="display:block;flex:1;height:{{b.h}}%;background:{{b.c}};border-radius:2px 2px 0 0;min-height:2px"></span>
+                        </sc-for>
+                      </span>
+                      <span style="display:flex;justify-content:space-between;font-size:12px;color:#5c5c5c;margin-top:4px"><span>{{t.a1}}</span><span>{{t.a2}}</span><span>{{t.a3}}</span></span>
+                    </span>
+                  </sc-if>
+                  <sc-if value="{{t.hasRows}}" hint-placeholder-val="{{false}}">
+                    <span aria-hidden="true" style="display:block;margin-top:14px">
+                      <sc-for list="{{t.rows}}" as="r" hint-placeholder-count="5">
+                        <span class="tr">
+                          <span style="font-weight:700;color:#5c5c5c;text-align:center">{{r.n}}</span>
+                          <span><span style="display:block;font-weight:600;color:#111111;overflow-wrap:anywhere">{{r.name}}</span><span style="display:block;font-size:12px;color:#5c5c5c">{{r.cls}}</span></span>
+                          <span class="bar" style="display:block;height:10px;border-radius:5px;background:#ececec;overflow:hidden"><span class="vb" style="display:block;height:10px;width:{{r.w}}%;background:{{r.c}}"></span></span>
+                          <span style="text-align:right;color:#5c5c5c">{{r.val}}</span>
+                        </span>
+                      </sc-for>
+                    </span>
+                  </sc-if>
+                  <sc-if value="{{t.hasSeg}}" hint-placeholder-val="{{false}}">
+                    <span aria-hidden="true" style="display:block">
+                      <span style="display:flex;gap:2px;height:20px;border-radius:6px;overflow:hidden;margin-top:16px">
+                        <sc-for list="{{t.seg}}" as="g" hint-placeholder-count="5"><span class="vb" style="display:block;width:{{g.w}}%;background:{{g.c}}"></span></sc-for>
+                      </span>
+                      <span style="display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:#5c5c5c;margin-top:8px">
+                        <sc-for list="{{t.seg}}" as="g" hint-placeholder-count="5"><span><span class="vb" style="display:inline-block;width:9px;height:9px;border-radius:2px;background:{{g.c}};margin-right:5px"></span>{{g.l}} {{g.w}}%</span></sc-for>
+                      </span>
+                    </span>
+                  </sc-if>
+                </button>
+                <sc-if value="{{t.open}}" hint-placeholder-val="{{false}}">
+                  <div style="margin:0 {{pad}}px {{pad}}px;padding-top:12px;border-top:1px solid #dcdcdc">
+                    <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5c5c5c">How it is computed</div>
+                    <div style="font-size:13.5px;color:#111111;margin:2px 0 10px">{{t.def}}</div>
+                    <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5c5c5c">Reads</div>
+                    <div style="font-size:13.5px;color:#111111;margin:2px 0 4px">{{t.src}}</div>
+                    <a href="#" style="display:inline-block;padding:12px 0;color:#111111;font-weight:600;text-decoration:underline">Open {{t.tab}} →</a>
+                  </div>
+                </sc-if>
+              </div>
+              <button aria-label="{{t.starLabel}}" aria-pressed="{{t.pinned}}" onClick="{{t.pin}}" style="position:absolute;top:2px;right:2px;width:44px;height:44px;border:0;background:none;cursor:pointer;border-radius:8px;display:grid;place-items:center">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" fill="{{t.starFill}}" stroke="{{t.starStroke}}" stroke-width="1.7" stroke-linejoin="round"></path></svg>
+              </button>
+            </div>
+          </sc-for>
+        </div>
+      </section>
+    </sc-for>
+    <div role="status" aria-live="polite" class="sr">{{announce}}</div>
+   </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;accents&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true},&quot;chartColor&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;heat&quot;,&quot;options&quot;:[&quot;heat&quot;,&quot;teal&quot;]},&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;comfortable&quot;,&quot;options&quot;:[&quot;comfortable&quot;,&quot;compact&quot;]},&quot;elevation&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;lifted&quot;,&quot;options&quot;:[&quot;none&quot;,&quot;soft&quot;,&quot;lifted&quot;]},&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:2100}}">
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { open: { streak: true }, pins: ['logged', 'tank', 'dmg'], announce: '' };
+  }
+  renderVals() {
+    const P = this.props, st = this.state;
+    const A = P.accents !== false;
+    const heatOn = (P.chartColor ?? 'heat') === 'heat';
+    // Value scale: lightness falls as the value rises (light green -> olive -> dark gold), so the peak stays distinguishable in greyscale and for colour-blind users.
+    const stops = [[79, 178, 127], [107, 138, 20], [140, 100, 0]];
+    const hc = (t) => { const u = Math.pow(Math.max(0, Math.min(1, t)), 1.5) * 2; const i = u >= 2 ? 1 : Math.floor(u); const f = u - i; const a = stops[i], b = stops[i + 1]; return 'rgb(' + [0, 1, 2].map((k) => Math.round(a[k] + (b[k] - a[k]) * f)).join(',') + ')'; };
+    const TEAL = ['#43a89c', '#0d4f4c'];
+    const dots = A ? { Time: '#1f7a74', Tanks: '#c26a1b', Records: '#8f4a80', Totals: '#3a6aa8' } : { Time: '#8c8c8c', Tanks: '#8c8c8c', Records: '#8c8c8c', Totals: '#8c8c8c' };
+    const H = {};
+    ['Time', 'Tanks', 'Records', 'Totals'].forEach((g) => { H[g] = { c: dots[g], d: '#111111', t: '#ffffff', e: '#dcdcdc', ink: '#5c5c5c', ramp: TEAL }; });
+    const pad = (P.density ?? 'comfortable') === 'compact' ? 12 : 16;
+    const years = [520, 580, 820, 1180, 780, 380, 200, 130, 50, 150, 30, 260, 410, 230, 192];
+    const hours = [20, 8, 4, 2, 1, 10, 35, 80, 170, 290, 330, 300, 360, 260, 350, 390, 450, 640, 720, 860, 990, 560, 230, 60];
+    const bars = (a, ramp) => { const m = Math.max(...a); return a.map((v) => ({ h: Math.max(3, Math.round((v / m) * 100)), c: heatOn ? hc(v / m) : (v === m ? ramp[1] : ramp[0]) })); };
+    // peak label position: centred over the peak bar, pinned to an edge when the peak is near it
+    const peakStyle = (a) => { const i = a.indexOf(Math.max(...a)), p = ((i + 0.5) / a.length) * 100; return p < 12 ? 'left:0' : p > 88 ? 'right:0' : 'left:' + p.toFixed(1) + '%;transform:translateX(-50%)'; };
+    const top = [['Object 140', 'Medium · T10 · USSR', 1018], ['Leopard 1', 'Medium · T10 · Germany', 874], ['AMX 50 B', 'Heavy · T10 · France', 702], ['IS-7', 'Heavy · T10 · USSR', 655], ['E 50 M', 'Medium · T9 · Germany', 590]];
+    const rows = top.map((t, i) => ({ n: i + 1, name: t[0], cls: t[1], w: Math.round((t[2] / 1018) * 100), c: heatOn ? hc(t[2] / 1018) : (i === 0 ? TEAL[1] : TEAL[0]), val: t[2].toLocaleString('en') }));
+    const sp = ['#0d4f4c', '#1f7a74', '#43a89c', '#7cc7bc', '#b2dcd4'];
+    const seg = [['Heavy', 31], ['Medium', 27], ['Tank destroyer', 21], ['Light', 14], ['SPG', 7]].map((s, i) => ({ l: s[0], w: s[1], c: heatOn ? hc(s[1] / 31) : sp[i] }));
+    const items = [
+      { id: 'logged', g: 'Time', size: 'hero', k: 'Logged in', v: '246', u: 'days', rule: '5,912 h (24-hour days) since 6 May 2015 · 96 days in battle', def: 'Union of session intervals over all account folders, counted in 24-hour days. Sessions can include idle hangar time; in-battle time is a separate lifetime figure.', src: 'Activity history · WoT game sessions', tab: 'Playtime', viz: 'years' },
+      { id: 'hour', g: 'Time', size: 'feat', k: 'Signature hour', v: '20:00', u: '', rule: 'Most logged hours, wall clock as recorded', def: 'The hour of day with the most logged hours across all years. No timezone: times are as the game wrote them.', src: 'Activity history · WoT game sessions', tab: 'Playtime', viz: 'hours' },
+      { id: 'streak', g: 'Time', size: 'met', k: 'Longest streak', v: '41', u: 'days', rule: '3 Mar to 12 Apr 2023', def: 'Most consecutive calendar days with at least one session. Wall clock as recorded, no timezone.', src: 'Activity history · WoT game sessions', tab: 'Playtime' },
+      { id: 'sess', g: 'Time', size: 'met', k: 'Longest session', v: '11.8', u: 'h', rule: '9 Nov 2014 · one login to logout', def: 'One login to logout. Disconnects or idle time can inflate it.', src: 'Activity history · WoT game sessions', tab: 'Playtime' },
+      { id: 'busy', g: 'Time', size: 'met', k: 'Busiest day', v: '13.2', u: 'h', rule: '21 Jun 2015 · logged hours in one day', def: 'Most logged hours on one calendar day, by session start.', src: 'Activity history · WoT game sessions', tab: 'Playtime' },
+      { id: 'tank', g: 'Tanks', size: 'hero', k: 'Most-played tank', v: 'Object 140', u: 'medium · T10 · USSR', rule: '1,018 battles · 3.1% of all · 77.4 h in battle · 54.6% wins', def: 'Most battles in the lifetime vehicle statistics. Class, tier and nation come from the build-time tank table; win rate is shown only for 100+ battles.', src: 'Player statistics · WoT vehicle statistics', tab: 'Vehicles', viz: 'top' },
+      { id: 'cls', g: 'Tanks', size: 'feat', k: 'Favourite class', v: 'Heavy', u: '', rule: '31% of battles', def: 'Battles grouped by class via the tank table. Retired tanks are left out and counted as unknown.', src: 'Player statistics · WoT vehicle statistics', tab: 'Vehicles', viz: 'seg' },
+      { id: 'fleet', g: 'Tanks', size: 'met', k: 'Tanks played', v: '312', u: '', rule: 'different tanks', def: 'Tanks with a row in the lifetime vehicle statistics.', src: 'Player statistics · WoT vehicle statistics', tab: 'Vehicles' },
+      { id: 'nat', g: 'Tanks', size: 'met', k: 'Favourite nation', v: 'USSR', u: '', rule: '24% of battles', def: 'Nation read from the vehicle id prefix, summed over battles.', src: 'Player statistics · WoT vehicle statistics', tab: 'Vehicles' },
+      { id: 'dmg', g: 'Records', size: 'met', k: 'Most damage, one battle', v: '7,412', u: '', rule: 'on E 50 M (medium, tier 9)', def: 'Personal best in a single battle.', src: 'Player statistics · WoT account statistics', tab: 'Vehicles' },
+      { id: 'xp', g: 'Records', size: 'met', k: 'Most XP, one battle', v: '2,318', u: '', rule: 'on KV-1S (heavy, tier 5)', def: 'Personal best in a single battle.', src: 'Player statistics · WoT account statistics', tab: 'Vehicles' },
+      { id: 'kills', g: 'Records', size: 'met', k: 'Most kills, one battle', v: '9', u: '', rule: 'on T-34 (medium, tier 5)', def: 'Personal best in a single battle.', src: 'Player statistics · WoT account statistics', tab: 'Vehicles' },
+      { id: 'snip', g: 'Records', size: 'met', k: 'Sniper series', v: '121', u: '', rule: 'longest run recorded', def: 'Longest run recorded in the export. Series definitions differ by mode, so this is not a medal.', src: 'Player statistics · WoT account statistics', tab: 'Vehicles' },
+      { id: 'cred', g: 'Totals', size: 'feat', k: 'Credits earned', v: '840', u: 'million', rule: 'recorded currency operations only', def: 'Sum of credit deposits in the currency operations log. The log may be incomplete for old years.', src: 'Financial data · Virtual currency operations', tab: 'Finance' },
+      { id: 'bat', g: 'Totals', size: 'met', k: 'Battles', v: '32,870', u: '', rule: '52.4% wins', def: 'Lifetime battles and wins from the account statistics. Win rate depends on teammates.', src: 'Player statistics · WoT account statistics', tab: 'Vehicles' },
+      { id: 'ord', g: 'Totals', size: 'met', k: 'Orders', v: '37', u: '', rule: 'count only', def: 'Number of payment orders. Amounts stay hidden because they are sensitive.', src: 'Payment history · Orders', tab: 'Payments' }
+    ];
+    const summaries = {
+      years: 'Chart: logged hours per year, 14 years, peak 2015 with 1,180 hours.',
+      hours: 'Chart: logged hours by hour of day, peak at 20:00.',
+      top: 'Top 5 tanks by battles: ' + top.map((t) => t[0] + ' ' + t[2].toLocaleString('en')).join(', ') + '.',
+      seg: 'Battles by class: Heavy 31%, Medium 27%, Tank destroyer 21%, Light 14%, SPG 7%.'
+    };
+    const mk = (i) => {
+      const open = !!st.open[i.id], pinned = st.pins.indexOf(i.id) >= 0;
+      const h = H[i.g], big = i.size !== 'met';
+      const long = i.size === 'met' && String(i.v).length > 9;
+      return {
+        bg: big ? h.t : '#ffffff', vc: big ? h.d : '#111111', dot: h.c,
+        id: i.id, k: i.k, v: i.v, u: i.u, rule: i.rule, def: i.def, src: i.src, tab: i.tab,
+        cls: (i.size === 'hero' ? 'hero' : i.size === 'feat' ? 'feat' : 'met') + (open ? ' open' : ''), size: i.size, holes: '',
+        vs: i.size === 'hero' && i.viz === 'years' ? 56 : long ? 22 : 32,
+        open, pinned, border: open ? '#111111' : (big ? h.e : '#dcdcdc'), ring: open ? '1px solid #111111' : 'none', on: open ? 'on' : '',
+        hasChart: !!i.viz, summary: i.viz ? summaries[i.viz] : '',
+        hasBars: i.viz === 'years' || i.viz === 'hours', hasRows: i.viz === 'top', hasSeg: i.viz === 'seg',
+        bars: i.viz === 'years' ? bars(years, h.ramp) : i.viz === 'hours' ? bars(hours, h.ramp) : [],
+        peakLabel: i.viz === 'years' ? '1,180 h · 2015' : '20:00', peakStyle: i.viz === 'years' ? peakStyle(years) : peakStyle(hours),
+        a1: i.viz === 'years' ? '2013' : '00:00', a2: i.viz === 'years' ? '' : '12:00', a3: i.viz === 'years' ? '2026' : '23:00',
+        rows: i.viz === 'top' ? rows : [], seg: i.viz === 'seg' ? seg : [],
+        starFill: pinned ? '#e0a020' : 'none', starStroke: pinned ? '#a8710a' : '#8c8c8c', starLabel: 'Pin ' + i.k,
+        toggle: () => this.setState({ open: Object.assign({}, this.state.open, { [i.id]: !this.state.open[i.id] }) }),
+        pin: () => { const p = this.state.pins, was = p.indexOf(i.id) >= 0, next = was ? p.filter((x) => x !== i.id) : p.concat([i.id]); this.setState({ pins: next, announce: (was ? 'Unpinned ' : 'Pinned ') + i.k + ', ' + next.length + ' pinned' }); }
+      };
+    };
+    // Row fill. Pure: sizes in DOM order + column count -> per-tile {w,h} override or null. Simulates the browser's dense auto-placement
+    // (hero 2x2, feature 2x1, metric 1x1, spans capped at the column count). ONLY FEATURE tiles widen; metrics and heroes never stretch.
+    // Depends on tile sizes only, never on open state.
+    const fillSpans = (sizes, C) => {
+      const base = sizes.map((z) => ({ w: Math.min(z === 'met' ? 1 : 2, C), h: z === 'hero' ? 2 : 1 }));
+      const holes = (sp) => {
+        const grid = []; let area = 0, rows = 0, last = -1;
+        for (const t of sp) {
+          let placed = false;
+          for (let r = 0; !placed; r++) {
+            for (let c = 0; c + t.w <= C && !placed; c++) {
+              let ok = true;
+              for (let y = r; y < r + t.h && ok; y++) for (let x = c; x < c + t.w; x++) if (grid[y] && grid[y][x]) { ok = false; break; }
+              if (!ok) continue;
+              if (r * C + c < last) return -1;
+              last = r * C + c;
+              for (let y = r; y < r + t.h; y++) { grid[y] = grid[y] || []; for (let x = c; x < c + t.w; x++) grid[y][x] = 1; }
+              rows = Math.max(rows, r + t.h); area += t.w * t.h; placed = true;
+            }
+          }
+        }
+        return rows * C - area;
+      };
+      if (!base.length || holes(base) === 0) return base.map(() => null);
+      // RULE: only FEATURE tiles widen (never heroes or metrics), picking the widths with the fewest holes, then the least widening.
+      const feats = []; sizes.forEach((z, i) => { if (z === 'feat') feats.push(i); });
+      const h0 = holes(base);
+      let best = { h: h0 < 0 ? 1e9 : h0, extra: 0, sp: base };
+      const rec = (k, sp, extra) => {
+        if (k === feats.length) { const h = holes(sp); if (h >= 0 && (h < best.h || (h === best.h && extra < best.extra))) best = { h, extra, sp }; return; }
+        for (let e = 0; base[feats[k]].w + e <= C; e++) { const nx = sp.map((t) => ({ w: t.w, h: t.h })); nx[feats[k]].w += e; rec(k + 1, nx, extra + e); }
+      };
+      rec(0, base, 0);
+      return best.sp.map((t, i) => (t.w !== base[i].w ? t : null));
+    };
+    const withHoles = (tiles) => {
+      const f4 = fillSpans(tiles.map((t) => t.size), 4), f2 = fillSpans(tiles.map((t) => t.size), 2);
+      tiles.forEach((t, k) => {
+        const a = f4[k], b = f2[k];
+        t.holes = (a ? '--span4:' + a.w + ';--rows4:' + a.h + ';' : '') + (b ? '--span2:' + b.w + ';--rows2:' + b.h + ';' : '');
+      });
+      return tiles;
+    };
+    const rank = { hero: 0, feat: 1, met: 2 };
+    // Pinned keeps hero, then feature, then metric order, so a hero never lands after a lone metric and leaves holes.
+    const pinnedTiles = withHoles(items.filter((i) => st.pins.indexOf(i.id) >= 0).sort((a, b) => rank[a.size] - rank[b.size]).map(mk));
+    const hasChart = (ts) => ts.some((t) => t.hasChart);
+    const sections = [{ name: 'Pinned', count: pinnedTiles.length ? String(pinnedTiles.length) : '', dot: '#e0a020', ink: '#111111', tiles: pinnedTiles, legend: hasChart(pinnedTiles), empty: pinnedTiles.length === 0 }]
+      .concat(['Time', 'Tanks', 'Records', 'Totals'].map((g) => { const tiles = withHoles(items.filter((i) => i.g === g && st.pins.indexOf(i.id) < 0).map(mk)); return { name: g, count: '', dot: H[g].c, ink: H[g].ink, empty: false, legend: hasChart(tiles), tiles }; }));
+    const nav = [['Overview', 'Your story at a glance', true], ['Playtime', '5,912 h logged in'], ['Login history', 'country map'], ['Vehicles', '312 tanks'], ['Finance', 'currency flows'], ['Payments', '37 orders'], ['Device info', 'not in this export', false, true], ['Account', 'created Mar 2012']]
+      .map((n) => ({ t: n[0], s: n[1], bg: n[2] ? '#e0e0e0' : 'transparent', bar: n[2] ? 'inset 3px 0 0 #111111' : 'none', ink: n[3] ? '#5c5c5c' : '#111111' }));
+    return { sections, nav, pad, elev: 'el-' + (P.elevation ?? 'lifted'), announce: st.announce };
+  }
+}
+</script>
+</body>
+</html>

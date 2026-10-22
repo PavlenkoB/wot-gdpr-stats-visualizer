@@ -12,3 +12,6 @@ Live: https://claude.ai/artifact/XM5a7aV2p2XWze9DFi37G3 (private to the owner). 
 Sample numbers are invented (412.8 h, 286 sessions, 143 active days, 3 IPs, 612 logins, USD 29.97). Page copy is the app's real wording.
 
 These are Design-canvas component files (they need the canvas runtime's `support.js`), so they are reference source, not runnable alone. Use the live link to view.
+
+## Update 2026-10-22
+The Overview section was redesigned (insights, not section cards). Its artboards are in `../design-canvas-overview/` and supersede the Overview artboards here. See `../../references/overview-insights.md`.

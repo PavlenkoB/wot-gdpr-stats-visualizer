@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sketch 029 - No-jump expand</title>
+<link rel="stylesheet" href="../_shared/overview.css">
+<style>
+/* B1 grouped bento, 3 tile sizes */
+.bento{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;grid-auto-flow:dense}
+@container (max-width:1000px){.bento{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@container (max-width:520px){.bento{grid-template-columns:minmax(0,1fr)}.big{font-size:44px}.barrow{grid-template-columns:90px 1fr 80px}}
+.tw{position:relative;min-width:0}.tw.sz-hero{grid-column:span 2;grid-row:span 2}.tw.sz-feat{grid-column:span 2}
+@container (max-width:1000px){.tw.sz-hero,.tw.sz-feat{grid-column:span 2}}
+@container (max-width:520px){.tw.sz-hero,.tw.sz-feat{grid-column:auto;grid-row:auto}}
+.grp{margin:0 0 22px}.grp>h3{margin:0 0 8px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:10px}
+.grp>h3::after{content:"";flex:1;height:1px;background:var(--border)}
+.tile .v{margin:2px 0}
+.note{font-size:12.5px;color:var(--muted);margin:0 0 12px}
+.star{position:absolute;top:2px;right:2px;width:44px;height:44px;border:0;background:none;cursor:pointer;font-size:17px;color:var(--faint);border-radius:8px;z-index:3}
+.star:hover{background:var(--hover)}.star.on{color:var(--ink)}
+.tw .k{padding-right:34px}
+/* pinned STRIP: fixed height, so pinning never shifts the page (R1, R3) */
+.pins{display:flex;gap:8px;align-items:center;overflow-x:auto;height:64px;padding:0 10px;margin:0 0 18px;border:1px solid var(--border);border-radius:8px;background:var(--list)}
+.pins .lbl{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.pins .empty{font-size:13px;color:var(--muted);white-space:nowrap}
+.chip2{min-height:44px;padding:0 14px;border:1px solid var(--border);border-radius:999px;background:#fff;cursor:pointer;white-space:nowrap;color:var(--ink);transition:all .15s ease}
+.chip2:hover{background:var(--hover);border-color:var(--ink)}.chip2 b{font-weight:650;margin-left:6px}
+/* R1: same-size flip. Both faces share ONE grid cell, so the tile never changes size. */
+.tile.f{padding:0;display:grid;background:#fff}
+.face{grid-area:1/1;padding:14px 16px;min-width:0;transition:opacity .18s ease,visibility 0s}
+.front{display:block;width:100%;text-align:left;border:0;background:none;font:inherit;color:inherit;cursor:pointer;border-radius:8px}
+.back{opacity:0;visibility:hidden;transition:opacity .18s ease,visibility 0s .18s;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink);background:var(--list);border-radius:8px}
+.back .b{margin:0;color:var(--text)}.back .b2{margin:0;color:var(--muted)}
+.back .bf{display:flex;justify-content:space-between;margin-top:auto}
+.tile.flipped{border-color:var(--ink)}
+.tile.flipped .front{opacity:0;visibility:hidden}
+.tile.flipped .back{opacity:1;visibility:visible;transition:opacity .18s ease}
+.tile.f:hover{border-color:var(--ink)}
+/* R2: expand in place, animated with the View Transitions API, scroll-anchored, DOM never re-rendered */
+.tile.x{padding:0;background:#fff}.tile.x .tog{display:block;width:100%;text-align:left;border:0;background:none;font:inherit;color:inherit;cursor:pointer;padding:14px 16px;border-radius:8px}
+.tile.x .xb{padding:0 16px 14px;display:grid;grid-template-columns:1fr 1fr;gap:16px;border-top:1px solid var(--border);margin:0 16px;padding-top:12px;margin-bottom:14px;padding-left:0;padding-right:0}
+.tile.x .xb[hidden]{display:none}
+.xb dl{margin:0}.xb dt{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:8px}.xb dd{margin:2px 0 0;color:var(--ink);font-size:13.5px}
+@container (max-width:760px){.tile.x .xb{grid-template-columns:1fr}}
+.wide .tw.exp{grid-column:1/-1!important;grid-row:auto!important}
+.tw.exp .xb{grid-template-columns:1fr}
+.wide .tw.exp .xb{grid-template-columns:1fr 1fr}
+.modes{display:flex;gap:8px;align-items:center;margin:0 0 12px;flex-wrap:wrap}
+.tile.x[aria-expanded="true"],.tile.x.open{border-color:var(--ink)}
+::view-transition-group(*){animation-duration:.26s;animation-timing-function:ease}
+@media (prefers-reduced-motion:reduce){::view-transition-group(*){animation-duration:.01s}}
+.pgrp .bento{min-height:64px}
+.pgrp .emptyp{grid-column:1/-1;border:1px dashed var(--faint);border-radius:8px;padding:18px;color:var(--muted);font-size:13px;background:var(--list)}
+/* R3: reserved explain bar, sticky at the bottom; in the flow's last slot so nothing reflows */
+.tile.t{display:block;text-align:left;cursor:pointer;width:100%;height:100%;font:inherit;color:inherit;background:#fff}
+.tile.t[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.ebar{position:sticky;bottom:0;z-index:5;height:112px;margin-top:8px;border:1px solid var(--ink);border-radius:8px;background:#fff;box-shadow:0 -6px 18px rgba(0,0,0,.1);padding:10px 16px;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:6px 18px;align-items:center;overflow:hidden}
+.ebar .eh{min-width:120px}.ebar .ev{font-size:28px;font-weight:650;color:var(--ink);line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px}
+.ebar .eb{font-size:13px;color:var(--text);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.ebar .eb b{color:var(--ink)}
+.ebar.idle .eb{color:var(--muted)}
+@container (max-width:760px){.ebar{grid-template-columns:minmax(0,1fr);height:132px;gap:2px}.ebar .ev{font-size:22px;max-width:none}.ebar .eh{min-width:0}.ebar .ea{justify-self:start}}
+</style>
+</head>
+<body>
+<div id="variant-nav">
+  <button class="variant-tab active" data-v="1">R1: Flip in place (tile never resizes)</button>
+  <button class="variant-tab" data-v="2">R2: Smooth expand (animated, scroll-anchored) ★ Selected</button>
+  <button class="variant-tab" data-v="3">R3: Reserved explain bar (nothing moves)</button>
+</div>
+<div class="frame-wrap"><div class="frame" id="frame"><div class="shell">
+  <nav class="listpane" aria-label="Sections">
+    <button class="row sel"><b>Overview</b><small>Your story at a glance</small></button>
+    <button class="row"><b>Playtime</b><small>1,234 h logged in</small></button>
+    <button class="row"><b>Login history</b><small>country map</small></button>
+    <button class="row"><b>Vehicles</b><small>381 tanks</small></button>
+    <button class="row"><b>Finance</b><small>currency flows</small></button>
+    <button class="row"><b>Payments</b><small>148 orders</small></button>
+    <button class="row mute"><b>Device info</b><small>not in this export</small></button>
+    <button class="row"><b>Account</b><small>created May 2015</small></button>
+  </nav>
+  <main class="detail">
+    <h2 class="section-title">Overview</h2>
+    <p class="provenance">Computed on this device from 3 account folders · World of Tanks · Mar 2013 to Aug 2026</p>
+    <div class="games" role="group" aria-label="Game"><button class="on" data-g="wot">World of Tanks</button><button data-g="wotb">WoT Blitz · 1.9 d</button><button data-g="wows">Warships · 0.4 d</button></div>
+    <section id="variant-1" class="variant"></section>
+    <section id="variant-2" class="variant" style="display:none"></section>
+    <section id="variant-3" class="variant" style="display:none"></section>
+  </main>
+</div></div></div>
+<div class="toast" id="toast"></div>
+<div id="sketch-tools"><span>View</span><button data-w="375">Phone</button><button data-w="768">Tablet</button><button data-w="1280">Desktop</button></div>
+<script src="../_shared/out.local/data.js"></script>
+<script>if(!window.WG)document.querySelector('.detail').insertAdjacentHTML('afterbegin','<p style="color:#c5221f"><b>No data:</b> run <code>node .planning/sketches/_shared/gen-data.mjs</code> (needs a real export; see README).</p>')</script>
+<script src="../_shared/overview.js"></script>
+<script src="../_shared/model.js"></script>
+<script>
+if (window.WG) (function () {
+const { items, groups, byId, vizHtml, hydrate } = M;
+const idx = Object.fromEntries(items.map((i, n) => [i.id, n]));
+let pins; try { pins = new Set(JSON.parse(localStorage.getItem('s029pins') || 'null') || ['logged', 'tank', 'dmg']); } catch (_) { pins = new Set(['logged', 'tank', 'dmg']); }
+const save = () => { try { localStorage.setItem('s029pins', JSON.stringify([...pins])); } catch (_) {} };
+const front = (i) => `<div class="k">${i.k}</div><div class="v">${i.v}</div><div class="rule">${i.rule}</div>${i.viz ? vizHtml(i.viz) : ''}`;
+const star = (i) => `<button class="star ${pins.has(i.id) ? 'on' : ''}" data-star="${i.id}" aria-pressed="${pins.has(i.id)}" aria-label="${pins.has(i.id) ? 'Unpin' : 'Pin'} ${i.k}">${pins.has(i.id) ? '★' : '☆'}</button>`;
+const syncStars = (root) => root.querySelectorAll('[data-star]').forEach((b) => { const on = pins.has(b.dataset.star); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); b.textContent = on ? '★' : '☆'; b.setAttribute('aria-label', (on ? 'Unpin ' : 'Pin ') + byId[b.dataset.star].k); });
+const pinStrip = () => `<div class="pins" id="PINS" role="group" aria-label="Pinned"><span class="lbl">Pinned</span></div>`;
+function drawPins(root, onPick) { const el = root.querySelector('.pins'); const list = items.filter((i) => pins.has(i.id)); el.innerHTML = `<span class="lbl">Pinned</span>` + (list.length ? list.map((i) => `<button class="chip2" data-pick="${i.id}">${i.k}<b>${i.t}</b></button>`).join('') : '<span class="empty">Star a tile to keep a shortcut here</span>'); }
+const groupsHtml = (fn) => groups.map((g) => `<div class="grp"><h3>${g}</h3><div class="bento">${items.filter((i) => i.g === g).map(fn).join('')}</div></div>`).join('');
+
+// ---------- R1: flip in place ----------
+const r1 = $('#variant-1');
+r1.innerHTML = `<p class="note">Click a tile: the same box flips to its explanation. The tile keeps exactly its size, so nothing below it moves. Pinned is a fixed-height strip.</p>${pinStrip()}` + groupsHtml((i) => `<div class="tw sz-${i.size}" data-id="${i.id}"><div class="tile f"><button class="face front" data-flip aria-expanded="false">${front(i)}</button><div class="face back" role="group" aria-label="How ${i.k} is computed"><div class="k">${i.k} · how it is computed</div><p class="b">${i.def}</p><p class="b2"><b>Reads</b> ${i.src}</p><div class="bf"><button class="link" data-toast="Would open ${i.tab}">Open ${i.tab} →</button><button class="link" data-back>Done</button></div></div></div>${star(i)}</div>`);
+hydrate(r1); drawPins(r1);
+function flip(tw, on) { const t = tw.querySelector('.tile'); t.classList.toggle('flipped', on); tw.querySelector('[data-flip]').setAttribute('aria-expanded', on); if (on) tw.querySelector('[data-back]').focus(); else tw.querySelector('[data-flip]').focus(); }
+r1.addEventListener('click', (e) => {
+  const tw = e.target.closest('.tw');
+  if (e.target.closest('[data-flip]')) { r1.querySelectorAll('.tile.flipped').forEach((o) => { if (o !== tw.querySelector('.tile')) { o.classList.remove('flipped'); o.closest('.tw').querySelector('[data-flip]').setAttribute('aria-expanded', 'false'); } }); return flip(tw, true); }
+  if (e.target.closest('[data-back]')) return flip(tw, false);
+  const s = e.target.closest('[data-star]'); if (s) { const id = s.dataset.star; pins.has(id) ? pins.delete(id) : pins.add(id); save(); syncStars(r1); drawPins(r1); say(pins.has(id) ? 'Pinned' : 'Unpinned'); return; }
+  const p = e.target.closest('[data-pick]'); if (p) { const t = r1.querySelector(`.tw[data-id="${p.dataset.pick}"]`); t.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion:reduce)').matches ? 'auto' : 'smooth' }); setTimeout(() => flip(t, true), 250); }
+});
+r1.addEventListener('keydown', (e) => { if (e.key === 'Escape') { const t = e.target.closest('.tw'); if (t && t.querySelector('.tile.flipped')) flip(t, false); } });
+
+// ---------- R2: smooth expand, scroll anchored, DOM stable ----------
+const r2 = $('#variant-2');
+r2.innerHTML = `<p class="note">Click a tile: it grows with a short animation and stays under your pointer (scroll is anchored). Tiles are never re-rendered, only moved, so focus and scroll are kept.</p><div class="modes"><span class="cap">Grow:</span><div class="seg" id="r2m" role="group" aria-label="Expand mode"><button class="on" data-m="tall">Down, in its column</button><button data-m="wide">To full width</button></div></div><div class="grp pgrp" id="p2g"><h3>Pinned</h3><div class="bento" id="p2b"></div></div><div id="p2rest">${groupsHtml((i) => `<div class="tw sz-${i.size}" data-id="${i.id}"><div class="tile x"><button class="tog" data-tog aria-expanded="false">${front(i)}</button><div class="xb" hidden><dl><dt>How it is computed</dt><dd>${i.def}</dd></dl><div><dl><dt>Reads</dt><dd>${i.src}</dd></dl><p style="margin:10px 0 0"><button class="link" data-toast="Would open ${i.tab}">Open ${i.tab} →</button></p></div></div></div>${star(i)}</div>`)}</div>`;
+hydrate(r2);
+const reduce = () => matchMedia('(prefers-reduced-motion:reduce)').matches;
+$('#r2m').addEventListener('click', (e) => { const b = e.target.closest('[data-m]'); if (!b) return; $$('#r2m button').forEach((x) => x.classList.toggle('on', x === b)); const open = r2.querySelector('.tw.exp'); const go = () => r2.classList.toggle('wide', b.dataset.m === 'wide'); open ? anchored(open, go) : go(); });
+r2.querySelectorAll('.tw').forEach((tw) => { tw.style.viewTransitionName = 't-' + tw.dataset.id; }); // CSSOM write, CSP-safe
+const home = (tw) => { const g = groups.indexOf(byId[tw.dataset.id].g); return r2.querySelectorAll('#p2rest .bento')[g]; };
+function seat(tw) { // put a tile in Pinned or back in its group, keeping the original order
+  const target = pins.has(tw.dataset.id) ? $('#p2b') : home(tw);
+  const after = [...target.children].find((c) => idx[c.dataset.id] > idx[tw.dataset.id]); target.insertBefore(tw, after || null);
+  const hasP = $('#p2b').querySelector('.tw'); $('#p2b').querySelector('.emptyp')?.remove(); if (!hasP) $('#p2b').insertAdjacentHTML('afterbegin', '<div class="emptyp">Star a tile to keep it here</div>');
+}
+items.filter((i) => pins.has(i.id)).forEach((i) => seat(r2.querySelector(`.tw[data-id="${i.id}"]`))); seat0();
+function seat0() { if (!$('#p2b').querySelector('.tw') && !$('#p2b').querySelector('.emptyp')) $('#p2b').insertAdjacentHTML('afterbegin', '<div class="emptyp">Star a tile to keep it here</div>'); }
+function anchored(el, mutate) { // keep `el` at the same screen position across a layout change, optionally animated
+  const before = el.getBoundingClientRect().top; let done = false;
+  const run = () => { if (done) return; done = true; mutate(); const after = el.getBoundingClientRect().top; if (Math.abs(after - before) > 1) scrollBy(0, after - before); };
+  if (document.startViewTransition && !reduce()) {
+    const t = document.startViewTransition(run);
+    for (const p of [t.ready, t.finished, t.updateCallbackDone]) p.catch(() => {}); // a newer transition may skip this one; that is fine
+    setTimeout(run, 600); // safety net: the state change never depends on the animation running
+  } else run();
+}
+r2.addEventListener('click', (e) => {
+  const tog = e.target.closest('[data-tog]');
+  if (tog) { const tw = tog.closest('.tw'), open = tog.getAttribute('aria-expanded') !== 'true'; anchored(tw, () => { tw.classList.toggle('exp', open); tog.setAttribute('aria-expanded', open); tw.querySelector('.xb').hidden = !open; tw.querySelector('.tile').classList.toggle('open', open); }); return; }
+  const s = e.target.closest('[data-star]'); if (s) { const tw = s.closest('.tw'), id = s.dataset.star; pins.has(id) ? pins.delete(id) : pins.add(id); save(); anchored(tw, () => { seat(tw); syncStars(r2); }); say(pins.has(id) ? 'Pinned (moved to the top)' : 'Unpinned (back in its group)'); s.focus(); }
+});
+r2.addEventListener('keydown', (e) => { if (e.key === 'Escape') { const t = e.target.closest('.tw.exp'); if (t) { const b = t.querySelector('[data-tog]'); anchored(t, () => { t.classList.remove('exp'); b.setAttribute('aria-expanded', 'false'); t.querySelector('.xb').hidden = true; t.querySelector('.tile').classList.remove('open'); }); b.focus(); } } });
+
+// ---------- R3: reserved explain bar ----------
+const r3 = $('#variant-3');
+r3.innerHTML = `<p class="note">Click a tile: its explanation appears in the bar at the bottom. The bar's space is always reserved, so no tile ever moves.</p>${pinStrip()}` + groupsHtml((i) => `<div class="tw sz-${i.size}" data-id="${i.id}"><button class="tile t" data-sel="${i.id}" aria-pressed="false">${front(i)}</button>${star(i)}</div>`) + `<aside class="ebar idle" id="ebar" aria-live="polite" aria-label="How the selected number is computed"><div class="eh"><div class="k">Nothing selected</div></div><div class="eb">Click any figure to see how it is computed, what it reads, and where to go for details.</div><div class="ea"></div></aside>`;
+hydrate(r3); drawPins(r3);
+function sel3(id) {
+  r3.querySelectorAll('.t').forEach((t) => t.setAttribute('aria-pressed', String(t.dataset.sel === id)));
+  const bar = $('#ebar', r3), i = id && byId[id]; bar.classList.toggle('idle', !i);
+  bar.innerHTML = i ? `<div class="eh"><div class="k">${i.g} · ${i.k}</div><div class="ev">${i.t}</div></div><div class="eb"><b>How it is computed.</b> ${i.def} <b>Reads</b> ${i.src}.</div><div class="ea"><button class="link" data-toast="Would open ${i.tab}">Open ${i.tab} →</button></div>` : '<div class="eh"><div class="k">Nothing selected</div></div><div class="eb">Click any figure to see how it is computed, what it reads, and where to go for details.</div><div class="ea"></div>';
+}
+r3.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-sel]'); if (t) { sel3(t.getAttribute('aria-pressed') === 'true' ? null : t.dataset.sel); return; }
+  const s = e.target.closest('[data-star]'); if (s) { const id = s.dataset.star; pins.has(id) ? pins.delete(id) : pins.add(id); save(); syncStars(r3); drawPins(r3); say(pins.has(id) ? 'Pinned' : 'Unpinned'); return; }
+  const p = e.target.closest('[data-pick]'); if (p) { const t = r3.querySelector(`.t[data-sel="${p.dataset.pick}"]`); t.scrollIntoView({ block: 'center', behavior: reduce() ? 'auto' : 'smooth' }); sel3(p.dataset.pick); }
+});
+r3.addEventListener('keydown', (e) => { if (e.key === 'Escape') sel3(null); });
+})();
+</script>
+</body>
+</html>

@@ -61,7 +61,7 @@ Your data never leaves your machine. Every other decision — architecture, libr
 
 ## Context
 
-**The real export, inspected directly** (sample dated 2021-10-12, ~2.2MB, ~4,200 session rows — small; no large veteran export has been inspected, so "how big can this get" is an assumption, not a verified fact):
+**The real export, inspected directly** (sample dated 2021-10-12, ~2.2MB, ~3,870 session rows — small; no large veteran export has been inspected, so "how big can this get" is an assumption, not a verified fact):
 
 - Root of the zip is a single folder (looked like a numeric account ID) containing category subfolders — do not assume a fixed name, auto-detect it.
 - CSVs are semicolon-delimited, quoted fields.
@@ -93,7 +93,7 @@ Your data never leaves your machine. Every other decision — architecture, libr
 - **Web Worker lifecycle**: one long-lived Worker instance reused across uploads, not spawned per upload — required for the "single active dataset, replace on new upload" model to be race-free; paired with a main-thread busy-guard while a parse is in flight.
 - **Inside the pipeline worker**: use `Papa.parse({ worker: false })` and fflate's `unzipSync` — both PapaParse's own `worker: true` mode and fflate's async unzip spawn a *nested* worker, which is redundant (already off the main thread) and has documented friction (script-path resolution under bundlers, IPC stalls).
 - **Geo-map assets are build-time only**: `world-atlas` + `d3-geo`/`topojson-client` run in a Node build script to pre-generate static SVG/lookup assets; none of the three ship as runtime dependencies. Concrete geo-IP source: the official monthly DB-IP downloads (`https://download.db-ip.com/free/dbip-{country,city}-lite-YYYY-MM.csv.gz`, CC BY 4.0), converted to a binary range table at build time; the deprecated `@ip-location-db/dbip-country` npm mirror is not installed (Phase 6, Decision 1).
-- **Chart aggregation at scale**: heatmaps/histograms must aggregate per-bucket (e.g. per-day, per-hour-cell), never render one SVG node per raw session/row — hundreds of thousands of individual nodes is a documented browser-freeze risk. Verify against a synthetic large-export fixture, since the only real sample inspected is small (~4,200 rows).
+- **Chart aggregation at scale**: heatmaps/histograms must aggregate per-bucket (e.g. per-day, per-hour-cell), never render one SVG node per raw session/row — hundreds of thousands of individual nodes is a documented browser-freeze risk. Verify against a synthetic large-export fixture, since the only real sample inspected is small (~3,870 rows).
 
 ## Key Decisions
 

@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sketch 025 - Grouped + interactive bento</title>
+<link rel="stylesheet" href="../_shared/overview.css">
+<style>
+/* Three tile sizes only (research: 2-3 sizes, hero top-left, size = priority). */
+.bento{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;grid-auto-flow:dense}
+.sz-hero{grid-column:span 2;grid-row:span 2}.sz-feat{grid-column:span 2}
+@container (max-width:1000px){.bento{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@container (max-width:520px){.bento{grid-template-columns:minmax(0,1fr)}.sz-hero,.sz-feat{grid-column:auto;grid-row:auto}.big{font-size:44px}.barrow{grid-template-columns:90px 1fr 80px}}
+.grp{margin:0 0 22px}
+.gh{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;padding:6px 0;margin:0 0 8px;cursor:pointer;font:inherit;text-align:left;min-height:44px}
+.gh h3{margin:0;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.gh .ct{font-size:12px;color:var(--muted)}.gh::after{content:"";flex:1;height:1px;background:var(--border)}
+.gh .chev{font-size:12px;color:var(--ink);transition:transform .15s ease}.gh[aria-expanded="false"] .chev{transform:rotate(-90deg)}
+.grp.closed .bento{display:none}
+.tile.t{text-align:left;cursor:pointer;width:100%;font:inherit;color:inherit;display:block;background:#fff}
+.tile.t[aria-pressed="true"],.tile.t[aria-expanded="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.tile .v{margin:2px 0}
+.tw{position:relative;min-width:0}.tw.sz-hero{grid-column:span 2;grid-row:span 2}.tw.sz-feat{grid-column:span 2}
+@container (max-width:1000px){.tw.sz-hero,.tw.sz-feat{grid-column:span 2}}
+@container (max-width:520px){.tw.sz-hero,.tw.sz-feat{grid-column:auto;grid-row:auto}}
+.tw .t{height:100%}
+.star{position:absolute;top:6px;right:6px;width:44px;height:44px;border:0;background:none;cursor:pointer;font-size:18px;color:var(--faint);border-radius:8px;z-index:2}
+.star:hover{background:var(--hover)}.star.on{color:var(--ink)}
+/* inspector (non-modal, no focus trap) */
+.insp-wrap{display:grid;grid-template-columns:minmax(0,1fr) 0;gap:0;transition:grid-template-columns .2s ease}
+.insp-wrap.open{grid-template-columns:minmax(0,1fr) 300px;gap:16px}
+.insp{overflow:hidden;min-width:0}.insp .card{position:sticky;top:64px}
+@container (max-width:1000px){.insp-wrap.open{grid-template-columns:minmax(0,1fr)}.insp{order:-1}.insp .card{position:static}}
+.dl dt{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:12px}.dl dd{margin:2px 0 0;color:var(--ink)}
+/* G2 expanded tile */
+.tw.exp{grid-column:1/-1!important;grid-row:auto!important}
+.exp-body{margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@container (max-width:760px){.exp-body{grid-template-columns:1fr}}
+/* G3 identity + tabs + sheet */
+.idrow{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:0 0 12px}
+.plate{width:56px;height:56px;border-radius:8px;background:var(--ink);color:#fff;display:grid;place-items:center;font-weight:700}
+.sumrow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 14px}
+@container (max-width:760px){.sumrow{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin:0 0 14px;overflow-x:auto}
+.tabs button{min-height:44px;padding:0 14px;border:0;border-bottom:3px solid transparent;background:none;cursor:pointer;font-weight:600;color:var(--muted);white-space:nowrap}
+.tabs button:hover{color:var(--ink)}.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+@container (max-width:760px){.sheet{position:sticky;bottom:0;z-index:5;margin-top:12px;box-shadow:0 -8px 20px rgba(0,0,0,.14);border-radius:8px}.sheet .card{max-height:60vh;overflow:auto}}
+.hint{font-size:12.5px;color:var(--muted);margin:10px 0 0}
+</style>
+</head>
+<body>
+<div id="variant-nav">
+  <button class="variant-tab active" data-v="1">G1: Groups + inspector panel</button>
+  <button class="variant-tab" data-v="2">G2: Pinned row + expand in place</button>
+  <button class="variant-tab" data-v="3">G3: Identity header + chapter tabs</button>
+</div>
+<div class="frame-wrap"><div class="frame" id="frame"><div class="shell">
+  <nav class="listpane" aria-label="Sections">
+    <button class="row sel"><b>Overview</b><small>Your story at a glance</small></button>
+    <button class="row"><b>Playtime</b><small>1,234 h logged in</small></button>
+    <button class="row"><b>Login history</b><small>country map</small></button>
+    <button class="row"><b>Vehicles</b><small>381 tanks</small></button>
+    <button class="row"><b>Finance</b><small>currency flows</small></button>
+    <button class="row"><b>Payments</b><small>148 orders</small></button>
+    <button class="row mute"><b>Device info</b><small>not in this export</small></button>
+    <button class="row"><b>Account</b><small>created May 2015</small></button>
+  </nav>
+  <main class="detail">
+    <h2 class="section-title">Overview</h2>
+    <p class="provenance">Computed on this device from 3 account folders · World of Tanks · Mar 2013 to Aug 2026</p>
+    <div class="games" role="group" aria-label="Game"><button class="on" data-g="wot">World of Tanks</button><button data-g="wotb">WoT Blitz · 1.9 d</button><button data-g="wows">Warships · 0.4 d</button></div>
+    <section id="variant-1" class="variant"></section>
+    <section id="variant-2" class="variant" style="display:none"></section>
+    <section id="variant-3" class="variant" style="display:none"></section>
+  </main>
+</div></div></div>
+<div class="toast" id="toast"></div>
+<div id="sketch-tools"><span>View</span><button data-w="375">Phone</button><button data-w="768">Tablet</button><button data-w="1280">Desktop</button></div>
+<script src="../_shared/out.local/data.js"></script>
+<script>if(!window.WG)document.querySelector('.detail').insertAdjacentHTML('afterbegin','<p style="color:#c5221f"><b>No data:</b> run <code>node .planning/sketches/_shared/gen-data.mjs</code> (needs a real export; see README).</p>')</script>
+<script src="../_shared/overview.js"></script>
+<script src="../_shared/model.js"></script>
+<script>
+if (window.WG) (function () {
+const { items, groups, byId, vizHtml, hydrate } = M;
+const tileBtn = (i, attr = 'aria-pressed="false"') => `<button class="tile t sz-${i.size}" data-id="${i.id}" ${attr}><div class="k">${i.k}</div><div class="v">${i.v}</div><div class="rule">${i.rule}</div>${i.viz ? vizHtml(i.viz) : ''}</button>`;
+const inspBody = (it) => `<dl class="dl" style="margin:0"><dt>How it is computed</dt><dd>${it.def}</dd><dt>Reads</dt><dd>${it.src}</dd><dt>Detail</dt><dd>${it.rule}</dd></dl><p style="margin:14px 0 0"><button class="link" data-toast="Would open ${it.tab}">Open ${it.tab} →</button></p>`;
+const inspCard = (it) => `<div class="card"><div style="display:flex;justify-content:space-between;align-items:start"><div class="k">${it.g}</div><button class="link" data-close aria-label="Close details">Close (Esc)</button></div><div class="v" style="margin-top:4px">${it.k}</div><div class="big" style="font-size:40px;margin:4px 0 10px">${it.t}</div>${inspBody(it)}</div>`;
+let lastTile = null;
+function closeInsp(root) { const wrap = root.querySelector('.insp-wrap'); const id = wrap.dataset.sel; wrap.dataset.sel = ''; wrap.classList.remove('open'); root.querySelector('.insp').innerHTML = ''; root.querySelectorAll('.t[aria-pressed="true"]').forEach((t) => t.setAttribute('aria-pressed', 'false')); const back = root.querySelector(`.t[data-id="${id}"]`); if (back) back.focus(); }
+function openInsp(root, id) {
+  const wrap = root.querySelector('.insp-wrap'); const same = wrap.dataset.sel === id; if (same) return closeInsp(root);
+  wrap.dataset.sel = id; wrap.classList.add('open'); root.querySelector('.insp').innerHTML = inspCard(byId[id]);
+  root.querySelectorAll('.t').forEach((t) => t.setAttribute('aria-pressed', String(t.dataset.id === id)));
+}
+// arrow keys move between tiles (focus stays in the grid; no trap)
+function arrows(e, root) { if (!['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp'].includes(e.key)) return; const ts = [...root.querySelectorAll('.t')].filter((t) => t.offsetParent); const i = ts.indexOf(document.activeElement); if (i < 0) return; e.preventDefault(); const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : -1; (ts[i + step] || ts[i]).focus(); }
+
+// ---------- G1: groups + inspector ----------
+const r1 = $('#variant-1');
+r1.innerHTML = `<p class="cap" style="margin:0 0 10px">Select a tile to inspect it. Arrow keys move between tiles, Esc closes the panel. Group headers collapse.</p><div class="insp-wrap" data-sel=""><div>${groups.map((g) => `<div class="grp" data-g="${g}"><button class="gh" aria-expanded="true"><span class="chev">▾</span><h3>${g}</h3><span class="ct">${items.filter((i) => i.g === g).length}</span></button><div class="bento">${items.filter((i) => i.g === g).map((i) => `<div class="tw sz-${i.size}">${tileBtn(i)}</div>`).join('')}</div></div>`).join('')}</div><aside class="insp" role="complementary" aria-label="Insight details" aria-live="polite"></aside></div>`;
+hydrate(r1);
+r1.addEventListener('click', (e) => {
+  const gh = e.target.closest('.gh'); if (gh) { const open = gh.getAttribute('aria-expanded') === 'true'; gh.setAttribute('aria-expanded', !open); gh.closest('.grp').classList.toggle('closed', open); return; }
+  const t = e.target.closest('.t'); if (t) return openInsp(r1, t.dataset.id);
+  if (e.target.closest('[data-close]')) closeInsp(r1);
+});
+r1.addEventListener('keydown', (e) => { if (e.key === 'Escape' && r1.querySelector('.insp-wrap').dataset.sel) closeInsp(r1); else arrows(e, r1); });
+
+// ---------- G2: pinned row + expand in place ----------
+let pins; try { pins = new Set(JSON.parse(localStorage.getItem('s025pins') || 'null') || ['logged', 'tank', 'dmg']); } catch (_) { pins = new Set(['logged', 'tank', 'dmg']); }
+const savePins = () => { try { localStorage.setItem('s025pins', JSON.stringify([...pins])); } catch (_) {} };
+const exp2 = new Set();
+const r2 = $('#variant-2');
+function tw2(i) { const open = exp2.has(i.id); return `<div class="tw sz-${i.size} ${open ? 'exp' : ''}"><button class="tile t sz-${i.size}" data-id="${i.id}" aria-expanded="${open}"><div class="k">${i.k}</div><div class="v">${i.v}</div><div class="rule">${i.rule}</div>${i.viz ? vizHtml(i.viz) : ''}${open ? `<div class="exp-body"><div><dl class="dl" style="margin:0"><dt>How it is computed</dt><dd>${i.def}</dd></dl></div><div><dl class="dl" style="margin:0"><dt>Reads</dt><dd>${i.src}</dd></dl><p style="margin:10px 0 0"><span class="link" data-toast="Would open ${i.tab}">Open ${i.tab} →</span></p></div></div>` : ''}</button><button class="star ${pins.has(i.id) ? 'on' : ''}" data-star="${i.id}" aria-pressed="${pins.has(i.id)}" aria-label="${pins.has(i.id) ? 'Unpin' : 'Pin'} ${i.k}">${pins.has(i.id) ? '★' : '☆'}</button></div>`; }
+function draw2() {
+  const pinned = items.filter((i) => pins.has(i.id));
+  r2.innerHTML = `<div class="grp"><div class="gh" style="cursor:default"><h3>Pinned</h3><span class="ct">${pinned.length}</span></div>${pinned.length ? `<div class="bento">${pinned.map(tw2).join('')}</div>` : '<p class="cap">Nothing pinned. Star a tile below to keep it here.</p>'}</div>` + groups.map((g) => `<div class="grp"><div class="gh" style="cursor:default"><h3>${g}</h3></div><div class="bento">${items.filter((i) => i.g === g && !pins.has(i.id)).map(tw2).join('')}</div></div>`).join('');
+  hydrate(r2);
+}
+draw2();
+r2.addEventListener('click', (e) => {
+  const s = e.target.closest('[data-star]'); if (s) { const id = s.dataset.star; pins.has(id) ? pins.delete(id) : pins.add(id); savePins(); draw2(); say(pins.has(id) ? 'Pinned (kept on this device)' : 'Unpinned'); const nb = r2.querySelector(`[data-star="${id}"]`); if (nb) nb.focus(); return; }
+  const t = e.target.closest('.t'); if (t) { const id = t.dataset.id; exp2.has(id) ? exp2.delete(id) : exp2.add(id); draw2(); const nb = r2.querySelector(`.t[data-id="${id}"]`); if (nb) nb.focus(); }
+});
+r2.addEventListener('keydown', (e) => arrows(e, r2));
+
+// ---------- G3: identity header + chapter tabs + sheet ----------
+const W = WG, T = W.time, K = W.tanks;
+const r3 = $('#variant-3');
+const tabsDef = [['Highlights', (i) => ['logged', 'tank', 'cls', 'streak', 'dmg', 'cred'].includes(i.id)], ...groups.map((g) => [g, (i) => i.g === g])];
+let tab3 = 0, sel3 = null;
+function draw3() {
+  const list = items.filter(tabsDef[tab3][1]);
+  r3.innerHTML = `<div class="idrow"><div class="plate" aria-hidden="true">WoT</div><div><div class="v" style="font-size:22px">Player since 2013</div><div class="cap">13.2 years · ${n(T.sessions)} sessions · ${K.count} tanks</div></div><div style="display:flex;gap:6px;flex-wrap:wrap"><span class="chip">Medium-tank main</span><span class="chip">Evening player</span><span class="chip">${T.streak.days}-day streak</span></div></div>
+<div class="sumrow">${['logged', 'bat', 'fleet', 'cred'].map((id) => { const i = byId[id]; return `<div class="tile w"><div class="k">${i.k}</div><div class="v">${i.v}</div></div>`; }).join('')}</div>
+<div class="tabs" role="tablist" aria-label="Chapters">${tabsDef.map((t, i) => `<button role="tab" id="t3-${i}" aria-selected="${i === tab3}" tabindex="${i === tab3 ? 0 : -1}" data-tab="${i}">${t[0]}</button>`).join('')}</div>
+<div class="insp-wrap ${sel3 ? 'open' : ''}" role="tabpanel" aria-labelledby="t3-${tab3}"><div><div class="bento">${list.map((i) => `<div class="tw sz-${i.size}">${tileBtn(i, `aria-pressed="${sel3 === i.id}"`)}</div>`).join('')}</div><p class="hint">On a phone the details open as a bottom sheet.</p></div><aside class="insp sheet" role="complementary" aria-label="Insight details" aria-live="polite">${sel3 ? inspCard(byId[sel3]) : ''}</aside></div>`;
+  hydrate(r3);
+}
+draw3();
+r3.addEventListener('click', (e) => {
+  const tb = e.target.closest('[data-tab]'); if (tb) { tab3 = +tb.dataset.tab; sel3 = null; draw3(); r3.querySelector(`#t3-${tab3}`).focus(); return; }
+  const t = e.target.closest('.t'); if (t) { sel3 = sel3 === t.dataset.id ? null : t.dataset.id; draw3(); const nb = r3.querySelector(`.t[data-id="${t.dataset.id}"]`); if (nb) nb.focus(); return; }
+  if (e.target.closest('[data-close]')) { const id = sel3; sel3 = null; draw3(); const nb = r3.querySelector(`.t[data-id="${id}"]`); if (nb) nb.focus(); }
+});
+r3.addEventListener('keydown', (e) => {
+  const tb = e.target.closest('[role="tab"]');
+  if (tb && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) { tab3 = (tab3 + (e.key === 'ArrowRight' ? 1 : -1) + tabsDef.length) % tabsDef.length; sel3 = null; draw3(); r3.querySelector(`#t3-${tab3}`).focus(); return; }
+  if (e.key === 'Escape' && sel3) { const id = sel3; sel3 = null; draw3(); const nb = r3.querySelector(`.t[data-id="${id}"]`); if (nb) nb.focus(); return; }
+  arrows(e, r3);
+});
+})();
+</script>
+</body>
+</html>
