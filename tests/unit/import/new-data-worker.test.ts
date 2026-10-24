@@ -98,7 +98,10 @@ function readyRows(card: NewDataCardView): number {
 
 describe('the two channels are strict field-less queries', () => {
   it('accepts a bare query and rejects a smuggled title, battleType or other field', () => {
-    for (const channel of ['heat', 'warships-storage']) {
+    // 13-01: the `overview` channel joined this loop when it was registered.
+    // It is field-less for the same reason the other two are, and its own
+    // validator cases live in `overview-worker.test.ts`.
+    for (const channel of ['heat', 'warships-storage', 'overview']) {
       expect(isDataQuery({ channel })).toBe(true);
       expect(isDataQuery({ channel, title: 'wot' })).toBe(false);
       expect(isDataQuery({ channel, title: null })).toBe(false);

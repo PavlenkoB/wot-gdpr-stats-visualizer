@@ -2,7 +2,6 @@ import '../_support/pin-locale';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   SAMPLE_CREATED_DATE,
-  SAMPLE_EXPECTED_COUNTS,
   SAMPLE_FILE_COUNTS,
   SAMPLE_NICKNAME,
   SAMPLE_REGION,
@@ -24,18 +23,12 @@ import {
   GENERIC_FAILURE_MESSAGE,
   UNSUPPORTED_NONE_DETECTED,
   IDENTITY_SKELETON_TITLE,
-  PANE_TITLES,
   formatAboutThis,
-  formatChipAbsent,
-  formatChipUnsupported,
-  formatChipWithData,
   formatImportSummary,
-  formatOpenSectionLink,
   formatProvenanceFrom,
   formatSectionStatus,
 } from '../../../src/lib/ui-copy.ts';
 import { NAV_ORDER } from '../../../src/lib/shell/dashboard-status.ts';
-import { OVERVIEW_CARD_IDS } from '../../../src/lib/shell/overview-model.ts';
 import {
   PANE_IDS,
   PANE_ORDER,
@@ -56,6 +49,7 @@ import {
   waitForImported,
 } from '../_support/helpers.ts';
 import { SCALE_5K_SPEC, buildSessionsExport } from '../../fixtures/sessions-fixtures.ts';
+import { OVERVIEW_SCALE_PX, SCALE_PX } from '../../helpers/components.ts';
 
 // =============================================================================
 // 08-02 - the master-detail shell: selection, mounting and persistence
@@ -67,34 +61,53 @@ import { SCALE_5K_SPEC, buildSessionsExport } from '../../fixtures/sessions-fixt
 // mounted, the rest are absent rather than hidden).
 
 /**
+ * The sizes the Overview page is measured against. The Overview shows its own
+ * scale (12 / 14 / 32 / 56px, 13-UI-SPEC) BESIDE the list pane, which keeps the
+ * shared scale, and the check is page-wide, so the Overview page may show text on
+ * EITHER approved scale. Which one an element belongs to is decided BY FILE: the
+ * source-level guard (`phase8-ui-review-guards.test.ts`) owns that per-file rule.
+ */
+const OVERVIEW_PAGE_SCALE: readonly number[] = [...SCALE_PX, ...OVERVIEW_SCALE_PX];
+
+/** Every other pane is held to the shared 14 / 18 / 26 / 30px scale alone. */
+const BASE_SCALE: readonly number[] = [...SCALE_PX];
+
+/**
  * Every visible element that shows text (a non-blank direct text node) and every
  * visible control (button, input, select, textarea, summary) whose computed
- * font-size is NOT on the 14 / 18 / 26 / 30px scale (08-UI-SPEC Typography). An
- * empty list is the contract: no 16px page default and no 13.33px native control.
+ * font-size is NOT on the given scale (08-UI-SPEC Typography; the Overview's own
+ * scale is 13-UI-SPEC). An empty list is the contract: no 16px page default and
+ * no 13.33px native control. The scale defaults to the Overview page's.
  */
-async function offScaleText(page: Page): Promise<string[]> {
-  return page.evaluate(() => {
-    const scale = new Set([14, 18, 26, 30]);
-    const controls = new Set(['BUTTON', 'INPUT', 'SELECT', 'TEXTAREA', 'SUMMARY']);
-    const skipped = new Set(['SCRIPT', 'STYLE', 'TITLE', 'NOSCRIPT', 'HEAD']);
-    const off: string[] = [];
-    for (const el of Array.from(document.body.querySelectorAll('*'))) {
-      if (skipped.has(el.tagName.toUpperCase())) continue;
-      if (!el.checkVisibility()) continue;
-      const hasText = Array.from(el.childNodes).some(
-        (node) => node.nodeType === Node.TEXT_NODE && (node.textContent ?? '').trim() !== '',
-      );
-      if (!hasText && !controls.has(el.tagName.toUpperCase())) continue;
-      const size = parseFloat(getComputedStyle(el).fontSize);
-      if (!scale.has(size)) {
-        const testId = el.getAttribute('data-testid') ?? '';
-        off.push(
-          `${el.tagName.toLowerCase()}.${String(el.getAttribute('class') ?? '')}[${testId}] ${size}px`,
+async function offScaleText(
+  page: Page,
+  scale: readonly number[] = OVERVIEW_PAGE_SCALE,
+): Promise<string[]> {
+  return page.evaluate(
+    ({ allowed }) => {
+      const allowedSet = new Set<number>(allowed);
+      const controls = new Set(['BUTTON', 'INPUT', 'SELECT', 'TEXTAREA', 'SUMMARY']);
+      const skipped = new Set(['SCRIPT', 'STYLE', 'TITLE', 'NOSCRIPT', 'HEAD']);
+      const off: string[] = [];
+      for (const el of Array.from(document.body.querySelectorAll('*'))) {
+        if (skipped.has(el.tagName.toUpperCase())) continue;
+        if (!el.checkVisibility()) continue;
+        const hasText = Array.from(el.childNodes).some(
+          (node) => node.nodeType === Node.TEXT_NODE && (node.textContent ?? '').trim() !== '',
         );
+        if (!hasText && !controls.has(el.tagName.toUpperCase())) continue;
+        const size = parseFloat(getComputedStyle(el).fontSize);
+        if (!allowedSet.has(size)) {
+          const testId = el.getAttribute('data-testid') ?? '';
+          off.push(
+            `${el.tagName.toLowerCase()}.${String(el.getAttribute('class') ?? '')}[${testId}] ${size}px`,
+          );
+        }
       }
-    }
-    return off;
-  });
+      return off;
+    },
+    { allowed: [...scale] },
+  );
 }
 
 /** Offer a file through the confirm panel and commit it (a replace attempt). */
@@ -281,7 +294,7 @@ test.describe('master-detail navigation', () => {
     for (const pane of panes) {
       await openSection(page, pane);
       await expect(detailPane(page)).toHaveAttribute('data-pane', pane);
-      expect(await offScaleText(page), `${pane} text is on the type scale`).toEqual([]);
+      expect(await offScaleText(page, BASE_SCALE), `${pane} text is on the type scale`).toEqual([]);
 
       // Exactly the pane's own section root exists; the other six do not.
       const own = PANE_SECTION[pane];
@@ -780,7 +793,7 @@ test.describe('master-detail navigation', () => {
     await expect(page.getByTestId('dashboard-section-player-statistics')).toBeVisible();
   });
 
-  test('(overview) the landing view has three chips and six cards that open their section', async ({
+  test('(overview) the landing view is the insights page; a tile opens its section and an absent source is one dashed row', async ({
     page,
   }) => {
     await gotoApp(page);
@@ -790,58 +803,37 @@ test.describe('master-detail navigation', () => {
     await expect(overview).toBeVisible();
     await expect(detailPane(page)).toHaveAttribute('data-pane', 'overview');
 
-    // The chips are computed from the fixture's own counts, never typed. The
-    // sample holds every supported folder, and the unsupported ones are the two
-    // known-deferred and two unknown categories it declares.
-    // The sample's two Warships crews and storage files earn that pane a card as
-    // well (plan 11-11); it holds no HEAT file, so there is no HEAT card.
-    const cardIds = [...OVERVIEW_CARD_IDS, 'warships-storage'] as const;
-    const cardCount = cardIds.length;
-    const unsupported = SAMPLE_EXPECTED_COUNTS['known-deferred'] + SAMPLE_EXPECTED_COUNTS.unknown;
-    await expect(page.getByTestId('ov-chip-with-data')).toHaveText(formatChipWithData(cardCount));
-    await expect(page.getByTestId('ov-chip-absent')).toHaveText(formatChipAbsent(0));
-    await expect(page.getByTestId('ov-chip-unsupported')).toHaveText(
-      formatChipUnsupported(unsupported),
-    );
+    // The sample's legacy Sessions.csv names no game, so the Logged in hero
+    // shows and the WoT habit tiles wait in the Time group's one dashed row.
+    await expect(page.getByTestId('ov-tile-logged')).toBeVisible();
+    const timeAbsent = page.getByTestId('ov-absent-time');
+    await expect(timeAbsent).toContainText('Signature hour');
+    await expect(timeAbsent).toContainText('session history');
+    // The sample holds Orders, so that totals tile is a tile, not an absent row.
+    await expect(page.getByTestId('ov-tile-ord')).toBeVisible();
 
-    // Six cards, each with its open control.
-    await expect(page.locator('[data-testid^="ov-card-"]')).toHaveCount(cardCount);
-    for (const id of cardIds) {
-      await expect(page.getByTestId('ov-card-' + id)).not.toHaveClass(/\bna\b/);
-      await expect(page.getByTestId('ov-open-' + id)).toHaveText(
-        formatOpenSectionLink(PANE_TITLES[id]),
-      );
-    }
-
-    // The account card shows the region and the created date, never the nickname
-    // (the nickname appears once in the document, in the list pane header).
-    const account = page.getByTestId('ov-card-account');
-    await expect(account).toContainText(SAMPLE_REGION);
-    await expect(account).toContainText(SAMPLE_CREATED_DATE);
-    await expect(account).not.toContainText(SAMPLE_NICKNAME);
+    // Nothing the account card used to show reaches the Overview (the nickname
+    // appears once in the document, in the list pane header).
     await expect(overview).not.toContainText(SAMPLE_NICKNAME);
+    await expect(overview).not.toContainText(SAMPLE_REGION);
+    await expect(overview).not.toContainText(SAMPLE_CREATED_DATE);
 
-    // Activating a card's control selects that pane and moves focus into it.
-    await page.getByTestId('ov-open-vehicles').click();
-    await expectSelected(page, 'vehicles');
-    await expect(detailPane(page)).toHaveAttribute('data-pane', 'vehicles');
-    await expect(page.getByTestId('dashboard-section-player-statistics')).toHaveCount(1);
+    // Expanding a tile and following its Open link selects that pane and moves
+    // focus into it.
+    await page.getByTestId('ov-tile-button-logged').click();
+    await page.getByTestId('ov-tile-open-logged').click();
+    await expectSelected(page, 'playtime');
+    await expect(detailPane(page)).toHaveAttribute('data-pane', 'playtime');
     await expect(page.getByTestId('overview')).toHaveCount(0);
     await expect(detailPane(page)).toBeFocused();
 
-    // A replace lands on Overview again; a missing Payment_history is a dashed
-    // panel with no link, and the chips follow.
+    // A replace lands on the Overview again; a missing Payment_history turns the
+    // Orders tile into a line in the Totals group's dashed row.
     await replaceExport(page, 'no-payments.zip', buildMissingPaymentHistoryExport());
     await expectSelected(page, 'overview');
-    const payments = page.getByTestId('ov-card-payments');
-    await expect(payments).toHaveClass(/\bna\b/);
-    await expect(page.getByTestId('ov-open-payments')).toHaveCount(0);
-    await expect(payments).toContainText(formatSectionStatus('no-export', 'Payment_history'));
-    await expect(payments).toContainText('Not in this export');
-    await expect(page.getByTestId('ov-chip-with-data')).toHaveText(
-      formatChipWithData(cardCount - 1),
-    );
-    await expect(page.getByTestId('ov-chip-absent')).toHaveText(formatChipAbsent(1));
+    await expect(page.getByTestId('ov-absent-totals')).toContainText('Orders');
+    await expect(page.getByTestId('ov-absent-totals')).toContainText('payment history');
+    await expect(page.getByTestId('ov-tile-ord')).toHaveCount(0);
   });
 });
 
@@ -873,7 +865,10 @@ test.describe('master-detail navigation (phone screens at 375px)', () => {
     await expect(detailPane(page)).toBeHidden();
     await expect(page.getByTestId('back-button-sections')).toBeHidden();
     await expect(page.getByTestId('dashboard-section-activity-history')).toHaveCount(0);
-    expect(await offScaleText(page), 'phone list screen text is on the type scale').toEqual([]);
+    expect(
+      await offScaleText(page, BASE_SCALE),
+      'phone list screen text is on the type scale',
+    ).toEqual([]);
 
     // j on the list screen moves the selection and does not switch screens. The
     // newly selected pane's content is still not mounted.
@@ -894,7 +889,10 @@ test.describe('master-detail navigation (phone screens at 375px)', () => {
     await expect(back).toBeVisible();
     expect((await back.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     await expect(page.getByTestId('dashboard-section-player-statistics')).toBeVisible();
-    expect(await offScaleText(page), 'phone detail screen text is on the type scale').toEqual([]);
+    expect(
+      await offScaleText(page, BASE_SCALE),
+      'phone detail screen text is on the type scale',
+    ).toEqual([]);
 
     // The hidden-mount guard: the table measured a real height, so it drew rows.
     const scroller = page.getByTestId('vehicle-scroller');

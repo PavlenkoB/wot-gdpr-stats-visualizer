@@ -529,6 +529,20 @@ export function binOf(lengthSeconds: number): number {
  *   every import; see the note on that constant in `playtime-shared.ts`.
  * - `bins` is credited the RAW length, not the increment, because a
  *   fully-overlapped session still occupied a slot.
+ *
+ * ## Why the longest session is the RAW length (13-05, D-20)
+ *
+ * `longestSeconds` is `end - start` of ONE session, never the merged
+ * increment. The merged sweep credits a fully-overlapped session ZERO
+ * seconds, which is correct for a playtime total and wrong for "how long was
+ * the longest sitting": a session that was covered by an earlier one still
+ * happened, and its own length is the figure a reader wants. The two
+ * overlapping one-hour sessions therefore report 3,600 seconds each, not the
+ * 3,600 seconds of their union and never their 7,200-second sum.
+ *
+ * The walk is in START order, so a longer length always replaces the current
+ * best and an EQUAL length keeps the first one seen — which is the earlier
+ * start. That is what makes the tie rule deterministic.
  */
 export function aggregateSlice(usable: readonly UsableSession[], excluded: number): PlaytimeSlice {
   const order = usable.map((_, index) => index).sort((a, b) => usable[a]!.start - usable[b]!.start);
@@ -544,10 +558,23 @@ export function aggregateSlice(usable: readonly UsableSession[], excluded: numbe
     bins: new Array<number>(DURATION_BIN_COUNT).fill(0),
   };
   let covered = -Infinity;
+  let haveLongest = false;
+  let longestSeconds = 0;
+  let longestStart = 0;
   for (const index of order) {
     const { start, end } = usable[index]!;
     const increment = Math.max(0, end - Math.max(start, covered));
     covered = Math.max(covered, end);
+
+    // The RAW length, and the tie rule the walk order gives for free: the
+    // first session seen is the earliest start, so an equal length never
+    // replaces it.
+    const length = end - start;
+    if (!haveLongest || length > longestSeconds) {
+      longestSeconds = length;
+      longestStart = start;
+      haveLongest = true;
+    }
 
     const day = Math.floor(start / 86400);
     const last = slice.dayIndex.length - 1;
@@ -566,6 +593,10 @@ export function aggregateSlice(usable: readonly UsableSession[], excluded: numbe
     slice.bins[binOf(end - start)]! += 1;
     slice.seconds += increment;
   }
+  // An empty slice reports 0 and 0: there is no session, so there is no
+  // longest one, and 0 is the honest "none" rather than a missing field.
+  slice.longestSeconds = longestSeconds;
+  slice.longestStart = longestStart;
   return slice;
 }
 

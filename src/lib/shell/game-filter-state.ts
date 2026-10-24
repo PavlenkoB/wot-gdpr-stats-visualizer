@@ -30,9 +30,11 @@
 // FILE NAME, so `HEAT_Game_Sessions.csv` and `WOTC_Game_Sessions.csv` have
 // always produced their own scopes; what was missing was the files themselves,
 // and plan 11-01 gave them an allowlist and made them readable (D-08). The
-// aggregate shape did not change, which is why `PLAYTIME_VERSION` is still 3 —
-// see `tests/unit/playtime/playtime-new-games.test.ts` for the test that proved
-// it rather than the comment that asserts it.
+// aggregate shape did not change for HEAT and WOTC, so `PLAYTIME_VERSION` was
+// still 3 when that was proved — it is 4 since plan 13-05 for an unrelated
+// reason (the longest-session field) — see
+// `tests/unit/playtime/playtime-new-games.test.ts` for the test that proved
+// the shape rather than the comment that asserts it.
 //
 // A chip exists only for a token the DATA holds, plus the ACTIVE one. So a
 // HEAT-only or WOTC-only export still renders no row at all: All games is that

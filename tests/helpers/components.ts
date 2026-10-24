@@ -20,6 +20,7 @@ export const COMPONENT_DIRS: readonly string[] = [
   'features/device-info',
   'features/new-data',
   'features/account-timeline',
+  'features/overview',
 ].map((dir) => path.join(LIB, dir));
 
 /**
@@ -40,3 +41,15 @@ export function listComponentFiles(): string[] {
     .filter((name) => name.endsWith('.svelte'))
     .sort();
 }
+
+/**
+ * The type scale, in px, every pane outside the Overview is held to.
+ */
+export const SCALE_PX: ReadonlySet<number> = new Set([14, 18, 26, 30]);
+
+/**
+ * The Overview pane's own type scale (13-UI-SPEC): a 12px caption, a 14px
+ * label, a 32px numeral and a 56px display size. It replaces the shared scale
+ * for the Overview and only the Overview.
+ */
+export const OVERVIEW_SCALE_PX: ReadonlySet<number> = new Set([12, 14, 32, 56]);

@@ -210,6 +210,34 @@ import config from '../../../playwright.config';
 // cut short by them, and the decision, its arithmetic and its pins stay in one
 // reviewable change instead of being split across the plan that adds the tests.
 //
+// Phase 13 (the Overview personal-insights page) moved NO limit. Plan 13-14
+// measured the listed count: `playwright test --list` printed 271 tests in 32
+// files once the plan's three Overview tests (layout, modes, privacy and states)
+// were in, up from 268 before them (265 at the Phase 12 close, +1 in 13-01,
+// +2 in 13-12). Plan 13-15 adds exactly one more listed test, so N = 272:
+//
+//   E = 330 + 5 * (272 - 105) + 304
+//     = 330 + 835 + 304
+//     = 1469 s
+//   1.3 * E = 1909.7 s, under the 1920 s that 32 min gives
+//
+// The Phase 13 Nyquist audit adds one more listed test — the WR-01 gap spec
+// (`shell/overview-insights-gaps.spec.ts`), which is marked `test.fail()` and
+// so passes while the defect exists — and that brings N to 273:
+//
+//   E = 330 + 5 * (273 - 105) + 304
+//     = 330 + 840 + 304
+//     = 1474 s
+//   1.3 * E = 1916.2 s, still under the 1920 s that 32 min gives
+//
+// 273 is the CEILING the ceiling above names, so G = 32 min, W = 34 min and
+// J = 42 min stay exactly as Phase 12 set them, and the 'phase 12 raised all
+// three limits together' test below is unchanged — but the headroom is now
+// GONE: the next browser test anywhere in the repository needs all three
+// limits raised again, together, by the rule in this file. The Overview stage
+// added to the long zero-network test adds no listed test, as the earlier
+// phases' stages did.
+//
 // Every constant below is either MEASURED in this repository or an ESTIMATE
 // carried forward from an earlier phase, and is labelled as such. The
 // estimation lives here, not in a comment, because `globalTimeout` is

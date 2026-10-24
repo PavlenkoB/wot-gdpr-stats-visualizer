@@ -92,6 +92,49 @@
      and 7.34 / 5.40 (hover surface) ratios from these declarations. */
   --flow-in: #4c3fa6;
   --flow-out: #a14a00;
+
+  /* The Overview palette (Phase 13, 13-UI-SPEC Color). Ten tokens, declared
+     once here, and they are the ONLY colours the Overview page may use.
+
+     The five group dots carry IDENTITY and nothing else: a dot tells the eye
+     which group a tile belongs to, and the group NAME beside it is the text
+     meaning. No meaning is ever carried by colour alone, and the dots are
+     aria-hidden. --ov-pinned is the Pinned group's dot and is the same amber
+     as the pinned star's fill, which is why it is declared twice rather than
+     as one token read twice: the two are separate roles that happen to share
+     a value today, and a component reads the role it paints.
+
+     --ov-star-fill is a decorative fill and --ov-star-stroke is what carries
+     the star's contrast (4.17:1 against the page against the fill's 2.28:1);
+     a pinned star is always accompanied by its text label, so the fill never
+     has to be readable on its own.
+
+     The value scale --heat-low to --heat-peak is the Overview's own scale and
+     it REPLACES the Activity ramp on this page (D-13): it is green at the low
+     end, olive in the middle and dark gold at the peak, and its LIGHTNESS
+     FALLS as the value rises, so the peak bar is the darkest one in greyscale
+     too. The lightest step was darkened from the sketch's value to reach 3:1
+     against the white tile (D-22); it is 3.11:1 now, and every colour along
+     the eased ramp clears 3:1 as well.
+
+     Bars sit on WHITE and never on a grey track: the track grey would drop
+     the lightest step to 2.63:1, which is why the Overview draws no track.
+
+     A component must read var(--heat-low) and friends and must never restate
+     a hex. The Color table is the contract and
+     `tests/unit/charts/contrast.test.ts` recomputes the recorded ratios from
+     these declarations, so a token that drifts from the table fails a test
+     rather than a review nobody reads. */
+  --ov-time: #1f7a74;
+  --ov-tanks: #c26a1b;
+  --ov-records: #8f4a80;
+  --ov-totals: #3a6aa8;
+  --ov-pinned: #e0a020;
+  --ov-star-fill: #e0a020;
+  --ov-star-stroke: #a8710a;
+  --heat-low: #47a374;
+  --heat-mid: #6b8a14;
+  --heat-peak: #8c6400;
 }
 
 body {

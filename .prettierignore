@@ -13,3 +13,10 @@ dist/
 # into an unreadable diff or wrap every path across three. tsc and ESLint still
 # cover the file; only the formatter stands down.
 src/lib/geo/world-map.generated.ts
+# The generated tank table (13-02). Every string is written with JSON.stringify
+# so a quote in a vehicle name can never break the module, which means the file
+# uses double quotes where Prettier would use single ones — and Prettier would
+# rewrite it, so `pnpm run vehicles:table:check` would then fail against a file
+# Prettier had edited. tsc and ESLint still cover the file; only the formatter
+# stands down.
+src/lib/features/overview/vehicle-table.generated.ts

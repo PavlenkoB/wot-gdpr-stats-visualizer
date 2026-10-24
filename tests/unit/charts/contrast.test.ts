@@ -1078,3 +1078,158 @@ describe('Day 10 neutrals (08-01)', () => {
     });
   });
 });
+
+// =============================================================================
+// The Overview colours (13-04 Task 1, 13-UI-SPEC Color, D-13, D-22)
+// =============================================================================
+//
+// The Overview is a page that may use a small, named set of colours and
+// nothing else, so its palette is a contract in the same sense the Activity
+// ramp was: ten custom properties in `src/app.css`, and every figure the
+// Color table records recomputed here from the shipped declarations.
+//
+// Two facts in this block are the ones a later edit would most easily break:
+//
+//   1. THE LIGHTEST HEAT STOP IS A FLOOR, NOT A PREFERENCE. The sketch's
+//      green measured 2.62:1 on white and failed 3:1; the shipped green is
+//      darkened to 3.11:1 (D-22). The old value is asserted here as well, so
+//      the darkening cannot be undone by a "taste" edit without a test
+//      failing and the reason being spelled out.
+//   2. THE BARS SIT ON WHITE, NEVER ON A GREY TRACK. A track grey would drop
+//      the lightest step back to 2.63:1 — under the floor again — so the
+//      Overview draws no track, and the numbers that forbid it are recorded
+//      here rather than left in a comment.
+//
+// The group dots are IDENTITY, never meaning: the group name beside a dot is
+// the text that carries the meaning, and the dot is aria-hidden. So the dots
+// are held to the 3:1 non-text floor, and one of them is allowed to reuse a
+// ramp step (the Time dot is the ramp's fourth step) because a dot beside a
+// chart is a mark, not a bar.
+// =============================================================================
+
+/** The ten tokens the Overview palette declares, in the order the contract lists them. */
+const OVERVIEW_TOKENS = [
+  '--heat-low',
+  '--heat-mid',
+  '--heat-peak',
+  '--ov-time',
+  '--ov-tanks',
+  '--ov-records',
+  '--ov-totals',
+  '--ov-pinned',
+  '--ov-star-fill',
+  '--ov-star-stroke',
+] as const;
+
+/** The ten Overview tokens as declared in `src/app.css`, lower-cased. */
+function overviewTokens(): Map<string, string> {
+  const declared = new Map<string, string>();
+  for (const token of OVERVIEW_TOKENS) {
+    declared.set(token, appCssToken(token));
+  }
+  return declared;
+}
+
+describe('Overview colours (13-UI-SPEC Color)', () => {
+  test('the code ships the ten tokens the contract declares, each exactly once', () => {
+    for (const token of OVERVIEW_TOKENS) {
+      expect(appCssToken(token), `${token} is declared`).toMatch(/^#[0-9a-f]{6}$/);
+      expect(APP_CSS.match(new RegExp(`${token}\\s*:`, 'g'))?.length, `${token} once`).toBe(1);
+    }
+  });
+
+  test('every recorded ratio on white is true of the shipped hex', () => {
+    // The Color table's numbers are arguments, not facts: the W-03 lesson.
+    const css = new Map<string, string>([
+      ...overviewTokens(),
+      ['--faint', appCssRootTokens().get('--faint') as string],
+    ]);
+    const RECORDED: ReadonlyArray<readonly [string, number]> = [
+      ['--heat-low', 3.11],
+      ['--heat-mid', 3.98],
+      ['--heat-peak', 5.33],
+      ['--ov-time', 5.13],
+      ['--ov-tanks', 3.91],
+      ['--ov-records', 6.07],
+      ['--ov-totals', 5.52],
+      ['--ov-star-stroke', 4.17],
+      // Decorative only: the pinned star's FILL never has to be readable on
+      // its own, because the star's stroke (4.17:1) and the tile's text
+      // label carry the meaning.
+      ['--ov-star-fill', 2.28],
+      // Graphics only, never text: the chart baseline, the unpinned star
+      // stroke and the absent-row dot.
+      ['--faint', 3.36],
+    ];
+    for (const [token, recorded] of RECORDED) {
+      expect(contrastRatio(css.get(token) as string, '#ffffff'), token).toBeCloseTo(recorded, 2);
+    }
+  });
+
+  test('the neutral text pairs the Overview uses are true of the shipped tokens', () => {
+    // Every text colour on the Overview is one of these three; #8c8c8c is
+    // decoration and never text.
+    const css = appCssRootTokens();
+    const RECORDED: ReadonlyArray<readonly [string, number]> = [
+      ['--ink', 18.88],
+      ['--muted', 6.69],
+      ['--text', 11.37],
+    ];
+    for (const [token, recorded] of RECORDED) {
+      expect(contrastRatio(css.get(token) as string, '#ffffff'), token).toBeCloseTo(recorded, 2);
+    }
+  });
+
+  test('the lightest heat stop clears 3:1 on white and fails it on a grey track', () => {
+    // The reason the Overview draws its bars on the tile surface and never on
+    // a track: the track grey takes the lightest step back under the floor.
+    const low = overviewTokens().get('--heat-low') as string;
+    expect(contrastRatio(low, '#ffffff')).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(low, appCssRootTokens().get('--track') as string)).toBeCloseTo(2.63, 2);
+    expect(contrastRatio(low, appCssRootTokens().get('--track') as string)).toBeLessThan(3);
+  });
+
+  test('the three heat stops fall strictly in luminance, so the peak is the darkest', () => {
+    const css = overviewTokens();
+    const luminances = (['--heat-low', '--heat-mid', '--heat-peak'] as const).map((token) =>
+      relativeLuminance(css.get(token) as string),
+    );
+    for (let index = 1; index < luminances.length; index += 1) {
+      expect(luminances[index]).toBeLessThan(luminances[index - 1] as number);
+    }
+  });
+
+  test('the sketch green is below the floor, so the darkening was a fix and not a taste change', () => {
+    // D-22. The previous lightest step measured 2.62:1 on white and failed
+    // the 3:1 a non-text mark needs; the shipped step measures 3.11:1.
+    expect(contrastRatio('#4fb27f', '#ffffff')).toBeCloseTo(2.62, 2);
+    expect(contrastRatio('#4fb27f', '#ffffff')).toBeLessThan(3);
+    expect(contrastRatio(overviewTokens().get('--heat-low') as string, '#ffffff')).toBeGreaterThan(
+      3,
+    );
+  });
+
+  test('the four catalogue group dots are distinct, and only the Time dot is a ramp step', () => {
+    // A dot is identity, not meaning: the group name beside it carries the
+    // meaning and the dot is aria-hidden. The Time dot deliberately reuses
+    // the ramp's fourth step — it is a mark beside a chart, not a bar.
+    const css = overviewTokens();
+    const ramp = new Set([...appCssRamp().values()]);
+    const dots = ['--ov-time', '--ov-tanks', '--ov-records', '--ov-totals'] as const;
+    const values = dots.map((token) => css.get(token) as string);
+
+    expect(new Set(values).size, 'the four group dots are four distinct values').toBe(4);
+    for (const [index, token] of dots.entries()) {
+      const value = values[index] as string;
+      if (token === '--ov-time') {
+        expect(value).toBe(appCssRamp().get(4));
+        continue;
+      }
+      expect(ramp.has(value), `${token} is not a ramp step`).toBe(false);
+    }
+    // The Pinned dot is its own role, not a catalogue dot, and it is not a
+    // ramp step either.
+    expect(ramp.has(css.get('--ov-pinned') as string)).toBe(false);
+    expect(values).not.toContain(css.get('--ov-pinned') as string);
+  });
+});

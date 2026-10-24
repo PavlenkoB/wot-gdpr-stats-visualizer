@@ -60,8 +60,14 @@ export const HOUR_GRID_BASIS: HourGridBasis = 'overlap';
  * for. The bump reuses the existing lazy rebuild: a v2 aggregate is recomputed
  * from its own stored rows on the next playtime query and written back, with
  * no re-import and no Dexie bump (D-16, D-21).
+ *
+ * 4 — 13-05: bumped because a stored slice now carries the longest raw
+ * session (`longestSeconds`, `longestStart`), which a v3 record has no room
+ * for. The bump reuses the lazy rebuild: a v3 aggregate is recomputed from
+ * its own stored session rows on the next playtime or overview query and
+ * written back, with no re-import and no Dexie bump (D-01, T-13-14).
  */
-export const PLAYTIME_VERSION = 3;
+export const PLAYTIME_VERSION = 4;
 
 /** Cells in the weekday-by-hour grid: 7 weekdays times 24 hours. */
 export const HOUR_CELL_COUNT = 168;

@@ -21,6 +21,15 @@ import type {
 // contract module has no runtime import at all, so reading a type across it
 // cannot create a cycle in either direction (12-05).
 import type { TimelineKind } from './features/account-timeline/timeline-shared.ts';
+// Type-only: the tile copy is keyed by the Overview's tile ids, its group
+// headings by the group ids and its source wording by the need ids. The
+// contract module has no runtime import at all (13-01), so a type read across
+// it cannot create a cycle in either direction.
+import type {
+  OverviewGroupId,
+  OverviewNeed,
+  OverviewTileId,
+} from './features/overview/overview-shared.ts';
 // A RUNTIME import, unlike the two above: `civilFromDays` and `weekdayOfDay`
 // are the pure integer date arithmetic every calendar string is built from
 // (04-01). They construct no `Date`, which is what keeps a cell's date the
@@ -591,19 +600,6 @@ export function formatCombinedCaption(count: number): string {
 export function formatActivityYears(first: number, last: number | null): string {
   if (last === null || last === first) return String(first);
   return `${first}${EN_DASH}${last}`;
-}
-
-/**
- * The Overview Account card's summary when several accounts are present
- * (UI-SPEC Surface 3): "Earliest account created {date}", or the unknown-date
- * sentence when no account's `createdAt` parses.
- *
- * "Earliest" rather than any one account's date, because one account's creation
- * date does not describe an export holding several.
- */
-export function formatEarliestCreated(date: string | null): string {
-  if (date === null) return 'Earliest account creation date unknown';
-  return `Earliest account created ${date}`;
 }
 
 /**
@@ -3510,33 +3506,16 @@ export function formatNewDataSkipped(file: string): string {
 }
 
 // =============================================================================
-// Phase 8 - Overview, list chrome and phone bar copy (08-01-PLAN Task 2)
+// Phase 8 - list chrome and phone bar copy (08-01-PLAN Task 2)
 // =============================================================================
 //
-// The chips above the Overview grid, the card links, and the small strings the
-// shell chrome carries. Copied exactly from the 08-UI-SPEC Copywriting Contract
-// and the sketch layout notes.
+// What remains of the Phase 8 Overview block after plan 13-13 retired the chips,
+// the intro and the per-section cards: the open-section link (the insight tile's
+// Open link), and the small strings the shell chrome carries. Copied exactly
+// from the 08-UI-SPEC Copywriting Contract and the sketch layout notes.
 // =============================================================================
 
-/** The Overview chip counting panes that have data: `1 section with data` / `N sections with data`. */
-export function formatChipWithData(n: number): string {
-  return n === 1 ? '1 section with data' : `${formatNumber(n)} sections with data`;
-}
-
-/** The Overview chip counting supported folders the export lacks: `N not in this export`. */
-export function formatChipAbsent(n: number): string {
-  return `${formatNumber(n)} not in this export`;
-}
-
-/** The Overview chip counting unsupported folders: `1 folder not yet supported` / `N folders not yet supported`. */
-export function formatChipUnsupported(n: number): string {
-  return n === 1 ? '1 folder not yet supported' : `${formatNumber(n)} folders not yet supported`;
-}
-
-/** The sentence under the Overview heading. */
-export const OVERVIEW_INTRO = 'What your export contains. Open a section for the full charts.';
-
-/** An Overview card's link: `Open Playtime →`, with the arrow character. */
+/** An Overview tile's link: `Open Playtime →`, with the arrow character. */
 export function formatOpenSectionLink(title: string): string {
   return `Open ${title} →`;
 }
@@ -3560,6 +3539,568 @@ export const EMPTY_STATE_PRIVACY = 'Your data stays in this tab.';
  */
 export function formatProvenanceFrom(folder: string): string {
   return `From ${folder} ·`;
+}
+
+// =============================================================================
+// Phase 13 - the Overview personal-insights page (13-01-PLAN Task 2)
+// =============================================================================
+//
+// Everything below is the new page's copy. The rule it follows is D-17: every
+// headline figure shows the rule behind it, and the rule says what was counted
+// rather than how pretty the number is.
+/** The sentence shown while the one answer is being computed. */
+export const OVERVIEW_LOADING = 'Computing on this device.';
+
+/**
+ * The Overview's failure sentence.
+ *
+ * Its own wording, NOT `GENERIC_FAILURE_MESSAGE`: that sentence claims the
+ * file is not a Wargaming export, which is false here — the export loaded, and
+ * the failure is in working the Overview out of it. This one says exactly
+ * that, and tells the reader their data is still loaded.
+ */
+export const OVERVIEW_ERROR =
+  'The overview could not be worked out from this export. Your data is still loaded. Open another section and come back to try again.';
+/**
+ * One tile's copy: its label, its unit, how it is computed, what it reads and
+ * the file it reads it from.
+ *
+ * `unit` is null for a tile whose value has no unit (a name, a percentage in
+ * its own text), and `reads` names the SOURCE in friendly words rather than a
+ * file name — `file` is the file name itself, shown in Caption role under the
+ * "Reads" heading.
+ */
+export interface OverviewTileCopy {
+  /** The tile's visible label. */
+  label: string;
+  /** The unit the value is shown in, or null when it has none. */
+  unit: string | null;
+  /** The "How it is computed" text the expanded tile carries. */
+  how: string;
+  /** The source the tile reads, in friendly words. */
+  reads: string;
+  /** The export file the tile reads, as the export spells it. */
+  file: string;
+}
+
+/**
+ * The copy for EVERY tile, in a COMPLETE record.
+ *
+ * The record is complete on purpose: a tile without copy is a tile the page
+ * cannot draw, and a `Partial` would let that happen silently. With the
+ * compiler holding all sixteen entries, adding a tile to the catalogue
+ * without writing its copy is a build error, not a blank tile.
+ */
+export const OVERVIEW_TILE_COPY: Readonly<Record<OverviewTileId, OverviewTileCopy>> = {
+  logged: {
+    label: 'Logged in',
+    unit: 'days',
+    how: 'Union of session intervals across all games and all account folders, so overlapping sessions count once. Counted in 24-hour days. "In battle" is the separate lifetime battle-time figure, not logged-in time.',
+    reads: 'session history',
+    file: '*_Game_Sessions.csv',
+  },
+  hour: {
+    label: 'Signature hour',
+    unit: null,
+    how: 'Logged hours summed per hour of day across the WoT sessions, wall clock as recorded.',
+    reads: 'session history',
+    file: 'WOT_Game_Sessions.csv',
+  },
+  streak: {
+    label: 'Longest streak',
+    unit: 'days',
+    how: 'Most consecutive calendar days with at least one WoT session.',
+    reads: 'session history',
+    file: 'WOT_Game_Sessions.csv',
+  },
+  sess: {
+    label: 'Longest session',
+    unit: 'h',
+    how: 'Longest single WoT session, login to logout. Disconnects or idle time can inflate it.',
+    reads: 'session history',
+    file: 'WOT_Game_Sessions.csv',
+  },
+  busy: {
+    label: 'Busiest day',
+    unit: 'h',
+    how: 'Most logged WoT hours on one calendar day, by session start.',
+    reads: 'session history',
+    file: 'WOT_Game_Sessions.csv',
+  },
+  tank: {
+    label: 'Most-played tank',
+    unit: null,
+    how: 'Battles per tank from the vehicle statistics, summed across account folders. Tank names come from the built-in tank table.',
+    reads: 'vehicle statistics',
+    file: 'WOT_Vehicle_Statistics.csv',
+  },
+  cls: {
+    label: 'Favourite class',
+    unit: null,
+    how: 'Battles grouped by class via the built-in tank table. Tanks missing from the table are counted as unknown and not guessed; the rule line states the class coverage.',
+    reads: 'vehicle statistics',
+    file: 'WOT_Vehicle_Statistics.csv',
+  },
+  fleet: {
+    label: 'Tanks played',
+    unit: null,
+    how: 'Tanks with a row in the vehicle statistics, across account folders.',
+    reads: 'vehicle statistics',
+    file: 'WOT_Vehicle_Statistics.csv',
+  },
+  nat: {
+    label: 'Favourite nation',
+    unit: null,
+    how: 'Nation from the vehicle id prefix, summed across account folders.',
+    reads: 'vehicle statistics',
+    file: 'WOT_Vehicle_Statistics.csv',
+  },
+  dmg: {
+    label: 'Most damage, one battle',
+    unit: null,
+    how: 'Best single-battle value across account folders. The tank named is from the account that holds the maximum.',
+    reads: 'account statistics',
+    file: 'WOT_Account_Statistics.csv',
+  },
+  xp: {
+    label: 'Most XP, one battle',
+    unit: null,
+    how: 'Best single-battle value across account folders. The tank named is from the account that holds the maximum.',
+    reads: 'account statistics',
+    file: 'WOT_Account_Statistics.csv',
+  },
+  kills: {
+    label: 'Most kills, one battle',
+    unit: null,
+    how: 'Best single-battle value across account folders. The tank named is from the account that holds the maximum.',
+    reads: 'account statistics',
+    file: 'WOT_Account_Statistics.csv',
+  },
+  snip: {
+    label: 'Sniper series',
+    unit: null,
+    how: 'Longest run recorded in the account statistics. Series definitions differ by mode, so this is not a medal.',
+    reads: 'account statistics',
+    file: 'WOT_Account_Statistics.csv',
+  },
+  cred: {
+    label: 'Credits earned',
+    unit: null,
+    how: 'Deposits plus income in the currency operations log, as the Finance pane defines it.',
+    reads: 'currency operations',
+    file: 'Virtual_Currencies_Operations.csv',
+  },
+  bat: {
+    label: 'Battles',
+    unit: null,
+    how: 'Lifetime battles and wins from the account statistics, summed across account folders. Win rate depends on teammates.',
+    reads: 'account statistics',
+    file: 'WOT_Account_Statistics.csv',
+  },
+  ord: {
+    label: 'Orders',
+    unit: null,
+    how: 'Number of payment orders. No amount, product or order detail is shown.',
+    reads: 'payment history',
+    file: 'Orders.csv',
+  },
+};
+
+/**
+ * The rule line under the Logged in figure.
+ *
+ * `{hours} h across all games (24-hour days) since {firstDate}.`
+ *
+ * The word "across all games" is load-bearing (D-20): the figure is the union
+ * of every game's sessions, so a copy that said "in WoT" would be a claim the
+ * number does not support. The "In battle" sentence appears ONLY when there is
+ * a battle-time figure — it is a separate, lifetime number, and a page that
+ * printed "0 days in battle" would be stating an absence as a zero.
+ */
+export function formatLoggedRule(
+  hours: string,
+  firstDate: string,
+  battleDays: string | null,
+): string {
+  const base = `${hours} h across all games (24-hour days) since ${firstDate}.`;
+  if (battleDays === null) return base;
+  return `${base} In battle: ${battleDays} days.`;
+}
+
+// -----------------------------------------------------------------------------
+// The Overview's group headings, source wording and rule lines (13-06)
+//
+// D-17 is the rule this whole block exists for: EVERY headline figure shows
+// the rule behind it, and the rule says what was COUNTED rather than how
+// pretty the number is. The formatters below take ALREADY-FORMATTED strings
+// and return a sentence — the page formats the numbers and the dates, this
+// module only words them, so a formatter can never disagree with the locale
+// the rest of the app uses.
+//
+// Two measurements are BANNED by D-17 and appear nowhere in this block: no
+// WN8, no mastery, no marks of excellence, and no mode mix. The battle-type
+// table covers about 5% of the battles in a real export, so a mode mix would
+// be a claim the data cannot support.
+// -----------------------------------------------------------------------------
+
+/**
+ * The heading text of each group of the bento.
+ *
+ * `pinned` is the derived group of the user's pinned tiles; the other four
+ * are the catalogue's groups. The fifth group is "Totals" (D-12).
+ */
+export const OVERVIEW_GROUP_HEADINGS: Readonly<Record<'pinned' | OverviewGroupId, string>> = {
+  pinned: 'Pinned',
+  time: 'Time',
+  tanks: 'Tanks',
+  records: 'Records',
+  totals: 'Totals',
+};
+
+/**
+ * What each source is called in the absent row and under "Reads".
+ *
+ * The wording is friendly rather than a file name: the absent row says
+ * "needs session history", not "needs WOT_Game_Sessions.csv".
+ */
+export const OVERVIEW_NEED_TEXT: Readonly<Record<OverviewNeed, string>> = {
+  'session-history': 'session history',
+  'vehicle-statistics': 'vehicle statistics',
+  'account-statistics': 'account statistics',
+  'currency-operations': 'currency operations',
+  'payment-history': 'payment history',
+};
+
+/** The heading of the expanded tile's "How it is computed" block. */
+export const OVERVIEW_HOW_HEADING = 'How it is computed';
+
+/** The heading of the expanded tile's "Reads" block. */
+export const OVERVIEW_READS_HEADING = 'Reads';
+
+/** The word under the low end of a group's heat-scale legend. */
+export const OVERVIEW_LEGEND_LOW = 'low';
+
+/** The word under the high end of a group's heat-scale legend. */
+export const OVERVIEW_LEGEND_PEAK = 'peak';
+
+/**
+ * What a record whose tank id is not recorded says.
+ *
+ * D-09: the viewer never guesses a tank name, so a record without a
+ * resolvable tank says so.
+ */
+export const OVERVIEW_VEHICLE_NOT_RECORDED = 'vehicle not recorded';
+
+/**
+ * What a rate says when the sample is too small for it (D-17).
+ *
+ * Counts and totals are never guarded; only RATES are, and this sentence is
+ * what a guarded rate says instead of a number.
+ */
+export const OVERVIEW_TOO_FEW_BATTLES = 'Too few battles for a rate.';
+
+/** The rule line of the Signature hour tile. */
+export const OVERVIEW_HOUR_RULE = 'Logged hours by hour of day, wall clock as recorded.';
+
+/**
+ * The rule line of the Longest streak tile.
+ *
+ * The words "WoT sessions" are load-bearing (D-20): the habit tiles count
+ * World of Tanks sessions only, while the Logged in figure counts every
+ * game. A rule that said "sessions" would leave the reader guessing which.
+ */
+export function formatStreakRule(start: string, end: string): string {
+  return `${start} to ${end}, WoT sessions.`;
+}
+
+/** The rule line of the Longest session tile. */
+export function formatSessRule(date: string): string {
+  return `${date}, WoT sessions. One login to logout.`;
+}
+
+/** The rule line of the Busiest day tile. */
+export function formatBusyRule(date: string): string {
+  return `${date}, WoT sessions.`;
+}
+
+/** The rule line of the Most-played tank tile. */
+export function formatTankRule(battles: string, share: string): string {
+  return `${battles} battles, ${share} of all battles.`;
+}
+
+/**
+ * The rule line of the Favourite class tile.
+ *
+ * The coverage sentence is the honest half: a tank missing from the built-in
+ * table is counted as unknown and NOT guessed (D-09), so the tile states how
+ * much of the data it could classify.
+ */
+export function formatClsRule(share: string, coverage: string): string {
+  return `${share} of battles. Class known for ${coverage} of battles.`;
+}
+
+// The hidden chart summaries and the credits magnitude words (13-09, IN-02).
+//
+// These used to be written inside the formatter, outside this module, so the
+// copy tests could not read them and a copy change would have missed them.
+// Every formatter takes ALREADY-FORMATTED numbers: the page formats, this
+// module only words.
+
+/** The word after a credits figure in the millions, with its leading space. */
+export const OVERVIEW_CREDITS_MILLION = ' million';
+
+/** The word after a credits figure in the billions, with its leading space. */
+export const OVERVIEW_CREDITS_BILLION = ' billion';
+
+/** The label of the peak year's bar: hours and the year, as `1,234.5 h · 2019`. */
+export function formatYearPeakLabel(hours: string, year: number): string {
+  return `${hours} h · ${year}`;
+}
+
+/** The hidden summary of the hours-per-year chart. */
+export function formatYearsChartSummary(
+  yearCount: number,
+  peakYear: number,
+  hours: string,
+): string {
+  const years = yearCount === 1 ? '1 year' : `${yearCount} years`;
+  return `Chart: hours logged per year, ${years}, peak ${peakYear} with ${hours} hours.`;
+}
+
+/** The hidden summary of the hour-of-day chart. */
+export function formatHourChartSummary(peakHour: string): string {
+  return `Chart: hours logged by hour of day, peak at ${peakHour}.`;
+}
+
+/** The hidden summary of the top-tanks list, `listing` being the joined rows. */
+export function formatTanksChartSummary(count: number, listing: string): string {
+  return `Top ${count} tanks by battles: ${listing}.`;
+}
+
+/** The hidden summary of the battles-by-class list. */
+export function formatClassesChartSummary(listing: string): string {
+  return `Battles by class: ${listing}.`;
+}
+
+/** The rule line of the Tanks played tile. */
+export const OVERVIEW_FLEET_RULE = 'Different tanks with battles.';
+
+/** The rule line of the Favourite nation tile. */
+export function formatNatRule(share: string): string {
+  return `${share} of battles.`;
+}
+
+/**
+ * The rule line of a record tile (most damage, most XP, most kills).
+ *
+ * Records are the MAXIMUM across account folders, and the tank named is the
+ * one from the account holding that maximum (D-19). `accounts` is the number of
+ * accounts that had a figure to compare, not the number of account folders
+ * (WR-04). The "best of N accounts" clause appears only when more than one
+ * account was compared, because with one it would say nothing.
+ */
+export function formatRecordRule(tankName: string | null, accounts: number): string {
+  const name = tankName ?? OVERVIEW_VEHICLE_NOT_RECORDED;
+  if (accounts > 1) return `${name}, best of ${accounts} accounts.`;
+  return `${name}.`;
+}
+
+/** The rule line of the Sniper series tile. */
+export const OVERVIEW_SNIP_RULE = 'Longest run recorded.';
+
+/**
+ * The rule line of the Credits earned tile.
+ *
+ * "Deposits plus income" is the Finance pane's own definition (D-21), so the
+ * two panes can never disagree about the same figure.
+ */
+export const OVERVIEW_CRED_RULE = 'Deposits plus income, as in Finance. Exact figure in Finance.';
+
+/**
+ * The rule line of the Battles tile.
+ *
+ * A win rate is a RATE, so it is guarded: below the plain-rate threshold the
+ * line says the sample is too small instead of showing a number (D-17).
+ */
+export function formatBatRule(winRate: string | null): string {
+  if (winRate === null) return OVERVIEW_TOO_FEW_BATTLES;
+  return `${winRate} wins.`;
+}
+
+/**
+ * The rule line of the Orders tile.
+ *
+ * Count only. An amount is a sensitive value and is never shown here
+ * (D-18); the Finance pane holds the figures.
+ */
+export const OVERVIEW_ORD_RULE = 'Count only. Amounts are never shown here.';
+
+/**
+ * The star button's accessible label: `Pin {name}`.
+ *
+ * FIXED, never "Unpin": a label that changes with the state reads as
+ * "Unpin X, pressed", which announces the action twice. The state is carried
+ * by `aria-pressed` instead.
+ */
+export function formatStarLabel(name: string): string {
+  return `Pin ${name}`;
+}
+
+/**
+ * What the live region says after a tile is pinned.
+ *
+ * It carries the tile's NAME and the count of pinned tiles and nothing else:
+ * no figure, no date, no account detail (D-18).
+ */
+export function formatPinnedAnnouncement(name: string, count: number): string {
+  return `Pinned ${name}, ${count} pinned.`;
+}
+
+/**
+ * What the live region says after a tile is unpinned.
+ *
+ * The same shape as the pin announcement, for the same reason.
+ */
+export function formatUnpinnedAnnouncement(name: string, count: number): string {
+  return `Unpinned ${name}, ${count} pinned.`;
+}
+
+// -----------------------------------------------------------------------------
+// Phase 13 - the composed page (13-12): provenance, hint, life list, absent
+// rows and the attribution footer
+// -----------------------------------------------------------------------------
+
+/** The hint line under the provenance line. */
+export const OVERVIEW_HINT =
+  'Click a tile to see how it is computed. Star a tile to pin it to the top. Arrow keys move between tiles, P pins the focused tile, Esc closes.';
+
+/** The label of the read-only Wargaming life list. */
+export const OVERVIEW_LIFE_LABEL = 'Wargaming life';
+
+/** What a game with no sessions in the export says in the life list. */
+export const OVERVIEW_LIFE_NO_SESSIONS = 'no sessions in this export';
+
+/** One game's logged days: `{days} days`. `days` is already formatted. */
+export function formatLifeDays(days: string): string {
+  return `${days} days`;
+}
+
+/**
+ * A game with sessions, but under a tenth of a day of them: one decimal would
+ * print "0.0 days", which states an absence the data does not hold.
+ */
+export const OVERVIEW_LIFE_UNDER_TENTH = 'under 0.1 days';
+
+/** The line shown when no tile of the page has data. */
+export const OVERVIEW_EMPTY =
+  'None of these tiles has data in this export. Each group says what it needs.';
+
+/** The start of a group's dashed absent row. */
+export const OVERVIEW_ABSENT_PREFIX = 'Not in this export:';
+
+/**
+ * The rest of a group's dashed absent row, after the prefix.
+ *
+ * A leading space so the prefix span and this text read as one sentence:
+ * ` Favourite class, Tanks played · needs vehicle statistics`.
+ */
+export function formatAbsentRest(labels: readonly string[], needs: readonly string[]): string {
+  return ` ${labels.join(', ')} · needs ${needs.join(', ')}`;
+}
+
+/**
+ * The provenance line: where the numbers were computed, from what, and when.
+ *
+ * `range` is null when the export has no session history to name a period.
+ */
+export function formatProvenance(accounts: number, games: string, range: string | null): string {
+  const folders = accounts === 1 ? 'account folder' : 'account folders';
+  const head = `Computed on this device from ${formatNumber(accounts)} ${folders}`;
+  const withGames = games === '' ? head : `${head} · ${games}`;
+  return range === null ? withGames : `${withGames} · ${range}`;
+}
+
+/** The period in the provenance line: `{first} to {last}`. */
+export function formatProvenanceRange(first: string, last: string): string {
+  return `${first} to ${last}`;
+}
+
+/**
+ * The attribution footer's wording. APPROVED text: plan 13-15's blocking
+ * checkpoint confirmed it as written before the real tank table was
+ * committed (D-23).
+ */
+export const OVERVIEW_ATTRIBUTION_TEXT = 'Tank names, nations and classes: Wargaming.net API data.';
+
+/** The notice that follows the attribution text. */
+export const OVERVIEW_ATTRIBUTION_NOTICE = '© Wargaming.net. All rights reserved.';
+
+/** The text of the outbound attribution link. */
+export const OVERVIEW_ATTRIBUTION_LINK_TEXT = 'World of Tanks';
+
+/** The attribution link's target. An ordinary anchor: no request until clicked. */
+export const OVERVIEW_ATTRIBUTION_LINK_HREF = 'https://worldoftanks.eu/';
+
+/**
+ * A tank class as the reader sees it.
+ *
+ * The built-in tank table spells classes `mediumTank`, `AT-SPG`,
+ * `heavyTank`, `lightTank` and `SPG`; the page shows words. Anything the
+ * table does not name — including `unknown` — reads "Unknown" rather than
+ * being guessed (D-09).
+ */
+export function formatClassName(key: string): string {
+  switch (key) {
+    case 'mediumTank':
+      return 'Medium';
+    case 'AT-SPG':
+      return 'Tank destroyer';
+    case 'heavyTank':
+      return 'Heavy';
+    case 'lightTank':
+      return 'Light';
+    case 'SPG':
+      return 'SPG';
+    default:
+      return 'Unknown';
+  }
+}
+
+/**
+ * A nation as the reader sees it.
+ *
+ * The nation is the vehicle id's prefix, so the prefix is a FACT and not a
+ * guess. A prefix this table does not know is returned unchanged, because an
+ * unknown prefix shown raw is honest and a prefix translated into the wrong
+ * nation is not.
+ */
+export function formatNationName(prefix: string): string {
+  switch (prefix) {
+    case 'ussr':
+      return 'USSR';
+    case 'usa':
+      return 'USA';
+    case 'germany':
+      return 'Germany';
+    case 'france':
+      return 'France';
+    case 'china':
+      return 'China';
+    case 'uk':
+      return 'UK';
+    case 'japan':
+      return 'Japan';
+    case 'sweden':
+      return 'Sweden';
+    case 'czech':
+      return 'Czechoslovakia';
+    case 'poland':
+      return 'Poland';
+    case 'italy':
+      return 'Italy';
+    default:
+      return prefix;
+  }
 }
 
 /** The product's name, shown in the list pane's masthead. */

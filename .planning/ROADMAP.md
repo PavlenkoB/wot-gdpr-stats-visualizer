@@ -203,3 +203,50 @@ Phases execute in numeric order: 9 → 10 → 11 → 12
 | 10. Merged Dashboard Across Accounts | v1.1 | 6/6 | Complete    | 2026-10-18 |
 | 11. New Game Data | v1.1 | 11/11 | Complete    | 2026-10-19 |
 | 12. Account Timeline & Perks | v1.1 | 13/13 | Complete    | 2026-10-20 |
+
+### Phase 13: Overview personal insights
+
+**Goal:** The Overview becomes a personal-insights page: a grouped bento of tiles (time logged in, favourite tank and class, records, habits, totals) computed on-device from the loaded dataset, each showing its rule inline, with pinned tiles and expand-in-place. WoT first, structure game-agnostic. Design: `sketch-findings-wot-gdpr-stats-visualizer` (sketch 030 and the Overview canvas); data rules: `spike-findings-wot-gdpr-stats-visualizer` (vehicle lookup table, time-played definitions, insight catalog).
+**Requirements**: INSIGHT-01, INSIGHT-02, INSIGHT-03, INSIGHT-04, INSIGHT-05, INSIGHT-06, INSIGHT-07, INSIGHT-08
+**Depends on:** Phase 12 (merged per-account storage and the game filter); uses the Phase 10 merged dataset
+**Plans:** 15/15 plans complete
+
+Plans:
+**Wave 1**
+- [x] 13-01-PLAN.md — Tracer: the overview contract, the field-less `overview` channel and the Logged in hero from stored sessions to the page
+- [x] 13-02-PLAN.md — Tank table machinery: fail-closed generator, empty committed module, key-free lookup, worker-only rule and guards
+- [x] 13-03-PLAN.md — The synthetic two-account archive and its hand-derived answer key
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [x] 13-04-PLAN.md — Overview colour tokens, the value-scale function and the scoped type-scale guard amendments
+- [x] 13-05-PLAN.md — Longest session in the playtime aggregate (PLAYTIME_VERSION 4)
+- [x] 13-06-PLAN.md — Per-game tile definitions, tile copy, the verified fill rule and the guarded pin store
+- [x] 13-07-PLAN.md — Column readers, the Tanks group and the Records group (maximum across accounts)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [x] 13-08-PLAN.md — The Time group, the Wargaming life list and the Totals group
+- [x] 13-09-PLAN.md — Face formatter, CSSOM action, tile, charts and group components with a source-level guard
+- [x] 13-10-PLAN.md — Keyboard navigation, the synchronous-intent transition controller and the layout function
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [x] 13-11-PLAN.md — The oracle through the real worker and the privacy fence
+- [x] 13-12-PLAN.md — The composed page: provenance, life list, groups, absent rows, states, expand, keyboard and pins
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [x] 13-13-PLAN.md — Retire the old Overview model, chips and card tests; rewrite five browser specs
+- [x] 13-14-PLAN.md — Layout, modes and privacy browser tests, the Overview in the zero-network flow, CI budget reconciliation
+
+**Wave 6** *(blocked on Wave 5 completion; has blocking checkpoints)*
+- [x] 13-15-PLAN.md — Wargaming Terms-of-Use gate, the maintainer-run table generation, attribution and the real-table proof
+
+### Phase 14: Design unification
+
+**Goal:** Every pane reads as one product. The Overview's design system (type scale 12 / 14 / 32 / 56 px, the `--ov-*` group colours and the `--heat-*` value scale) becomes the app-wide system, so the Overview and the Phase 8 panes no longer look like two design generations.
+**Scope:** move the playtime calendar heatmap, hour grid and duration list, and the login world map, off the older `--ramp-*` tokens onto the value scale, with a contrast review (the lightest old step was chosen against different rules); bring the other panes' type onto the shared scale; replace the per-folder type-scale and font-floor guard exemption (`features/overview/` only, in `phase8-ui-review-guards` and `phase5-layout-guards`) with one shared scale; keep the Overview itself unchanged.
+**Open decisions for discuss-phase:** whether the 12 / 14 / 32 / 56 scale becomes the app-wide scale or the old 14 / 18 / 26 / 30 scale gains the new steps; whether the `--heat-*` colours fully replace `--ramp-*` or coexist for the calendar; the shell's 26 px pane title; and how much of this is visual-only, since layouts are not meant to change.
+**Requirements**: TBD
+**Depends on:** Phase 13
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 14 to break down)

@@ -2061,23 +2061,6 @@ describe('08-01 pane and row copy', () => {
 // These are the strings the e2e specs compute their expectations from, so the
 // pin is deliberate: a paraphrase is an edit to this file.
 describe('08-01 shell, Overview and phone-bar copy', () => {
-  test('the sections-with-data chip singularises at 1', () => {
-    expect(playtimeCopy.formatChipWithData(0)).toBe('0 sections with data');
-    expect(playtimeCopy.formatChipWithData(1)).toBe('1 section with data');
-    expect(playtimeCopy.formatChipWithData(6)).toBe('6 sections with data');
-  });
-
-  test('the not-in-this-export chip has one form', () => {
-    expect(playtimeCopy.formatChipAbsent(0)).toBe('0 not in this export');
-    expect(playtimeCopy.formatChipAbsent(1)).toBe('1 not in this export');
-    expect(playtimeCopy.formatChipAbsent(3)).toBe('3 not in this export');
-  });
-
-  test('the unsupported chip singularises at 1', () => {
-    expect(playtimeCopy.formatChipUnsupported(1)).toBe('1 folder not yet supported');
-    expect(playtimeCopy.formatChipUnsupported(2)).toBe('2 folders not yet supported');
-  });
-
   test('the Open link names the pane and ends with an arrow', () => {
     expect(playtimeCopy.formatOpenSectionLink('Playtime')).toBe('Open Playtime \u2192');
     expect(playtimeCopy.formatOpenSectionLink('Login history')).toBe('Open Login history \u2192');
@@ -2090,7 +2073,6 @@ describe('08-01 shell, Overview and phone-bar copy', () => {
   });
 
   const STATIC_ROWS = [
-    ['OVERVIEW_INTRO', 'What your export contains. Open a section for the full charts.'],
     ['BACK_TO_SECTIONS_LABEL', '\u2039 Sections'],
     ['LIST_KEYBOARD_HINT', 'Move with j and k'],
     ['SKIP_TO_DETAIL_LABEL', 'Skip to section detail'],
@@ -2376,13 +2358,6 @@ describe('Phase 9: the multi-account identity header copy', () => {
   test('one year reads alone, and a null last year falls back to the first', () => {
     expect(playtimeCopy.formatActivityYears(2021, 2021)).toBe('2021');
     expect(playtimeCopy.formatActivityYears(2021, null)).toBe('2021');
-  });
-
-  test('the earliest-created summary has an unknown-date sentence', () => {
-    expect(playtimeCopy.formatEarliestCreated(null)).toBe('Earliest account creation date unknown');
-    expect(playtimeCopy.formatEarliestCreated('2018-02-14')).toBe(
-      'Earliest account created 2018-02-14',
-    );
   });
 
   test('the long game names map the six known tokens', () => {

@@ -221,8 +221,8 @@ test.describe('the Account timeline and Perks panes', () => {
     await gotoApp(page);
     await importExport(page, SYNTHETIC_ZIP_NAME, buildAccountTimelinePerksExport());
 
-    await test.step('the Overview lists a card for each pane with the stored-row headline, and the link opens the pane', async () => {
-      const cards = [
+    await test.step('the list lists a row for each pane with the stored-row headline, and the row opens the pane', async () => {
+      const rowsOf = [
         {
           id: 'perks' as const,
           rows: ATP_EXPECTED.perks.rowCount,
@@ -234,20 +234,16 @@ test.describe('the Account timeline and Perks panes', () => {
           summary: copy.formatTimelineRowSummary(timeline.fileCount),
         },
       ];
-      for (const card of cards) {
-        const element = page.getByTestId(`ov-card-${card.id}`);
-        await expect(element, `the ${card.id} card`).toBeVisible();
-        await expect(element).toContainText(copy.PANE_TITLES[card.id]);
-        await expect(element).toContainText(copy.formatRowCount(card.rows));
-        await expect(element).toContainText(card.summary);
-        await expect(page.getByTestId(`ov-open-${card.id}`)).toHaveText(
-          copy.formatOpenSectionLink(copy.PANE_TITLES[card.id]),
-        );
+      for (const entry of rowsOf) {
+        const row = listRow(page, entry.id);
+        await expect(row, `the ${entry.id} row`).toBeVisible();
+        await expect(row).toContainText(copy.PANE_TITLES[entry.id]);
+        await expect(row).toContainText(copy.formatRowCount(entry.rows));
+        await expect(row).toContainText(entry.summary);
       }
 
-      // The link of the Account timeline card opens the pane.
-      await expect(page.getByTestId('ov-card-account-timeline')).toBeVisible();
-      await page.getByTestId('ov-open-account-timeline').click();
+      // The Account timeline row opens the pane.
+      await listRow(page, 'account-timeline').click();
       await expect(detailPane(page)).toHaveAttribute('data-pane', 'account-timeline');
     });
 

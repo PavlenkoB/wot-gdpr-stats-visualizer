@@ -1,77 +1,99 @@
 <script lang="ts">
+  import { onMount, untrack } from 'svelte';
+  import type { QueryClient } from '../core/query-client.ts';
   import type { ClassifyResult } from '../core/types/worker-messages.ts';
   import {
-    OVERVIEW_INTRO,
-    PANE_TITLES,
-    ROW_HEADLINE_NONE,
-    formatChipAbsent,
-    formatChipUnsupported,
-    formatChipWithData,
-    formatOpenSectionLink,
-  } from '../ui-copy.ts';
-  import { overviewCards, overviewChips } from './overview-model.ts';
+    acceptDataOutcome,
+    deriveOverviewScreen,
+    type OverviewShown,
+  } from '../features/overview/overview-state.ts';
+  import OverviewBento from '../features/overview/OverviewBento.svelte';
+  import { PANE_TITLES } from '../ui-copy.ts';
   import type { PaneId } from './selection-state.ts';
 
   /**
-   * The Overview: the landing view after every import. A heading, one intro
-   * sentence, three status chips and one summary card per data section.
+   * The Overview: the landing view after every import, and the phase-13
+   * personal-insights page.
    *
-   * Everything here is derived from the already-loaded `ClassifyResult` through
-   * `overview-model.ts`, which filters the same `paneEntries` the list rows read,
-   * so a chip, a card and a row cannot disagree. There is NO worker query and no
-   * worker client import: supersede is per channel, and a query from this surface
-   * could only compete with an open section's own.
+   * ## One channel, one answer (13-01, D-01)
    *
-   * The account card prints the location code and the created date, never the
-   * nickname (D-21: the nickname appears exactly once, in the list pane header).
-   * Every string is interpolated as text.
+   * The page asks the worker for the `overview` channel and nothing else.
+   * Supersede is per channel, so an Overview ask can never release an open
+   * pane's question, and the answer is memoised per import, so returning to
+   * the Overview is instant.
+   *
+   * ## The ask-and-accept pattern
+   *
+   * This is the Account timeline pane's pattern, copied rather than reinvented:
+   * the applied answer and the dataset it answers for live in ONE `$state.raw`
+   * cell, and the state is derived from that cell and the dataset. A replace
+   * that lands mid-query therefore returns the page to `loading` by
+   * construction — there is no hand-written reset to forget.
+   *
+   * ## The composer
+   *
+   * This file asks the channel, derives the screen and mounts the bento
+   * (`OverviewBento`), which draws the page. It holds no layout.
+   *
+   * ## The live regions
+   *
+   * None of its own. The page keeps exactly two page-level live regions, and
+   * this surface adds no third: the loading sentence and the failure banner
+   * are ordinary content, and the banner carries `role="alert"`.
    */
   interface Props {
     /** The last known dataset. */
     result: ClassifyResult;
-    /** An available card's control was activated: select that pane and go into it. */
-    onopen: (id: PaneId) => void;
+    /** The channel-scoped query seam: the only way this page asks. */
+    client: QueryClient;
+    /**
+     * A tile's "Open {Section}" link was activated: select that pane and go
+     * into it (the shell's `openPane`).
+     */
+    onopen?: (id: PaneId) => void;
   }
 
-  let { result, onopen }: Props = $props();
+  let { result, client, onopen }: Props = $props();
 
-  const chips = $derived(overviewChips(result));
-  const cards = $derived(overviewCards(result));
+  const importedAt = $derived(result?.importedAt ?? null);
+
+  /** The applied answer and the dataset it answers for, in ONE cell. */
+  let shown = $state.raw<OverviewShown | null>(null);
+
+  let alive = true;
+  onMount(() => {
+    return () => {
+      alive = false;
+    };
+  });
+
+  async function load(wanted: string): Promise<void> {
+    const outcome = await client.query({ channel: 'overview' });
+    if (!alive) return;
+
+    const accepted = acceptDataOutcome(outcome, 'overview', wanted, importedAt);
+    if (accepted !== null) shown = accepted;
+  }
+
+  $effect(() => {
+    const wanted = importedAt;
+    untrack(() => {
+      if (wanted === null) return;
+      void load(wanted);
+    });
+  });
+
+  const screen = $derived(deriveOverviewScreen({ importedAt, shown }));
+
+  const view = $derived(
+    shown !== null && shown.kind === 'view' && shown.importedAt === importedAt ? shown.view : null,
+  );
 </script>
 
-<div class="overview" data-testid="overview">
+<div class="overview" data-testid="overview" aria-busy={screen === 'loading' ? 'true' : 'false'}>
   <h2 id="overview-heading" class="section-title">{PANE_TITLES.overview}</h2>
-  <p class="intro">{OVERVIEW_INTRO}</p>
 
-  <ul class="chips">
-    <li class="chip" data-testid="ov-chip-with-data">{formatChipWithData(chips.withData)}</li>
-    <li class="chip" data-testid="ov-chip-absent">{formatChipAbsent(chips.absent)}</li>
-    <li class="chip" data-testid="ov-chip-unsupported">
-      {formatChipUnsupported(chips.unsupported)}
-    </li>
-  </ul>
-
-  <div class="ov-grid">
-    {#each cards as card (card.id)}
-      <div class="ov-card" class:na={!card.available} data-testid="ov-card-{card.id}">
-        <span class="label">{card.title}</span>
-        <span class="headline" class:none={!card.available}>
-          {card.available ? card.headline : ROW_HEADLINE_NONE}
-        </span>
-        <span class="summary">{card.summary}</span>
-        {#if card.available}
-          <button
-            type="button"
-            class="link"
-            data-testid="ov-open-{card.id}"
-            onclick={() => onopen(card.id)}
-          >
-            {formatOpenSectionLink(card.title)}
-          </button>
-        {/if}
-      </div>
-    {/each}
-  </div>
+  <OverviewBento {result} {view} {screen} onopen={(pane) => onopen?.(pane)} />
 </div>
 
 <style>
@@ -89,113 +111,6 @@
     line-height: 1.3;
     color: var(--ink);
     min-width: 0;
-    overflow-wrap: anywhere;
-  }
-
-  .intro {
-    margin: 0;
-    min-width: 0;
-    font-size: 14px;
-    line-height: 1.5;
-    color: var(--text);
-    overflow-wrap: anywhere;
-  }
-
-  .chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .chip {
-    padding: 4px 12px;
-    border-radius: 999px;
-    background: var(--chip);
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text);
-  }
-
-  .ov-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
-    gap: 16px;
-  }
-
-  .ov-card {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    min-width: 0;
-    padding: 20px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-card);
-    background: var(--card);
-  }
-
-  .ov-card:hover {
-    border-color: var(--ink);
-  }
-
-  /* A section that is not in this export: a dashed panel, not a link, and no
-     hover change. --faint is decoration and dashed borders only, never text. */
-  .ov-card.na {
-    border: 1px dashed var(--faint);
-    background: var(--list);
-    cursor: default;
-  }
-
-  .ov-card.na:hover {
-    border-color: var(--faint);
-  }
-
-  .label {
-    min-width: 0;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--muted);
-    overflow-wrap: anywhere;
-  }
-
-  .headline {
-    font-size: 30px;
-    font-weight: 600;
-    line-height: 1.2;
-    color: var(--ink);
-    overflow-wrap: anywhere;
-  }
-
-  .headline.none {
-    color: var(--muted);
-  }
-
-  .summary {
-    font-size: 14px;
-    color: var(--text);
-    overflow-wrap: anywhere;
-  }
-
-  /* The open control: an underlined ink link-style button. The focus ring is
-     the global button:focus-visible one in app.css. 44px tall for a thumb. */
-  .link {
-    align-self: flex-start;
-    display: inline-flex;
-    align-items: center;
-    min-height: 44px;
-    max-width: 100%;
-    padding: 0;
-    border: 0;
-    background: none;
-    font: inherit;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--ink);
-    text-align: left;
-    text-decoration: underline;
-    cursor: pointer;
     overflow-wrap: anywhere;
   }
 </style>

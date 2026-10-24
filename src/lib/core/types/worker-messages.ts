@@ -18,6 +18,7 @@ import type {
 } from '../../features/new-data/new-data-shared.ts';
 import type { CityView } from '../../features/logins/city-shared.ts';
 import type { TimelineView } from '../../features/account-timeline/timeline-shared.ts';
+import type { OverviewView } from '../../features/overview/overview-shared.ts';
 
 export type CategoryStatus = 'supported' | 'known-deferred' | 'unknown';
 
@@ -236,6 +237,37 @@ export interface PlaytimeSlice {
    * `DURATION_BIN_EDGES_SECONDS`.
    */
   bins: number[];
+  /**
+   * The longest single usable session in this slice, in seconds: `end - start`
+   * of one session, taken RAW.
+   *
+   * RAW, not merged: this answers "one login to logout", so two overlapping
+   * sessions contribute their own lengths and never their union. A session
+   * that is fully covered by another still has its own length here — the
+   * merged sweep credits it ZERO seconds, which is right for a playtime total
+   * and wrong for "how long was the longest sitting".
+   *
+   * 0 when the slice holds no usable session. A zero-length session is the
+   * longest only when nothing else exists.
+   *
+   * OPTIONAL for the same reason `games` and `byGame` are: the
+   * `PLAYTIME_VERSION` bump guarantees runtime presence, while a hand-built
+   * literal stays valid. A reader must treat an absent value as "not
+   * available" and NEVER as zero.
+   */
+  longestSeconds?: number;
+  /**
+   * The wall-clock start, in seconds since the epoch, of the session
+   * {@link longestSeconds} measured.
+   *
+   * `floor(longestStart / 86400)` is that session's day number, so the tile
+   * can name the day without a second lookup. A TIE is resolved to the
+   * EARLIEST start, so the figure is deterministic.
+   *
+   * 0 when the slice holds no usable session, and OPTIONAL for the same
+   * reason as {@link longestSeconds}.
+   */
+  longestStart?: number;
 }
 
 /**
@@ -436,7 +468,13 @@ export type DataQuery =
   // 12-11. The Account timeline asks for its one merged chronology through the
   // same channel union. It takes no further field, so a smuggled `title` or
   // `battleType` is rejected with the fixed `invalid query` detail (T-12-34).
-  | { channel: 'account-timeline' };
+  | { channel: 'account-timeline' }
+  // 13-01, D-01. The Overview's personal-insights page asks through the same
+  // channel union, so the existing per-channel supersede applies to it for
+  // free: an Overview ask can never release an open pane's question. It takes
+  // NO further field, so `isDataQuery` rejects a `title`, a `battleType` or
+  // any other smuggled field with the fixed detail `invalid query` (T-13-02).
+  | { channel: 'overview' };
 
 /**
  * The answer to one `DataQuery`, discriminated by the same channel as the
@@ -452,7 +490,8 @@ export type DataResult =
   | { channel: 'heat'; view: HeatView }
   | { channel: 'warships-storage'; view: WarshipsStorageView }
   | { channel: 'perks'; view: PerksView }
-  | { channel: 'account-timeline'; view: TimelineView };
+  | { channel: 'account-timeline'; view: TimelineView }
+  | { channel: 'overview'; view: OverviewView };
 
 export interface ParsingProgress {
   category: string;

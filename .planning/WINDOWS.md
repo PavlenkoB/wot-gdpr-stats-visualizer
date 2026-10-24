@@ -2,9 +2,9 @@
 schema_version: 1
 open_count: 0
 waived_count: 3
-fixed_count: 19
-total_count: 22
-last_updated: 2026-10-21T18:27:47.378Z
+fixed_count: 27
+total_count: 30
+last_updated: 2026-10-23T21:28:23.776Z
 ---
 
 # Broken Windows Ledger
@@ -37,6 +37,14 @@ last_updated: 2026-10-21T18:27:47.378Z
 | 20 | 12 | deviation | .planning/REQUIREMENTS.md |  | 12-02 deliberately marked NO requirement complete: PERKS-03 reads 'Surveys are shown' and this plan shows no pane - it ships the category-scoped family rule, the heat_surveys.csv spec, the perks channel and the Perks list row; the pane itself arrives with plan 12-09. PRIV-01 was already Complete from phase 11. Re-run requirements.mark-complete for PERKS-03 after 12-09 lands. | fixed |  | 2026-10-20T06:57:35.481Z | 2026-10-21T18:14:56.820Z |
 | 21 | 12 | deviation | .planning/REQUIREMENTS.md |  | 12-04 promotes Bans/Authorized_Third_Parties/Subscriptions/Personal_Coupons/Bonus_Codes to SUPPORTED and fails every file of them closed, but shows NO pane: TIMELINE-02, PERKS-01 and PERKS-02 stay open until plan 12-08/12-09 land the specs and the panes. Re-run requirements.mark-complete for those three after 12-09. | fixed |  | 2026-10-20T07:44:30.966Z | 2026-10-21T18:14:56.896Z |
 | 22 | 12 | deviation | .planning/REQUIREMENTS.md |  | 12-05 deliberately marked NO requirement complete: TIMELINE-01, TIMELINE-02, PERKS-01 and SCALE-01 all read 'is shown' and this plan shows no pane - it ships the cross-account merge, the timeline view contract, the four-shape instant parse and comparator, and the Phase 12 copy block; the panes arrive with 12-09 and 12-12. Re-run requirements.mark-complete for all four after 12-12 lands. | fixed |  | 2026-10-20T08:05:19.853Z | 2026-10-21T18:14:56.975Z |
+| 23 | 13 | stub | src/lib/features/overview/overview-shared.ts |  | Fifteen of the sixteen Overview tiles are returned ABSENT by design in 13-01: only 'logged' is real. Plans 13-06/13-07/13-08 fill them. | fixed |  | 2026-10-23T06:07:06.994Z | 2026-10-23T21:28:23.469Z |
+| 24 | 13 | stub | src/lib/features/overview/overview-shared.ts |  | The Logged in tile's battleSeconds is null by design in 13-01: the lifetime battle-time figure arrives with plan 13-08 from BATTLE_LIFE_TIME. The rule line omits the 'In battle' sentence entirely rather than printing a zero. | fixed |  | 2026-10-23T06:07:17.249Z | 2026-10-23T21:28:23.545Z |
+| 25 | 13 | deviation | tests/e2e/shell/master-detail-nav.spec.ts |  | Six e2e assertions still expect the retired Phase 8 Overview hooks (ov-chip-* / ov-card-*): master-detail-nav, dashboard, device-info, account-timeline-perks and two multi-account cases. Plan 13-01 replaces the Overview and plan 13-13 retires those assertions. | fixed |  | 2026-10-23T06:07:17.324Z | 2026-10-23T14:49:03.823Z |
+| 26 | 13 | deviation | .planning/REQUIREMENTS.md |  | 13-01 deliberately marked NO requirement complete: INSIGHT-01, INSIGHT-07 and INSIGHT-08 are each declared by several plans in phase 13 (INSIGHT-07 by nine), so the shared-ID gate blocks every one of them until the LAST declaring plan has produced a SUMMARY. Re-run requirements.mark-complete for those three after the phase's last declaring plan lands. | fixed |  | 2026-10-23T06:09:41.085Z | 2026-10-23T21:28:23.621Z |
+| 27 | 13 | deviation | tests/unit/overview/overview-grid.test.ts |  | The dense fill rule can pull a narrow tile up into a gap, so the Pinned group reorders for 32,160 of 65,535 pin subsets; the four catalogue groups never do. The port is proved faithful to the sketch by a differential test, and plan 13-09 must decide whether the bento grid uses grid-auto-flow: dense. | fixed |  | 2026-10-23T11:52:05.521Z | 2026-10-23T14:01:40.314Z |
+| 28 | 13 | deviation | .planning/REQUIREMENTS.md |  | 13-07 declared INSIGHT-02, INSIGHT-06 and INSIGHT-07, and the shared-ID gate blocks all three: INSIGHT-02 is declared by 13-03/13-05/13-07/13-08/13-11, INSIGHT-06 by 13-02/13-07/13-15 and INSIGHT-07 by nine plans. Re-run requirements.mark-complete for them after the LAST declaring plan of each lands. | fixed |  | 2026-10-23T12:07:51.206Z | 2026-10-23T21:28:23.698Z |
+| 29 | 13 | deviation | .planning/REQUIREMENTS.md |  | 13-09 declared INSIGHT-03, INSIGHT-04 and INSIGHT-07 but delivers only the static tile, charts and group: expand, keyboard, pins and the composed grid arrive in 13-12, and the browser check in 13-14. The mark-complete verb ticked INSIGHT-03 and INSIGHT-04 anyway; that was reverted by hand. Re-run requirements.mark-complete for INSIGHT-03 and INSIGHT-04 after 13-14 lands. | fixed |  | 2026-10-23T14:03:16.214Z | 2026-10-23T15:02:28.500Z |
+| 30 | 13 | unrun-verify | src/lib/features/overview/OverviewBento.svelte |  | 13-14: the expand and pin MOTION feel (0.26 s view transition, anchored scroll, pin move) cannot be judged headless; the tests prove the API is called, skipped under reduced motion, and that nothing moves in x, y or width. A person must look at it in a real browser. | fixed |  | 2026-10-23T15:02:28.577Z | 2026-10-23T21:28:23.776Z |
 
 ````json
 [
@@ -319,6 +327,110 @@ last_updated: 2026-10-21T18:27:47.378Z
     "reason": "",
     "recorded_at": "2026-10-20T08:05:19.853Z",
     "resolved_at": "2026-10-21T18:14:56.975Z",
+    "milestone": "v1.1"
+  },
+  {
+    "id": 23,
+    "kind": "stub",
+    "phase": "13",
+    "file": "src/lib/features/overview/overview-shared.ts",
+    "line": null,
+    "description": "Fifteen of the sixteen Overview tiles are returned ABSENT by design in 13-01: only 'logged' is real. Plans 13-06/13-07/13-08 fill them.",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-10-23T06:07:06.994Z",
+    "resolved_at": "2026-10-23T21:28:23.469Z",
+    "milestone": "v1.1"
+  },
+  {
+    "id": 24,
+    "kind": "stub",
+    "phase": "13",
+    "file": "src/lib/features/overview/overview-shared.ts",
+    "line": null,
+    "description": "The Logged in tile's battleSeconds is null by design in 13-01: the lifetime battle-time figure arrives with plan 13-08 from BATTLE_LIFE_TIME. The rule line omits the 'In battle' sentence entirely rather than printing a zero.",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-10-23T06:07:17.249Z",
+    "resolved_at": "2026-10-23T21:28:23.545Z",
+    "milestone": "v1.1"
+  },
+  {
+    "id": 25,
+    "kind": "deviation",
+    "phase": "13",
+    "file": "tests/e2e/shell/master-detail-nav.spec.ts",
+    "line": null,
+    "description": "Six e2e assertions still expect the retired Phase 8 Overview hooks (ov-chip-* / ov-card-*): master-detail-nav, dashboard, device-info, account-timeline-perks and two multi-account cases. Plan 13-01 replaces the Overview and plan 13-13 retires those assertions.",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-10-23T06:07:17.324Z",
+    "resolved_at": "2026-10-23T14:49:03.823Z",
+    "milestone": "v1.1"
+  },
+  {
+    "id": 26,
+    "kind": "deviation",
+    "phase": "13",
+    "file": ".planning/REQUIREMENTS.md",
+    "line": null,
+    "description": "13-01 deliberately marked NO requirement complete: INSIGHT-01, INSIGHT-07 and INSIGHT-08 are each declared by several plans in phase 13 (INSIGHT-07 by nine), so the shared-ID gate blocks every one of them until the LAST declaring plan has produced a SUMMARY. Re-run requirements.mark-complete for those three after the phase's last declaring plan lands.",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-10-23T06:09:41.085Z",
+    "resolved_at": "2026-10-23T21:28:23.621Z",
+    "milestone": "v1.1"
+  },
+  {
+    "id": 27,
+    "kind": "deviation",
+    "phase": "13",
+    "file": "tests/unit/overview/overview-grid.test.ts",
+    "line": null,
+    "description": "The dense fill rule can pull a narrow tile up into a gap, so the Pinned group reorders for 32,160 of 65,535 pin subsets; the four catalogue groups never do. The port is proved faithful to the sketch by a differential test, and plan 13-09 must decide whether the bento grid uses grid-auto-flow: dense.",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-10-23T11:52:05.521Z",
+    "resolved_at": "2026-10-23T14:01:40.314Z",
+    "milestone": "v1.1"
+  },
+  {
+    "id": 28,
+    "kind": "deviation",
+    "phase": "13",
+    "file": ".planning/REQUIREMENTS.md",
+    "line": null,
+    "description": "13-07 declared INSIGHT-02, INSIGHT-06 and INSIGHT-07, and the shared-ID gate blocks all three: INSIGHT-02 is declared by 13-03/13-05/13-07/13-08/13-11, INSIGHT-06 by 13-02/13-07/13-15 and INSIGHT-07 by nine plans. Re-run requirements.mark-complete for them after the LAST declaring plan of each lands.",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-10-23T12:07:51.206Z",
+    "resolved_at": "2026-10-23T21:28:23.698Z",
+    "milestone": "v1.1"
+  },
+  {
+    "id": 29,
+    "kind": "deviation",
+    "phase": "13",
+    "file": ".planning/REQUIREMENTS.md",
+    "line": null,
+    "description": "13-09 declared INSIGHT-03, INSIGHT-04 and INSIGHT-07 but delivers only the static tile, charts and group: expand, keyboard, pins and the composed grid arrive in 13-12, and the browser check in 13-14. The mark-complete verb ticked INSIGHT-03 and INSIGHT-04 anyway; that was reverted by hand. Re-run requirements.mark-complete for INSIGHT-03 and INSIGHT-04 after 13-14 lands.",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-10-23T14:03:16.214Z",
+    "resolved_at": "2026-10-23T15:02:28.500Z",
+    "milestone": "v1.1"
+  },
+  {
+    "id": 30,
+    "kind": "unrun-verify",
+    "phase": "13",
+    "file": "src/lib/features/overview/OverviewBento.svelte",
+    "line": null,
+    "description": "13-14: the expand and pin MOTION feel (0.26 s view transition, anchored scroll, pin move) cannot be judged headless; the tests prove the API is called, skipped under reduced motion, and that nothing moves in x, y or width. A person must look at it in a real browser.",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-10-23T15:02:28.577Z",
+    "resolved_at": "2026-10-23T21:28:23.776Z",
     "milestone": "v1.1"
   }
 ]

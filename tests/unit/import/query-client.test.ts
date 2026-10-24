@@ -134,6 +134,36 @@ describe('four channels asking in the same tick', () => {
     expect(await settleOrMarker(second)).toMatchObject({ kind: 'result' });
     expect(posts).toHaveLength(2);
   });
+
+  test('an overview query beside a currency query settles both with their own results (13-11, D-01)', async () => {
+    const { posts, post } = recordingPost();
+    const client = new QueryClient(post);
+
+    const overview = client.query({ channel: 'overview' });
+    const currency = client.query({ channel: 'currency' });
+    expect(client.pendingCount).toBe(2);
+    const ids = posts.map((p) => (p as { queryId: number }).queryId);
+
+    // Neither released the other: both are genuinely pending.
+    expect(await settleOrMarker(overview)).toBe(NEVER_SETTLED);
+    expect(await settleOrMarker(currency)).toBe(NEVER_SETTLED);
+
+    // Answered out of order, each by the id it was issued under.
+    client.handle(resultFor({ channel: 'currency' }, ids[1]!));
+    client.handle(resultFor({ channel: 'overview' }, ids[0]!));
+
+    const settledOverview = (await settleOrMarker(overview)) as {
+      kind: string;
+      queryId: number;
+      result: DataResult | null;
+    };
+    const settledCurrency = (await settleOrMarker(currency)) as typeof settledOverview;
+    expect(settledOverview).toMatchObject({ kind: 'result', queryId: ids[0] });
+    expect(settledOverview.result?.channel).toBe('overview');
+    expect(settledCurrency).toMatchObject({ kind: 'result', queryId: ids[1] });
+    expect(settledCurrency.result?.channel).toBe('currency');
+    expect(client.pendingCount).toBe(0);
+  });
 });
 
 // -----------------------------------------------------------------------------
@@ -155,6 +185,26 @@ describe('supersede is per channel', () => {
 
     client.handle(resultFor({ channel: 'premium' }, 2));
     expect(await settleOrMarker(second)).toMatchObject({ kind: 'result', queryId: 2 });
+  });
+
+  test('a second overview query supersedes the first overview query only (13-11)', async () => {
+    const { post } = recordingPost();
+    const client = new QueryClient(post);
+
+    const first = client.query({ channel: 'overview' });
+    const currency = client.query({ channel: 'currency' });
+    const second = client.query({ channel: 'overview' });
+
+    // Released on issue, and the currency question is untouched.
+    expect(await settleOrMarker(first)).toEqual({ kind: 'superseded', queryId: 1 });
+    expect(await settleOrMarker(currency)).toBe(NEVER_SETTLED);
+    expect(client.pendingCount).toBe(2);
+
+    client.handle(resultFor({ channel: 'currency' }, 2));
+    client.handle(resultFor({ channel: 'overview' }, 3));
+    expect(await settleOrMarker(currency)).toMatchObject({ kind: 'result', queryId: 2 });
+    expect(await settleOrMarker(second)).toMatchObject({ kind: 'result', queryId: 3 });
+    expect(client.pendingCount).toBe(0);
   });
 
   test('a late reply for a superseded id is ignored and changes nothing', async () => {

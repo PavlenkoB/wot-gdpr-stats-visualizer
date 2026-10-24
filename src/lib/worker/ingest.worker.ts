@@ -88,6 +88,7 @@ import {
   type DatasetFile,
   type DatasetMeta,
   type DatasetRow,
+  type RowsSnapshot,
 } from './db.ts';
 import {
   accountSummariesOf,
@@ -285,6 +286,50 @@ async function handlePlaytimeQuery(
 }
 
 /**
+ * The snapshot the `overview` channel answers from, with a CURRENT playtime
+ * aggregate (13-01, D-01, T-13-04).
+ *
+ * ## Why the aggregate may need a second read
+ *
+ * The aggregate rides the rows' own transaction, so the answer and its rows
+ * can never describe two different datasets. A stored aggregate whose `v` is
+ * not `PLAYTIME_VERSION` is STALE — it was built under rules this build no
+ * longer uses — and it is rebuilt from the stored session rows by the same
+ * `buildPlaytimeFromSources` the import used, so the numbers are the ones the
+ * current rules produce.
+ *
+ * ## Why a rebuild that lands on another dataset answers NOTHING (T-04-11)
+ *
+ * The rebuild reads the session rows in a second transaction, so a replace can
+ * land between the two reads. When it does, the rows belong to a dataset the
+ * user is no longer looking at, and answering with them would show one
+ * export's numbers under another's date. So a mismatched `importedAt` answers
+ * null — the same statement as "nothing imported" — and writes nothing. The
+ * write-back goes through `writePlaytimeIfCurrent` for the same reason: a
+ * refused write costs one recomputation, and a mis-attached aggregate would
+ * cost the user their numbers.
+ *
+ * Returns null for "answer with `importedAt: null` and no result", which is
+ * the one statement true both of a cleared dataset and of a replaced one.
+ */
+async function withCurrentPlaytime(snapshot: RowsSnapshot): Promise<RowsSnapshot | null> {
+  const stored = snapshot.playtime;
+  if (stored != null && stored.v === PLAYTIME_VERSION) return snapshot;
+
+  const sessionData = await readSessionRowData();
+  // Null: the dataset was cleared between the two reads.
+  if (sessionData === null) return null;
+  // A different date: a replace landed between the two reads.
+  if (sessionData.importedAt !== snapshot.importedAt) return null;
+
+  const rebuilt = buildPlaytimeFromSources(sessionData.sources, sessionData.sources.length > 0);
+  // The boolean is IGNORED on purpose: a refused write means a replace landed
+  // between the read and the write, and the answer below is already correct.
+  await writePlaytimeIfCurrent(snapshot.importedAt, rebuilt);
+  return { ...snapshot, playtime: rebuilt };
+}
+
+/**
  * Answer one `data-query` from ONE Dexie snapshot (05-07, T-05-19).
  *
  * The shape mirrors `handlePlaytimeQuery` and inherits its load-bearing rule:
@@ -378,9 +423,27 @@ async function handleDataQuery(queryId: number, query: DataQuery): Promise<void>
       return;
     }
 
+    // 13-01, D-01. The `overview` channel needs the playtime aggregate, and
+    // the aggregate rides the rows' own transaction — unless it is stale or
+    // absent, in which case it is rebuilt from the stored session rows. A
+    // rebuild that finds another dataset answers nothing at all, because a
+    // snapshot's rows and an aggregate from another dataset would be one
+    // answer describing two exports (T-13-04).
+    const withPlaytime =
+      query.channel === 'overview' ? await withCurrentPlaytime(snapshot) : snapshot;
+    if (withPlaytime === null) {
+      scope.postMessage({
+        type: 'data-result',
+        queryId,
+        importedAt: null,
+        result: null,
+      } satisfies IngestResponse);
+      return;
+    }
+
     // Stored only after the builder SUCCEEDED, so a throwing builder leaves no
     // half-answer behind for a later query to find.
-    const result = answerDataQuery(query, snapshot);
+    const result = answerDataQuery(query, withPlaytime);
     setDataQueryMemo(query, snapshot.importedAt, result);
     scope.postMessage({
       type: 'data-result',

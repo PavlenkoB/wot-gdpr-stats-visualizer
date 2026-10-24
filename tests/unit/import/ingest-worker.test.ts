@@ -80,6 +80,7 @@ import {
 import type {
   IngestRequest,
   IngestResponse,
+  PlaytimeAggregates,
   PlaytimeSlice,
   WorkerScopeLike,
 } from '../../../src/lib/core/types/worker-messages.ts';
@@ -1903,6 +1904,107 @@ describe('04-06 backfill: legacy, stale and failed playtime aggregates', () => {
     expect(meta!.playtime?.v).toBe(PLAYTIME_VERSION);
   });
 
+  test('a v3 aggregate without the longest-session fields is rebuilt into a v4 one', async () => {
+    // 13-05 / T-13-14: the shape a returning user's cache really holds after
+    // the version bump. A v3 record has no room for the two fields v4 added,
+    // so every slice of it — the all-games one, each split value's and each
+    // per-game scope's — arrives WITHOUT them. It must be recomputed from the
+    // stored session rows, not refused and not cast.
+    //
+    // The two-game real-shape export is the fixture, because it is the one
+    // whose stored aggregate has BOTH a split (the game names) and per-game
+    // scopes: the repair has to reach every slice, not just the all-games one.
+    const done = await ingestWith(postSpy, buildTwoGameExport(), 'backfill-v3.zip');
+    expect(done.type).toBe('done');
+    if (done.type !== 'done') return;
+
+    // The answer the CURRENT build gives, so the repair can be compared with
+    // it: recomputing must not change a single number the user can see.
+    const before = await query(3, null);
+    expect(before.type).toBe('playtime-result');
+    if (before.type !== 'playtime-result') return;
+
+    const db = await workerDb();
+    const stored = (await db.meta.get('active'))?.playtime;
+    expect(stored).toBeDefined();
+
+    // The longest figures the current build computed, kept for the comparison
+    // after the repair. Hand-derived from the fixture rows:
+    //   WOT   13.03.2019 20:00 -> 21:30    5,400 s  <- WOT's longest
+    //   WOWS  13.03.2019 21:30 -> 23:00    5,400 s  <- WOWS's longest
+    // Both are 5,400, and under All the tie goes to the EARLIER start, which
+    // is the WOT one at 20:00.
+    const wotLongest = 5_400;
+    const wotStart = Date.UTC(2019, 2, 13, 20, 0) / 1000;
+    const wowsStart = Date.UTC(2019, 2, 13, 21, 30) / 1000;
+    expect(stored!.all.longestSeconds).toBe(wotLongest);
+    expect(stored!.all.longestStart).toBe(wotStart);
+
+    // The downgrade: v3, and the two fields removed from EVERY slice.
+    const strip = (slice: PlaytimeSlice): PlaytimeSlice => {
+      const copy: PlaytimeSlice = { ...slice };
+      delete copy.longestSeconds;
+      delete copy.longestStart;
+      return copy;
+    };
+    const downgraded: PlaytimeAggregates = {
+      ...stored!,
+      v: 3,
+      all: strip(stored!.all),
+      byValue: stored!.byValue.map(strip),
+      byGame: stored!.byGame?.map((entry) => ({
+        game: entry.game,
+        scope: {
+          ...entry.scope,
+          all: strip(entry.scope.all),
+          byValue: entry.scope.byValue.map(strip),
+        },
+      })),
+    };
+    await db.meta.update('active', { playtime: downgraded });
+
+    // The downgrade really took: the stored aggregate has no longest fields.
+    const downgradedStored = (await db.meta.get('active'))?.playtime;
+    expect(downgradedStored?.v).toBe(3);
+    expect(downgradedStored?.all.longestSeconds).toBeUndefined();
+    expect(downgradedStored?.all.longestStart).toBeUndefined();
+
+    const after = await query(4, null);
+    expect(after.type).toBe('playtime-result');
+    if (after.type !== 'playtime-result') return;
+    expect(after.importedAt).toBe(before.importedAt);
+    // The same view, number for number: the repair changed no playtime figure.
+    expect(after.view).toEqual(before.view);
+
+    const { PLAYTIME_VERSION } =
+      await import('../../../src/lib/features/playtime/playtime-shared.ts');
+    const repaired = (await db.meta.get('active'))?.playtime;
+    expect(repaired?.v).toBe(PLAYTIME_VERSION);
+
+    // Every slice carries both fields, as numbers.
+    const slices: PlaytimeSlice[] = [
+      repaired!.all,
+      ...repaired!.byValue,
+      ...(repaired!.byGame ?? []).flatMap((entry) => [entry.scope.all, ...entry.scope.byValue]),
+    ];
+    expect(slices.length).toBeGreaterThan(0);
+    for (const slice of slices) {
+      expect(typeof slice.longestSeconds).toBe('number');
+      expect(typeof slice.longestStart).toBe('number');
+    }
+
+    // And the longest figures are the ones the CURRENT build computes, not
+    // merely present: each game's scope carries its own maximum.
+    const wot = repaired!.byGame?.find((entry) => entry.game === 'WOT');
+    const wows = repaired!.byGame?.find((entry) => entry.game === 'WOWS');
+    expect(wot?.scope.all.longestSeconds).toBe(wotLongest);
+    expect(wot?.scope.all.longestStart).toBe(wotStart);
+    expect(wows?.scope.all.longestSeconds).toBe(wotLongest);
+    expect(wows?.scope.all.longestStart).toBe(wowsStart);
+    expect(repaired!.all.longestSeconds).toBe(wotLongest);
+    expect(repaired!.all.longestStart).toBe(wotStart);
+  });
+
   test('a null playtime (an aggregation that failed at import) recomputes and repairs', async () => {
     await ingestWith(postSpy, buildSplitTracerExport(), 'backfill-null.zip');
     const db = await workerDb();
@@ -2060,7 +2162,7 @@ describe('04-06 backfill: legacy, stale and failed playtime aggregates', () => {
     expect(recomputed.view?.status).toBe('no-session-file');
   });
 
-  test('PLAYTIME_VERSION is 3, so an aggregate from the previous build is stale', async () => {
+  test('PLAYTIME_VERSION is 4, so an aggregate from the previous build is stale', async () => {
     // The one place the number is written down. Every other test reads the
     // constant, so reverting this is a deliberate act with a failing test, not
     // a silent consequence of editing something else (T-04-30).
@@ -2069,9 +2171,15 @@ describe('04-06 backfill: legacy, stale and failed playtime aggregates', () => {
     // beside the all-games one, which a v2 record has no room for. The lazy
     // rebuild is what absorbs it — a v2 cache is recomputed from its own rows
     // on the next playtime query and written back, with no re-import (D-21).
+    //
+    // Flipped 3 -> 4 by 13-05: a stored slice now carries the longest raw
+    // session (`longestSeconds`, `longestStart`), which a v3 record has no
+    // room for. The same lazy rebuild absorbs it — a v3 cache is recomputed
+    // from its own stored session rows on the next playtime or overview query
+    // and written back, with no re-import and no Dexie bump (D-01, T-13-14).
     const { PLAYTIME_VERSION } =
       await import('../../../src/lib/features/playtime/playtime-shared.ts');
-    expect(PLAYTIME_VERSION).toBe(3);
+    expect(PLAYTIME_VERSION).toBe(4);
   });
 
   test('a query after clear-data answers importedAt null and no view', async () => {

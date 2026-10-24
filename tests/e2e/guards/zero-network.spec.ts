@@ -9,6 +9,7 @@ import {
 import {
   SYNTHETIC_ZIP_NAME,
   countryList,
+  detailPane,
   importExport,
   loginHistoryBlock,
   loginMap,
@@ -301,6 +302,47 @@ test.describe('zero-network and CSP', () => {
     const currency = page.getByTestId('currency-block');
     const spend = page.getByTestId('spend-block');
     await waitForImported(page);
+
+    // --- 0. the Overview (13-14) ----------------------------------------------
+    // The page lands on the Overview after the import. Every interaction below
+    // is a state change - expand, close, pin, unpin, follow an Open link - and
+    // the pin writes local storage, never a request. The end-of-test assertions
+    // (no request after the baseline, one worker, no CSP violation) therefore
+    // cover the Overview too.
+    const overview = page.getByTestId('overview');
+    await expect(overview).toBeVisible();
+    const firstFace = page.locator('[data-testid^="ov-tile-button-"]').first();
+    await expect(firstFace).toBeVisible({ timeout: 30_000 });
+    await expect(overview).toHaveAttribute('aria-busy', 'false');
+    const firstId = (await firstFace.getAttribute('data-tile-id')) ?? '';
+    expect(firstId, 'the Overview drew at least one tile').not.toBe('');
+    // Expand, then Escape closes it.
+    await firstFace.click();
+    await expect(firstFace).toHaveAttribute('aria-expanded', 'true');
+    await page.keyboard.press('Escape');
+    await expect(firstFace).toHaveAttribute('aria-expanded', 'false');
+    // The star unpins, the P key pins again.
+    const firstStar = page.getByTestId('ov-star-' + firstId);
+    const pinnedAtStart = (await firstStar.getAttribute('aria-pressed')) ?? 'false';
+    await firstStar.click();
+    await expect(page.getByTestId('ov-star-' + firstId)).not.toHaveAttribute(
+      'aria-pressed',
+      pinnedAtStart,
+    );
+    await page.getByTestId('ov-tile-button-' + firstId).focus();
+    await page.keyboard.press('p');
+    await expect(page.getByTestId('ov-star-' + firstId)).toHaveAttribute(
+      'aria-pressed',
+      pinnedAtStart,
+    );
+    await page.keyboard.press('Escape');
+    // The Open link selects an existing pane; come back and wait for a tile.
+    await page.getByTestId('ov-tile-button-' + firstId).click();
+    await page.getByTestId('ov-tile-open-' + firstId).click();
+    await expect(detailPane(page)).not.toHaveAttribute('data-pane', 'overview');
+    await openSection(page, 'overview');
+    await expect(page.locator('[data-testid^="ov-tile-button-"]').first()).toBeVisible();
+
     await openSection(page, 'vehicles');
     await expect(playerStats).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
 

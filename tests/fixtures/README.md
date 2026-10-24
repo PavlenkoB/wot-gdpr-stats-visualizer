@@ -152,3 +152,89 @@ export's templates, so that export and its answer key are unchanged).
 - **Counts are derived**: `DEVICE_INFO_COUNTS` is computed from the row arrays,
   and `SAMPLE_FILE_COUNTS.Device_info` and `SAMPLE_ROW_COUNTS.Device_info` read
   it, so a fixture edit cannot leave a stale count behind.
+
+## The Overview insight fixture (phase 13, plan 13-03)
+
+`tests/fixtures/overview-fixtures.ts` owns ONE synthetic two-account export that
+the Overview's tests assert against, and `tests/helpers/overview-oracle.ts` owns
+the answer key for it.
+
+### Every value is invented
+
+Nothing in this archive came from a real export, and nothing in it was
+anonymised either — nothing real was ever read. The two account roots are
+made-up ids (`1234567` and `2345678`); the tank tags are `Synth`-prefixed
+inventions; the e-mail is on an RFC 2606 reserved domain
+(`ov.player@example.invalid`); the order id is the all-zero uuid the finance
+fixture already uses. The no-real-data guard re-runs against this archive like
+against every other fixture in this directory.
+
+### The archive
+
+Two account roots, each with an identity file, a session file, an
+account-statistics file, a vehicle-statistics file, a currency-operations file
+and an Orders file. Root A additionally carries one Blitz session file and the
+two known-deferred folders (a chat file and a clan file), so the archive holds
+both the WoT-only and the all-games worlds.
+
+The figures are hand-designed so that EVERY tile is derivable by arithmetic:
+
+- the two accounts' WoT sessions merge to **51,900 s**, and one root B session
+  overlaps a root A session by thirty minutes, so the union is not the sum;
+- adding the Blitz session brings the all-games union to **53,700 s**;
+- the two accounts report **1,500** battles, **780** wins, **1,123,200 s** in
+  battle and **12,000,000** credits in flow;
+- the damage record (**6,100**) is held by the SECOND account, so a "sum" rule
+  and a "maximum" rule cannot both be right;
+- one tank's record id is `0` and another record's is a tank no table carries,
+  so the "vehicle not recorded" path is exercised by the default archive.
+
+The archive deliberately mixes the two real timestamp shapes (`DD.MM.YYYY HH:MM`
+and `YYYY-MM-DD HH:MM:SS.fff`) and the two real line terminators (CRLF and a
+bare CR).
+
+### The options are the absence matrix
+
+`buildOverviewInsightExport({ omit: [...] })` removes EXACTLY ONE source per
+option — `sessions`, `wot-sessions`, `account-statistics`,
+`vehicle-statistics`, `currency`, `orders`, `record-columns` — so every absent
+state the Overview has to render is reachable from the same builder instead of
+from a second hand-written archive that could drift. `record-columns` is the
+odd one: the file STAYS and its header shrinks, which is a different absence
+from a missing file.
+
+`buildOverviewInsightExport({ tanks: 'known' })` swaps the invented tank tags
+for the real-looking ones the existing vehicle fixture already uses and leaves
+every other figure alone, so a later plan can prove table resolution against
+the committed table without changing anything else.
+
+### The canaries it plants
+
+`OV_CANARIES` is the single list of every string in this archive that must
+never reach a worker reply or a page:
+
+| Canary | Where it lives | At rest? |
+| --- | --- | --- |
+| `OV_CHAT_CANARY` | `Chat_history/Messages.csv` | **no** — known-deferred, counted and never stored |
+| `OV_CLAN_CANARY` | `Clans/Clan_membership.csv` | **no** — known-deferred, counted and never stored |
+| `OV_EMAIL_CANARY` | the `LOGIN` cell of both `Account_Info.csv` files | **no** — stripped before the row is written |
+| `OV_NAME_CANARY` | the `NAME` cell of both account-statistics files | **yes** — that category is stored raw |
+| `OV_FINANCE_CANARIES` | the coupon, aggregator, package and order-id cells of every order row | **yes** — stored raw |
+| `OV_ORDER_AMOUNT_CANARY` | the amount cell of every order row | **yes** — stored raw |
+
+That asymmetry is the point. The three that are absent at rest are absent
+because a rule removes them (a known-deferred category stores nothing; `LOGIN`
+is on the deny-list), and the three that ARE at rest are there because those
+categories are stored raw. A later plan therefore asserts the latter's absence
+DOWNSTREAM — in a worker reply, in a view, in the DOM — and not at rest.
+
+### The answer key
+
+`tests/helpers/overview-oracle.ts` imports NOTHING: not `src/`, not the fixture
+module, not a date library. Every figure is stated with the arithmetic that
+produces it in the comment beside it, and the three day numbers are HAND-COUNTED
+from the epoch and then cross-checked against `Date.UTC`, which is a different
+route to the same three facts. The direction of the independence is one-way on
+purpose: the oracle imports nothing, and the fixture does not have to know it
+exists.
+

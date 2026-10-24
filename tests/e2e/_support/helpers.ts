@@ -310,6 +310,91 @@ export async function failLoginsQuery(page: Page): Promise<void> {
 }
 
 /**
+ * Make the post of a `data-query` for ANY data channel throw (13-14).
+ *
+ * The generic form of {@link failLoginsQuery}, with the same seam and the same
+ * reasoning: `QueryClient.query` wraps its post in a `try`/`catch` and turns a
+ * throw into `{ kind: 'error' }`, so this reaches a block's error state through
+ * the real path. `times` limits the failure to the first N posts of that
+ * channel (default: every one), which is how a test proves a LATER ask succeeds
+ * after a first one failed.
+ *
+ * MUST be called before the first navigation, because the worker is spawned
+ * during module init and the client posts through the prototype this wraps.
+ */
+export async function failChannelQuery(
+  page: Page,
+  channel: string,
+  times: number = Infinity,
+): Promise<void> {
+  await page.addInitScript(
+    ({ wanted, limit }: { wanted: string; limit: number | null }) => {
+      const original = Worker.prototype.postMessage;
+      let failed = 0;
+      Worker.prototype.postMessage = function patched(
+        this: Worker,
+        message: unknown,
+        ...rest: unknown[]
+      ) {
+        const query =
+          typeof message === 'object' && message !== null
+            ? (message as { type?: unknown; query?: { channel?: unknown } })
+            : null;
+        if (
+          query?.type === 'data-query' &&
+          query.query?.channel === wanted &&
+          (limit === null || failed < limit)
+        ) {
+          failed += 1;
+          // The app never reads the thrown value (D-21).
+          throw new Error('synthetic post failure');
+        }
+        original.apply(this, [message, ...rest] as never);
+      };
+    },
+    // Infinity does not survive the serializer, so it travels as null.
+    { wanted: channel, limit: Number.isFinite(times) ? times : null },
+  );
+}
+
+/**
+ * Delay every `data-query` for ANY data channel by `ms` milliseconds (13-14).
+ *
+ * The generic form of {@link delayPlaytimeQueries}: the message is re-posted
+ * from a `structuredClone` after the delay, so the page sits in its pending
+ * state for a window a test can observe. Other channels and other message
+ * types pass through untouched.
+ *
+ * MUST be called before the first navigation.
+ */
+export async function delayChannelQueries(page: Page, channel: string, ms: number): Promise<void> {
+  await page.addInitScript(
+    ({ wanted, delay }: { wanted: string; delay: number }) => {
+      const original = Worker.prototype.postMessage;
+      Worker.prototype.postMessage = function patched(
+        this: Worker,
+        message: unknown,
+        ...rest: unknown[]
+      ) {
+        const query =
+          typeof message === 'object' && message !== null
+            ? (message as { type?: unknown; query?: { channel?: unknown } })
+            : null;
+        if (query?.type !== 'data-query' || query.query?.channel !== wanted) {
+          original.apply(this, [message, ...rest] as never);
+          return;
+        }
+        const copy = structuredClone(message);
+        window.setTimeout(() => {
+          original.apply(this, [copy, ...rest] as never);
+        }, delay);
+      };
+    },
+    { wanted: channel, delay: ms },
+  );
+}
+
+/**
  * The `Financial_data` card, the section whose dashboard holds both sub-blocks.
  *
  * `data-status` on this element is the SECTION's status and not a sub-block's:

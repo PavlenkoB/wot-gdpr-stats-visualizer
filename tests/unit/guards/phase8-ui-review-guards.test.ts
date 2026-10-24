@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { contrastRatio } from '../../helpers/contrast.ts';
+import { OVERVIEW_SCALE_PX, SCALE_PX } from '../../helpers/components.ts';
 
 // =============================================================================
 // Phase 8 UI-review guards (quick 261008-x40): the top three findings of
@@ -15,6 +16,8 @@ import { contrastRatio } from '../../helpers/contrast.ts';
 //   - the blue literal survives only as the `--focus` declaration in app.css;
 //   - every font-size under src is on the 14 / 18 / 26 / 30px scale (the :root
 //     rule included), and native controls get one explicit element-level 14px;
+//     the ONE exception is the Overview folder, which declares 12 / 14 / 32 /
+//     56px (13-UI-SPEC Typography) and is pinned by self-tests below;
 //   - the list-pane footer is sticky at the bottom of the scrolling pane at 900px
 //     and above.
 //
@@ -63,8 +66,56 @@ const APP_CSS_STRIPPED = stripComments(readFileSync(APP_CSS, 'utf8'));
 
 const LEGACY_GREYS = /#3c4043|#5f6368|#08060d/i;
 const BLUE = /#1a73e8/i;
-const SCALE_PX = new Set([14, 18, 26, 30]);
 const KEYWORDS = new Set(['inherit', 'initial', 'unset']);
+
+/**
+ * The Overview folder and its own type scale (13-UI-SPEC Typography).
+ *
+ * The Overview page declares FOUR text sizes — 12, 14, 32 and 56px — because
+ * it is the one page with a hero numeral, a display value, a label and a
+ * caption role. The project's scale (14 / 18 / 26 / 30) has no place for a
+ * 12px caption or a 56px hero, so the Overview needed a scale of its own.
+ *
+ * The exemption is chosen BY FILE PATH, and it is deliberately narrow:
+ *
+ *   - it applies to `src/lib/features/overview/` and to nothing else;
+ *   - it is an EXACT set, not a superset of the old scale, so 18px — legal
+ *     everywhere else — is illegal in the Overview, and a stray 26px there is
+ *     illegal too. A superset would let the Overview drift back towards the
+ *     old scale without anybody noticing;
+ *   - it is covered by self-tests below, so a change that widens the
+ *     exemption fails a test rather than quietly weakening the guard for
+ *     every other pane.
+ */
+const OVERVIEW_DIR = 'src/lib/features/overview/';
+
+/** A repo-relative name with forward slashes, whatever the platform separator is. */
+const posix = (name: string): string => name.split(path.sep).join('/');
+
+/**
+ * Every font-size in the given sources that is off ITS file's scale.
+ *
+ * The scale is chosen per FILE: a file under the Overview folder is held to
+ * the Overview's four sizes, every other file to the project's four. The
+ * function is pure and takes its input as an argument so the exemption can be
+ * exercised directly by the self-tests below, with synthetic entries — a
+ * guard whose own scope is untested is a guard whose scope can be widened by
+ * accident.
+ */
+function fontSizeOffenders(entries: readonly { name: string; source: string }[]): string[] {
+  const offenders: string[] = [];
+  for (const { name, source } of entries) {
+    const scale = posix(name).startsWith(OVERVIEW_DIR) ? OVERVIEW_SCALE_PX : SCALE_PX;
+    for (const match of source.matchAll(/font-size\s*:\s*([^;}\n]+)/g)) {
+      const value = (match[1] ?? '').trim().replace(/\s*!important$/, '');
+      if (value === '0' || KEYWORDS.has(value)) continue;
+      const px = /^(\d+(?:\.\d+)?)px$/.exec(value);
+      if (px !== null && scale.has(Number(px[1]))) continue;
+      offenders.push(`${name}: font-size: ${value}`);
+    }
+  }
+  return offenders;
+}
 
 describe('phase 8 UI-review guards (quick 261008-x40)', () => {
   it('walks a real source tree', () => {
@@ -101,18 +152,12 @@ describe('phase 8 UI-review guards (quick 261008-x40)', () => {
     expect(contrastRatio('#ffffff', text!)).toBeGreaterThanOrEqual(7);
   });
 
-  it('every font-size under src is on the 14 / 18 / 26 / 30px scale', () => {
-    const offenders: string[] = [];
-    for (const { name, source } of SOURCES) {
-      for (const match of source.matchAll(/font-size\s*:\s*([^;}\n]+)/g)) {
-        const value = (match[1] ?? '').trim().replace(/\s*!important$/, '');
-        if (value === '0' || KEYWORDS.has(value)) continue;
-        const px = /^(\d+(?:\.\d+)?)px$/.exec(value);
-        if (px !== null && SCALE_PX.has(Number(px[1]))) continue;
-        offenders.push(`${name}: font-size: ${value}`);
-      }
-    }
-    expect(offenders, 'use px, and one of 14, 18, 26 or 30').toEqual([]);
+  it('every font-size under src is on its scale (14 / 18 / 26 / 30px, or 12 / 14 / 32 / 56px under features/overview)', () => {
+    const offenders = fontSizeOffenders(SOURCES);
+    expect(
+      offenders,
+      'use px, and one of 14, 18, 26 or 30 (or 12, 14, 32 or 56 under features/overview)',
+    ).toEqual([]);
   });
 
   it('native controls get one explicit element-level 14px outside the phone block', () => {
@@ -151,6 +196,60 @@ describe('phase 8 UI-review guards (quick 261008-x40)', () => {
     expect(rule![1]).toMatch(/position:\s*sticky/);
     expect(rule![1]).toMatch(/bottom:\s*0/);
     expect(rule![1]).toMatch(/background:/);
+  });
+});
+
+// =============================================================================
+// The Overview type-scale exemption, and the self-tests that keep it scoped
+// (13-04 Task 2, 13-UI-SPEC Typography, T-13-12)
+// =============================================================================
+//
+// A guard that is loosened is only safe if the loosening is itself pinned.
+// The Overview needs 12px captions and a 56px hero numeral, and the project's
+// scale has neither; so the scale is chosen per file path, and the exemption
+// applies to `src/lib/features/overview/` alone.
+//
+// The four assertions below are the shape of that scope, stated as tests: the
+// shell keeps the old scale, the Overview gets the new one, and the Overview
+// scale is an EXACT set rather than a superset — so a file that drifts back
+// towards 18px or 26px inside the Overview fails here too.
+// =============================================================================
+describe('the Overview font-size exemption (13-UI-SPEC Typography)', () => {
+  /** A synthetic stylesheet entry declaring one font size. */
+  const entry = (name: string, size: string): { name: string; source: string } => ({
+    name,
+    source: `.x { font-size: ${size}; }`,
+  });
+
+  it('a 12px caption is legal under features/overview and illegal in the shell', () => {
+    expect(fontSizeOffenders([entry('src/lib/features/overview/Tile.svelte', '12px')])).toEqual([]);
+    expect(fontSizeOffenders([entry('src/lib/shell/Shell.svelte', '12px')])).toHaveLength(1);
+  });
+
+  it('a 56px hero numeral is legal under features/overview and illegal in the shell', () => {
+    expect(fontSizeOffenders([entry('src/lib/features/overview/Tile.svelte', '56px')])).toEqual([]);
+    expect(fontSizeOffenders([entry('src/lib/shell/Shell.svelte', '56px')])).toHaveLength(1);
+  });
+
+  it('the Overview scale is an exact set, not a superset of the project scale', () => {
+    // 18px and 26px are legal everywhere else and illegal in the Overview:
+    // the exemption grants the Overview its OWN four sizes, it does not grant
+    // it the old ones as well.
+    expect(
+      fontSizeOffenders([entry('src/lib/features/overview/Tile.svelte', '18px')]),
+    ).toHaveLength(1);
+    expect(
+      fontSizeOffenders([entry('src/lib/features/overview/Tile.svelte', '26px')]),
+    ).toHaveLength(1);
+    expect(fontSizeOffenders([entry('src/lib/shell/Shell.svelte', '18px')])).toEqual([]);
+  });
+
+  it('a folder that merely starts with the same letters is not the Overview', () => {
+    // The prefix is matched against a repo-relative path with a trailing
+    // slash, so a sibling folder cannot inherit the exemption by name.
+    expect(
+      fontSizeOffenders([entry('src/lib/features/overview-extra/Tile.svelte', '12px')]),
+    ).toHaveLength(1);
   });
 });
 
@@ -340,8 +439,12 @@ const ALLOWED_COLOUR_LITERALS: readonly AllowedColourLiteral[] = [
   {
     literal: 'rgba(',
     reason:
-      'the spinner track and its reduced-motion arc: Amendment A-2 keeps blue for the spinner, and a translucent blue has no token',
-    files: ['src/App.svelte', 'src/lib/shell/ImportBar.svelte'],
+      'the spinner track and its reduced-motion arc: Amendment A-2 keeps blue for the spinner, and a translucent blue has no token. The Overview tile adds its three elevation shadows (13-UI-SPEC Color, Elevation): translucent ink at 5, 8 and 10 percent alpha, which has no token either',
+    files: [
+      'src/App.svelte',
+      'src/lib/features/overview/OverviewTile.svelte',
+      'src/lib/shell/ImportBar.svelte',
+    ],
   },
 ];
 
@@ -361,8 +464,6 @@ function colourLiterals(name: string, source: string): string[] {
     ...(scanned.match(COLOUR_FN) ?? []).map((fn) => fn.toLowerCase()),
   ].map((literal) => literal.toLowerCase());
 }
-
-const posix = (name: string): string => name.split(path.sep).join('/');
 
 describe('phase 8 colour guard (quick 261009-qbo)', () => {
   it('walks the whole source tree, so the checks below are not vacuous', () => {

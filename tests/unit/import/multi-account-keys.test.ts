@@ -153,6 +153,30 @@ const AUDITED: readonly AuditedKey[] = [
     reason: 'D-12 fix: `row.code` repeats because the Battle_Types file is in two roots.',
   },
   {
+    file: 'OverviewBars.svelte',
+    key: 'index',
+    why: 'position',
+    reason: 'One bar per slot of a fixed-order chart; a year or an hour is never reordered.',
+  },
+  {
+    file: 'OverviewBars.svelte',
+    key: 'at',
+    why: 'position',
+    reason: 'Two to four axis labels, rendered in order.',
+  },
+  {
+    file: 'OverviewRows.svelte',
+    key: 'index',
+    why: 'position',
+    reason: 'At most five rows of a ranked list, rendered in order.',
+  },
+  {
+    file: 'OverviewBento.svelte',
+    key: 'index',
+    why: 'position',
+    reason: 'One skeleton placeholder per slot of a fixed frame; the frame is never reordered.',
+  },
+  {
     file: 'CurrencyBlock.svelte',
     key: 'index',
     why: 'position',
@@ -307,6 +331,27 @@ const AUDITED: readonly AuditedKey[] = [
   },
 
   // --- Fixed lists: the collection is a module constant ---------------------
+  {
+    file: 'OverviewBento.svelte',
+    key: 'group.id',
+    why: 'fixed-list',
+    reason:
+      'The groups are the keys of `OVERVIEW_GROUP_ORDER`, a five-entry module constant; `layoutGroups` and `skeletonGroups` emit each key at most once, so an untrusted export cannot repeat or reorder them.',
+  },
+  {
+    file: 'OverviewBento.svelte',
+    key: 'entry.tile.id',
+    why: 'fixed-list',
+    reason:
+      'A tile id is one of the sixteen in the closed catalogue and `layoutGroups` walks the catalogue once, so each id is placed in exactly one group at most once.',
+  },
+  {
+    file: 'OverviewBento.svelte',
+    key: 'game.token',
+    why: 'de-duplicated',
+    reason:
+      'The life list is built from a `Set` of game tokens, so two account folders holding the same game give one entry.',
+  },
   {
     file: 'WarshipsStoragePane.svelte',
     key: 'id',
@@ -481,12 +526,6 @@ const AUDITED: readonly AuditedKey[] = [
     key: 'entry.id',
     why: 'de-duplicated',
     reason: '`PANE_IDS`, nine pane ids.',
-  },
-  {
-    file: 'Overview.svelte',
-    key: 'card.id',
-    why: 'de-duplicated',
-    reason: '`OVERVIEW_CARD_IDS`, seven pane ids.',
   },
   {
     file: 'PlayerStats.svelte',

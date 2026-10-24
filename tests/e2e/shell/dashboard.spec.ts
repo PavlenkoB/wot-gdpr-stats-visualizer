@@ -58,7 +58,7 @@ import {
   UNSUPPORTED_INTRO,
   UNSUPPORTED_NONE_DETECTED,
   formatAccountId,
-  formatChipUnsupported,
+  formatFolderCount,
   formatImportSummary,
   formatParsingProgress,
   formatProvenanceFrom,
@@ -833,12 +833,13 @@ test.describe('not yet supported block (03-04 Task 3)', () => {
     await importExport(page, 'long-text.zip', buildLongTextExport());
 
     // The landing view (Overview) and the list pane never carry the folder name
-    // as an element either: the chip and the row only state a count. Checked
+    // as an element either, nor as text: the row only states a count. Checked
     // first because these surfaces are on screen before the pane is opened.
-    await expect(page.getByTestId('ov-chip-unsupported')).toHaveText(
-      formatChipUnsupported(SAMPLE_UNSUPPORTED_ORDER.length + 1),
+    await expect(listRow(page, 'not-yet-supported')).toContainText(
+      formatFolderCount(SAMPLE_UNSUPPORTED_ORDER.length + 1),
     );
     await expect(page.getByTestId('overview').locator('b')).toHaveCount(0);
+    await expect(page.getByTestId('overview')).not.toContainText(LONG_UNKNOWN_FOLDER);
     await expect(page.getByTestId('list-pane').locator('b')).toHaveCount(0);
     await expect(listRow(page, 'not-yet-supported')).not.toContainText(LONG_UNKNOWN_FOLDER);
 

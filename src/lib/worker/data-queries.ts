@@ -6,6 +6,11 @@ import {
 } from '../features/device-info/device-info-shared.ts';
 import { buildTimelineView } from '../features/account-timeline/timeline-aggregate.ts';
 import { TIMELINE_FILE_IDS } from '../features/account-timeline/timeline-shared.ts';
+import {
+  buildOverviewView,
+  type OverviewFileInput,
+} from '../features/overview/overview-aggregate.ts';
+import { defaultVehicleLookup } from '../features/overview/vehicle-table.ts';
 import { buildCurrency, buildPremium, buildSpend } from '../features/finance/finance-aggregate.ts';
 import {
   buildHeatView,
@@ -81,6 +86,11 @@ const CATEGORY_THIRD_PARTIES = 'authorized_third_parties';
 const PREMIUM_FILE = 'operations_with_premium_days.csv';
 const CURRENCY_FILE = 'virtual_currencies_operations.csv';
 const ORDERS_FILE = 'orders.csv';
+
+/** The World of Tanks account statistics file, as the export spells it. */
+const OVERVIEW_ACCOUNT_STATS_FILE = 'wot_account_statistics.csv';
+/** The World of Tanks vehicle statistics file, as the export spells it. */
+const OVERVIEW_VEHICLE_STATS_FILE = 'wot_vehicle_statistics.csv';
 
 /** What one channel needs from the reader. */
 export interface ChannelFiles {
@@ -169,6 +179,24 @@ export const DATA_FILES: Readonly<Record<Exclude<DataQuery['channel'], 'logins'>
       TIMELINE_FILE_IDS.map((id) => TIMELINE_FILE_KEYS[id]).filter((file) => file !== null),
     ),
     categories: [CATEGORY_USER_INFO, CATEGORY_BANS, CATEGORY_THIRD_PARTIES],
+  },
+  // 13-01, D-01. The Overview's personal-insights page reads four files from
+  // three folders: the two World of Tanks statistics files (player
+  // statistics), the currency operations log (financial data) and the orders
+  // file (payment history). The session history is NOT among them: the
+  // logged-in union comes from the playtime aggregate on the meta record,
+  // which rides the SAME transaction as these rows (see `RowsSnapshot`).
+  //
+  // The orders file is read for a ROW COUNT only. No field of an order reaches
+  // the view type, so nothing sensitive can be carried out of it (D-18).
+  overview: {
+    names: new Set([
+      OVERVIEW_ACCOUNT_STATS_FILE,
+      OVERVIEW_VEHICLE_STATS_FILE,
+      CURRENCY_FILE,
+      ORDERS_FILE,
+    ]),
+    categories: [CATEGORY_PLAYER_STATS, CATEGORY_FINANCIAL, CATEGORY_PAYMENT],
   },
 };
 
@@ -317,10 +345,12 @@ const VEHICLE_TITLE_IDS: ReadonlySet<string> = new Set(VEHICLE_TITLES);
  * and the same query plus a `title` is rejected. The `device-info` channel
  * (261012-bog) is the fifth and rides it too; the `heat` and `warships-storage`
  * channels (11-07) are the sixth and seventh, the `perks` channel (12-02)
- * is the eighth and the `account-timeline` channel (12-11) the ninth. A field-less channel accepts EXACTLY the one own field
+ * is the eighth and the `account-timeline` channel (12-11) the ninth, and the
+ * `overview` channel (13-01, D-01) the tenth. A field-less channel accepts
+ * EXACTLY the one own field
  * `channel`: any other field — a `title`, a `battleType` or anything at all —
  * is REJECTED, and the worker answers the fixed detail `invalid query`
- * (T-12-06).
+ * (T-12-06, T-13-02).
  */
 export function isDataQuery(x: unknown): x is DataQuery {
   if (typeof x !== 'object' || x === null || Array.isArray(x)) return false;
@@ -355,7 +385,7 @@ export function isDataQuery(x: unknown): x is DataQuery {
 /**
  * Answer one query from one snapshot.
  *
- * EXHAUSTIVE over the nine channels that read files, deliberately: a channel
+ * EXHAUSTIVE over the ten channels that read files, deliberately: a channel
  * that somehow reached here would fall to the default and throw, and the
  * caller's catch turns that into a `data-error` for that block. That is the
  * right shape for a bug — a block shows an error, the import is untouched, and
@@ -485,6 +515,40 @@ export function answerDataQuery(query: DataQuery, snapshot: RowsSnapshot): DataR
           },
           TIMELINE_FILE_KEYS,
           snapshot.accounts,
+        ),
+      };
+    }
+    case 'overview': {
+      // 13-01, D-01. The Overview's ONE answer, built from the SAME snapshot
+      // as every other channel: the four files' rows and the meta record's
+      // playtime aggregate, which `readRowsByFile` read in that transaction.
+      //
+      // Each file is matched against its OWN category, so a same-named file
+      // of another folder is not this tile's file. The orders file is handed
+      // over as rows and nothing more: no field of an order reaches the view
+      // type, so no amount, product or order detail can be carried out of it
+      // (D-18).
+      const inputOf = (name: string, categories: readonly string[]): OverviewFileInput => ({
+        groups: groupsOf(snapshot, name),
+        seen: isPresent(snapshot, name, categories),
+      });
+      return {
+        channel: 'overview',
+        view: buildOverviewView(
+          {
+            playtime: snapshot.playtime ?? null,
+            accountCount: snapshot.accounts.length,
+            accountStats: inputOf(OVERVIEW_ACCOUNT_STATS_FILE, [CATEGORY_PLAYER_STATS]),
+            vehicleStats: inputOf(OVERVIEW_VEHICLE_STATS_FILE, [CATEGORY_PLAYER_STATS]),
+            currency: inputOf(CURRENCY_FILE, [CATEGORY_FINANCIAL]),
+            orders: inputOf(ORDERS_FILE, [CATEGORY_PAYMENT]),
+          },
+          // 13-07, D-08. The ONE lookup over the committed tank table, resolved
+          // HERE in the worker. A worker file may reach the table module — the
+          // table is inlined into the worker chunk and the page must never
+          // carry it — so this is the only place the Overview's names, classes
+          // and tiers are resolved (T-13-09).
+          defaultVehicleLookup,
         ),
       };
     }

@@ -69,6 +69,7 @@ function resultOf(
     importedAt?: string;
     identity?: AccountIdentity | null;
     accounts?: AccountSummary[];
+    rootCount?: number;
   } = {},
 ): ClassifyResult {
   const categories: CategoryEntry[] = entries.map(
@@ -403,6 +404,60 @@ describe('paneEntries: the Account row with two or more accounts', () => {
     const rendered = JSON.stringify(rowOf(entries, 'account'));
     expect(rendered).not.toContain('EU Tanker');
     expect(rendered).not.toContain('NA Commander');
+  });
+
+  // Plan 13-13: the cases of the retired Overview Account card that were about
+  // the ROW (09-11, the root-count rule) now live here, on the row they describe.
+  describe('under the root-count rule (09-11)', () => {
+    const PUBLISHED_EU = accountOf('500000001', {
+      nickname: 'EU Tanker',
+      region: 'EU',
+      createdAt: '2018-02-14 18:00:00',
+    });
+    const rootRow = (extra: Parameters<typeof resultOf>[1]) =>
+      rowOf(
+        paneEntries(resultOf(SAMPLE, { importedAt: 'a', identity: IDENTITY, ...extra })),
+        'account',
+      );
+
+    test('rootCount 2 beside one account: the multi row, never the legacy region', () => {
+      const row = rootRow({ accounts: [PUBLISHED_EU], rootCount: 2 });
+      expect(row.headline).toBe(formatAccountCount(1));
+      expect(row.headline).not.toBe(IDENTITY.region);
+      expect(row.summary).toBe(ACCOUNT_ROW_MULTI_SUMMARY);
+    });
+
+    test('rootCount 2 and an empty published list: zero accounts', () => {
+      const row = rootRow({ accounts: [], rootCount: 2 });
+      expect(row.headline).toBe(formatAccountCount(0));
+      expect(row.summary).toBe(ACCOUNT_ROW_MULTI_SUMMARY);
+    });
+
+    test('rootCount 1 beside one account keeps the v1.0 wording', () => {
+      const row = rootRow({ accounts: [PUBLISHED_EU], rootCount: 1 });
+      expect(row.headline).toBe('30');
+      expect(row.summary).toBe(ACCOUNT_ROW_SUMMARY);
+    });
+
+    test('no rootCount beside one account keeps the v1.0 wording', () => {
+      const row = rootRow({ accounts: [PUBLISHED_EU] });
+      expect(row.headline).toBe('30');
+      expect(row.summary).toBe(ACCOUNT_ROW_SUMMARY);
+    });
+  });
+
+  test('an UNAVAILABLE Account row keeps the muted wording, multi or not', () => {
+    const entries = paneEntries(
+      resultOf(
+        SAMPLE.filter(([name]) => name !== 'User_Info'),
+        { importedAt: 'a', accounts: THREE_ACCOUNTS },
+      ),
+    );
+    const account = rowOf(entries, 'account');
+    expect(account.muted).toBe(true);
+    expect(account.reason).toBe('no-export');
+    expect(account.headline).toBe(ROW_HEADLINE_NONE);
+    expect(account.summary).toBe(formatSectionStatus('no-export', 'User_Info'));
   });
 
   test('every other row is unchanged by the account count', () => {

@@ -98,6 +98,72 @@ function ruleDeclarations(source: string, selector: string): string {
 /** The page root size in app.css (Body role); a `rem` is judged against what the page computes. */
 const ROOT_FONT_SIZE_PX = 14;
 
+/**
+ * The Overview folder and its own floor (13-UI-SPEC Typography, 13-04 Task 2).
+ *
+ * The floor is 14px everywhere because a 14px caption is readable and a 13px
+ * one is not. The Overview page declares a 12px LABEL and CAPTION role, and
+ * that is the ONE floor in the project that is lower — so the floor is
+ * resolved PER FILE here, exactly as the font-size SCALE is resolved per file
+ * in the phase-8 guard, and for the same reason: a global exemption is a
+ * global weakening.
+ */
+const OVERVIEW_DIR = 'src/lib/features/overview/';
+const OVERVIEW_MIN_FONT_SIZE_PX = 12;
+
+/** A repo-relative name with forward slashes, whatever the platform separator is. */
+function posix(label: string): string {
+  return label.split(path.sep).join('/');
+}
+
+/** The minimum font size the given file may declare. */
+function fontFloorPx(label: string): number {
+  return posix(label).startsWith(OVERVIEW_DIR) ? OVERVIEW_MIN_FONT_SIZE_PX : ROOT_FONT_SIZE_PX;
+}
+
+/** One stylesheet the floor is measured over. */
+type Stylesheet = { label: string; source: string };
+
+/**
+ * Every font size in the given stylesheets that is below ITS file's floor.
+ *
+ * Pure and argument-taking, so the exemption's scope can be exercised by the
+ * self-tests below with synthetic entries rather than only through the real
+ * tree.
+ */
+function fontSizeFloorOffenders(entries: readonly Stylesheet[]): string[] {
+  const offenders: string[] = [];
+
+  for (const { label, source } of entries) {
+    const floor = fontFloorPx(label);
+    for (const match of source.matchAll(/(?:^|[;{\s])font-size\s*:\s*([^;}]+)/g)) {
+      const raw = (match[1] ?? '').trim();
+      const where = `${label}: font-size: ${raw}`;
+
+      // The nav's zero-size accessibility run, and the keywords that state
+      // no size. Checked before parsing so `0` is not read as an unreadable
+      // unit.
+      if (/^0(?:\.0+)?$/.test(raw)) continue;
+      if (/^(inherit|initial|unset)$/.test(raw)) continue;
+
+      const size = /^(\d+(?:\.\d+)?)(px|rem)?$/.exec(raw);
+      if (size === null) {
+        offenders.push(
+          `${where} — the size is not a px or rem value, so this guard cannot read it; write it in px`,
+        );
+        continue;
+      }
+      const value = Number(size[1]);
+      const pixels = size[2] === 'rem' ? value * ROOT_FONT_SIZE_PX : value;
+      if (pixels < floor) {
+        offenders.push(`${where} — ${pixels}px is below the ${floor}px floor (UI-SPEC Typography)`);
+      }
+    }
+  }
+
+  return offenders;
+}
+
 describe('phase 5 layout guards (05-20)', () => {
   it('declares the Vehicle statistics controls row as a wrapping flex ROW', () => {
     const source = componentSource('PlayerStats.svelte');
@@ -145,34 +211,8 @@ describe('phase 5 layout guards (05-20)', () => {
   //   - The keywords `inherit`, `initial` and `unset`, which state no size of
   //     their own and so cannot be below the floor.
   // ===========================================================================
-  it('declares no font-size below 14px in any component stylesheet or app.css', () => {
-    const offenders: string[] = [];
-
-    for (const { label, source } of stylesheetFiles()) {
-      for (const match of source.matchAll(/(?:^|[;{\s])font-size\s*:\s*([^;}]+)/g)) {
-        const raw = (match[1] ?? '').trim();
-        const where = `${label}: font-size: ${raw}`;
-
-        // The nav's zero-size accessibility run, and the keywords that state
-        // no size. Checked before parsing so `0` is not read as an unreadable
-        // unit.
-        if (/^0(?:\.0+)?$/.test(raw)) continue;
-        if (/^(inherit|initial|unset)$/.test(raw)) continue;
-
-        const size = /^(\d+(?:\.\d+)?)(px|rem)?$/.exec(raw);
-        if (size === null) {
-          offenders.push(
-            `${where} — the size is not a px or rem value, so this guard cannot read it; write it in px`,
-          );
-          continue;
-        }
-        const value = Number(size[1]);
-        const pixels = size[2] === 'rem' ? value * ROOT_FONT_SIZE_PX : value;
-        if (pixels < 14) {
-          offenders.push(`${where} — ${pixels}px is below the 14px floor (UI-SPEC Typography)`);
-        }
-      }
-    }
+  it('declares no font-size below its floor (14px, or 12px under features/overview) in any component stylesheet or app.css', () => {
+    const offenders = fontSizeFloorOffenders(stylesheetFiles());
 
     expect(offenders, `font sizes below the 14px floor:\n  ${offenders.join('\n  ')}`).toEqual([]);
   });
@@ -230,5 +270,52 @@ describe('phase 5 layout guards (05-20)', () => {
     const scrolls = ruleDeclarations(source, '.scrolls');
     expect(scrolls).toMatch(/(?:^|;)\s*max-height:\s*320px\s*;/);
     expect(scrolls).toMatch(/(?:^|;)\s*overflow:\s*auto\s*;/);
+  });
+});
+
+// =============================================================================
+// The Overview floor exemption, and the self-tests that keep it scoped
+// (13-04 Task 2, 13-UI-SPEC Typography, T-13-12)
+// =============================================================================
+//
+// The floor is lowered for the Overview folder ALONE, because that page
+// declares a 12px Label and Caption role. The three assertions below are the
+// shape of that scope: a 12px caption is legal there, a 12px caption is
+// illegal everywhere else, and even inside the Overview a size below 12px
+// still fails — the exemption lowers the floor, it does not remove it.
+// =============================================================================
+describe('the Overview font-size floor exemption (13-UI-SPEC Typography)', () => {
+  /** A synthetic stylesheet entry declaring one font size. */
+  const entry = (label: string, size: string): Stylesheet => ({
+    label,
+    source: `.x { font-size: ${size}; }`,
+  });
+
+  it('a 12px caption passes under the Overview label', () => {
+    expect(
+      fontSizeFloorOffenders([entry('src/lib/features/overview/Tile.svelte', '12px')]),
+    ).toEqual([]);
+  });
+
+  it('a 12px caption fails under any other label', () => {
+    expect(fontSizeFloorOffenders([entry('src/lib/shell/Shell.svelte', '12px')])).toHaveLength(1);
+    expect(fontSizeFloorOffenders([entry('src/app.css', '12px')])).toHaveLength(1);
+  });
+
+  it('an 11px size fails even under the Overview label', () => {
+    expect(
+      fontSizeFloorOffenders([entry('src/lib/features/overview/Tile.svelte', '11px')]),
+    ).toHaveLength(1);
+  });
+
+  it('the Overview components are inside the sweep this floor is measured over', () => {
+    // A per-file floor is only worth anything if the file is in the sweep: a
+    // component folder that is not listed here would be exempt from the floor
+    // without anybody having decided that it should be.
+    const labels = stylesheetFiles().map(({ label }) => posix(label));
+    expect(
+      labels.filter((label) => label.startsWith(OVERVIEW_DIR)),
+      'the Overview components are listed by the component sweep',
+    ).not.toEqual([]);
   });
 });

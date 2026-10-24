@@ -165,18 +165,18 @@ describe('Phase 10 playtime: the cross-account merge through the real worker', (
     expect(view.games).toEqual(['WOT', 'WOTB', 'WOWS']);
   });
 
-  it('stores one complete scope per game at version 3', async () => {
+  it('stores one complete scope per game at version 4', async () => {
     await ingestDone(buildOverlapTwoAccountExport(), 'overlap.zip');
 
     const stored = await storedAggregate();
 
-    expect(stored.v).toBe(3);
+    expect(stored.v).toBe(4);
     expect(stored.games).toEqual(['WOT', 'WOTB', 'WOWS']);
     expect(stored.byGame?.map((entry) => entry.game)).toEqual(['WOT', 'WOTB', 'WOWS']);
     for (const entry of stored.byGame ?? []) {
       // A scope is COMPLETE: the four fields a view needs, and no claim about
       // which scope it is.
-      expect(entry.scope.v).toBe(3);
+      expect(entry.scope.v).toBe(4);
       expect(entry.scope.sessionsFileSeen).toBe(true);
       // `values` and `byValue` are index-parallel, so a scope's split menu can
       // never name a row it has no seconds for.
@@ -408,7 +408,7 @@ describe('Phase 10 playtime: the storage paths', () => {
     expect(await storedAggregate()).toEqual(atImport);
   });
 
-  it('rebuilds a v2-stamped aggregate into a v3 one that still answers a game', async () => {
+  it('rebuilds a v2-stamped aggregate into a v4 one that still answers a game', async () => {
     await ingestDone(buildOverlapTwoAccountExport(), 'overlap.zip');
     const atImport = await storedAggregate();
 
@@ -427,7 +427,7 @@ describe('Phase 10 playtime: the storage paths', () => {
     expect(view.game).toBe('WOT');
 
     const rebuilt = await storedAggregate();
-    expect(rebuilt.v).toBe(3);
+    expect(rebuilt.v).toBe(4);
     expect(rebuilt).toEqual(atImport);
   });
 

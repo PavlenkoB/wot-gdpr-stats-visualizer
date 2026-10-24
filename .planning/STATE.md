@@ -2,18 +2,17 @@
 gsd_state_version: "1.0"
 milestone: v1.1
 milestone_name: Multi-account & new data
-current_phase: 12
-status: completed
-stopped_at: Phase 12 complete — all phases complete
-last_updated: "2026-10-20T19:48:07.051Z"
-last_activity: 2026-10-20
-last_activity_desc: Phase 12 complete
-state_head: f0459e16d57fd0ba22f935062eadb4ff60a08e51
+current_phase: 13
+status: "Phase 13 shipped - PR #1"
+stopped_at: Phase 13 complete — all phases complete
+last_updated: "2026-10-24T09:03:43.443Z"
+last_activity: 2026-10-24
+state_head: 44ae0d9514e42c6a1cff38909e6ff8320986fe1c
 progress:
-  total_phases: 4
+  total_phases: 5
   completed_phases: 4
-  total_plans: 41
-  completed_plans: 41
+  total_plans: 56
+  completed_plans: 56
   percent: 100
 ---
 
@@ -24,14 +23,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-16)
 
 **Core value:** Your data never leaves your machine. Zero network requests after page load, enforced by CI and a CSP.
-**Current focus:** Phase 12 — Account Timeline & Perks
+**Current focus:** Phase 13 — Overview personal insights
 
 ## Current Position
 
-Phase: 12
+Phase: 13
 Plan: Not started
-Status: All phases complete
-Last activity: 2026-10-20 — Phase 12 complete
+Status: Phase 13 shipped - PR #1
+Last activity: 2026-10-24
 
 Progress: [██████████] 100% (v1.1: 0 of 4 phases)
 
@@ -39,7 +38,7 @@ Progress: [██████████] 100% (v1.1: 0 of 4 phases)
 
 **Velocity:**
 
-- Total plans completed: 143
+- Total plans completed: 158
 - Average duration: -
 - Total execution time: 0.0 hours
 
@@ -58,6 +57,7 @@ Progress: [██████████] 100% (v1.1: 0 of 4 phases)
 | 10 | 6 | - | - |
 | 11 | 11 | - | - |
 | 12 | 13 | - | - |
+| 13 | 15 | - | - |
 
 **Recent Trend:**
 
@@ -181,6 +181,21 @@ Progress: [██████████] 100% (v1.1: 0 of 4 phases)
 | Phase 12 P11 | 24 min | 3 tasks | 19 files |
 | Phase 12 P12 | 8min | 3 tasks | 10 files |
 | Phase 12 P13 | 24 min | 3 tasks | 7 files |
+| Phase 13 P01 | 26 min | 2 tasks | 16 files |
+| Phase 13 P02 | 15 min | 2 tasks | 11 files |
+| Phase 13 P03 | 16min | 2 tasks | 4 files |
+| Phase 13 P04 | 10min | 2 tasks | 8 files |
+| Phase 13 P05 | 8 min | 2 tasks | 7 files |
+| Phase 13 P06 | 13 min | 2 tasks | 8 files |
+| Phase 13 P07 | 11 min | 3 tasks | 10 files |
+| Phase 13 P08 | 70min | 2 tasks | 8 files |
+| Phase 13 P09 | 25 min | 2 tasks | 12 files |
+| Phase 13 P10 | 15 min | 2 tasks | 6 files |
+| Phase 13 P11 | 8min | 2 tasks | 3 files |
+| Phase 13 P12 | 17min | 2 tasks | 15 files |
+| Phase 13 P13 | 25min | 2 tasks | 11 files |
+| Phase 13 P14 | 35min | 2 tasks | 7 files |
+| Phase 13 P15 | 40min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -188,6 +203,8 @@ Progress: [██████████] 100% (v1.1: 0 of 4 phases)
 
 - Phase 8 added: Master-detail UI redesign (2026-10-07). Design chosen from sketches 001-021 (winner: sketch 021, light + rows + heatmap; see `.claude/skills/sketch-findings-wot-gdpr-stats-visualizer/`). Depends on Phase 7 finishing, since both rewrite the mobile layout.
 - v1.1 roadmap created (2026-10-16): Phases 9-12 continue numbering from v1.0. Phase 9 Multi-account Import & Account Identity (ACCOUNT-01, 02, 03, 05, 08); Phase 10 Merged Dashboard Across Accounts (ACCOUNT-04, 06, 07, SCALE-01); Phase 11 New Game Data (GAMES-01..04, PRIV-01, PRIV-02); Phase 12 Account Timeline & Perks (TIMELINE-01, 02, PERKS-01..03). Cross-cutting PRIV/SCALE requirements are owned by the phase that first needs them and bind every later phase.
+- Phase 13 added: Overview personal insights (2026-10-23). Design from sketches 022-030 (final: 030) and data rules from spikes 001-003; see the sketch-findings and spike-findings skills. Open decisions for discuss-phase: phone two-up, default pins, "Totals" name, heat vs teal class split. The Wargaming Terms of Use must be read before the generated tank table is committed.
+- Phase 14 added: Design unification (2026-10-24). Phase 13 put a new design system on the Overview only (type scale 12/14/32/56, `--ov-*` and `--heat-*` colours); every other pane still uses the Phase 8 look and the older `--ramp-*` tokens, so the app shows two design generations. The type-scale guards exempt `features/overview/` by path. Phase 14 brings the other panes across and replaces the exemption with one shared scale. Open decisions for discuss-phase are in ROADMAP.md.
 
 ### Decisions
 
@@ -529,6 +546,44 @@ CI budget at 07-03: no limit moved. `playwright test --list` counts BOTH project
 - [Phase 12]: 12-12: the timeline showing line is one persistent live region outside the state branches, carrying loading, showing and mask announcement text
 - [Phase 12]: 12-13: the Account timeline renders no mask toggle (no address column in the history files); the single reveal is proved through the Perks toggle and Login history
 - [Phase 12]: 12-13: composed Phase 12 archive = real-shape export overlaid with the timeline and Perks fixtures re-rooted by position; ATP_EXPECTED re-states the source oracles in its tag letters
+- [Phase 13]: A channel's answer and its rows come from ONE Dexie read: the meta record's derived playtime aggregate now rides RowsSnapshot, so the overview channel never takes a second snapshot (13-01, D-01, T-13-04).
+- [Phase 13]: A stale derived aggregate is REBUILT from the stored session rows and written back through writePlaytimeIfCurrent, and a replace that lands between the two reads answers importedAt null and result null rather than one export's numbers under another's date (13-01, T-04-11 reasoning).
+- [Phase 13]: The Overview's tiles are an ARRAY of { id, ... } objects in catalogue order, never an object keyed by tile id, so no data-derived string can sit in a property position (13-01, T-13-05).
+- [Phase 13]: The tile's numbers are formatted by ui-copy (formatLoggedDays / formatLoggedHours) and the first date by the project's own formatCalendarDate, not by Intl.DateTimeFormat: civil-date.ts refuses Date on purpose and the repository uses no Intl.DateTimeFormat at all (13-01).
+- [Phase 13]: The Overview page adds NO live region of its own: the page keeps its two, and the failure banner uses role=alert with no aria-live attribute. The applied answer lives in one $state.raw cell WITH the dataset it answers for, so a replace lands as 'no answer for what is on screen' by construction (13-01).
+- [Phase 13]: The committed tank table holds NO vehicle rows (count 0): every lookup falls back to the tag-derived name and an unknown class (D-09) until plan 13-15 runs the generator behind the Terms-of-Use checkpoint (D-07, D-23).
+- [Phase 13]: overview-lookup.ts imports nothing and declares its own VehicleClassKey, so the worker-only lint pattern cannot reach it and the lookup stays testable against a synthetic table.
+- [Phase 13]: The Overview's absent states are reached by REMOVING one source from the default archive (13-03), never by a second hand-written archive that could drift; 'record-columns' keeps the file and shrinks its header, so a missing file and a missing column are different absences the page must tell apart.
+- [Phase 13]: The Overview canary contract distinguishes AT REST from DOWNSTREAM (13-03): the chat line, the clan name and the e-mail are absent from every stored row (a known-deferred category stores nothing, LOGIN is stripped), while the order amount, the finance canaries and the nickname are PRESENT at rest because those categories are stored raw — so only the latter need a worker-reply, view and DOM assertion later.
+- [Phase 13]: The Overview answer key is a module that imports NOTHING (13-03): every figure is stated with its arithmetic, and the three hand-counted day numbers are cross-checked against Date.UTC, which is a different route to the same facts. The oracle is independent of the fixture, so a wrong aggregator and a wrong fixture cannot agree by accident.
+- [Phase 13]: The Overview palette is declared once as ten tokens in src/app.css, and the lightest value-scale step is the darkened #47a374 (3.11:1 on white) rather than the sketch's #4fb27f (2.62:1), with both numbers pinned in the contrast test.
+- [Phase 13]: The Overview draws its bars on the white tile and never on a grey track: the track grey takes the lightest step back to 2.63:1, and that figure is recorded in the test so the rule has a floor under it.
+- [Phase 13]: The font-size scale and the 14px floor exemptions for features/overview are EXACT sets resolved per file path (12 / 14 / 32 / 56px, floor 12px), covered by self-tests, so 18px and 26px stay illegal inside the Overview and a sibling folder cannot inherit the exemption by name.
+- [Phase 13]: The longest session is the RAW length (end - start of ONE session), never the merged increment: the merge sweep credits a fully-overlapped session zero seconds, which is right for a playtime total and wrong for 'how long was the longest sitting' (13-05).
+- [Phase 13]: A tie in the longest session is resolved to the EARLIEST start, and the rule falls out of the sweep's existing start order rather than a second comparison — so the two cannot disagree (13-05).
+- [Phase 13]: The longest-session fields are OPTIONAL on PlaytimeSlice for the same reason games and byGame are: the version bump guarantees runtime presence, a hand-built literal keeps compiling, and an absent value means 'not available', never zero (13-05).
+- [Phase 13]: PLAYTIME_VERSION moved to 4 and the repair is the existing lazy rebuild: a stored v3 aggregate is recomputed from its own stored session rows on the next playtime or overview query and written back, with no re-import and no Dexie bump (13-05, T-13-14).
+- [Phase 13]: The ONE tile order is OVERVIEW_TILE_IDS in overview-shared.ts; overview-definitions.ts derives OVERVIEW_TILE_DEFS from it and re-exports OVERVIEW_CATALOGUE_ORDER, so no module holds a second order (13-06).
+- [Phase 13]: The plan 13-03 oracle's tile lists are per-SOURCE groupings, not a competing catalogue order: 'bat' sits beside the record tiles there because all five read the account statistics (13-06).
+- [Phase 13]: tileDefsOf refuses an id outside the catalogue, so a second game's list becomes legal only once its ids are in the wire contract's tuple; the second-game list is refused as unknown, never as a duplicate (13-06).
+- [Phase 13]: The dense flow can pull a narrow tile up into a gap: it never happens in Time, Tanks, Records or Totals, but it does in the derived Pinned group for 32,160 of 65,535 pin subsets. The port is proved faithful by a differential test against the sketch's own source, so this is a property of the algorithm and the catalogue. Plan 13-09 must decide whether the bento grid uses grid-auto-flow: dense (13-06).
+- [Phase 13]: 13-07: a record is the MAXIMUM across accounts and its tank is the one the HOLDING account names; a tie keeps the earlier account (D-19), and a zero is a real record rather than an absence.
+- [Phase 13]: 13-07: a missing COLUMN and an unreadable VALUE are different absences - the first names the column, the second names the source only, because the column is in the export and nothing is missing from it.
+- [Phase 13]: 13-07: the vehicle lookup is a PARAMETER of buildOverviewView, so overview-aggregate.ts imports the lookup's type and never the worker-only tank table; the worker passes defaultVehicleLookup into the channel answer.
+- [Phase 13]: A legacy Sessions.csv names no game, so Logged in stays ready while the four WoT habit tiles are absent (T-13-25)
+- [Phase 13]: Credits reuse buildCurrency so the Overview and the Finance pane cannot disagree; the value is an exact micro-unit string (D-21)
+- [Phase 13]: The win rate waits for 30 battles (MIN_BATTLES_PLAIN_RATE); battle and win counts are never guarded (D-17)
+- [Phase 13]: Orders is a row count: a seen file with zero rows is a true zero, an unseen file is absent; no cell is read (D-18)
+- [Phase 13]: 13-09: Pinned group uses sparse grid flow (no dense); catalogue groups keep dense. Closes WINDOWS 27.
+- [Phase 13]: 13-10: an absent tile always waits in its own group's absent row, pinned or not, so Pinned holds only ready tiles (D-11, OI-3)
+- [Phase 13]: 13-10: Pinned spans are solved against dense placement while Pinned renders sparse; known limit, sparse variant of fillSpans deferred to 13-12 if seen
+- [Phase 13]: 13-11: the omit-to-need mapping is one reviewed literal in the oracle tests, and the closed key/string vocabulary of the overview view is an explicit literal so a new field fails until reviewed
+- [Phase 13]: 13-12: Pinned group uses a sparse-flow fill simulation (gridHoles/fillSpans flow flag); 13,325 of 65,535 pin subsets had more holes with dense-chosen widths at four columns
+- [Phase 13]: 13-12: requirement ticks for INSIGHT-03/04/05/07/08 deferred until 13-14's browser check lands (WINDOWS entry 29)
+- [Phase 13]: 13-13: no Account tile; Account list row and identity header keep multi-account facts. Type-scale helper keeps the union for the Overview page and tightens other panes to the shared scale.
+- [Phase 13]: 13-14: no CI limit moved; 271 listed tests now, 272 after 13-15, inside the 273-test ceiling of 32 / 34 / 42 min
+- [Phase 13]: 13-14: align-items start lets stretched siblings fall to natural height; the layout test asserts none grows and the tallest is unchanged
+- [Phase 13]: 13-15: Terms gate approved-proposed-wording; vehicle table (1035 rows, tier 1-11) committed with OVERVIEW_ATTRIBUTION_* unchanged
 
 ### Pending Todos
 
@@ -627,8 +682,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-20T11:57:41.695Z
-Stopped at: Phase 12 complete — all phases complete
+Last session: 2026-10-23T15:23:18.209Z
+Stopped at: Phase 13 complete — all phases complete
 Resume file: None
 
 ## Operator Next Steps

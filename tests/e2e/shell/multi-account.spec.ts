@@ -3,7 +3,6 @@ import { expect, test, type ConsoleMessage, type Locator, type Page } from '@pla
 import {
   MA_CANARIES,
   MA_CHAT_CANARY,
-  MA_CREATED_EU,
   MA_EXPECTED_GAMES,
   MA_EXPECTED_PLAYTIME,
   MA_EXPECTED_YEARS,
@@ -25,7 +24,6 @@ import {
   buildTwoAccountExport,
 } from '../../fixtures/multi-account-fixtures.ts';
 import {
-  SAMPLE_CREATED_DATE,
   SAMPLE_NICKNAME,
   SAMPLE_REGION,
   buildSampleExport,
@@ -1164,7 +1162,7 @@ test.describe('multi-account identity header (ACCOUNT-05, D-13 … D-17)', () =>
       ).toBeLessThan(deviceRows.length);
     });
 
-    await test.step('the Account row and the Overview card name the accounts', async () => {
+    await test.step('the Account row names the accounts and the Overview carries no account detail', async () => {
       // Placed AFTER the pane walk rather than before it: this step's wording
       // comes from Task 2's model, and the pane walk is Task 1's own proof. A
       // step order that fails on the later plan's wording would hide the earlier
@@ -1179,27 +1177,17 @@ test.describe('multi-account identity header (ACCOUNT-05, D-13 … D-17)', () =>
         copy.ACCOUNT_ROW_MULTI_SUMMARY,
       );
 
-      // The card names the count and the EARLIEST creation date across the three
-      // accounts, which the fixture wrote by hand for the EU root — a literal,
-      // never a value read back off the page.
-      const card = page.getByTestId('ov-card-account');
-      await expect(card.locator('.label')).toHaveText(copy.formatAccountCount(3));
-      await expect(card.locator('.summary')).toHaveText(
-        copy.formatEarliestCreated(MA_CREATED_EU.slice(0, 10)),
-      );
-
       // D-13 / UI-SPEC Surface 3: no single account's region and no nickname is
-      // presented as the dataset's.
-      await expect(card).not.toContainText(MA_REGION_EU);
-      await expect(card).not.toContainText(MA_NICKNAME_EU);
-      await expect(page.getByTestId('overview')).not.toContainText(MA_REGION_NA);
+      // presented as the dataset's, and the insights page carries no Account
+      // tile at all (the Account row and the identity header keep these facts).
+      const overview = page.getByTestId('overview');
+      await expect(overview).not.toContainText(MA_REGION_EU);
+      await expect(overview).not.toContainText(MA_REGION_NA);
+      await expect(overview).not.toContainText(MA_NICKNAME_EU);
+      await expect(overview).not.toContainText(MA_NICKNAME_NA);
 
-      // D-15 (10-05): the Overview keeps its Phase 9 shape. The card reads its
-      // count and the earliest date and nothing else, and no pane-level combined
-      // total, currency note or per-account split appears on it.
-      // (The label and summary are asserted verbatim above; what is added here is
-      // the ABSENCE of any money, combined-total wording or currency code.)
-      await expect(card).not.toContainText(/combined|\b(USD|EUR|UAH|RUB)\b|\d[.,]\d{2}\b/i);
+      // D-15 (10-05): no pane-level combined total, currency note or per-account
+      // split appears on the Overview.
       await expect(page.getByTestId('overview').getByTestId('finance-combined-note')).toHaveCount(
         0,
       );
@@ -1899,12 +1887,11 @@ test.describe('multi-account identity header (ACCOUNT-05, D-13 … D-17)', () =>
         'no Payments card has a per-account disclosure for one account',
       ).toHaveCount(0);
 
-      // And the card is the single-account wording again, which is the stronger
-      // statement: it proves the multi branch is a branch and not a new default.
+      // And the Account row is the single-account wording again, which is the
+      // stronger statement: it proves the multi branch is a branch and not a new
+      // default.
       await openSection(page, 'overview');
-      await expect(page.getByTestId('ov-card-account').locator('.summary')).toHaveText(
-        `${copy.IDENTITY_CREATED_LABEL} ${SAMPLE_CREATED_DATE}`,
-      );
+      expect((await readAccountRow(page)).summary).toBe(copy.ACCOUNT_ROW_SUMMARY);
     });
 
     await test.step('no page error and no console error across the whole flow', async () => {
@@ -2131,12 +2118,12 @@ test.describe('multi-account identity header (ACCOUNT-05, D-13 … D-17)', () =>
       await expectOneOfTwoHeader(page, 'one of two, fresh import');
 
       await openSection(page, 'overview');
-      const card = page.getByTestId('ov-card-account');
-      await expect(card.locator('.label')).toHaveText(copy.formatAccountCount(1));
-      await expect(card.locator('.summary')).toHaveText(
-        copy.formatEarliestCreated(MA_CREATED_EU.slice(0, 10)),
+      const row = await readAccountRow(page);
+      expect(row.headline, 'the published account count, not the legacy region').toBe(
+        copy.formatAccountCount(1),
       );
-      await expect(card).not.toContainText(MA_REGION_EU);
+      expect(row.summary).toBe(copy.ACCOUNT_ROW_MULTI_SUMMARY);
+      await expect(page.getByTestId('overview')).not.toContainText(MA_REGION_EU);
 
       // The published count still decides every caption (09-10 option-a), so a
       // one-account list carries none on any of the six panes.

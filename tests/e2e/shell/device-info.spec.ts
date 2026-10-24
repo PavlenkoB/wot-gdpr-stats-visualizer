@@ -58,13 +58,12 @@ test.describe('Device info pane (quick 261012-bog)', () => {
     await gotoApp(page);
     await importExport(page, SYNTHETIC_ZIP_NAME, buildSampleExport());
 
-    // The list row and the Overview card say the same fact, from one derivation.
+    // The list row is the one surface that states the row count and the file count.
     const rows = formatRowCount(DEVICE_INFO_COUNTS.total);
     await expect(listRow(page, 'device-info')).toContainText(rows);
     await expect(listRow(page, 'device-info')).toContainText(
       formatRowSummary('Device_info', DEVICE_INFO_COUNTS.files),
     );
-    await expect(page.getByTestId('ov-card-device-info')).toContainText(rows);
 
     await openSection(page, 'device-info');
     const section = page.getByTestId('dashboard-section-device-info');

@@ -35,6 +35,11 @@ import {
   waitForMessage,
   type WorkerPostSpy,
 } from '../../helpers/worker-harness.ts';
+import {
+  OV_CANARIES,
+  buildOverviewInsightExport,
+  type OverviewOmit,
+} from '../../fixtures/overview-fixtures.ts';
 import { oneAccount } from '../../helpers/row-groups';
 import type {
   CurrencyView,
@@ -46,6 +51,7 @@ import type { VehicleFileFacts } from '../../../src/lib/features/vehicles/vehicl
 import type { LoginsView } from '../../../src/lib/features/logins/login-shared.ts';
 import type { DeviceInfoView } from '../../../src/lib/features/device-info/device-info-shared.ts';
 import type { TimelineView } from '../../../src/lib/features/account-timeline/timeline-shared.ts';
+import type { OverviewView } from '../../../src/lib/features/overview/overview-shared.ts';
 import type {
   HeatView,
   PerksView,
@@ -344,7 +350,8 @@ function viewOf(
   | HeatView
   | WarshipsStorageView
   | PerksView
-  | TimelineView {
+  | TimelineView
+  | OverviewView {
   const result = dataResult(reply).result;
   if (result === null) throw new Error(`expected a ${channel} result, got null`);
   if (result.channel !== channel) {
@@ -577,7 +584,7 @@ describe('05-07: a builder that throws', () => {
 });
 
 describe('05-07: no personal field reaches any reply', () => {
-  it('finds none of the five canary strings across all four channels', async () => {
+  it('finds none of the five canary strings across all five channels', async () => {
     await ingestExport(post, buildSampleExport(), 'sample.zip');
 
     const queries: DataQuery[] = [
@@ -589,6 +596,9 @@ describe('05-07: no personal field reaches any reply', () => {
       { channel: 'vehicles', title: 'wows', battleType: null },
       { channel: 'vehicles', title: 'wowp', battleType: null },
       { channel: 'vehicles', title: 'wot', battleType: '1' },
+      // 13-11: the Overview's own channel reads the account statistics, the
+      // orders and the currency log, so the sample export is swept through it.
+      { channel: 'overview' },
     ];
     for (const [i, query] of queries.entries()) {
       await ask(post, query, 300 + i);
@@ -607,6 +617,267 @@ describe('05-07: no personal field reaches any reply', () => {
     }
     // The id PATTERN, which would catch a per-row varying uuid too.
     expect(everyMessage).not.toMatch(FINANCE_CANARIES.orderIdPattern);
+  });
+});
+
+// =============================================================================
+// 13-11 — the privacy fence for the Overview channel (D-18, T-13-31, T-13-32)
+// =============================================================================
+//
+// TWO FENCES
+//   1. The CANARIES: every planted sensitive value is absent from every
+//      overview reply of every fixture variant, and the never-stored chat and
+//      clan values are absent from EVERY posted message.
+//   2. The CLOSED VOCABULARY: the view's object keys and string values are
+//      explicit literals below. A new field or a new free-text string fails
+//      this test until a reviewer extends the literal on purpose. That is the
+//      point: the canaries catch a value that LEAKED, the vocabulary catches a
+//      field that COULD.
+
+/** The exact object-key vocabulary of the overview view (overview-shared.ts). */
+const OVERVIEW_KEY_VOCABULARY: readonly string[] = [
+  // The view.
+  'tiles',
+  'life',
+  'firstDay',
+  'lastDay',
+  'accountCount',
+  // Every tile.
+  'id',
+  'status',
+  'need',
+  'column',
+  // The ready tiles.
+  'seconds',
+  'battleSeconds',
+  'years',
+  'year',
+  'hours',
+  'peakHour',
+  'days',
+  'startDay',
+  'endDay',
+  'day',
+  'name',
+  'battles',
+  'share',
+  'classKey',
+  'tier',
+  'top',
+  'coverage',
+  'rows',
+  'count',
+  'nation',
+  'value',
+  'tankName',
+  // WR-04: the number of accounts a record was chosen from. A count only.
+  'accounts',
+  'units',
+  'wins',
+  'winRate',
+  // The life strip.
+  'game',
+];
+
+/** The sixteen tile ids, written out. */
+const VOCAB_TILE_IDS = [
+  'logged',
+  'hour',
+  'streak',
+  'sess',
+  'busy',
+  'tank',
+  'cls',
+  'fleet',
+  'nat',
+  'dmg',
+  'xp',
+  'kills',
+  'snip',
+  'cred',
+  'bat',
+  'ord',
+];
+
+/** Every string value the view may hold, other than a numeric string. */
+const OVERVIEW_STRING_VOCABULARY: ReadonlySet<string> = new Set([
+  ...VOCAB_TILE_IDS,
+  'ok',
+  'absent',
+  // The five needs.
+  'session-history',
+  'vehicle-statistics',
+  'account-statistics',
+  'currency-operations',
+  'payment-history',
+  // The record columns a column-level absence may name.
+  'BATTLES_COUNT',
+  'DAMAGE_MAX',
+  'XP_MAX',
+  'FRAGS_MAX',
+  'SNIPER_SERIES_MAX',
+  // The six class keys.
+  'mediumTank',
+  'AT-SPG',
+  'heavyTank',
+  'lightTank',
+  'SPG',
+  'unknown',
+  // The game tokens.
+  'WOT',
+  'WOTB',
+  // The nation prefixes of the invented tags.
+  'china',
+  'usa',
+  'germany',
+  'ussr',
+  // The tag-derived names of the invented tags.
+  'SynthOne',
+  'SynthTwo',
+  'SynthThree',
+  'SynthFour',
+]);
+
+/** A key whose name suggests personal or financial content. */
+const FORBIDDEN_KEY = /amount|price|message|chat|clan|email|login|nickname/i;
+
+/** The longest string a view value may be. */
+const MAX_VIEW_STRING = 60;
+
+/**
+ * Walk a view and return everything that leaves the vocabulary.
+ *
+ * `tankNames` relaxes the string rule for the real-looking-tags variant, where
+ * a name may come from the committed table: any string of at most
+ * {@link MAX_VIEW_STRING} characters with no angle bracket is then accepted too.
+ */
+function vocabularyViolations(view: unknown, tankNames: boolean): string[] {
+  const out: string[] = [];
+  const visit = (value: unknown, at: string): void => {
+    if (typeof value === 'string') {
+      if (value.length > MAX_VIEW_STRING) out.push(`${at}: string longer than ${MAX_VIEW_STRING}`);
+      const closed = OVERVIEW_STRING_VOCABULARY.has(value) || /^[0-9]+$/.test(value);
+      const tank = tankNames && !/[<>]/.test(value);
+      if (!closed && !tank) out.push(`${at}: string outside the vocabulary`);
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach((entry, i) => visit(entry, `${at}[${i}]`));
+      return;
+    }
+    if (value !== null && typeof value === 'object') {
+      for (const [key, entry] of Object.entries(value)) {
+        if (!OVERVIEW_KEY_VOCABULARY.includes(key))
+          out.push(`${at}.${key}: key outside the vocabulary`);
+        if (FORBIDDEN_KEY.test(key)) out.push(`${at}.${key}: forbidden key name`);
+        visit(entry, `${at}.${key}`);
+      }
+    }
+  };
+  visit(view, 'view');
+  return out;
+}
+
+describe('13-11: no personal field reaches any overview reply', () => {
+  const VARIANTS: readonly { name: string; omit: OverviewOmit[]; tanks?: 'known' }[] = [
+    { name: 'the default archive', omit: [] },
+    { name: 'sessions omitted', omit: ['sessions'] },
+    { name: 'wot-sessions omitted', omit: ['wot-sessions'] },
+    { name: 'account-statistics omitted', omit: ['account-statistics'] },
+    { name: 'vehicle-statistics omitted', omit: ['vehicle-statistics'] },
+    { name: 'currency omitted', omit: ['currency'] },
+    { name: 'orders omitted', omit: ['orders'] },
+    { name: 'record-columns omitted', omit: ['record-columns'] },
+    { name: 'the real-looking tags', omit: [], tanks: 'known' },
+  ];
+
+  /** Every overview data-result posted since the last `mockClear`. */
+  function overviewMessages(): IngestResponse[] {
+    return post.mock.calls
+      .map((call) => call[0] as IngestResponse)
+      .filter(
+        (message) => message.type === 'data-result' && message.result?.channel === 'overview',
+      );
+  }
+
+  it.each(VARIANTS)(
+    'finds no canary in any overview reply, and no chat or clan value anywhere ($name)',
+    async ({ name, omit, tanks }) => {
+      const terminal = await ingestExport(
+        post,
+        buildOverviewInsightExport({ omit, tanks }),
+        `privacy-${name.replace(/\W+/g, '-')}.zip`,
+      );
+      expect(terminal.type).toBe('done');
+
+      // Everything the import posted, kept before an ask clears the spy.
+      const importMessages = post.mock.calls.map((call) => call[0]);
+
+      // Two asks: the second is served from the memo, and both are swept.
+      await ask(post, { channel: 'overview' }, 1301);
+      const first = overviewMessages();
+      expect(first).toHaveLength(1);
+      await ask(post, { channel: 'overview' }, 1302);
+      const second = overviewMessages();
+      expect(second).toHaveLength(1);
+
+      const serialised = JSON.stringify([...first, ...second]);
+      for (const canary of OV_CANARIES) {
+        expect(serialised, `canary ${canary}`).not.toContain(canary);
+      }
+      expect(serialised).not.toMatch(FINANCE_CANARIES.orderIdPattern);
+
+      // The chat line and the clan name are never stored, so they appear in no
+      // message of ANY type: not the import's, not the answer's.
+      const everything = JSON.stringify([...importMessages, ...post.mock.calls.map((c) => c[0])]);
+      expect(everything).not.toContain('CANARY-OV-CHAT-LINE');
+      expect(everything).not.toContain('CANARY-OV-CLAN-NAME');
+    },
+  );
+
+  it.each(VARIANTS.filter((variant) => variant.tanks === undefined))(
+    'holds every key and string of the view inside the closed vocabulary ($name)',
+    async ({ name, omit }) => {
+      await ingestExport(
+        post,
+        buildOverviewInsightExport({ omit }),
+        `vocab-${name.replace(/\W+/g, '-')}.zip`,
+      );
+      const view = viewOf(await ask(post, { channel: 'overview' }, 1310), 'overview');
+      expect(vocabularyViolations(view, false)).toEqual([]);
+    },
+  );
+
+  it('holds the real-looking-tags view to the vocabulary, with tank names relaxed', async () => {
+    await ingestExport(post, buildOverviewInsightExport({ tanks: 'known' }), 'vocab-known.zip');
+    const view = viewOf(await ask(post, { channel: 'overview' }, 1311), 'overview');
+    expect(vocabularyViolations(view, true)).toEqual([]);
+  });
+
+  it('would fail the moment a new field or free-text string appeared (negative control)', async () => {
+    await ingestExport(post, buildOverviewInsightExport(), 'vocab-control.zip');
+    const view = viewOf(await ask(post, { channel: 'overview' }, 1312), 'overview') as OverviewView;
+    const clone = structuredClone(view) as unknown as {
+      accountCount: number;
+      tiles: Record<string, unknown>[];
+    };
+
+    // A new key at the top.
+    expect(vocabularyViolations({ ...clone, nickname: 'x' }, false)).not.toEqual([]);
+    // A new key on a tile.
+    clone.tiles[0] = { ...clone.tiles[0], extra: 1 };
+    expect(vocabularyViolations(clone, false)).not.toEqual([]);
+    // A new free-text value in an allowed position.
+    const text = structuredClone(view) as unknown as { tiles: Record<string, unknown>[] };
+    text.tiles[5] = { ...text.tiles[5], name: 'Some Player Name' };
+    expect(vocabularyViolations(text, false)).not.toEqual([]);
+    // Too long, even for the relaxed rule.
+    text.tiles[5] = { ...text.tiles[5], name: 'x'.repeat(MAX_VIEW_STRING + 1) };
+    expect(vocabularyViolations(text, true)).not.toEqual([]);
+    // A forbidden key name is flagged even if somebody extended the literal.
+    expect(vocabularyViolations({ clanName: 1 }, true).some((v) => v.includes('forbidden'))).toBe(
+      true,
+    );
   });
 });
 

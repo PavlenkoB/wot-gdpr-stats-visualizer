@@ -39,7 +39,6 @@ import {
   unsupportedBlockStatus,
   unsupportedEntries,
 } from '../../../src/lib/shell/dashboard-status.ts';
-import { overviewChips } from '../../../src/lib/shell/overview-model.ts';
 import type { ClassifyResult } from '../../../src/lib/core/types/worker-messages.ts';
 import type { AccountMeta, DatasetFile, DatasetMeta } from '../../../src/lib/worker/db.ts';
 import {
@@ -307,9 +306,9 @@ describe('12-04: the promoted folders through the real worker', () => {
     for (const folder of PROMOTED_FOLDERS) {
       expect(listed, folder).not.toContain(folder);
     }
-    // The Overview chip reads the same list, so the two surfaces cannot
-    // disagree about how many folders are not shown.
-    expect(overviewChips(result).unsupported).toBe(listed.length);
+    // The count of folders not shown is the length of this same list (the
+    // retired Overview chip counted exactly these entries).
+    expect(unsupportedEntries(result).length).toBe(1);
     expect(unsupportedBlockStatus(result)).toBe('has-items');
   });
 

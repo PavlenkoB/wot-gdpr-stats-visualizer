@@ -200,7 +200,7 @@ afterAll(async () => {
 
 describe('Phase 10 scale: the large three-account import (SCALE-01, D-17)', () => {
   it(
-    'publishes three accounts in D-16 order, stores version-3 aggregates and keeps the schema at version 2',
+    'publishes three accounts in D-16 order, stores version-4 playtime and version-3 logins aggregates and keeps the schema at version 2',
     async () => {
       expect(done.result.accounts?.map((account) => account.root)).toEqual(
         MA_LARGE_ROOTS_D16_ORDER,
@@ -209,7 +209,10 @@ describe('Phase 10 scale: the large three-account import (SCALE-01, D-17)', () =
       const { db } = await importWorkerDb();
       const meta = await db.meta.get('active');
       if (meta === undefined) throw new Error('no stored meta record');
-      expect(meta.playtime?.v).toBe(3);
+      // The playtime aggregate's version moved to 4 in 13-05 (the longest
+      // session field); the logins aggregate's is a separate constant and is
+      // still 3.
+      expect(meta.playtime?.v).toBe(4);
       expect(meta.playtime?.byGame?.map((entry) => entry.game)).toEqual(['WOT', 'WOTB', 'WOWS']);
       expect(meta.logins?.v).toBe(3);
       // D-16: the non-indexed `account` field stayed non-indexed. An indexed key

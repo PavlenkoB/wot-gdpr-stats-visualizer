@@ -364,6 +364,83 @@ describe('worker-boundary import ban — no-restricted-imports (geo worker-only 
 });
 
 // -----------------------------------------------------------------------------
+// Worker-boundary import ban: no-restricted-imports (the tank table)
+// -----------------------------------------------------------------------------
+// 13-02. D-08 puts the generated vehicle table inside the worker chunk, the
+// way the geo country table is inlined: the page has no rows to feed a lookup,
+// and a dynamic import of the table would be a post-load request the
+// zero-network contract counts (T-13-09).
+//
+// The fflate probe and the geo probes stay where they are, and one is
+// repeated here, because the tank table's ban lives in the SAME
+// `no-restricted-imports` block: when two blocks match a file the later one's
+// options REPLACE the earlier one's, so a careless second block would
+// silently drop the fflate restriction. That failure is invisible unless the
+// fflate probe is asserted again next to the new one.
+describe('worker-boundary import ban — no-restricted-imports (the tank table)', () => {
+  test(
+    'importing the tank table from src/lib (non-worker) fires no-restricted-imports',
+    async () => {
+      const src = `import { defaultVehicleLookup } from '../features/overview/vehicle-table.ts';\ndefaultVehicleLookup;`;
+      const ids = await ruleIdsAtError(src, PROBE_PATH);
+      expect(ids).toContain('no-restricted-imports');
+    },
+    lintTimeoutMs,
+  );
+
+  test(
+    'importing the tank table from src/lib/worker does NOT fire no-restricted-imports',
+    async () => {
+      const src = `import { defaultVehicleLookup } from '../features/overview/vehicle-table.ts';\ndefaultVehicleLookup;`;
+      const ids = await ruleIdsAtError(src, WORKER_PROBE_PATH);
+      expect(ids).not.toContain('no-restricted-imports');
+    },
+    lintTimeoutMs,
+  );
+
+  test(
+    'a sibling-relative import of the tank table from src/lib/features/overview fires',
+    async () => {
+      // WR-03's shape: a file inside the feature folder names its sibling as
+      // `./vehicle-table.ts`, which has no `features/overview/` segment.
+      const src = `import { defaultVehicleLookup } from './vehicle-table.ts';\ndefaultVehicleLookup;`;
+      const ids = await ruleIdsAtError(src, 'src/lib/features/overview/__lint_probe__.ts');
+      expect(ids).toContain('no-restricted-imports');
+    },
+    lintTimeoutMs,
+  );
+
+  test(
+    'the one module that imports the generated table is exempt',
+    async () => {
+      // `vehicle-table.ts` imports its generated sibling and hands the rows to
+      // the lookup. It is named in the block's `ignores`, and this probe is
+      // what stops that exemption widening into a hole: the rule has to be
+      // told about exactly this file, and a NEIGHBOUR in the same directory
+      // must still be restricted.
+      const src = `import { VEHICLE_TABLE } from './vehicle-table.generated.ts';\nVEHICLE_TABLE;`;
+      expect(await ruleIdsAtError(src, 'src/lib/features/overview/vehicle-table.ts')).not.toContain(
+        'no-restricted-imports',
+      );
+      expect(await ruleIdsAtError(src, 'src/lib/features/overview/__lint_probe__.ts')).toContain(
+        'no-restricted-imports',
+      );
+    },
+    lintTimeoutMs,
+  );
+
+  test(
+    'the fflate ban still fires from src/lib, in the same block',
+    async () => {
+      const src = `import { unzipSync } from 'fflate';`;
+      const ids = await ruleIdsAtError(src, PROBE_PATH);
+      expect(ids).toContain('no-restricted-imports');
+    },
+    lintTimeoutMs,
+  );
+});
+
+// -----------------------------------------------------------------------------
 // The single sanctioned fetch (06-11, D-16, T-06-43, RESEARCH Pitfall 6)
 // -----------------------------------------------------------------------------
 //

@@ -384,7 +384,7 @@
         <p class="privacy">{EMPTY_STATE_PRIVACY}</p>
       </div>
     {:else if active === 'overview'}
-      <Overview {result} onopen={openPane} />
+      <Overview {result} client={ingestClient.data} onopen={openPane} />
     {:else if active === 'playtime'}
       <!--
         Playtime and Login history both live in Activity_history, so both render

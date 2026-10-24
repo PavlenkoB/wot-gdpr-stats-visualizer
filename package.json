@@ -18,7 +18,9 @@
     "geo:map": "node scripts/geo/build-world-map.ts",
     "geo:city": "node scripts/geo/build-city-dataset.ts",
     "geo:city:fixture": "node scripts/geo/build-city-dataset.ts --fixture",
-    "geo:map:check": "node scripts/geo/build-world-map.ts --check"
+    "geo:map:check": "node scripts/geo/build-world-map.ts --check",
+    "vehicles:table": "node scripts/vehicles/build-vehicle-table.ts",
+    "vehicles:table:check": "node scripts/vehicles/build-vehicle-table.ts --check"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

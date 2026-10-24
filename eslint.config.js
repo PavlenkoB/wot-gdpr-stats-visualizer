@@ -269,6 +269,12 @@ export default [
   //    main thread has no rows to feed, since the raw rows never leave the
   //    worker either. `city-table.ts` is named before it exists (plan 06-09),
   //    so the rule is already in force for the module that will be added.
+  //
+  //    The tank table (13-02, D-08, T-13-09): the same rule for the same
+  //    reason. The generated vehicle table is inlined into the worker chunk,
+  //    and a dynamic import of it would be a post-load request the
+  //    zero-network contract counts. `src/lib/features/overview/vehicle-table.ts`
+  //    is the one module that imports it, and it is exempt below.
   {
     files: ['src/**/*.ts', 'src/**/*.svelte'],
     ignores: [
@@ -282,6 +288,10 @@ export default [
       'src/lib/geo/country-lookup.ts',
       'src/lib/geo/city-table.ts',
       'src/lib/features/logins/login-aggregate.ts',
+      // The one module that imports the generated tank table (13-02, D-08).
+      // It imports its generated sibling and hands the rows to the lookup, and
+      // it is imported only by worker files.
+      'src/lib/features/overview/vehicle-table.ts',
     ],
     rules: {
       'no-restricted-imports': [
@@ -305,9 +315,10 @@ export default [
                 '**/country-table*',
                 '**/country-lookup*',
                 '**/city-table*',
+                '**/vehicle-table*',
               ],
               message:
-                'D-12: the range table is worker-only. It is inlined into the worker chunk and the raw rows never leave the worker, so a main-thread import would pull a multi-megabyte table into the page bundle for a lookup it cannot feed. Resolve countries in the worker and send the codes across.',
+                'D-12: the range table is worker-only. It is inlined into the worker chunk and the raw rows never leave the worker, so a main-thread import would pull a multi-megabyte table into the page bundle for a lookup it cannot feed. Resolve countries in the worker and send the codes across. D-08: the tank table is worker-only for the same reason - it is inlined into the worker chunk, so resolve vehicle names in the worker and send resolved strings across.',
             },
           ],
         },

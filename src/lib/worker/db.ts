@@ -834,6 +834,21 @@ export interface RowsSnapshot {
    * the page re-sorting a posted list.
    */
   accounts: readonly string[];
+  /**
+   * The meta record's playtime aggregate, read in the SAME transaction as the
+   * rows above (13-01, D-01, T-13-04).
+   *
+   * A channel that needs it must never take a second snapshot: the answer and
+   * its rows would then be able to describe two different datasets. So the
+   * aggregate rides this read rather than being fetched separately.
+   *
+   * `null` means the dataset holds no stored aggregate at all — a cache whose
+   * aggregation produced nothing, or a legacy dataset. It does NOT mean the
+   * export has no session history: the caller rebuilds from the stored session
+   * rows when it is absent or stale, and only then is the answer "no
+   * sessions".
+   */
+  playtime?: PlaytimeAggregates | null;
 }
 
 /**
@@ -964,6 +979,11 @@ export async function readRowsByFile(
       files: meta.files ?? null,
       rows,
       accounts: accountsOfMeta(meta).map((account) => account.root),
+      // 13-01, T-13-04. The aggregate is read HERE, inside this transaction,
+      // so a channel that needs it answers from the same snapshot as its rows
+      // and can never mix two datasets. An absent aggregate is null, not
+      // undefined, so "no stored aggregate" has one spelling.
+      playtime: meta.playtime ?? null,
     };
   });
 }
