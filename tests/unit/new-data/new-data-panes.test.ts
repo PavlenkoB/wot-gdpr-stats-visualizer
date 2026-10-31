@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
-import { componentPath } from '../../helpers/components.ts';
+import { componentPath, SCALE_PX } from '../../helpers/components.ts';
+import { resolveTokens, tokenMap } from '../../helpers/css.ts';
+import { readTokenSource } from '../../helpers/styles.ts';
 
 // =============================================================================
 // Plan 11-09 - the two new-game panes and their shell wiring
@@ -12,6 +14,11 @@ import { componentPath } from '../../helpers/components.ts';
 // file EXISTS first, because an empty string contains no forbidden token and
 // would pass vacuously. The rendered half (masked addresses in the browser, the
 // Logins totals, the 375px layout) is plan 11-11's.
+//
+// PHASE 14, PLAN 14-17: the panes' sizes are TOKENS now, so the font-size
+// sweep resolves them before it reads them. Without the resolution the sweep
+// would match nothing and would pass on nothing - the non-empty check below is
+// what keeps it honest.
 // =============================================================================
 
 const HEAT_FILE = 'HeatPane.svelte';
@@ -19,6 +26,15 @@ const WOWS_FILE = 'WarshipsStoragePane.svelte';
 
 /** The pane files the shared rules below apply to. */
 const PANE_FILES: readonly string[] = [HEAT_FILE, WOWS_FILE];
+
+/**
+ * The token declarations, so a px assertion can be resolved back to pixels.
+ *
+ * The panes' sizes are TOKENS now (Phase 14, D-01). A reader that matched
+ * `font-size: Npx` in the source finds NOTHING once the sizes are tokenised,
+ * and a loop over an empty array asserts nothing - a vacuous pass.
+ */
+const TOKENS = tokenMap(readTokenSource());
 
 /** Strip comments, so a comment that explains a rule cannot trip the rule. */
 function stripComments(source: string): string {
@@ -164,9 +180,14 @@ describe('the new-game panes obey the project prohibitions', () => {
     });
 
     it(`${file} uses only scale font sizes`, () => {
-      const sizes = [...clean(file).matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)].map((m) => m[1]);
-      expect(sizes.length).toBeGreaterThan(0);
-      for (const size of sizes) expect(['14', '18', '26', '30']).toContain(size);
+      // The sizes are TOKENS now, so they are resolved before they are read: the
+      // match would otherwise be empty and the sweep would assert nothing.
+      const resolved = resolveTokens(clean(file), TOKENS);
+      const sizes = [...resolved.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)].map((m) =>
+        Number(m[1]),
+      );
+      expect(sizes.length, `${file} declares at least one font-size`).toBeGreaterThan(0);
+      for (const size of sizes) expect(SCALE_PX.has(size)).toBe(true);
     });
 
     it(`${file} never takes the game filter and never reaches the login aggregates (D-04, D-07)`, () => {

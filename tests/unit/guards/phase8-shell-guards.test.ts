@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { componentPath } from '../../helpers/components.ts';
+import { readTokenSource } from '../../helpers/styles.ts';
 import {
   PHONE_MAX_WIDTH_PX,
   SIDE_BY_SIDE_MIN_WIDTH_PX,
@@ -125,28 +126,50 @@ describe('phase 8 shell guards (08-07)', () => {
     expect(offenders, 'use var(--text) and var(--muted)').toEqual([]);
   });
 
-  it('blue survives only in the focus ring token, the spinner and the drag highlight, under src', () => {
-    // The spinner (App.svelte, ImportBar.svelte) is the only place a blue literal
-    // is allowed. The Dropzone drag highlight derives from var(--focus) with
-    // color-mix and carries no blue literal of its own (quick 261009-qbo).
-    const allowed = new Set(['App.svelte', 'ImportBar.svelte']);
+  it('blue survives only in the focus ring token and the two spinner tokens, under src', () => {
+    // The spinner draws the focus blue through the two shared tokens, which
+    // the token file mixes from var(--focus); no component carries a blue
+    // literal any more. The Dropzone drag highlight derives from var(--focus)
+    // with color-mix and carries no blue literal of its own (quick 261009-qbo).
     const blue = /#1a73e8|rgba\(26,\s*115,\s*232/i;
 
     const offenders = srcSources()
-      // app.css holds the --focus declaration, checked separately below.
+      // The token stylesheet holds the --focus declaration, checked separately
+      // below; `src/app.css` holds no declaration at all any more, and its own
+      // blue check is the last assertion of this test.
       .filter(({ name }) => name !== path.join('src', 'app.css'))
-      .filter(({ name, source }) => !allowed.has(path.basename(name)) && blue.test(source))
+      .filter(({ name }) => name !== path.join('src', 'styles', 'tokens.css'))
+      .filter(({ source }) => blue.test(source))
       .map(({ name }) => name);
     expect(offenders, 'components must use var(--focus) for the ring').toEqual([]);
 
-    // App.svelte keeps its own spinner and nothing else blue is required of it.
-    expect(readFileSync(path.join(SRC, 'App.svelte'), 'utf8')).toMatch(blue);
-
-    // In app.css the literal appears once, as the --focus token's value.
-    const css = stripComments(readFileSync(APP_CSS, 'utf8'));
-    const outsideToken = css.replace(/--focus:\s*#1a73e8;/i, '');
+    // The blue literal appears exactly once in the token source, as the
+    // --focus token's value, and nowhere else in it. The reader asks for the
+    // DECLARATION rather than for a file, so the check survives the token's
+    // move between the stylesheets.
+    const tokens = stripComments(readTokenSource());
+    const outsideToken = tokens.replace(/--focus:\s*#1a73e8;/i, '');
     expect(outsideToken).not.toMatch(blue);
-    expect(css).toMatch(/--focus:\s*#1a73e8;/i);
+    expect(tokens).toMatch(/--focus:\s*#1a73e8;/i);
+
+    // Both copies of the spinner read the shared tokens.
+    for (const file of [path.join('App.svelte'), path.join('lib', 'shell', 'ImportBar.svelte')]) {
+      const source = stripComments(readFileSync(path.join(SRC, file), 'utf8'));
+      expect(source, `${file} reads the shared spinner track`).toContain('var(--spinner-track)');
+      expect(source, `${file} reads the shared still arc`).toContain('var(--spinner-arc-still)');
+    }
+
+    // And the tokens are the focus blue at the two alphas the literals carried.
+    expect(tokens).toMatch(
+      /--spinner-track:\s*color-mix\(in srgb,\s*var\(--focus\)\s*25%,\s*transparent\)/,
+    );
+    expect(tokens).toMatch(
+      /--spinner-arc-still:\s*color-mix\(in srgb,\s*var\(--focus\)\s*60%,\s*transparent\)/,
+    );
+
+    // And app.css carries no blue literal of its own.
+    const css = stripComments(readFileSync(APP_CSS, 'utf8')).replace(/--focus:\s*#1a73e8;/i, '');
+    expect(css).not.toMatch(blue);
   });
 
   it('declares no overflow on .pane-detail, in app.css or in DetailPane', () => {

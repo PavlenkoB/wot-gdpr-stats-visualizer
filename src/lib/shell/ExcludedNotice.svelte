@@ -82,25 +82,27 @@
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 4px 8px;
+    gap: var(--space-4) var(--space-8);
     margin: 0;
-    padding: 4px 0;
+    padding: var(--space-4) 0;
     min-width: 0;
     overflow-wrap: anywhere;
   }
 
   /* The Phase 3 skip tag's chrome, value for value: a pill that carries both
-     its border and its words, so the information never depends on the colour. */
+     its border and its words, so the information never depends on the colour.
+     The amber is the shared warn palette (--warn-line, --warn-bg,
+     --warn-ink), not a literal in this file. */
   .pill {
     display: inline-block;
-    padding: 0 8px;
-    border: 1px solid #f9ab00;
+    padding: 0 var(--space-8);
+    border: 1px solid var(--warn-line);
     border-radius: 999px;
-    background: #fef7e0;
-    color: #8a5a00;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    background: var(--warn-bg);
+    color: var(--warn-ink);
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     max-width: 100%;
     min-width: 0;
     overflow-wrap: anywhere;
@@ -111,9 +113,9 @@
   .explanation {
     min-width: 0;
     overflow-wrap: anywhere;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-tight);
     color: var(--muted);
   }
 </style>

@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { componentPath } from '../../helpers/components.ts';
+import { ruleDeclarations, styleText } from '../../helpers/css.ts';
+import { readTokenSource } from '../../helpers/styles.ts';
 import {
   accountCountOf,
   accountRows,
@@ -705,12 +707,46 @@ describe('IdentityHeader.svelte — the multi variant wiring', () => {
     expect(headerSource()).not.toContain('aria-live');
   });
 
-  test('the multi title collapses at phone width through the app.css rule', () => {
-    // The one rule belongs to the single 480px block in app.css, namespaced
-    // under the header's test id so it outranks the component's scoped rule.
+  test('the identity titles follow the shared title role, not a phone override', () => {
+    // The four heading elements carry the shared Title role. The role reads
+    // `--fs-title`, which is the display size by default and the stat size
+    // from 900px up.
+    const source = headerSource();
+    for (const className of ['nickname', 'skeleton-title', 'fallback-title', 'multi-title']) {
+      expect(source, `${className} takes the title role`).toContain(`class="t-title ${className}"`);
+    }
+
+    const tokens = readTokenSource();
+    expect(tokens, 'the title size is the display size by default').toMatch(
+      /--fs-title:\s*var\(--fs-display\)/,
+    );
+    expect(tokens, 'the title size is the stat size from 900px up').toMatch(
+      /@media\s*\(min-width:\s*900px\)\s*\{[\s\S]*?--fs-title:\s*var\(--fs-stat\)/,
+    );
+
+    // The phone block no longer names the titles. The old rule had a
+    // specificity of (0,3,0) and would have beaten the role of (0,1,0), so it
+    // was DELETED rather than restated: an override is a second answer to
+    // "how big is a title", and the role is the one answer.
     const appCss = readFileSync(new URL('../../../src/app.css', import.meta.url), 'utf8');
-    expect(appCss).toContain(".shell [data-testid='identity-header'] .multi-title");
+    expect(appCss).not.toContain('.multi-title');
     const phoneBlocks = appCss.match(/max-width\s*:\s*480px/g) ?? [];
     expect(phoneBlocks, 'exactly one phone block under src').toHaveLength(1);
+  });
+
+  test('the row name takes the heading role, and an ID-only row is still demoted', () => {
+    // The named row's title is a row title, not a pane title: the Heading
+    // role (18 / 600 / 1.3), never the Title role.
+    const source = headerSource();
+    expect(source).toContain('class="t-heading multi-name"');
+
+    // The demotion is a TYPE change and it has to survive the role: the
+    // ID-only rule still declares the 14px token, the semibold weight and the
+    // muted colour, and it outranks the role on specificity.
+    const body = ruleDeclarations(styleText(source), '.multi-name.id-only');
+    expect(body, 'the ID-only rule exists').not.toBe('');
+    expect(body).toContain('font-size: var(--fs-body);');
+    expect(body).toContain('font-weight: var(--fw-semibold);');
+    expect(body).toContain('color: var(--muted);');
   });
 });

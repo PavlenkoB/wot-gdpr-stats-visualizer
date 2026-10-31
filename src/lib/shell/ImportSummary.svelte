@@ -74,42 +74,42 @@
 
   /* Body role: this line is the section's primary content. */
   .summary {
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-body);
     color: var(--text);
   }
 
-  /* Label role, muted: metadata, not the thing the card is about. 400 weight,
-     because inside the provenance line it reads as part of one sentence. */
-  .caption {
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
-    color: var(--muted);
-  }
+  /* The `caption` variant has no local rule any more: the shared `.caption`
+     in src/styles/utilities.css states exactly the same muted 14px/400/1.4
+     note, and the `p` element rule above already supplies the margin, the
+     minimum width and the wrap. The dynamic class value therefore resolves
+     to the shared block with an unchanged computed style. */
 
+  /* Label role: metadata, not the thing the card is about. 400 weight,
+     because inside the provenance line it reads as part of one sentence. */
   .banner {
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--text);
   }
 
   /*
     A pill that rides along inline with the counts. It carries its border
-    AND its words, so the information does not depend on the colour.
+    AND its words, so the information does not depend on the colour. The
+    amber is the shared warn palette (--warn-line, --warn-bg, --warn-ink).
   */
   .skip-tag {
     display: inline-block;
-    margin-left: 4px;
-    padding: 0 8px;
-    border: 1px solid #f9ab00;
+    margin-left: var(--space-4);
+    padding: 0 var(--space-8);
+    border: 1px solid var(--warn-line);
     border-radius: 999px;
-    background: #fef7e0;
-    color: #8a5a00;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    background: var(--warn-bg);
+    color: var(--warn-ink);
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
   }
 </style>

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import { HEAT_STOPS, heatColor } from '../../../src/lib/features/overview/overview-heat.ts';
 import { contrastRatio, relativeLuminance } from '../../helpers/contrast.ts';
+import { readTokenSource } from '../../helpers/styles.ts';
 
 // =============================================================================
 // The Overview VALUE SCALE (13-04 Task 1, D-13, D-22)
@@ -15,8 +16,8 @@ import { contrastRatio, relativeLuminance } from '../../helpers/contrast.ts';
 // drift in one step breaks the guarantee the scale exists to carry without
 // any other check noticing.
 //
-//   1. STYLESHEET -> MODULE: the three `--heat-*` declarations in
-//      `src/app.css` are the three stops in `HEAT_STOPS`, channel for
+//   1. STYLESHEET -> MODULE: the three `--heat-*` declarations in the token
+//      stylesheet are the three stops in `HEAT_STOPS`, channel for
 //      channel. The stylesheet is the single place a colour is written down;
 //      the module holds numbers so the ramp can be sampled per bar.
 //   2. SCALE -> FLOOR: every colour along the eased ramp clears 3:1 against
@@ -32,16 +33,23 @@ import { contrastRatio, relativeLuminance } from '../../helpers/contrast.ts';
 // =============================================================================
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const APP_CSS = readFileSync(path.join(REPO_ROOT, 'src/app.css'), 'utf8');
 const HEAT_MODULE = readFileSync(
   path.join(REPO_ROOT, 'src/lib/features/overview/overview-heat.ts'),
   'utf8',
 );
 
-/** The `--name: #hex;` declaration in src/app.css, lower-cased. */
-function appCssToken(name: string): string {
-  const match = APP_CSS.match(new RegExp(`${name}\\s*:\\s*(#[0-9a-f]{3,6})\\s*;`, 'i'));
-  if (match === null) throw new Error(`src/app.css declares no ${name} token`);
+/**
+ * The token source: the stylesheet a custom property is declared in.
+ *
+ * The reader asks for a DECLARATION rather than for a file, so the token's
+ * location is not part of the contract this file asserts.
+ */
+const TOKEN_SOURCE = readTokenSource();
+
+/** The `--name: #hex;` declaration in the token source, lower-cased. */
+function tokenValue(name: string): string {
+  const match = TOKEN_SOURCE.match(new RegExp(`${name}\\s*:\\s*(#[0-9a-f]{3,6})\\s*;`, 'i'));
+  if (match === null) throw new Error(`the token source declares no ${name} token`);
   return (match[1] as string).toLowerCase();
 }
 
@@ -70,32 +78,32 @@ describe('the Overview value scale (13-UI-SPEC Color, D-13, D-22)', () => {
     expect(HEAT_STOPS).toHaveLength(3);
     const tokens = ['--heat-low', '--heat-mid', '--heat-peak'];
     tokens.forEach((token, index) => {
-      expect([...channels(appCssToken(token))], `${token} against HEAT_STOPS[${index}]`).toEqual([
+      expect([...channels(tokenValue(token))], `${token} against HEAT_STOPS[${index}]`).toEqual([
         ...(HEAT_STOPS[index] as readonly [number, number, number]),
       ]);
     });
   });
 
   it('the endpoints are the endpoints of the scale', () => {
-    expect(heatColor(0)).toBe(appCssToken('--heat-low'));
-    expect(heatColor(1)).toBe(appCssToken('--heat-peak'));
+    expect(heatColor(0)).toBe(tokenValue('--heat-low'));
+    expect(heatColor(1)).toBe(tokenValue('--heat-peak'));
   });
 
   it('the middle stop is returned where the eased position is exactly the middle', () => {
     // u = t^1.5 * 2 is 1 at t = 0.5^(2/3): the low-to-mid segment has just
     // ended, so the colour is the middle stop itself.
     const mid = Math.pow(0.5, 2 / 3);
-    expect(heatColor(mid)).toBe(appCssToken('--heat-mid'));
+    expect(heatColor(mid)).toBe(tokenValue('--heat-mid'));
   });
 
   it('clamps out-of-range and non-finite values to the ends of the scale', () => {
-    expect(heatColor(2)).toBe(appCssToken('--heat-peak'));
-    expect(heatColor(-1)).toBe(appCssToken('--heat-low'));
+    expect(heatColor(2)).toBe(tokenValue('--heat-peak'));
+    expect(heatColor(-1)).toBe(tokenValue('--heat-low'));
     // A NaN or an infinity is a bar with no magnitude, not a bar with a very
     // large one: it is painted as the bottom of the scale, never as the peak.
-    expect(heatColor(Number.NaN)).toBe(appCssToken('--heat-low'));
-    expect(heatColor(Number.POSITIVE_INFINITY)).toBe(appCssToken('--heat-low'));
-    expect(heatColor(Number.NEGATIVE_INFINITY)).toBe(appCssToken('--heat-low'));
+    expect(heatColor(Number.NaN)).toBe(tokenValue('--heat-low'));
+    expect(heatColor(Number.POSITIVE_INFINITY)).toBe(tokenValue('--heat-low'));
+    expect(heatColor(Number.NEGATIVE_INFINITY)).toBe(tokenValue('--heat-low'));
   });
 
   it('every colour along the ramp clears 3:1 against the white tile', () => {
@@ -176,7 +184,7 @@ describe('the Overview value scale (13-UI-SPEC Color, D-13, D-22)', () => {
   it('the module holds no colour literal, so the project colour guard needs no entry', () => {
     // The guard scans for a hex of three, four, six or eight digits and for
     // the openings of the colour functions. A six-digit colour written here
-    // would be a second copy of a value `src/app.css` owns.
+    // would be a second copy of a value the token stylesheet owns.
     const hexLine = /#[0-9a-fA-F]{3,8}\b/.exec(HEAT_MODULE);
     expect(hexLine, 'overview-heat.ts holds no hex colour').toBeNull();
     expect(HEAT_MODULE).not.toMatch(/\brgba?\(/);

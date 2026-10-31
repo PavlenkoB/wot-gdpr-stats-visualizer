@@ -63,23 +63,57 @@ function killProcessGroupLikePlaywright(child: ChildProcess): void {
   }
 }
 
-/** Best-effort cleanup of anything still bound to the preview port, in case
- * this test itself reproduces the orphaning bug it's designed to catch. */
-function forceFreePort(port: number): void {
-  try {
-    const pids = execFileSync('lsof', ['-ti', `:${port}`], { encoding: 'utf8' })
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean);
-    for (const pid of pids) {
-      try {
-        process.kill(Number(pid), 'SIGKILL');
-      } catch {
-        // Already dead — fine.
-      }
+/** Every process below `rootPid` in the process tree, at the moment of the
+ * call.
+ *
+ * The tree has to be captured BEFORE the group kill: the shell and the pnpm
+ * process die with it, and the server they started is then re-parented to
+ * launchd, so the link back to the shell that started it is gone. */
+function descendantPids(rootPid: number): number[] {
+  const rows = execFileSync('ps', ['-eo', 'pid=,ppid='], { encoding: 'utf8' });
+  const children = new Map<number, number[]>();
+  for (const line of rows.split('\n')) {
+    const match = /^\s*(\d+)\s+(\d+)\s*$/.exec(line);
+    if (match === null) continue;
+    const pid = Number(match[1]);
+    const parent = Number(match[2]);
+    const siblings = children.get(parent);
+    if (siblings === undefined) children.set(parent, [pid]);
+    else siblings.push(pid);
+  }
+  const found: number[] = [];
+  const queue = [rootPid];
+  while (queue.length > 0) {
+    const pid = queue.shift() as number;
+    for (const child of children.get(pid) ?? []) {
+      found.push(child);
+      queue.push(child);
     }
-  } catch {
-    // lsof exits non-zero when nothing is listening — nothing to clean up.
+  }
+  return found;
+}
+
+/** The cleanup for the orphan this test is designed to catch: the server the
+ * spawned command started, and only that server.
+ *
+ * It used to be a `lsof -ti :PORT` scan followed by a kill of every pid it
+ * listed. That matched a socket on the port in EITHER direction, so it also
+ * listed THIS process - the test has just fetched the preview server, and
+ * that client socket is still in the file-descriptor table when the port is
+ * freed - and the kill took down the test runner: the vitest worker running
+ * this file died with SIGKILL and the run ended with "Worker exited
+ * unexpectedly with signal SIGKILL" instead of a test result. It also killed
+ * whatever else happened to hold the port, which is not this test's to kill.
+ *
+ * The descendants the test spawned are known exactly, so the cleanup names
+ * them and nothing else. */
+function killSpawnedTree(descendants: readonly number[]): void {
+  for (const pid of descendants) {
+    try {
+      process.kill(pid, 'SIGKILL');
+    } catch {
+      // Already dead — fine.
+    }
   }
 }
 
@@ -98,11 +132,13 @@ async function waitForReachable(url: string, timeoutMs: number): Promise<void> {
 
 describe('playwright webServer teardown (process-group orphan regression)', () => {
   let child: ChildProcess | undefined;
+  let spawned: number[] = [];
 
   afterEach(() => {
     if (child) killProcessGroupLikePlaywright(child);
     child = undefined;
-    forceFreePort(4173);
+    killSpawnedTree(spawned);
+    spawned = [];
   });
 
   test('webServer.command process group fully closes after a Playwright-style SIGKILL (no orphaned grandchild holding the pipe/port open)', async () => {
@@ -116,6 +152,11 @@ describe('playwright webServer teardown (process-group orphan regression)', () =
     expect(child.pid, 'spawn must produce a pid').toBeDefined();
 
     await waitForReachable(config.use?.baseURL ?? 'http://localhost:4173/', 30_000);
+
+    // The tree this test spawned, captured while it is still alive: the
+    // server it started is what the group kill may leave behind, and it is
+    // the only thing this test is allowed to clean up.
+    spawned = descendantPids(child.pid as number);
 
     const closed = new Promise<void>((resolve) => {
       child?.once('close', () => resolve());

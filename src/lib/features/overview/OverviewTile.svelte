@@ -145,12 +145,14 @@
     tabindex={tabbable ? 0 : -1}
     onclick={onToggle}
   >
-    <span class="k"><span class="dot" aria-hidden="true"></span>{label}</span>
+    <span class="k t-label"><span class="dot" aria-hidden="true"></span>{label}</span>
     <span class="figure">
-      <span class="v" class:numeral>{face.value}</span>
-      {#if face.unit !== null}<span class="unit">{face.unit}</span>{/if}
+      <span class="v" class:numeral class:t-stat={!numeral} class:t-hero={numeral}
+        >{face.value}</span
+      >
+      {#if face.unit !== null}<span class="unit t-body">{face.unit}</span>{/if}
     </span>
-    <span class="rule">{face.rule}</span>
+    <span class="rule t-caption">{face.rule}</span>
     {#if face.chart !== null}
       {#if face.chart.kind === 'rows'}
         <OverviewRows rows={face.chart.rows} />
@@ -180,11 +182,16 @@
   </button>
   {#if open}
     <div class="panel" id={panelId} data-testid="ov-tile-detail-{tile.id}">
-      <p class="heading">{OVERVIEW_HOW_HEADING}</p>
-      <p class="how">{copy.how}</p>
-      <p class="heading">{OVERVIEW_READS_HEADING}</p>
-      <p class="reads">{copy.reads} · {copy.file}</p>
-      <button type="button" class="link" data-testid="ov-tile-open-{tile.id}" onclick={onOpen}>
+      <p class="heading t-label">{OVERVIEW_HOW_HEADING}</p>
+      <p class="how t-body">{copy.how}</p>
+      <p class="heading t-label">{OVERVIEW_READS_HEADING}</p>
+      <p class="reads t-caption">{copy.reads} · {copy.file}</p>
+      <button
+        type="button"
+        class="link t-body"
+        data-testid="ov-tile-open-{tile.id}"
+        onclick={onOpen}
+      >
         {formatOpenSectionLink(paneTitle)}
       </button>
     </div>
@@ -199,13 +206,13 @@
     border: 1px solid var(--border);
     border-radius: 8px;
     background: var(--card);
-    box-shadow: 0 1px 2px rgba(17, 17, 17, 0.05);
+    box-shadow: var(--elev-rest);
     transition: box-shadow 0.15s ease;
   }
 
   @media (hover: hover) {
     .tile:hover {
-      box-shadow: 0 4px 12px rgba(17, 17, 17, 0.08);
+      box-shadow: var(--elev-hover);
     }
   }
 
@@ -216,7 +223,7 @@
     border-color: var(--ink);
     outline: 1px solid var(--ink);
     outline-offset: -2px;
-    box-shadow: 0 8px 24px rgba(17, 17, 17, 0.1);
+    box-shadow: var(--elev-open);
   }
 
   /* While the face holds the keyboard focus, the focus ring replaces the ink
@@ -231,7 +238,7 @@
     width: 100%;
     box-sizing: border-box;
     margin: 0;
-    padding: 16px;
+    padding: var(--space-16);
     border: 0;
     border-radius: 8px;
     background: none;
@@ -256,12 +263,7 @@
   }
 
   .k {
-    padding-right: 32px;
-    font-size: 12px;
-    font-weight: 600;
-    line-height: 1.4;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+    padding-right: var(--layout-section);
     color: var(--muted);
     overflow-wrap: anywhere;
   }
@@ -277,7 +279,7 @@
     display: inline-block;
     width: 7px;
     height: 7px;
-    margin-right: 4px;
+    margin-right: var(--space-4);
     border-radius: 50%;
     vertical-align: 1px;
   }
@@ -302,41 +304,28 @@
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 4px;
+    gap: var(--space-4);
     min-width: 0;
-    margin: 8px 0 4px;
+    margin: var(--space-8) 0 var(--space-4);
   }
 
   /* Display size. A long text value keeps this size and wraps; nothing is
-     shrunk and nothing is cut. */
+     shrunk and nothing is cut. The size, the weight and the line height are the
+     Stat role's, and the large numeral takes the Hero role instead - both are
+     applied in the markup, so only one of them is ever on the element. */
   .v {
     display: block;
     min-width: 0;
-    font-size: 32px;
-    font-weight: 600;
-    line-height: 1.2;
     color: var(--ink);
     overflow-wrap: anywhere;
   }
 
-  /* The large numeral: a hero whose value is nine characters or fewer. */
-  .v.numeral {
-    font-size: 56px;
-    line-height: 1.1;
-  }
-
   .unit {
     display: block;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
     color: var(--muted);
   }
 
   .rule {
-    font-size: 12px;
-    font-weight: 400;
-    line-height: 1.4;
     color: var(--muted);
     overflow-wrap: anywhere;
   }
@@ -366,6 +355,22 @@
     border-radius: 8px;
     background: none;
     cursor: pointer;
+
+    & svg {
+      display: block;
+    }
+
+    & path {
+      fill: none;
+      stroke: var(--faint);
+      stroke-width: 1.5;
+      stroke-linejoin: round;
+    }
+
+    &.on path {
+      fill: var(--ov-star-fill);
+      stroke: var(--ov-star-stroke);
+    }
   }
 
   @media (hover: hover) {
@@ -374,56 +379,29 @@
     }
   }
 
-  .star svg {
-    display: block;
-  }
-
-  .star path {
-    fill: none;
-    stroke: var(--faint);
-    stroke-width: 1.5;
-    stroke-linejoin: round;
-  }
-
-  .star.on path {
-    fill: var(--ov-star-fill);
-    stroke: var(--ov-star-stroke);
-  }
-
   .panel {
-    margin: 0 16px 16px;
-    padding-top: 12px;
+    margin: 0 var(--space-16) var(--space-16);
+    padding-top: var(--space-12);
     border-top: 1px solid var(--border);
   }
 
   .heading {
-    margin: 8px 0 0;
-    font-size: 12px;
-    font-weight: 600;
-    line-height: 1.4;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+    margin: var(--space-8) 0 0;
     color: var(--muted);
-  }
 
-  .heading:first-child {
-    margin-top: 0;
+    &:first-child {
+      margin-top: 0;
+    }
   }
 
   .how {
-    margin: 4px 0 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
+    margin: var(--space-4) 0 0;
     color: var(--ink);
     overflow-wrap: anywhere;
   }
 
   .reads {
-    margin: 4px 0 0;
-    font-size: 12px;
-    font-weight: 400;
-    line-height: 1.4;
+    margin: var(--space-4) 0 0;
     color: var(--muted);
     overflow-wrap: anywhere;
   }
@@ -431,23 +409,20 @@
   .link {
     display: inline-block;
     min-height: 44px;
-    margin: 4px 0 0;
+    margin: var(--space-4) 0 0;
     padding: 0;
     border: 0;
     background: none;
     font-family: inherit;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
     color: var(--ink);
     text-align: left;
     text-decoration: underline;
     cursor: pointer;
-  }
 
-  .link:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
+    &:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
   }
 
   /* Columns follow the Overview root's width, not the viewport. The root is the
@@ -513,15 +488,15 @@
     .star {
       outline: 1px solid CanvasText;
       outline-offset: -1px;
-    }
 
-    .star path {
-      stroke: CanvasText;
-    }
+      & path {
+        stroke: CanvasText;
+      }
 
-    .star.on path {
-      fill: Highlight;
-      stroke: CanvasText;
+      &.on path {
+        fill: Highlight;
+        stroke: CanvasText;
+      }
     }
   }
 

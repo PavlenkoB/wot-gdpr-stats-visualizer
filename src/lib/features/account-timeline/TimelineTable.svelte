@@ -146,7 +146,7 @@
 -->
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
-  class="scroller"
+  class="scroller table-scroll"
   bind:this={scrollerEl}
   data-testid="timeline-table"
   role="region"
@@ -243,21 +243,15 @@
 <style>
   /* The scroller: the containing block for the sticky header and first column,
      and the box that clips the visually hidden tag phrase so a 40-character
-     nickname cannot widen the page. */
-  .scroller {
+     nickname cannot widen the page. The SHARED `.scroller` supplies the region
+     (the overflow, the min-width, the isolation, the focus ring) and this hook
+     supplies the box the table owns. */
+  .table-scroll {
     position: relative;
-    isolation: isolate;
-    overflow: auto;
     max-height: 480px;
-    min-width: 0;
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: var(--page);
-  }
-
-  .scroller:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
   }
 
   table {
@@ -265,20 +259,8 @@
     border-collapse: separate;
     border-spacing: 0;
     width: 100%;
-    font-size: 14px;
-    line-height: 1.4;
-  }
-
-  .visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
+    font-size: var(--fs-body);
+    line-height: var(--lh-tight);
   }
 
   th {
@@ -286,22 +268,22 @@
     top: 0;
     z-index: 2;
     height: 40px;
-    padding: 0 12px;
+    padding: 0 var(--space-12);
     background: var(--list);
     color: var(--muted);
-    font-size: 14px;
-    font-weight: 600;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
     text-align: left;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     border-bottom: 1px solid var(--border);
-  }
 
-  th.sticky-first {
-    left: 0;
-    z-index: 3;
-    border-right: 1px solid var(--border);
+    &.sticky-first {
+      left: 0;
+      z-index: 3;
+      border-right: 1px solid var(--border);
+    }
   }
 
   /* Rows are a FIXED 40px, the constant `windowRange` divides by. A cell that
@@ -313,39 +295,39 @@
 
   td {
     height: 40px;
-    padding: 0 12px;
+    padding: 0 var(--space-12);
     background: var(--page);
     color: var(--text);
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-tight);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     vertical-align: middle;
     font-variant-numeric: tabular-nums;
     border-bottom: 1px solid var(--border);
-  }
 
-  td.sticky-first {
-    position: sticky;
-    left: 0;
-    z-index: 1;
-    border-right: 1px solid var(--border);
+    &.sticky-first {
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      border-right: 1px solid var(--border);
+    }
   }
 
   /* The overflow count of a several-tags cell: muted plain text, never a chip. */
   .more {
-    margin-right: 4px;
+    margin-right: var(--space-4);
     color: var(--muted);
-    font-size: 14px;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    line-height: var(--lh-tight);
   }
 
   /* The chip's 4px gap to the text after it; `:global` because the chip is
      another component's markup. */
   .sticky-first :global([data-testid='account-tag']) {
-    margin-right: 4px;
+    margin-right: var(--space-4);
   }
 
   /* The not-reported words and the secondary parts: muted, and the meaning of
@@ -359,13 +341,13 @@
      row. */
   .kind-badge {
     display: inline-block;
-    padding: 0 8px;
+    padding: 0 var(--space-8);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: var(--page);
     color: var(--text);
-    font-size: 14px;
-    font-weight: 600;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
     line-height: 18px;
     white-space: nowrap;
     vertical-align: middle;

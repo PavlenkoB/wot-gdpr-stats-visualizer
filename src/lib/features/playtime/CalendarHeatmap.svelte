@@ -62,11 +62,11 @@
    *
    * ## Why the fill is a class and never an attribute
    *
-   * `src/app.css` declares `--ramp-0`..`--ramp-5` once and
-   * `tests/unit/charts/contrast.test.ts` fails on any component restating a step. The
-   * scale is rank-based (D-04), so the six tokens are the whole vocabulary:
-   * interpolating a level would be a second declaration and a shade no test
-   * could pin to the Color table.
+   * `src/styles/tokens.css` declares `--heat-empty` and `--heat-1` to
+   * `--heat-5` once and `tests/unit/charts/contrast.test.ts` fails on any
+   * component restating a step. The scale is rank-based (D-04), so the six
+   * tokens are the whole vocabulary: interpolating a level would be a second
+   * declaration and a shade no test could pin to the Color table.
    */
   interface Props {
     /** The blocks, the shared scale and the legend, from `buildCalendarModel`. */
@@ -494,7 +494,7 @@
           </p>
         </div>
 
-        <div class="scroller" data-testid="calendar-scroller-{block.year}">
+        <div class="chart-scroll" data-testid="calendar-scroller-{block.year}">
           <!--
             The six delegated event attributes, SIX on each year svg rather
             than on each of up to 366 cells. Svelte 5 attaches its listeners at
@@ -647,9 +647,10 @@
               ring.
 
               Two rects, because the accent alone is unreadable on the dark end
-              of the ramp: a 3px var(--focus) stroke outside a 1px #ffffff one, so
-              there is always a light edge between the ring and the cell under
-              it (UI-SPEC's Color table, same construction as the hour grid's).
+              of the heat scale: a 3px var(--focus) stroke outside a 1px
+              var(--white) one, so there is always a light edge between the
+              ring and the cell under it (UI-SPEC's Color table, same
+              construction as the hour grid's).
             -->
             {#if keyboardFocus && focusDay !== null && cellsByDay.get(focusDay) !== undefined}
               {@const focusCell = cellsByDay.get(focusDay)!}
@@ -681,7 +682,7 @@
     across all years together (D-04), so a per-year legend would imply a
     per-year scale and a dark day in 2012 would not mean the same as one in
     2024. `ChartLegend` is the same component the hour grid uses, and it is
-    that component that reads the six `--ramp-N` declarations.
+    that component that reads the six heat swatches.
   -->
   <ChartLegend
     levels={model.legend.levels}
@@ -699,21 +700,8 @@
   .calendar {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: var(--space-16);
     min-width: 0;
-  }
-
-  /* Caption role for the keyboard hint and for the collapsed empty-year runs:
-     the whole point of a run is that it is one readable sentence, and it is
-     read by exactly the reader who is not going to find a grid for it. */
-  .caption {
-    margin: 0;
-    min-width: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
-    color: var(--muted);
-    overflow-wrap: anywhere;
   }
 
   .year {
@@ -733,24 +721,24 @@
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 4px 8px;
+    gap: var(--space-4) var(--space-8);
     min-height: 32px;
-    padding: 4px 0;
+    padding: var(--space-4) 0;
     min-width: 0;
     background: var(--page);
     border-bottom: 1px solid var(--border);
-  }
 
-  /* The year itself is the Label role, var(--ink) — the same role the chart
-     titles use, so a year reads as a level of the same kind rather than
-     introducing a sixth size. `h1` -> `h2` section -> `h3` Playtime -> `h4`
-     chart title -> `h5` year: nothing skips a level. */
-  .year-head h5 {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
-    color: var(--ink);
+    /* The year itself is the Label role, var(--ink) — the same role the chart
+       titles use, so a year reads as a level of the same kind rather than
+       introducing a sixth size. `h1` -> `h2` section -> `h3` Playtime -> `h4`
+       chart title -> `h5` year: nothing skips a level. */
+    & h5 {
+      margin: 0;
+      font-size: var(--fs-body);
+      font-weight: var(--fw-semibold);
+      line-height: var(--lh-tight);
+      color: var(--ink);
+    }
   }
 
   /*
@@ -760,11 +748,11 @@
     starts a second scroll axis on a chart that should have one. The 4px of
     vertical padding is the room that overhang needs.
   */
-  .scroller {
+  .chart-scroll {
     overflow-x: auto;
     overflow-y: hidden;
     max-width: 100%;
-    padding: 4px 0;
+    padding: var(--space-4) 0;
     min-width: 0;
   }
 
@@ -803,18 +791,19 @@
 
   /*
     The 1px white stroke OUTSIDE the 3px accent, so there is always a light
-    edge between the ring and the cell under it. The accent on level 5's fill
-    alone is 2.1:1 — a ring a reader cannot see on the busiest days of the
-    busiest year (UI-SPEC's Color table). The hexes themselves are in
-    `app.css` and in the comment above, and are named here only as levels so
-    the one-declaration guard does not read this as a second declaration.
+    edge between the ring and the cell under it. The accent is at its weakest
+    against the darkest fill of the heat scale, so the light edge is what keeps
+    the ring readable on the busiest days of the busiest year (UI-SPEC's Color
+    table). The colour is the `--white` token, and the level is named here
+    only as a level so the one-declaration guard does not read this as a
+    second declaration.
 
     Shared by both rings for the same reason as the rule above, and after it:
     equal specificity, so source order makes the inner stroke win.
   */
   .focus-ring-inner,
   .hover-ring-inner {
-    stroke: #ffffff;
+    stroke: var(--white);
     stroke-width: 1;
   }
 
@@ -822,9 +811,9 @@
      element so the fifteen labels are one rule. `fill`, not `color` — SVG
      text takes its paint from `fill`. */
   .axis {
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-tight);
     fill: var(--muted);
   }
 
@@ -836,27 +825,27 @@
     is the failure RESEARCH Pattern 6 probed.
   */
   .cell {
-    stroke: #ffffff;
+    stroke: var(--white);
     stroke-width: 1;
     outline: none;
   }
 
   .level-0 {
-    fill: var(--ramp-0);
+    fill: var(--heat-empty);
   }
   .level-1 {
-    fill: var(--ramp-1);
+    fill: var(--heat-1);
   }
   .level-2 {
-    fill: var(--ramp-2);
+    fill: var(--heat-2);
   }
   .level-3 {
-    fill: var(--ramp-3);
+    fill: var(--heat-3);
   }
   .level-4 {
-    fill: var(--ramp-4);
+    fill: var(--heat-4);
   }
   .level-5 {
-    fill: var(--ramp-5);
+    fill: var(--heat-5);
   }
 </style>

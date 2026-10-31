@@ -71,7 +71,7 @@
   {:else}
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
     <div
-      class="scroller"
+      class="scroller table-scroll"
       data-testid="device-info-scroller"
       role="region"
       tabindex="0"
@@ -125,94 +125,63 @@
   section {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--space-8);
     min-width: 0;
   }
 
   h3 {
     margin: 0;
-    padding-bottom: 8px;
+    padding-bottom: var(--space-8);
     border-bottom: 1px solid var(--border);
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--ink);
     min-width: 0;
     overflow-wrap: anywhere;
   }
 
-  .body {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
-    color: var(--text);
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
+  /* The table's scroll region: the SHARED `.scroller` supplies the region (the
+     overflow, the min-width, the focus ring) and this hook supplies the box the
+     table owns (the position, the cap, the border, the surface).
 
-  .caption {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
-    color: var(--muted);
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-
-  /* A named, focusable horizontal scroll region: a wide table scrolls inside
-     its own box and the page itself never scrolls sideways. */
-  .scroller {
+     `isolation: auto` is the ONE declaration the shared rule would otherwise
+     change: this table's header is sticky and carries NO z-index, and the
+     table never isolated its own stacking. The shared region isolates, so
+     without this the table would gain a stacking context it never had - a
+     small visible change this phase does not make. */
+  .table-scroll {
     position: relative;
-    overflow: auto;
     max-height: 480px;
-    min-width: 0;
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: var(--page);
-  }
-
-  .scroller:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
+    isolation: auto;
   }
 
   table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 14px;
-    line-height: 1.4;
-  }
-
-  .visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
+    font-size: var(--fs-body);
+    line-height: var(--lh-tight);
   }
 
   th {
     position: sticky;
     top: 0;
-    padding: 8px 12px;
+    padding: var(--space-8) var(--space-12);
     background: var(--list);
     color: var(--muted);
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
     text-align: left;
     white-space: nowrap;
     border-bottom: 1px solid var(--border);
   }
 
   td {
-    padding: 8px 12px;
+    padding: var(--space-8) var(--space-12);
     color: var(--text);
-    font-weight: 400;
+    font-weight: var(--fw-regular);
     white-space: nowrap;
     border-bottom: 1px solid var(--border);
     font-variant-numeric: tabular-nums;

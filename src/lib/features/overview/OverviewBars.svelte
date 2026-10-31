@@ -100,7 +100,9 @@
 </script>
 
 <span class="chart" aria-hidden="true">
-  <span class="peak"><span class="peak-text" use:peakAt={peakPercent}>{peakLabel}</span></span>
+  <span class="t-caption peak"
+    ><span class="peak-text" use:peakAt={peakPercent}>{peakLabel}</span></span
+  >
   <svg
     class="plot"
     width="100%"
@@ -122,7 +124,11 @@
     {/each}
     <rect class="baseline" x="0" y={HEIGHT - 1} width={slots * SLOT} height="1" />
   </svg>
-  <span class="axis" class:hours={kind === 'hours'} class:spread={bars.length >= MIN_SLOTS}>
+  <span
+    class="t-caption axis"
+    class:hours={kind === 'hours'}
+    class:spread={bars.length >= MIN_SLOTS}
+  >
     {#each axis as label, at (at)}
       <span class="tick">{label}</span>
     {/each}
@@ -133,18 +139,15 @@
   .chart {
     display: block;
     min-width: 0;
-    margin-top: 8px;
+    margin-top: var(--space-8);
   }
 
   .peak {
     display: block;
     position: relative;
     height: 1.4em;
-    font-size: 12px;
-    font-weight: 400;
-    line-height: 1.4;
     color: var(--muted);
-    margin-bottom: 4px;
+    margin-bottom: var(--space-4);
   }
 
   /* Over the peak bar: left is the bar's centre, and the same share of the
@@ -171,27 +174,24 @@
 
   .axis {
     display: flex;
-    gap: 8px;
-    margin-top: 4px;
-    font-size: 12px;
-    font-weight: 400;
-    line-height: 1.4;
+    gap: var(--space-8);
+    margin-top: var(--space-4);
     color: var(--muted);
-  }
 
-  /* The year labels sit under the first and the last bar once there are
-     enough bars to span the chart. */
-  .axis.spread {
-    justify-content: space-between;
-  }
+    /* The year labels sit under the first and the last bar once there are
+       enough bars to span the chart. */
+    &.spread {
+      justify-content: space-between;
+    }
 
-  /* Hour-of-day: four equal quarters, so each label starts under its hour. */
-  .axis.hours {
-    gap: 0;
-  }
+    /* Hour-of-day: four equal quarters, so each label starts under its hour. */
+    &.hours {
+      gap: 0;
 
-  .axis.hours .tick {
-    flex: 1 1 0;
+      & .tick {
+        flex: 1 1 0;
+      }
+    }
   }
 
   @media (forced-colors: active) {

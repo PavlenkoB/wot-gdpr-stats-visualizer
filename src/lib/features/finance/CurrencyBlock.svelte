@@ -424,7 +424,7 @@
   div {
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: var(--space-24);
     min-width: 0;
   }
 
@@ -432,66 +432,46 @@
      cannot be shared, and a copy that drifts should be visible in a diff. */
   h3 {
     margin: 0;
-    padding-bottom: 8px;
+    padding-bottom: var(--space-8);
     border-bottom: 1px solid var(--border);
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--ink);
   }
 
-  .body {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
-    color: var(--text);
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-
-  .error {
-    padding: 8px 12px;
-    border: 1px solid #c5221f;
-    border-radius: 6px;
-    background: #fce8e6;
-    color: #8a1c17;
-  }
+  /* The text blocks come from the shared layer now. The local `.body`,
+     `.caption` and `.error` are deleted, not tokenised: the shared ones in
+     `src/styles/utilities.css` declare the same values (`.body` margin 0,
+     min-width 0, 14/400/1.5 in `--text`, wrap anywhere; `.caption` the same
+     at 1.4 in `--muted`; `.error` the danger border, the 6px radius and the
+     danger background), and a scoped local copy would outrank the shared one.
+     The markup keeps `class="body"`, `class="body error"` and `class="caption"`. */
 
   .chart-container {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--space-8);
     min-width: 0;
   }
 
   h4 {
     margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--ink);
     overflow-wrap: anywhere;
   }
 
-  .caption {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
-    color: var(--muted);
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-
   .hint {
-    margin-top: 4px;
+    margin-top: var(--space-4);
   }
 
   .other {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--space-8);
     min-width: 0;
   }
 
@@ -501,7 +481,7 @@
     list-style: none;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--space-8);
     min-width: 0;
   }
 
@@ -510,9 +490,9 @@
      wraps anywhere rather than pushing the card wide. */
   .code {
     margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--text);
     min-width: 0;
     overflow-wrap: anywhere;
@@ -520,19 +500,19 @@
 
   details {
     min-width: 0;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--muted);
   }
 
   summary {
     min-width: 0;
     overflow-wrap: anywhere;
-  }
 
-  summary:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
+    &:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
   }
 </style>

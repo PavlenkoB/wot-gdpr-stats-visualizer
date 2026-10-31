@@ -191,7 +191,11 @@
   /* Hidden with the clip pattern (not display: none, which would take it out of
      the tab order) until it has focus, when it becomes an ordinary link. The
      `min-height: 0` is needed because the 480px block in app.css floors every
-     anchor at 44px, which would otherwise stop the 1px box. */
+     anchor at 44px, which would otherwise stop the 1px box.
+
+     The focus state is NESTED under its own block (D-05): `&:focus` flattens
+     to the same selector, so the specificity and the source order are exactly
+     what the flat rule had. */
   .skip {
     position: absolute;
     width: 1px;
@@ -203,28 +207,28 @@
     clip: rect(0 0 0 0);
     white-space: nowrap;
     border: 0;
-  }
 
-  .skip:focus {
-    position: static;
-    width: auto;
-    height: auto;
-    min-height: 44px;
-    padding: 12px 20px 0;
-    margin: 0;
-    overflow: visible;
-    clip: auto;
-    white-space: normal;
+    &:focus {
+      position: static;
+      width: auto;
+      height: auto;
+      min-height: 44px;
+      padding: var(--space-12) var(--layout-gutter) 0;
+      margin: 0;
+      overflow: visible;
+      clip: auto;
+      white-space: normal;
+    }
   }
 
   /* Shown only while focus is inside the nav. It always takes its space, so
      showing it moves nothing. */
   .kbd-hint {
     margin: 0;
-    padding: 4px 20px 0;
+    padding: var(--space-4) var(--layout-gutter) 0;
     min-height: 1.4em;
-    font-size: 14px;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    line-height: var(--lh-tight);
     color: var(--muted);
     visibility: hidden;
   }
@@ -235,10 +239,10 @@
 
   .product {
     margin: 0;
-    padding: 8px 20px 0;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    padding: var(--space-8) var(--layout-gutter) 0;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--muted);
   }
 
@@ -256,40 +260,47 @@
   /* The row pattern from the UI-SPEC. `all: unset` drops the button chrome so
      the grid below is the whole of the row. It also drops the outline, so the
      focus ring is re-stated below with the same values as the global rule in
-     `src/app.css`. */
+     `src/app.css`.
+
+     The row's own states are NESTED under it (D-05) and the row stays a
+     TOP-LEVEL rule: the phone block of `src/app.css` overrides the row at
+     480px and below, and a row nested under another parent selector would
+     raise its specificity above the phone block's. `&:hover`,
+     `&[aria-current='true']` and `&:focus-visible` add no scope class of
+     their own, so each keeps the specificity the flat rule had. */
   .row {
     all: unset;
     box-sizing: border-box;
     width: 100%;
     min-height: 56px;
-    padding: 8px 20px;
+    padding: var(--space-8) var(--layout-gutter);
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    column-gap: 16px;
+    column-gap: var(--space-16);
     align-content: center;
     cursor: pointer;
     border-bottom: 1px solid var(--border);
-  }
 
-  .row:hover {
-    background: var(--hover);
-  }
+    &:hover {
+      background: var(--hover);
+    }
 
-  .row[aria-current='true'] {
-    background: var(--sel);
-    box-shadow: inset 3px 0 0 var(--ink);
-  }
+    &[aria-current='true'] {
+      background: var(--sel);
+      box-shadow: inset 3px 0 0 var(--ink);
+    }
 
-  .row:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: -3px;
+    &:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: -3px;
+    }
   }
 
   .title,
   .headline {
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--ink);
     min-width: 0;
     overflow-wrap: anywhere;
@@ -301,9 +312,9 @@
 
   .sub {
     grid-column: 1 / -1;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-tight);
     color: var(--muted);
     min-width: 0;
     overflow-wrap: anywhere;

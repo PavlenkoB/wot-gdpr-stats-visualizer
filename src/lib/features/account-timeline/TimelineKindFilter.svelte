@@ -87,14 +87,14 @@
   .kind-filter {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--space-4);
     min-width: 0;
   }
 
   .label {
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--text);
   }
 
@@ -105,7 +105,7 @@
   .chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: var(--space-8);
     min-width: 0;
   }
 
@@ -114,49 +114,37 @@
     align-items: center;
     min-height: 44px;
     box-sizing: border-box;
-    padding: 0 16px;
+    padding: 0 var(--space-16);
     border: 1px solid var(--faint);
     border-radius: var(--radius-control);
     background: var(--page);
     color: var(--text);
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     white-space: nowrap;
     cursor: pointer;
-  }
 
-  .chip:hover {
-    background: var(--hover);
-  }
+    &:hover {
+      background: var(--hover);
+    }
 
-  /* Selected: the list's own selection language, same weight as unselected so a
-     selection never shifts a chip's width. */
-  .chip:has(input:checked) {
-    background: var(--sel);
-    color: var(--ink);
-    border-color: var(--ink);
-    box-shadow: inset 0 -3px 0 var(--ink);
-  }
+    /* Selected: the list's own selection language, same weight as unselected so a
+       selection never shifts a chip's width. */
+    &:has(input:checked) {
+      background: var(--sel);
+      color: var(--ink);
+      border-color: var(--ink);
+      box-shadow: inset 0 -3px 0 var(--ink);
 
-  .chip:has(input:checked):hover {
-    background: var(--sel);
-  }
+      &:hover {
+        background: var(--sel);
+      }
+    }
 
-  .chip:has(input:focus-visible) {
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
-  }
-
-  .visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
+    &:has(input:focus-visible) {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
   }
 </style>

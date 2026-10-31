@@ -4,6 +4,22 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { contrastRatio, relativeLuminance } from '../../helpers/contrast.ts';
 import { componentPath, listComponentFiles } from '../../helpers/components.ts';
+import {
+  scanRules,
+  stripCssComments as stripComments,
+  tokenMap,
+  type CssRule,
+} from '../../helpers/css.ts';
+import {
+  contrastRatioRgb,
+  hexToRgb,
+  luminanceRgb,
+  mixSrgb,
+  parseColorMix,
+  resolveMix,
+  type Rgb,
+} from '../../helpers/color.ts';
+import { readTokenSource } from '../../helpers/styles.ts';
 
 // =============================================================================
 // Colour contracts, and the arithmetic behind them
@@ -18,30 +34,44 @@ import { componentPath, listComponentFiles } from '../../helpers/components.ts';
 // current contract, in the last block of this file.
 //
 // These tests read from disk rather than importing a token module: the colours
-// are hand-authored hex in component stylesheets and src/app.css by design (the
-// build-time CSP forbids inline styles), so there is no module for them to live
-// in and a re-exported constant would only assert that a constant equals itself.
+// are hand-authored hex in component stylesheets and in the token stylesheet by
+// design (the build-time CSP forbids inline styles), so there is no module for
+// them to live in and a re-exported constant would only assert that a constant
+// equals itself.
 //
-// The Activity data ramp (04-UI-SPEC Color) is the first such contract, and it
-// is declared in `src/app.css` rather than in a component stylesheet for the
-// same reason: six hand-authored hex values that four components read as
-// `var(--ramp-N)` have exactly one place to be wrong in, and a ramp is a
+// The heat scale (14-UI-SPEC Color, D-11) is the first such contract, and it
+// is declared in the token stylesheet rather than in a component stylesheet for
+// the same reason: hand-authored hex values that five components read as
+// `var(--heat-N)` have exactly one place to be wrong in, and a scale is a
 // *sequence*, so a drift in one step silently breaks the monotonicity the
 // scale rule depends on. The Color table stays the contract; these tests make
 // the stylesheet and the spec agree, and make the recorded ratios true rather
-// than merely stated — the W-03 lesson, applied to a six-step ramp instead of
+// than merely stated — the W-03 lesson, applied to a five-step scale instead of
 // a single hover surface.
 // =============================================================================
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const PHASE4_UI_SPEC = readFileSync(
-  path.join(
-    REPO_ROOT,
-    '.planning/milestones/v1.0-phases/04-activity-time-dashboards/04-UI-SPEC.md',
-  ),
-  'utf8',
-);
 const APP_CSS = readFileSync(path.join(REPO_ROOT, 'src/app.css'), 'utf8');
+
+/**
+ * The token source, read through the shared helper.
+ *
+ * The readers below ask for a DECLARATION, never for a FILE: `readTokenSource()`
+ * returns the text of the stylesheet a custom property is declared in, so a
+ * reader here does not care which file that is. That is what made plan 14-02's
+ * relocation a pure move with no test edit - the reader was already asking for
+ * the declaration, and only the file the answer came from changed.
+ */
+const TOKEN_CSS = readTokenSource();
+
+/**
+ * The same source with the comments stripped.
+ *
+ * A count of a declaration must not see a token NAME quoted inside a contract
+ * comment: the heat group's comment names six swatches and the flow's names
+ * two, and a count that read the prose would be counting sentences.
+ */
+const TOKEN_CSS_STRIPPED = stripComments(TOKEN_CSS);
 
 describe('contrastRatio', () => {
   test('is the WCAG maximum for black on white', () => {
@@ -87,147 +117,17 @@ describe('contrastRatio', () => {
 });
 
 // =============================================================================
-// The Activity data ramp — six steps declared once (04-04-PLAN Task 1)
+// The other chrome the Color table records (04-UI-SPEC Color)
 // =============================================================================
 //
-// The W-03 precedent, applied to a ramp. Three directions are pinned, because
-// each one alone is satisfiable by a regression in another:
-//
-//   1. SPEC → CODE: the six `--ramp-N` declarations in src/app.css are the six
-//      values the Color table records, level for level, so the ramp cannot be
-//      amended in the stylesheet alone.
-//   2. RATIONALE → CODE: every recorded ratio is recomputed from the shipped
-//      hex, so a table that records 1.14 while the code ships something 1.20
-//      fails here rather than in a review nobody reads. (W-03 exists because
-//      exactly that shipped once.)
-//   3. CODE → FLOOR: the monotonicity, the adjacent-step separation and the
-//      4.5:1 / 7:1 text-readability floors are asserted from the arithmetic, so
-//      a future amendment of the table that keeps it internally consistent but
-//      breaks the guarantee still fails.
-//
-// The hex values are parsed out of the spec rather than repeated as literals
-// here, for the reason the nav tests give: a repeated literal asserts that a
-// literal equals itself, and the whole point is that one of the two is wrong.
+// "Other colour uses" pairs, recomputed rather than trusted. Each entry is
+// [foreground, background, recorded ratio] exactly as the table states it.
+// None of them is a data scale: they are the tooltip, the excluded-row pill,
+// the error message, the tile surface and the focus ring.
 // =============================================================================
 
-/** One row of the 04-UI-SPEC Data ramp table: the level, its hex, its recorded
- *  ratio on white, and its recorded ratio to the previous level. */
-type RampStep = {
-  level: number;
-  hex: string;
-  onWhite: number;
-  fromPrevious: number | null;
-};
-
-/**
- * The six Data ramp rows, parsed from 04-UI-SPEC.md.
- *
- * Rows are matched on the leading `| <n> |` of a table row so the parse cannot
- * silently pick up a number from another table in the same file; the level
- * sequence is asserted to be 0..5 so a re-ordered or duplicated row is a
- * failure, not a shorter ramp.
- */
-function specRamp(): RampStep[] {
-  const rows = PHASE4_UI_SPEC.split('\n').filter((line) => /^\|\s*[0-5]\s*\|/.test(line));
-  const steps = rows.map((row): RampStep => {
-    const cells = row.split('|').slice(1, -1);
-    const hex = cells[2]?.match(/#[0-9a-f]{6}/i)?.[0];
-    if (hex === undefined) throw new Error(`ramp row declares no hex colour: ${row}`);
-    const fromPrevious = cells[4]?.trim() ?? '';
-    return {
-      level: Number(cells[0]?.trim()),
-      hex: hex.toLowerCase(),
-      onWhite: Number(cells[3]?.trim()),
-      // Level 0 records an em dash: it has no previous step to be a ratio of.
-      fromPrevious: fromPrevious === '' || fromPrevious === '—' ? null : Number(fromPrevious),
-    };
-  });
-  if (steps.length !== 6)
-    throw new Error(`expected 6 ramp rows in 04-UI-SPEC, found ${steps.length}`);
-  steps.forEach((step, index) => {
-    if (step.level !== index) throw new Error(`ramp row ${index} declares level ${step.level}`);
-  });
-  return steps;
-}
-
-/** The six `--ramp-N: <hex>;` declarations in src/app.css, keyed by level. */
-function appCssRamp(): Map<number, string> {
-  const ramp = new Map<number, string>();
-  for (const match of APP_CSS.matchAll(/--ramp-([0-5])\s*:\s*(#[0-9a-f]{3,6})\s*;/gi)) {
-    ramp.set(Number(match[1]), match[2].toLowerCase());
-  }
-  return ramp;
-}
-
-describe('playtime data ramp (04-UI-SPEC Color)', () => {
-  test('the code ships the ramp the Color table declares, level for level', () => {
-    const css = appCssRamp();
-    expect([...css.keys()].sort()).toEqual([0, 1, 2, 3, 4, 5]);
-    for (const step of specRamp()) {
-      expect(css.get(step.level)).toBe(step.hex);
-    }
-  });
-
-  test('every recorded ratio to white is true of the shipped hex', () => {
-    // The table's numbers are arguments, not facts. W-03 shipped a rationale
-    // that rejected 1.041:1 and then shipped 1.069:1; recomputing the figure
-    // is what makes that class of error impossible here.
-    for (const step of specRamp()) {
-      expect(contrastRatio(step.hex, '#ffffff')).toBeCloseTo(step.onWhite, 1);
-    }
-  });
-
-  test('every recorded ratio to the previous step is true of the shipped hex', () => {
-    const steps = specRamp();
-    steps.forEach((step, index) => {
-      if (step.fromPrevious === null) return;
-      const previous = steps[index - 1];
-      expect(previous).toBeDefined();
-      // The table's column is the ratio of the two steps' contrast on white,
-      // i.e. how much further each step recedes from the page.
-      const recorded = contrastRatio(step.hex, '#ffffff') / contrastRatio(previous.hex, '#ffffff');
-      expect(recorded).toBeCloseTo(step.fromPrevious, 1);
-    });
-  });
-
-  test('lightness is strictly monotonic, so more play is always darker', () => {
-    // The Scale rule (D-04) is rank-based, so the only channel carrying "more"
-    // is darkness. An equal-luminance pair would make two ranks identical.
-    const luminances =
-      appCssRamp().get(0) === undefined
-        ? []
-        : [0, 1, 2, 3, 4, 5].map((level) => relativeLuminance(appCssRamp().get(level) as string));
-    expect(luminances).toHaveLength(6);
-    for (let i = 1; i < luminances.length; i += 1) {
-      expect(luminances[i]).toBeLessThan(luminances[i - 1]);
-    }
-  });
-
-  test('adjacent steps are separated by at least 1.25:1 against each other', () => {
-    // Two neighbouring shades have to be tellable apart, not only
-    // distinguishable from the page. This is the floor the Color table's
-    // "levels 1-3 are below 3:1 by design" note is argued from: a sequential
-    // ramp may sit close to white at the low end, but two adjacent cells must
-    // still differ by a visible amount.
-    for (let level = 1; level <= 5; level += 1) {
-      const lower = appCssRamp().get(level - 1) as string;
-      const upper = appCssRamp().get(level) as string;
-      expect(contrastRatio(lower, upper)).toBeGreaterThanOrEqual(1.25);
-    }
-  });
-
-  test('the two darkest levels clear the text-readability floors on white', () => {
-    // Levels 0-3 are chart fills that carry their value in a tooltip and an
-    // aria-label, so a low ratio is the documented trade. Levels 4 and 5 are
-    // the shades reused for the duration bar fill and the darkest cells, which
-    // is where a bar's edge stops being visible against the card.
-    expect(contrastRatio(appCssRamp().get(4) as string, '#ffffff')).toBeGreaterThanOrEqual(4.5);
-    expect(contrastRatio(appCssRamp().get(5) as string, '#ffffff')).toBeGreaterThanOrEqual(7);
-  });
-
-  test('the contrast pairs the Color table records for the other chrome', () => {
-    // "Other colour uses" pairs, recomputed rather than trusted. Each entry is
-    // [foreground, background, recorded ratio] exactly as the table states it.
+describe('the contrast pairs the Color table records for the other chrome', () => {
+  test('every recorded pair is true of the shipped colours', () => {
     const RECORDED_PAIRS: ReadonlyArray<readonly [string, string, number]> = [
       ['#ffffff', '#3c4043', 10.47], // Tooltip: white text on the neutral surface
       ['#8a5a00', '#fef7e0', 5.53], // Excluded-row pill: amber text on its own bg
@@ -239,23 +139,6 @@ describe('playtime data ramp (04-UI-SPEC Color)', () => {
       expect(contrastRatio(fg, bg)).toBeCloseTo(recorded, 1);
     }
   });
-
-  test('no component stylesheet restates a ramp step as a literal hex', () => {
-    // Vacuously true today (the ramp has no consumers until 04-09/04-10) and
-    // it is here to be the tripwire: six hand-authored hex in each chart
-    // component would be six chances to drift from this table, and the reader
-    // would have no way to tell which copy is authoritative. Charts read
-    // var(--ramp-N).
-    const offenders: string[] = [];
-    for (const name of listComponentFiles()) {
-      if (!name.endsWith('.svelte')) continue;
-      const source = readFileSync(componentPath(name), 'utf8');
-      for (const step of specRamp()) {
-        if (new RegExp(step.hex, 'i').test(source)) offenders.push(`${name}: ${step.hex}`);
-      }
-    }
-    expect(offenders).toEqual([]);
-  });
 });
 
 // =============================================================================
@@ -263,20 +146,20 @@ describe('playtime data ramp (04-UI-SPEC Color)', () => {
 // =============================================================================
 //
 // `--flow-in` and `--flow-out` are the first data colours in this app that
-// are NOT a lightness ramp, and the first pair chosen to sit close together.
-// The ramp's rule — one direction of lightness, one colour per rank — does not
-// fit a diverging chart, where the meaning is side of the line rather than
-// size. So the two hues are 1.36:1 apart, which is close enough to look like a
-// mistake and far enough apart to read.
+// are NOT a lightness scale, and the first pair chosen to sit close together.
+// The value scale's rule — one direction of lightness, one colour per rank —
+// does not fit a diverging chart, where the meaning is side of the line rather
+// than size. So the two hues are 1.36:1 apart, which is close enough to look
+// like a mistake and far enough apart to read.
 //
 // The consequence drives the whole design: a pair this close must never be the
 // only cue. Section 8's tooltip, the legend words, the side of the zero line
 // and the monthly table all carry the same meaning in text, so the colours are
 // allowed to be subtle precisely because nothing depends on them alone. That
-// is why these are declared in app.css and read as `var(--flow-in)` — a
+// is why these are declared in the token stylesheet and read as `var(--flow-in)` — a
 // component restating `#4c3fa6` would create a second copy of the contract
 // with no way to tell which is authoritative, which is the same failure the
-// ramp tests above were written to prevent.
+// heat scale tests are written to prevent.
 //
 // The 3:1 floor is the non-text-content minimum from WCAG 1.4.11: these are
 // marks carrying information, and the recorded ratios are recomputed here
@@ -330,7 +213,7 @@ function specFlow(): FlowStep[] {
 
 function appCssFlow(): Map<string, string> {
   const declared = new Map<string, string>();
-  for (const match of APP_CSS.matchAll(/(--flow-(?:in|out))\s*:\s*(#[0-9a-f]{3,6})\s*;/gi)) {
+  for (const match of TOKEN_CSS.matchAll(/(--flow-(?:in|out))\s*:\s*(#[0-9a-f]{3,6})\s*;/gi)) {
     declared.set(match[1], match[2].toLowerCase());
   }
   return declared;
@@ -349,7 +232,7 @@ describe('flow data colours (05-UI-SPEC Color)', () => {
     // A second declaration is either a silent override or a copy that will
     // drift; `:root` is the only place a phase data colour belongs.
     for (const token of ['--flow-in', '--flow-out']) {
-      expect(APP_CSS.match(new RegExp(`${token}\\s*:`, 'g'))?.length).toBe(1);
+      expect(TOKEN_CSS_STRIPPED.match(new RegExp(`${token}\\s*:`, 'g'))?.length).toBe(1);
     }
   });
 
@@ -368,11 +251,12 @@ describe('flow data colours (05-UI-SPEC Color)', () => {
     }
   });
 
-  test('neither is a ramp step or the accent', () => {
+  test('neither is a data-scale swatch or the accent', () => {
     // These are two new hues, not two more rungs. A collision would make a
-    // flow mark indistinguishable from a playtime cell or from a focus ring,
-    // and the ramp's monotonic scale would silently gain a rung.
-    const taken = new Set([...appCssRamp().values(), '#1a73e8']);
+    // flow mark indistinguishable from a data cell or from a focus ring, and
+    // the value scale would silently gain a rung. The six swatches are the
+    // empty one, the three stops and the two derived steps the browser mixes.
+    const taken = new Set([...heatSwatchHexes(), '#1a73e8']);
     for (const step of specFlow()) {
       expect(taken.has(step.hex)).toBe(false);
     }
@@ -382,7 +266,7 @@ describe('flow data colours (05-UI-SPEC Color)', () => {
     // The separation is a design fact, not an accident: it is why the legend
     // words, the zero line and the tooltip all restate the meaning. Asserting
     // it means a future "let's just make them clearly different" change has to
-    // be a deliberate act in the spec, not a quiet edit to app.css.
+    // be a deliberate act in the spec, not a quiet edit to the token stylesheet.
     const [inflow, outflow] = specFlow();
     expect(contrastRatio(inflow.hex, outflow.hex)).toBeCloseTo(1.36, 2);
   });
@@ -456,11 +340,11 @@ function specFrame(): FrameStep {
   return { zeroLine: hexes[0]!, hairline: hexes[1]!, onWhite: Number(ratio) };
 }
 
-/** The `--name: #hex;` custom property declared in src/app.css, lowercase. */
+/** The `--name: #hex;` custom property declared in the token source, lowercase. */
 function appCssToken(name: string): string {
-  const match = APP_CSS.match(new RegExp(`${name}\\s*:\\s*(#[0-9a-f]{3,6})\\s*;`, 'i'));
+  const match = TOKEN_CSS.match(new RegExp(`${name}\\s*:\\s*(#[0-9a-f]{3,6})\\s*;`, 'i'));
   if (match === null) {
-    throw new Error(`src/app.css declares no ${name} token`);
+    throw new Error(`the token source declares no ${name} token`);
   }
   return match[1].toLowerCase();
 }
@@ -610,8 +494,8 @@ describe('05-UI-SPEC amended copy', () => {
 
   test('the ChartTooltip deviation from D-27 is recorded, not silent', () => {
     // D-27 says charts reuse ChartLegend. They do not, and a later plan
-    // reading D-27 would build a ramp legend for a flow chart. The deviation
-    // belongs in the spec where the decision is read.
+    // reading D-27 would build a value-scale legend for a flow chart. The
+    // deviation belongs in the spec where the decision is read.
     expect(PHASE5_UI_SPEC).toContain('D-27');
     expect(PHASE5_UI_SPEC).toContain('ChartLegend');
   });
@@ -794,129 +678,41 @@ describe('05-22 amendments appendix', () => {
 });
 
 // =============================================================================
-// The country map's shading — the same six steps, now on a logarithmic scale
-// (06-12, D-09, 06-UI-SPEC Color "Map shading")
+// The country map's shading — the one value scale (06-12, D-09)
 // =============================================================================
 //
-// Phase 6 reuses the Activity ramp for the login map, so there is no new colour
-// to pin. What IS new is a table of six ratios in the Phase 6 spec that a reader
-// takes on trust, and a component that has to read the tokens rather than
-// restate them. Four directions, for the reason the Phase 4 block gives:
+// The map reads the SAME heat scale every other data mark reads: the neutral
+// empty swatch and the five data steps. There is no map-specific colour and
+// no map-specific table any more, so what this block pins is the one thing
+// that is still the map's own business: the component reads the tokens rather
+// than restating a hex, and the legend beside it is the shared component with
+// the shared swatches.
 //
-//   1. SPEC -> CODE: the six values the Phase 6 table lists are the six
-//      `--ramp-N` declarations in `src/app.css`.
-//   2. RATIONALE -> CODE: each ratio the table records is recomputed from the
-//      shipped hex, to the two decimals it is recorded in.
-//   3. CODE -> FLOOR: lightness is strictly monotonic, the only channel that
-//      carries "more logins" once the scale is logarithmic.
-//   4. COMPONENT -> TOKEN: the map reads `var(--ramp-N)` for every level and
-//      restates none of the six hex values. The map lives under
-//      `features/logins`, which the shared component helper does not list, so it
-//      is read by its own path rather than by editing that helper.
+// The CONTRAST of the six swatches is not asserted here: the heat scale
+// describe at the end of this file owns it, and it is the same scale, so a
+// second copy of the ratios would only be a second copy to drift.
 // =============================================================================
 
-const PHASE6_UI_SPEC = readFileSync(
-  path.join(
-    REPO_ROOT,
-    '.planning/milestones/v1.0-phases/06-login-ip-history-offline-geolocation/06-UI-SPEC.md',
-  ),
-  'utf8',
-);
-
-/** One row of the Phase 6 "Map shading" table: level, hex, and the recorded ratio. */
-type MapShade = { level: number; token: string; hex: string; onWhite: number };
-
-/**
- * The six rows of the Phase 6 Map shading table.
- *
- * Matched on the `--ramp-N` token in the second cell, so a number from another
- * table in the same file cannot be picked up, and the level sequence is asserted
- * to be 0 to 5 so a re-ordered or duplicated row is a failure and not a shorter
- * ramp.
- */
-function phase6Shades(): MapShade[] {
-  const rows = PHASE6_UI_SPEC.split('\n').filter((line) =>
-    /^\|\s*[0-5]\s*\|\s*`--ramp-[0-5]`/.test(line),
-  );
-  const shades = rows.map((row): MapShade => {
-    const cells = row.split('|').slice(1, -1);
-    const hex = cells[2]?.match(/#[0-9a-f]{6}/i)?.[0];
-    if (hex === undefined) throw new Error(`map shading row declares no hex colour: ${row}`);
-    return {
-      level: Number(cells[0]?.trim()),
-      token: cells[1]?.replace(/`/g, '').trim() ?? '',
-      hex: hex.toLowerCase(),
-      onWhite: Number.parseFloat(cells[3]?.trim() ?? ''),
-    };
-  });
-  if (shades.length !== 6) {
-    throw new Error(`expected 6 map shading rows in 06-UI-SPEC, found ${shades.length}`);
-  }
-  shades.forEach((shade, index) => {
-    if (shade.level !== index)
-      throw new Error(`map shading row ${index} declares level ${shade.level}`);
-  });
-  return shades;
-}
-
-describe('the login map ramp pairs (06-UI-SPEC Color, Map shading)', () => {
-  test('the six pairs the spec records are the six shipped declarations, token for token', () => {
-    const css = appCssRamp();
-    for (const shade of phase6Shades()) {
-      expect(shade.token).toBe(`--ramp-${shade.level}`);
-      expect(css.get(shade.level)).toBe(shade.hex);
-    }
-  });
-
-  test('every recorded ratio on white is true of the shipped hex', () => {
-    const recorded = phase6Shades().map((shade) => shade.onWhite);
-    // The values the contract states, written out so a spec edit that keeps the
-    // table self-consistent but changes the claim still fails here.
-    expect(recorded).toEqual([1.14, 1.49, 1.95, 2.87, 5.13, 9.38]);
-    for (const [level, ratio] of recorded.entries()) {
-      const hex = appCssRamp().get(level) as string;
-      expect(contrastRatio(hex, '#ffffff')).toBeCloseTo(ratio, 2);
-    }
-  });
-
-  test('lightness is strictly monotonic, so a darker country always means more logins', () => {
-    const luminances = [0, 1, 2, 3, 4, 5].map((level) =>
-      relativeLuminance(appCssRamp().get(level) as string),
-    );
-    for (let i = 1; i < luminances.length; i += 1) {
-      expect(luminances[i]).toBeLessThan(luminances[i - 1]!);
-    }
-  });
-
-  test('steps 1 to 3 sit below the 3:1 non-text floor, which is why no shade is the only carrier', () => {
-    // The relief rule is invoked because of exactly this: if a future ramp
-    // cleared the floor, the text-equivalents would still be required, but the
-    // spec's stated reason for them would be false.
-    for (const level of [1, 2, 3]) {
-      expect(contrastRatio(appCssRamp().get(level) as string, '#ffffff')).toBeLessThan(3);
-    }
-    for (const level of [4, 5]) {
-      expect(contrastRatio(appCssRamp().get(level) as string, '#ffffff')).toBeGreaterThanOrEqual(3);
-    }
-  });
-
-  test('the map component reads var(--ramp-N) for every level and restates no ramp hex', () => {
+describe('the login map reads the heat scale', () => {
+  test('the map component reads var(--heat-N) for every level and restates no heat hex', () => {
     const source = readFileSync(
       path.join(REPO_ROOT, 'src/lib/features/logins/WorldMap.svelte'),
       'utf8',
     );
-    for (let level = 0; level <= 5; level += 1) {
-      expect(source).toContain(`var(--ramp-${level})`);
+    expect(source).toContain('var(--heat-empty)');
+    for (let level = 1; level <= 5; level += 1) {
+      expect(source).toContain(`var(--heat-${level})`);
     }
-    for (const shade of phase6Shades()) {
-      expect(source.toLowerCase(), `WorldMap restates ${shade.hex}`).not.toContain(shade.hex);
+    for (const hex of heatSwatchHexes()) {
+      expect(source.toLowerCase(), `WorldMap restates ${hex}`).not.toContain(hex);
     }
   });
 
   test('the legend reuses the shared component, whose swatches read the same tokens', () => {
     const legend = readFileSync(path.join(REPO_ROOT, 'src/lib/charts/ChartLegend.svelte'), 'utf8');
-    for (let level = 0; level <= 5; level += 1) {
-      expect(legend).toContain(`var(--ramp-${level})`);
+    expect(legend).toContain('var(--heat-empty)');
+    for (let level = 1; level <= 5; level += 1) {
+      expect(legend).toContain(`var(--heat-${level})`);
     }
     const section = readFileSync(
       path.join(REPO_ROOT, 'src/lib/features/logins/LoginMapSection.svelte'),
@@ -932,11 +728,12 @@ describe('the login map ramp pairs (06-UI-SPEC Color, Map shading)', () => {
 // =============================================================================
 //
 // Phase 8 adds a neutral chrome palette beside the data colours. The 08-UI-SPEC
-// Build Notes code block is the contract; `src/app.css` is its implementation;
+// Build Notes code block is the contract; the token stylesheet is its
+// implementation;
 // these tests make the two agree and make the recorded ratios true rather than
 // merely stated (the W-03 lesson, again). The data colours do not move, so the
-// ramp and flow declarations are re-pinned here as a tripwire against a token
-// edit that "tidies" them.
+// heat stops, the empty swatch and the flow declarations are re-pinned here as
+// a tripwire against a token edit that "tidies" them.
 const PHASE8_UI_SPEC = readFileSync(
   path.join(
     REPO_ROOT,
@@ -957,14 +754,21 @@ function phase8SpecTokens(): Map<string, string> {
   return tokens;
 }
 
-/** Every `--name: value;` declared in the `:root` rule of src/app.css. */
+/**
+ * Every `--name: value;` declared in the token source, lower-cased.
+ *
+ * The reader is the shared `tokenMap`: it takes the FIRST declaration of each
+ * name, which is the default one, and it reads every block of the source
+ * rather than only the first `:root` rule. That matters because the token
+ * stylesheets hold more than one block - the `:root` defaults, a media query
+ * that switches the title size, and an `@supports` block that overrides the
+ * derived heat steps - and a reader that saw only the first block would miss
+ * a token a later plan added to one of the others.
+ */
 function appCssRootTokens(): Map<string, string> {
-  const root = APP_CSS.match(/:root\s*\{([\s\S]*?)\n\}/);
-  if (root === null) throw new Error('no :root rule in src/app.css');
-  const body = (root[1] ?? '').replace(/\/\*[\s\S]*?\*\//g, '');
   const tokens = new Map<string, string>();
-  for (const line of body.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)) {
-    tokens.set(line[1] as string, (line[2] as string).trim().toLowerCase());
+  for (const [name, value] of tokenMap(TOKEN_CSS)) {
+    tokens.set(name, value.toLowerCase());
   }
   return tokens;
 }
@@ -999,21 +803,26 @@ describe('Day 10 neutrals (08-01)', () => {
     const spec = phase8SpecTokens();
     const css = appCssRootTokens();
     for (const token of NEUTRAL_TOKENS) {
-      expect(css.get(token), `${token} in src/app.css`).toBe(spec.get(token));
+      expect(css.get(token), `${token} in the token source`).toBe(spec.get(token));
     }
   });
 
   test('the data colours are untouched', () => {
+    // The tripwire against a token edit that "tidies" the data colours: the
+    // three heat stops, the neutral empty swatch and the two flow hues are
+    // the values every data mark in the app is measured against.
     const css = appCssRootTokens();
-    expect(
-      [0, 1, 2, 3, 4, 5].map((level) => css.get(`--ramp-${level}`)),
-      'the six --ramp declarations',
-    ).toEqual(['#eef0f2', '#b2dcd4', '#7cc7bc', '#43a89c', '#1f7a74', '#0d4f4c']);
+    expect(css.get('--heat-low'), '--heat-low').toBe('#47a374');
+    expect(css.get('--heat-mid'), '--heat-mid').toBe('#6b8a14');
+    expect(css.get('--heat-peak'), '--heat-peak').toBe('#8c6400');
+    expect(css.get('--heat-empty'), '--heat-empty').toBe('#eef0f2');
     expect(css.get('--flow-in')).toBe('#4c3fa6');
     expect(css.get('--flow-out')).toBe('#a14a00');
   });
 
   test('the page reads the neutrals, not literals', () => {
+    // The ELEMENT rule stays in `src/app.css`: it is the page's own reset, not
+    // a token. Only the custom properties moved to the token stylesheet.
     const root = (APP_CSS.match(/:root\s*\{([\s\S]*?)\n\}/)?.[1] ?? '').replace(
       /\/\*[\s\S]*?\*\//g,
       '',
@@ -1084,8 +893,8 @@ describe('Day 10 neutrals (08-01)', () => {
 // =============================================================================
 //
 // The Overview is a page that may use a small, named set of colours and
-// nothing else, so its palette is a contract in the same sense the Activity
-// ramp was: ten custom properties in `src/app.css`, and every figure the
+// nothing else, so its palette is a contract in the same sense the heat scale
+// is: ten custom properties in the token stylesheet, and every figure the
 // Color table records recomputed here from the shipped declarations.
 //
 // Two facts in this block are the ones a later edit would most easily break:
@@ -1102,9 +911,9 @@ describe('Day 10 neutrals (08-01)', () => {
 //
 // The group dots are IDENTITY, never meaning: the group name beside a dot is
 // the text that carries the meaning, and the dot is aria-hidden. So the dots
-// are held to the 3:1 non-text floor, and one of them is allowed to reuse a
-// ramp step (the Time dot is the ramp's fourth step) because a dot beside a
-// chart is a mark, not a bar.
+// are held to the 3:1 non-text floor, and none of them may collide with a
+// heat swatch: a dot beside a chart is a mark, not a bar, and a data step
+// means a value.
 // =============================================================================
 
 /** The ten tokens the Overview palette declares, in the order the contract lists them. */
@@ -1121,7 +930,7 @@ const OVERVIEW_TOKENS = [
   '--ov-star-stroke',
 ] as const;
 
-/** The ten Overview tokens as declared in `src/app.css`, lower-cased. */
+/** The ten Overview tokens as declared in the token source, lower-cased. */
 function overviewTokens(): Map<string, string> {
   const declared = new Map<string, string>();
   for (const token of OVERVIEW_TOKENS) {
@@ -1134,7 +943,10 @@ describe('Overview colours (13-UI-SPEC Color)', () => {
   test('the code ships the ten tokens the contract declares, each exactly once', () => {
     for (const token of OVERVIEW_TOKENS) {
       expect(appCssToken(token), `${token} is declared`).toMatch(/^#[0-9a-f]{6}$/);
-      expect(APP_CSS.match(new RegExp(`${token}\\s*:`, 'g'))?.length, `${token} once`).toBe(1);
+      expect(
+        TOKEN_CSS_STRIPPED.match(new RegExp(`${token}\\s*:`, 'g'))?.length,
+        `${token} once`,
+      ).toBe(1);
     }
   });
 
@@ -1209,27 +1021,300 @@ describe('Overview colours (13-UI-SPEC Color)', () => {
     );
   });
 
-  test('the four catalogue group dots are distinct, and only the Time dot is a ramp step', () => {
+  test('the four catalogue group dots are distinct, and none of them is a heat swatch', () => {
     // A dot is identity, not meaning: the group name beside it carries the
-    // meaning and the dot is aria-hidden. The Time dot deliberately reuses
-    // the ramp's fourth step — it is a mark beside a chart, not a bar.
+    // meaning and the dot is aria-hidden. The Time dot used to reuse the old
+    // ramp's fourth step; the heat scale replaced that ramp, so the dot keeps
+    // its own value and must not collide with a data step.
     const css = overviewTokens();
-    const ramp = new Set([...appCssRamp().values()]);
+    const heat = new Set(heatSwatchHexes());
     const dots = ['--ov-time', '--ov-tanks', '--ov-records', '--ov-totals'] as const;
     const values = dots.map((token) => css.get(token) as string);
 
     expect(new Set(values).size, 'the four group dots are four distinct values').toBe(4);
+    // The Time dot still has its recorded value: the heat scale did not
+    // repaint it, it only ended the ramp it used to share a colour with.
+    expect(css.get('--ov-time')).toBe('#1f7a74');
     for (const [index, token] of dots.entries()) {
       const value = values[index] as string;
-      if (token === '--ov-time') {
-        expect(value).toBe(appCssRamp().get(4));
-        continue;
-      }
-      expect(ramp.has(value), `${token} is not a ramp step`).toBe(false);
+      expect(heat.has(value), `${token} is not a heat swatch`).toBe(false);
     }
     // The Pinned dot is its own role, not a catalogue dot, and it is not a
-    // ramp step either.
-    expect(ramp.has(css.get('--ov-pinned') as string)).toBe(false);
+    // heat swatch either.
+    expect(heat.has(css.get('--ov-pinned') as string)).toBe(false);
     expect(values).not.toContain(css.get('--ov-pinned') as string);
+  });
+});
+
+// =============================================================================
+// The heat scale (14-UI-SPEC Color, D-10/D-11)
+// =============================================================================
+//
+// The QUANTISATION is unchanged and discrete: `levelOf` returns 0 for a cell
+// with no data and 1 to 5 by RANK (the playtime model's cut points), and no
+// colour is ever interpolated from the data itself. What this block pins is
+// the CONTRACT the five data steps and the one neutral empty swatch must
+// keep, in the approved UI-SPEC's own words:
+//
+//   D-11 as amended: five data levels plus the neutral empty swatch, 3:1 on
+//   the five data steps (the empty swatch is exempt at 1.14:1), lightness
+//   strictly monotonic across the six swatches, adjacent-step floor 1.1:1
+//   (it was 1.25:1 for the old ramp).
+//
+// The two DERIVED steps are written as `color-mix(in srgb, ...)` inside an
+// `@supports` block, so the test mirrors the arithmetic in the same colour
+// space: `mixSrgb` averages the channels in gamma-encoded sRGB, exactly what
+// Chromium does for `srgb`. The colour space is CHECKED rather than assumed -
+// `resolveMix` refuses an `oklab` expression - and the DECLARED STRINGS are
+// asserted too, so a silent switch to another space, a swapped stop or a
+// dropped fallback fails a named test here rather than a review nobody reads.
+//
+// The empty swatch is EXEMPT from the 3:1 floor on purpose: it means "no data",
+// not "a low value", so it is a neutral surface rather than a data mark. That
+// exemption is asserted, not assumed: the floor applies to exactly the five
+// data steps.
+// =============================================================================
+
+/** The six swatches of the scale, in contract order. */
+const HEAT_SWATCHES = [
+  '--heat-empty',
+  '--heat-1',
+  '--heat-2',
+  '--heat-3',
+  '--heat-4',
+  '--heat-5',
+] as const;
+
+/** The four hex declarations the scale is built from. */
+const HEAT_STOPS = {
+  '--heat-low': '#47a374',
+  '--heat-mid': '#6b8a14',
+  '--heat-peak': '#8c6400',
+  '--heat-empty': '#eef0f2',
+} as const;
+
+/** White, the surface every data step is measured against. */
+const WHITE: Rgb = [255, 255, 255];
+
+/** Every rule of the token stylesheet, parsed by the shared scanner. */
+function heatRules(): readonly CssRule[] {
+  return scanRules(TOKEN_CSS_STRIPPED);
+}
+
+/**
+ * The top-level `:root` rule: the defaults, and the plain fallbacks of the
+ * two derived steps.
+ */
+function rootRule(): CssRule {
+  const rule = heatRules().find(
+    (candidate) => candidate.parent === null && candidate.selector.trim() === ':root',
+  );
+  if (rule === undefined) throw new Error('the token stylesheet declares no top-level :root rule');
+  return rule;
+}
+
+/**
+ * The `:root` rule INSIDE the `@supports` block: the derived overrides.
+ *
+ * The rule is found by its PARENT, not by its selector: there are two
+ * `:root` rules in the token stylesheet, and a lookup by selector would
+ * always find the first one - the one that holds the fallbacks.
+ */
+function supportsRule(): CssRule | undefined {
+  const rules = heatRules();
+  return rules.find((rule) => {
+    if (rule.parent === null) return false;
+    const parent = rules[rule.parent];
+    return parent !== undefined && parent.selector.trim().startsWith('@supports');
+  });
+}
+
+/** The `--name: value` pairs of one rule. */
+function declarationsOf(rule: CssRule | undefined): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const declaration of rule?.declarations ?? []) {
+    const match = /^(--[\w-]+)\s*:\s*(.+)$/.exec(declaration);
+    if (match === null) continue;
+    map.set(match[1]!, (match[2] ?? '').trim());
+  }
+  return map;
+}
+
+/** The declarations of the top-level `:root` rule. */
+function rootDeclarations(): Map<string, string> {
+  return declarationsOf(rootRule());
+}
+
+/** The declarations of the `:root` rule inside the `@supports` block. */
+function supportsDeclarations(): Map<string, string> {
+  return declarationsOf(supportsRule());
+}
+
+/** The hex value a token declares, lower-cased. */
+function tokenHex(name: string): string {
+  const expression = supportsDeclarations().get(name) ?? rootDeclarations().get(name);
+  const match = expression === undefined ? null : /^(#[0-9a-f]{3,6})$/i.exec(expression);
+  if (match === null) {
+    throw new Error(`the token stylesheet declares no hex value for ${name}`);
+  }
+  return (match[1] as string).toLowerCase();
+}
+
+/**
+ * The colour a swatch paints, as the browser resolves it.
+ *
+ * A `var()` reads the token it names, a plain hex is itself, and a
+ * `color-mix()` is mixed in the colour space it declares - which the helper
+ * refuses unless it is `srgb`.
+ */
+function swatchRgb(name: string): Rgb {
+  const expression = supportsDeclarations().get(name) ?? rootDeclarations().get(name);
+  if (expression === undefined) throw new Error(`the token stylesheet declares no ${name}`);
+  const reference = /^var\(\s*(--[\w-]+)\s*\)$/.exec(expression);
+  if (reference !== null) return hexToRgb(tokenHex(reference[1] as string));
+  if (expression.startsWith('#')) return hexToRgb(expression.toLowerCase());
+  return resolveMix(expression, (ref) => hexToRgb(tokenHex(ref)));
+}
+
+/**
+ * A colour as the eight-bit hex the browser stores it as.
+ *
+ * The two DERIVED steps are mixed by the browser and come back as fractional
+ * channels, so they are rounded to the eight bits a paint holds before they are
+ * compared with a hex written in a stylesheet.
+ */
+function rgbToHex(rgb: Rgb): string {
+  return `#${rgb.map((channel) => Math.round(channel).toString(16).padStart(2, '0')).join('')}`;
+}
+
+/**
+ * The six swatches of the scale as the hex the browser paints them.
+ *
+ * The empty swatch, the three stops and the two mixed steps, so a block that
+ * asks "is this colour already taken by the value scale?" has the answer the
+ * screen shows rather than the answer the stylesheet's arithmetic suggests.
+ */
+function heatSwatchHexes(): string[] {
+  return HEAT_SWATCHES.map((name) => rgbToHex(swatchRgb(name)));
+}
+
+describe('heat scale (14-UI-SPEC Color, D-10/D-11)', () => {
+  test('the three stops and the empty swatch are each declared exactly once', () => {
+    for (const [name, hex] of Object.entries(HEAT_STOPS)) {
+      expect(tokenHex(name), `${name} value`).toBe(hex);
+      const declarations = TOKEN_CSS_STRIPPED.match(new RegExp(`${name}\\s*:`, 'g'))?.length ?? 0;
+      expect(declarations, `${name} is declared once`).toBe(1);
+    }
+  });
+
+  test('the five data steps read the three stops, with plain fallbacks for the two derived ones', () => {
+    const root = rootDeclarations();
+    expect(root.get('--heat-1')).toBe('var(--heat-low)');
+    expect(root.get('--heat-3')).toBe('var(--heat-mid)');
+    expect(root.get('--heat-5')).toBe('var(--heat-peak)');
+    // The two derived steps FALL BACK to the stop below them, so a browser
+    // without color-mix() shows three bands rather than a second hand-picked
+    // scale - which is what D-11 forbids.
+    expect(root.get('--heat-2')).toBe('var(--heat-low)');
+    expect(root.get('--heat-4')).toBe('var(--heat-mid)');
+  });
+
+  test('the derived steps are mixed in srgb, and the space is checked rather than assumed', () => {
+    const supports = supportsDeclarations();
+    expect(supports.get('--heat-2')).toBe(
+      'color-mix(in srgb, var(--heat-low) 50%, var(--heat-mid))',
+    );
+    expect(supports.get('--heat-4')).toBe(
+      'color-mix(in srgb, var(--heat-mid) 50%, var(--heat-peak))',
+    );
+    expect(parseColorMix(supports.get('--heat-2') as string).space).toBe('srgb');
+    expect(parseColorMix(supports.get('--heat-4') as string).space).toBe('srgb');
+    // An oklab expression is a DIFFERENT colour for the same two stops, so the
+    // helper refuses it rather than computing a colour the browser never
+    // produces. A drift of the colour space therefore cannot pass silently.
+    expect(() =>
+      resolveMix('color-mix(in oklab, var(--heat-low) 50%, var(--heat-mid))', (ref) =>
+        hexToRgb(tokenHex(ref)),
+      ),
+    ).toThrow(/not comparable/);
+  });
+
+  test('the mixed colours are the channel averages of the two stops', () => {
+    const low = hexToRgb(HEAT_STOPS['--heat-low']);
+    const mid = hexToRgb(HEAT_STOPS['--heat-mid']);
+    const peak = hexToRgb(HEAT_STOPS['--heat-peak']);
+    // The arithmetic the CSS asks for, in gamma-encoded sRGB: the values
+    // Chromium resolves the two mixes to.
+    expect(mixSrgb(low, mid, 0.5)).toEqual([89, 150.5, 68]);
+    expect(mixSrgb(mid, peak, 0.5)).toEqual([123.5, 119, 10]);
+    // And the swatches the stylesheet actually paints.
+    expect(swatchRgb('--heat-2')).toEqual([89, 150.5, 68]);
+    expect(swatchRgb('--heat-4')).toEqual([123.5, 119, 10]);
+  });
+
+  test('every data step clears 3:1 on white, and the empty swatch is exempt', () => {
+    for (const name of ['--heat-1', '--heat-2', '--heat-3', '--heat-4', '--heat-5']) {
+      expect(contrastRatioRgb(swatchRgb(name), WHITE), `${name} on white`).toBeGreaterThanOrEqual(
+        3,
+      );
+    }
+    // The empty swatch means "no data", not "a low value": it is a neutral
+    // surface, and the exemption is asserted rather than assumed.
+    expect(contrastRatioRgb(swatchRgb('--heat-empty'), WHITE)).toBeCloseTo(1.14, 2);
+    expect(contrastRatioRgb(swatchRgb('--heat-empty'), WHITE)).toBeLessThan(3);
+  });
+
+  test('every recorded ratio on white is true of the shipped colours', () => {
+    // The Color table's numbers are arguments, not facts: the W-03 lesson,
+    // applied to the heat scale.
+    const RECORDED: ReadonlyArray<readonly [string, number]> = [
+      ['--heat-1', 3.11],
+      ['--heat-2', 3.56],
+      ['--heat-3', 3.98],
+      ['--heat-4', 4.67],
+      ['--heat-5', 5.33],
+    ];
+    for (const [name, recorded] of RECORDED) {
+      expect(contrastRatioRgb(swatchRgb(name), WHITE), name).toBeCloseTo(recorded, 2);
+    }
+  });
+
+  test('lightness falls strictly from the empty swatch to level 5', () => {
+    // The only channel carrying "more" is darkness, so an equal-luminance
+    // pair would make two levels identical.
+    const luminances = HEAT_SWATCHES.map((name) => luminanceRgb(swatchRgb(name)));
+    for (let index = 1; index < luminances.length; index += 1) {
+      expect(
+        luminances[index],
+        `lightness must fall from the empty swatch to level 5 (${HEAT_SWATCHES[index]})`,
+      ).toBeLessThan(luminances[index - 1] as number);
+    }
+  });
+
+  test('adjacent data steps are at least 1.1:1 apart', () => {
+    // OI-4: the old ramp's 1.25:1 floor cannot hold for five steps between
+    // 3.11:1 and 5.33:1 - a 1.25:1 chain would need a peak of about 7.6:1.
+    for (let level = 2; level <= 5; level += 1) {
+      const lower = swatchRgb(`--heat-${level - 1}`);
+      const upper = swatchRgb(`--heat-${level}`);
+      const separation = (luminanceRgb(lower) + 0.05) / (luminanceRgb(upper) + 0.05);
+      expect(separation, `adjacent data steps ${level - 1} and ${level}`).toBeGreaterThanOrEqual(
+        1.1,
+      );
+    }
+  });
+
+  test('the three stops are told apart by hue, not by lightness alone', () => {
+    // The steps differ in hue (green, olive, gold), so a reader who cannot
+    // separate two of them by lightness still has the hue to go on.
+    const PAIRS: ReadonlyArray<readonly [string, string]> = [
+      ['--heat-low', '--heat-mid'],
+      ['--heat-mid', '--heat-peak'],
+      ['--heat-low', '--heat-peak'],
+    ];
+    for (const [first, second] of PAIRS) {
+      const ratio = contrastRatioRgb(hexToRgb(tokenHex(first)), hexToRgb(tokenHex(second)));
+      expect(ratio, `${first} against ${second}`).toBeGreaterThan(1.05);
+    }
   });
 });

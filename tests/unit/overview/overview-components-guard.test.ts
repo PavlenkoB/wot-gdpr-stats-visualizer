@@ -13,16 +13,50 @@
 // The guard reads the four component files with their comments stripped, so a
 // component may explain a rule in prose without tripping it, in the style of
 // the logins guard in `phase6-guards.test.ts`.
+//
+// THE TYPE READER (plan 14-19)
+//   The Overview is on the shared type roles, so a reader that looked for
+//   `font-size: 32px` in a component would find nothing where there is now a
+//   role. The reader therefore resolves: a rule's declarations come from
+//   `ruleDeclarations`, the tokens in them from `resolveTokens`, and a role's
+//   size from the role's own rule in `src/styles/type.css` resolved through
+//   `src/styles/tokens.css`. A size the Overview uses is a size the OVERVIEW
+//   uses, so the four-size set is local to this file and is NOT the shared
+//   scale: the shared scale is wider, and importing it would let a size the
+//   Overview never uses pass this guard.
 // =============================================================================
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { OVERVIEW_SCALE_PX } from '../../helpers/components.ts';
+import {
+  resolveTokens,
+  ruleDeclarations,
+  scanRules,
+  styleText,
+  tokenMap,
+} from '../../helpers/css.ts';
+import { readTokenSource, TYPE_CSS } from '../../helpers/styles.ts';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const DIR = path.join(REPO_ROOT, 'src/lib/features/overview');
+
+/**
+ * The Overview's own type sizes, in px.
+ *
+ * The Overview is the design system the rest of the app is joining (D-15), so
+ * its scale is its own: 12, 14, 32 and 56. The shared scale is wider, and the
+ * shared scale is deliberately NOT imported here - a guard that checked the
+ * Overview against the wider set would pass a size the Overview never uses.
+ */
+const OVERVIEW_SIZES: ReadonlySet<number> = new Set([12, 14, 32, 56]);
+
+/** The shared tokens, so a declaration can be read at its computed value. */
+const TOKENS = tokenMap(readTokenSource());
+
+/** The shared type roles, so a role's size can be read at its computed value. */
+const ROLE_CSS = readFileSync(TYPE_CSS, 'utf8');
 
 const NAMES = [
   'OverviewTile.svelte',
@@ -49,16 +83,61 @@ const BARS = SOURCES['OverviewBars.svelte'];
 const ROWS = SOURCES['OverviewRows.svelte'];
 const GROUP = SOURCES['OverviewGroup.svelte'];
 
+/**
+ * The page body. It is not in NAMES: it owns the pins and imports the state, which
+ * the four component rules (no state, no pins) forbid on the other four. Its
+ * STYLES and its type roles obey the same rules as theirs, so the sweeps below
+ * read it too.
+ */
+const BENTO = stripComments(readFileSync(path.join(DIR, 'OverviewBento.svelte'), 'utf8'));
+
+/** The five Overview components, by file name, for the sweeps that read the styles. */
+const STYLED: Record<string, string> = { ...SOURCES, 'OverviewBento.svelte': BENTO };
+
 /** The style block of a component, or '' when it has none. */
 function styleOf(source: string): string {
   return /<style[^>]*>([\s\S]*?)<\/style>/.exec(source)?.[1] ?? '';
 }
 
-/** The body of the first CSS rule whose selector is exactly `selector`. */
-function ruleBody(css: string, selector: string): string | null {
-  const escaped = selector.replace(/[.*+?^${}()|[\]\\:]/g, '\\$&');
-  const match = new RegExp(`(?:^|[}\\s])${escaped}\\s*\\{([^}]*)\\}`, 'm').exec(css);
-  return match === null ? null : (match[1] ?? '');
+/**
+ * The declarations of one rule of a component, with the tokens resolved.
+ *
+ * The rule is read by `ruleDeclarations` - which knows about nested rules and
+ * comma lists - and its tokens are resolved, so an assertion can name the
+ * computed value (`padding: 16px`) rather than the token that carries it.
+ */
+function declarationsOf(source: string, selector: string): string {
+  return resolveTokens(ruleDeclarations(styleText(source), selector), TOKENS);
+}
+
+/**
+ * The type roles a component's MARKUP puts on an element.
+ *
+ * Only the markup is read: the roles are class names the component applies,
+ * and a role named in a stylesheet would be a role the component DEFINES,
+ * which is a different thing entirely.
+ */
+function rolesIn(source: string): string[] {
+  const markup = source.split(/<style[\s>]/)[0] ?? '';
+  const names = new Set<string>();
+  const isRole = (name: string): boolean => /^t-[a-z][a-z0-9-]*$/.test(name);
+  for (const match of markup.matchAll(/\bclass="([^"]*)"/g)) {
+    for (const name of (match[1] ?? '').split(/\s+/)) {
+      if (isRole(name)) names.add(name);
+    }
+  }
+  for (const match of markup.matchAll(/\bclass:([A-Za-z][\w-]*)/g)) {
+    const name = match[1] ?? '';
+    if (isRole(name)) names.add(name);
+  }
+  return [...names];
+}
+
+/** The size a type role declares, in px, or null when it declares none. */
+function roleSize(role: string): number | null {
+  const declarations = resolveTokens(ruleDeclarations(ROLE_CSS, `.${role}`), TOKENS);
+  const match = /font-size:\s*(\d+)px/.exec(declarations);
+  return match === null ? null : Number(match[1]);
 }
 
 /** The reasons a source is not allowed in an Overview component; empty when clean. */
@@ -145,7 +224,7 @@ describe('OverviewTile: the anatomy', () => {
     expect(star).toContain('formatStarLabel(label)');
     expect(star).toContain('width="18"');
     expect(star).toContain('height="18"');
-    const rule = ruleBody(styleOf(TILE), '.star') ?? '';
+    const rule = declarationsOf(TILE, '.star');
     expect(rule).toMatch(/width:\s*44px/);
     expect(rule).toMatch(/height:\s*44px/);
   });
@@ -153,7 +232,7 @@ describe('OverviewTile: the anatomy', () => {
   it('the chart is aria-hidden and the open link is at least 44px tall', () => {
     expect(BARS).toMatch(/class="chart"\s+aria-hidden="true"/);
     expect(ROWS).toMatch(/class="rows"\s+aria-hidden="true"/);
-    expect(ruleBody(styleOf(TILE), '.link') ?? '').toMatch(/min-height:\s*44px/);
+    expect(declarationsOf(TILE, '.link')).toMatch(/min-height:\s*44px/);
   });
 
   it('carries the test ids the page and the browser tests address', () => {
@@ -171,16 +250,22 @@ describe('OverviewTile: the anatomy', () => {
   });
 
   it('pads 16px, rounds 8px and keeps the hairline border', () => {
-    const css = styleOf(TILE);
-    expect(ruleBody(css, '.face') ?? '').toMatch(/padding:\s*16px/);
-    const tile = ruleBody(css, '.tile') ?? '';
+    expect(declarationsOf(TILE, '.face')).toMatch(/padding:\s*16px/);
+    const tile = declarationsOf(TILE, '.tile');
     expect(tile).toMatch(/border-radius:\s*8px/);
     expect(tile).toMatch(/border:\s*1px solid var\(--border\)/);
   });
 
+  it('the label reserves the section width on its right', () => {
+    // The one 32px on the tile is the label's right padding, and it reads the
+    // section token - the same 32px, by a name.
+    expect(styleOf(TILE)).toMatch(/padding-right:\s*var\(--layout-section\)/);
+    expect(resolveTokens(styleOf(TILE), TOKENS)).toMatch(/padding-right:\s*32px/);
+  });
+
   it('opens with an ink border and an inset ink outline, and has forced-colors and reduced-motion', () => {
     const css = styleOf(TILE);
-    const open = ruleBody(css, '.tile.open,\n  .tile.open:hover') ?? '';
+    const open = declarationsOf(TILE, '.tile.open');
     expect(open).toMatch(/border-color:\s*var\(--ink\)/);
     expect(open).toMatch(/outline:\s*1px solid var\(--ink\)/);
     expect(open).toMatch(/outline-offset:\s*-2px/);
@@ -207,22 +292,60 @@ describe('OverviewTile: the anatomy', () => {
 });
 
 describe('type, spacing and breakpoints', () => {
-  it('every font-size in the four files is 12, 14, 32 or 56px', () => {
-    for (const name of NAMES) {
-      const sizes = [...SOURCES[name].matchAll(/font-size\s*:\s*([^;}\n]+)/g)].map((m) =>
-        (m[1] ?? '').trim(),
-      );
-      for (const value of sizes) {
-        const px = /^(\d+)px$/.exec(value);
-        expect(px, `${name}: font-size: ${value}`).not.toBeNull();
-        expect(OVERVIEW_SCALE_PX.has(Number(px?.[1])), `${name}: ${value}`).toBe(true);
+  it('every font-size and every type role in the five components is 12, 14, 32 or 56px', () => {
+    // The sweep reads BOTH ways a size reaches the Overview: a declaration in a
+    // component's own stylesheet, and a role the markup puts on an element.
+    // A size that arrives by a role is resolved through the role's own rule in
+    // `src/styles/type.css` and the tokens in `src/styles/tokens.css`, so the
+    // sweep sees the size the browser will paint and not the size it is
+    // written as.
+    const declared: { name: string; value: string }[] = [];
+    const roles: { name: string; role: string }[] = [];
+
+    for (const [name, source] of Object.entries(STYLED)) {
+      for (const rule of scanRules(styleText(source))) {
+        for (const declaration of rule.declarations) {
+          if (!declaration.startsWith('font-size:')) continue;
+          const value = resolveTokens(declaration, TOKENS).slice('font-size:'.length).trim();
+          declared.push({ name, value });
+        }
       }
+      for (const role of rolesIn(source)) roles.push({ name, role });
+    }
+
+    // A sweep that found nothing would assert nothing: the match is required.
+    // The five components declare no size of their own any more - every size
+    // arrives by a role - so the role half must be non-empty, and the sweep as
+    // a whole must have read something.
+    expect(declared.length + roles.length, 'the sweep found a size').toBeGreaterThan(0);
+    expect(roles.length, 'the sweep found a type role').toBeGreaterThan(0);
+    for (const name of Object.keys(STYLED)) {
+      expect(
+        roles.some((entry) => entry.name === name),
+        `${name} applies a type role`,
+      ).toBe(true);
+    }
+
+    for (const { name, value } of declared) {
+      const px = /^(\d+)px$/.exec(value);
+      expect(px, `${name}: font-size: ${value}`).not.toBeNull();
+      expect(OVERVIEW_SIZES.has(Number(px?.[1])), `${name}: ${value}`).toBe(true);
+    }
+
+    for (const { name, role } of roles) {
+      const size = roleSize(role);
+      expect(size, `${name}: the role ${role} declares a font-size`).not.toBeNull();
+      expect(OVERVIEW_SIZES.has(size as number), `${name}: ${role} is ${String(size)}px`).toBe(
+        true,
+      );
     }
   });
 
   it('declares no 12px gap, and the group grid declares a 16px gap', () => {
-    for (const name of NAMES) expect(SOURCES[name], name).not.toMatch(/gap\s*:\s*12px/);
-    expect(ruleBody(styleOf(GROUP), '.grid') ?? '').toMatch(/(?:^|\s)gap:\s*16px/);
+    for (const [name, source] of Object.entries(STYLED)) {
+      expect(resolveTokens(styleText(source), TOKENS), name).not.toMatch(/gap\s*:\s*12px/);
+    }
+    expect(declarationsOf(GROUP, '.grid')).toMatch(/(?:^|\s)gap:\s*16px/);
   });
 
   it('the only container breakpoints are 880px and 480px', () => {
@@ -263,11 +386,26 @@ describe('colour', () => {
     expect(ROWS).not.toMatch(/\b(?:rgba?|hsla?)\(/);
   });
 
-  it('the shadows in the tile are the only colour functions, and all are the ink at low alpha', () => {
-    const functions = [...TILE.matchAll(/\b(?:rgba?|hsla?)\([^)]*\)/g)].map((m) => m[0]);
-    expect(functions.length).toBeGreaterThan(0);
-    for (const call of functions) expect(call).toMatch(/^rgba\(17, 17, 17, 0?\.\d+\)$/);
+  it('the tile casts no colour function: its three shadows read the elevation tokens', () => {
+    // The tile's shadows were the last colour functions in the Overview. They
+    // are the shared elevation tokens now, and the tokens are mixes of the ink
+    // token with transparent - the same channels and the same alpha the
+    // literals had, so the shadow is unchanged.
+    expect(TILE).not.toMatch(/\b(?:rgba?|hsla?)\(/);
     expect(GROUP).not.toMatch(/\b(?:rgba?|hsla?)\(/);
+    const shadows = [...styleText(TILE).matchAll(/box-shadow:\s*([^;]+)/g)].map((m) =>
+      (m[1] ?? '').trim(),
+    );
+    expect(shadows).toEqual(['var(--elev-rest)', 'var(--elev-hover)', 'var(--elev-open)']);
+    expect(TOKENS.get('--elev-rest')).toBe(
+      '0 1px 2px color-mix(in srgb, var(--ink) 5%, transparent)',
+    );
+    expect(TOKENS.get('--elev-hover')).toBe(
+      '0 4px 12px color-mix(in srgb, var(--ink) 8%, transparent)',
+    );
+    expect(TOKENS.get('--elev-open')).toBe(
+      '0 8px 24px color-mix(in srgb, var(--ink) 10%, transparent)',
+    );
   });
 
   it('group dots read the group tokens and the star reads the star tokens', () => {
@@ -284,39 +422,60 @@ describe('colour', () => {
 
 describe('overflow and long text', () => {
   it('the value wraps anywhere and is never below 32px', () => {
-    const css = styleOf(TILE);
-    const value = ruleBody(css, '.v') ?? '';
+    const value = declarationsOf(TILE, '.v');
     expect(value).toMatch(/overflow-wrap:\s*anywhere/);
-    expect(value).toMatch(/font-size:\s*32px/);
     expect(value).not.toMatch(/white-space:\s*nowrap|text-overflow/);
-    expect(ruleBody(css, '.v.numeral') ?? '').toMatch(/font-size:\s*56px/);
+    // The size is the Stat role's (32px), or the Hero role's (56px) when the
+    // value is the large numeral.
+    expect(roleSize('t-stat')).toBe(32);
+    expect(roleSize('t-hero')).toBe(56);
+  });
+
+  it('the value element carries a type role, and the numeral carries the Hero role', () => {
+    const value = /<span class="v"[^>]*>/.exec(TILE)?.[0] ?? '';
+    expect(value).not.toBe('');
+    // Exactly one of the two roles is ever on the element, so the numeral
+    // never carries the Stat role as well.
+    const roles = [...value.matchAll(/class:(t-[a-z-]+)=/g)].map((m) => m[1]);
+    expect(roles).toEqual(['t-stat', 't-hero']);
+    // The numeral is the value that carries the Hero role.
+    expect(value).toContain('class:numeral');
+    expect(value).toContain('class:t-hero={numeral}');
+    expect(value).toContain('class:t-stat={!numeral}');
+    // The Hero role is 56px, and it says so through --fs-hero.
+    expect(ruleDeclarations(ROLE_CSS, '.t-hero')).toMatch(/font-size:\s*var\(--fs-hero\)/);
+    expect(roleSize('t-hero')).toBe(56);
   });
 
   it('the only text in the tile below 32px besides the unit is label, rule and panel copy', () => {
-    // A value rule must not carry a smaller size than the Display role.
-    const css = styleOf(TILE);
-    for (const selector of ['.v', '.v.numeral']) {
-      const size = /font-size:\s*(\d+)px/.exec(ruleBody(css, selector) ?? '');
-      expect(Number(size?.[1]), selector).toBeGreaterThanOrEqual(32);
+    // A value rule must not carry a smaller size than the Display role: the
+    // value takes the Stat role (32px) or the Hero role (56px).
+    for (const role of ['t-stat', 't-hero']) {
+      expect(roleSize(role), role).toBeGreaterThanOrEqual(32);
     }
-    const unit = /font-size:\s*(\d+)px/.exec(ruleBody(css, '.unit') ?? '');
-    expect(Number(unit?.[1])).toBe(14);
+    // The unit is the Body role's: 14px, and the rule declares no size of
+    // its own.
+    expect(roleSize('t-body')).toBe(14);
+    expect(declarationsOf(TILE, '.unit')).not.toMatch(/font-size/);
+    // The label, the rule and the panel copy are the Label and Caption roles:
+    // 12px, the sizes below the value.
+    expect(roleSize('t-label')).toBe(12);
+    expect(roleSize('t-caption')).toBe(12);
   });
 
   it('the rows grid is the approved three-column layout and wraps its names', () => {
-    const css = styleOf(ROWS);
     // The three tracks are declared ONCE, on the block, and every row is a
     // subgrid of them. A track list on `.row` would size the figure column to
     // that row's own text, so a wider figure would push its bar left of a
     // narrower one's and the bars would stop sharing a left edge.
-    expect(ruleBody(css, '.rows') ?? '').toContain(
+    expect(declarationsOf(ROWS, '.rows')).toContain(
       'grid-template-columns: minmax(72px, 1fr) clamp(60px, 30%, 152px) auto',
     );
-    const row = ruleBody(css, '.row') ?? '';
+    const row = declarationsOf(ROWS, '.row');
     expect(row).toMatch(/grid-template-columns:\s*subgrid/);
     expect(row).toMatch(/grid-column:\s*1\s*\/\s*-1/);
     expect(row).not.toMatch(/minmax\(|clamp\(/);
-    expect(ruleBody(css, '.name') ?? '').toMatch(/overflow-wrap:\s*anywhere/);
+    expect(declarationsOf(ROWS, '.name')).toMatch(/overflow-wrap:\s*anywhere/);
   });
 });
 
@@ -326,26 +485,25 @@ describe('OverviewGroup: the grid', () => {
     // Dense is declared exactly once, on the .dense modifier, and the markup
     // applies that modifier to every group except pinned.
     expect(css.match(/grid-auto-flow:\s*dense/g)).toHaveLength(1);
-    expect(ruleBody(css, '.grid.dense') ?? '').toMatch(/grid-auto-flow:\s*dense/);
-    expect(ruleBody(css, '.grid') ?? '').toMatch(/grid-auto-flow:\s*row/);
+    expect(declarationsOf(GROUP, '.grid.dense')).toMatch(/grid-auto-flow:\s*dense/);
+    expect(declarationsOf(GROUP, '.grid')).toMatch(/grid-auto-flow:\s*row/);
     expect(GROUP).toContain("class:dense={id !== 'pinned'}");
   });
 
   it('keeps siblings at their natural height while a tile is open', () => {
-    const css = styleOf(GROUP);
-    expect(ruleBody(css, '.grid:has(:global(.tile.open))') ?? '').toMatch(/align-items:\s*start/);
+    expect(declarationsOf(GROUP, '.grid:has(:global(.tile.open))')).toMatch(/align-items:\s*start/);
   });
 
   it('has one, two and four columns at the container widths', () => {
     const css = styleOf(GROUP);
-    expect(ruleBody(css, '.grid') ?? '').toMatch(/grid-template-columns:\s*minmax\(0, 1fr\)/);
+    expect(declarationsOf(GROUP, '.grid')).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\)/);
     expect(css).toMatch(/@container \(min-width: 480px\)\s*\{\s*\.grid\s*\{[^}]*repeat\(2,/);
     expect(css).toMatch(/@container \(min-width: 880px\)\s*\{\s*\.grid\s*\{[^}]*repeat\(4,/);
   });
 
   it('the legend is a 48 by 8px aria-hidden swatch between the words, and not part of the h3', () => {
-    expect(ruleBody(styleOf(GROUP), '.swatch') ?? '').toMatch(/width:\s*48px/);
-    expect(ruleBody(styleOf(GROUP), '.swatch') ?? '').toMatch(/height:\s*8px/);
+    expect(declarationsOf(GROUP, '.swatch')).toMatch(/width:\s*48px/);
+    expect(declarationsOf(GROUP, '.swatch')).toMatch(/height:\s*8px/);
     expect(GROUP).toMatch(/class="swatch"\s+aria-hidden="true"/);
     const h3 = /<h3[\s\S]*?<\/h3>/.exec(GROUP)?.[0] ?? '';
     expect(h3).not.toContain('legend');
@@ -365,8 +523,6 @@ describe('OverviewGroup: the grid', () => {
 // place pins are written.
 // =============================================================================
 
-const BENTO = stripComments(readFileSync(path.join(DIR, 'OverviewBento.svelte'), 'utf8'));
-
 /** Every file under a directory, recursively. */
 function filesUnder(dir: string): string[] {
   const found: string[] = [];
@@ -383,16 +539,41 @@ describe('OverviewBento: what it may not contain', () => {
     expect(findings(BENTO)).toEqual([]);
   });
 
-  it('every font-size is 12 or 14px (the scale)', () => {
-    const sizes = [...BENTO.matchAll(/font-size\s*:\s*([^;}\n]+)/g)].map((m) =>
-      (m[1] ?? '').trim(),
-    );
-    expect(sizes.length).toBeGreaterThan(0);
-    for (const value of sizes) {
-      const px = /^(\d+)px$/.exec(value);
-      expect(px, `font-size: ${value}`).not.toBeNull();
-      expect(OVERVIEW_SCALE_PX.has(Number(px?.[1])), value).toBe(true);
+  it('its type is the shared roles: caption and label at 12px, body at 14px, and no local size', () => {
+    // The bento puts the roles on its text and declares no size of its own, so
+    // the size is read through the roles: a reader that looked for a
+    // `font-size` declaration would find nothing and assert nothing.
+    const roles = rolesIn(BENTO);
+    expect(roles.length, 'the bento applies a type role').toBeGreaterThan(0);
+    for (const role of roles) {
+      const size = roleSize(role);
+      expect(size, `OverviewBento: the role ${role} declares a font-size`).not.toBeNull();
+      expect(OVERVIEW_SIZES.has(size as number), `${role} is ${String(size)}px`).toBe(true);
     }
+    expect(roles).toEqual(expect.arrayContaining(['t-caption', 't-body', 't-label']));
+    expect(resolveTokens(styleText(BENTO), TOKENS)).not.toMatch(/font-size\s*:/);
+  });
+
+  it('defines none of the shared text names, and its note, statement and label hooks keep the margin, the wrap and the colour', () => {
+    // `.caption` and `.body` are the shared utility blocks (14px); the
+    // bento's 12px caption is NOT the shared one, so neither name is local.
+    const css = styleText(BENTO);
+    expect(css).not.toMatch(/(?:^|[\s,}])\.(?:caption|body)\b/);
+    const note = declarationsOf(BENTO, '.note');
+    expect(note).toMatch(/margin:\s*0/);
+    expect(note).toMatch(/min-width:\s*0/);
+    expect(note).toMatch(/overflow-wrap:\s*anywhere/);
+    expect(note).toMatch(/color:\s*var\(--muted\)/);
+    const statement = declarationsOf(BENTO, '.statement');
+    expect(statement).toMatch(/overflow-wrap:\s*anywhere/);
+    expect(statement).toMatch(/color:\s*var\(--ink\)/);
+    const label = declarationsOf(BENTO, '.label');
+    expect(label).toMatch(/margin:\s*0/);
+    expect(label).toMatch(/color:\s*var\(--muted\)/);
+    expect(BENTO).toMatch(/class="t-caption note"[^>]*data-testid="ov-provenance"/);
+    expect(BENTO).toMatch(/class="t-body statement"[^>]*data-testid="ov-empty"/);
+    expect(BENTO).toMatch(/class="t-label label"/);
+    expect(BENTO).toMatch(/class="t-caption note attribution"/);
   });
 
   it('the only container breakpoints are 880px and 480px, and there is no max-width media query', () => {

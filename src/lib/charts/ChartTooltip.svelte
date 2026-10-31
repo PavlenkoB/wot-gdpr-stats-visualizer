@@ -354,42 +354,47 @@
     position: fixed;
     z-index: 2;
     max-width: 240px;
-    padding: 8px 12px;
-    border-radius: 6px;
+    padding: var(--space-8) var(--space-12);
+    border-radius: var(--radius-sm);
     background: var(--text);
-    color: #ffffff;
-    font-size: 14px;
-    line-height: 1.4;
+    /* White on the dark `--text` surface: the tooltip's own colour, not a page
+       surface, so it reads `--white` and not `--page`. */
+    color: var(--white);
+    font-size: var(--fs-body);
+    line-height: var(--lh-tight);
     pointer-events: none;
     overflow-wrap: anywhere;
-  }
 
-  /*
-    The `hidden` attribute has to WIN over the chrome above, or the tooltip
-    would be an invisible-but-present box in the layout: a UA rule for
-    `[hidden]` is `display: none` at the lowest specificity, so the
-    `display` declared here would otherwise beat it.
-  */
-  .tooltip[hidden] {
-    display: none;
+    /*
+      The `hidden` attribute has to WIN over the chrome above, or the tooltip
+      would be an invisible-but-present box in the layout: a UA rule for
+      `[hidden]` is `display: none` at the lowest specificity, so the
+      `display` declared here would otherwise beat it.
+
+      It is NESTED under `.tooltip` because it extends it, and nesting keeps
+      the specificity and the order it had as a sibling (D-05).
+    */
+    &[hidden] {
+      display: none;
+    }
   }
 
   .line-one {
     margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
-    color: #ffffff;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
+    color: var(--white);
   }
 
   /* The 4px gap is the xs token: the two lines are one fact and its value,
      and a caption line hard against a label line reads as one run-on
      sentence. */
   .line-two {
-    margin: 4px 0 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
-    color: #ffffff;
+    margin: var(--space-4) 0 0;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-tight);
+    color: var(--white);
   }
 </style>

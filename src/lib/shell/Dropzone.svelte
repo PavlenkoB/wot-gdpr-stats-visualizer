@@ -132,13 +132,18 @@
      styling lives here in a component style block. The build-time CSP
      does not allow inline styles (default-src 'self', no 'unsafe-inline'
      for style-src), and the 01-02 lint rules enforce that via
-     svelte/no-inline-styles. */
+     svelte/no-inline-styles.
+
+     The dropzone's own states are NESTED under it (D-05): `&.compact`,
+     `&:focus-within`, `&.highlighted` and `&.disabled` flatten to the
+     compound selectors the flat rules had, so the specificity and the
+     source order are exactly what they were. */
   .dropzone {
     display: flex;
     align-items: center;
     justify-content: center;
     min-height: 240px;
-    padding: 20px;
+    padding: var(--layout-gutter);
     border: 2px dashed var(--faint);
     border-radius: var(--radius-card);
     background: var(--list);
@@ -148,52 +153,52 @@
     transition:
       background-color 120ms ease,
       border-color 120ms ease;
-  }
 
-  /* Declared BEFORE .highlighted and .disabled on purpose. The compact
-     variant is a *resting* look, not a state: the drag highlight and the
-     busy treatment must both still win over it, or a slim bar being
-     dragged onto would show no sign that it is a drop target. */
-  .dropzone.compact {
-    justify-content: flex-start;
-    min-height: 44px;
-    padding: 8px 12px;
-    border-width: 1px;
-    border-color: var(--faint);
-    border-radius: var(--radius-control);
-    background: transparent;
-  }
+    /* Declared BEFORE .highlighted and .disabled on purpose. The compact
+       variant is a *resting* look, not a state: the drag highlight and the
+       busy treatment must both still win over it, or a slim bar being
+       dragged onto would show no sign that it is a drop target. */
+    &.compact {
+      justify-content: flex-start;
+      min-height: 44px;
+      padding: var(--space-8) var(--space-12);
+      border-width: 1px;
+      border-color: var(--faint);
+      border-radius: var(--radius-control);
+      background: transparent;
+    }
 
-  /* Visible focus ring when the label is tabbed to, and when focus() moves
-     it there after a confirmed clear. Identical in both variants — only the
-     resting chrome above differs. */
-  .dropzone:focus-within {
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
-  }
+    /* Visible focus ring when the label is tabbed to, and when focus() moves
+       it there after a confirmed clear. Identical in both variants — only the
+       resting chrome above differs. */
+    &:focus-within {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
 
-  .dropzone.highlighted {
-    background: color-mix(in srgb, var(--focus) 10%, var(--page));
-    border-color: var(--focus);
-  }
+    &.highlighted {
+      background: color-mix(in srgb, var(--focus) 10%, var(--page));
+      border-color: var(--focus);
+    }
 
-  .dropzone.disabled {
-    cursor: not-allowed;
-    opacity: 0.85;
-    pointer-events: none;
+    &.disabled {
+      cursor: not-allowed;
+      opacity: 0.85;
+      pointer-events: none;
+    }
   }
 
   .prompt {
     text-align: center;
-    font-size: 14px;
-    line-height: 1.5;
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
   }
 
   /* The slim bar's prompt sits on one line against the list pane, so it reads
      as a quiet 14px line in a row rather than as a centred headline. */
   .compact .prompt {
     text-align: left;
-    font-size: 14px;
+    font-size: var(--fs-body);
     color: var(--text);
   }
 

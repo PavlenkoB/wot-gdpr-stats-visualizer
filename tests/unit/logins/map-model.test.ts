@@ -13,6 +13,7 @@ import {
 import { loginTiles } from '../../../src/lib/features/logins/login-model.ts';
 import type { LoginsView } from '../../../src/lib/features/logins/login-shared.ts';
 import { formatMapLegendNote, formatMapSummary } from '../../../src/lib/ui-copy.ts';
+import { readTokenSource } from '../../helpers/styles.ts';
 
 // =============================================================================
 // The country map's pure model (06-12, ACTIVITY-06, D-09)
@@ -495,18 +496,23 @@ describe('the map components are plain, scoped and still', () => {
     });
   }
 
-  it('paints with the ramp tokens and never restates a ramp hex value', () => {
-    const css = readFileSync(join(process.cwd(), 'src/app.css'), 'utf8');
-    const ramp = [...css.matchAll(/--ramp-[0-5]:\s*(#[0-9a-fA-F]{6})/g)].map((m) =>
+  it('paints with the heat scale and never restates a heat hex value', () => {
+    // The token source, not a named file: the heat declarations may live in
+    // any stylesheet a custom property may live in, and the question this test
+    // asks is which hex values they are. Four of them: the neutral empty
+    // swatch and the three stops the five data steps are derived from.
+    const css = readTokenSource();
+    const heat = [...css.matchAll(/--heat-(?:empty|low|mid|peak):\s*(#[0-9a-fA-F]{6})/g)].map((m) =>
       m[1]!.toLowerCase(),
     );
-    expect(ramp).toHaveLength(6);
+    expect(heat).toHaveLength(4);
     for (const name of names) {
       const code = codeOf(name).toLowerCase();
-      for (const hex of ramp) expect(code, `${name} restates ${hex}`).not.toContain(hex);
+      for (const hex of heat) expect(code, `${name} restates ${hex}`).not.toContain(hex);
     }
     const map = codeOf('WorldMap.svelte');
-    for (let level = 0; level <= 5; level++) expect(map).toContain(`var(--ramp-${level})`);
+    expect(map).toContain('var(--heat-empty)');
+    for (let level = 1; level <= 5; level++) expect(map).toContain(`var(--heat-${level})`);
   });
 
   it('imports the generated map statically, never with a dynamic import', () => {

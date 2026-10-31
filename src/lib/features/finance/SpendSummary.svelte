@@ -342,7 +342,7 @@
             because an unbroken unit-less value is 60 characters of zip text
             and must wrap rather than widen the card (T-05-46, UI-SPEC 14).
           -->
-          <p class="headline" data-testid="spend-total">{headlineFor(card)}</p>
+          <p class="headline t-display" data-testid="spend-total">{headlineFor(card)}</p>
 
           <!--
             The unit-less warning, and only on the unit-less card. It is the
@@ -497,7 +497,7 @@
   div {
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: var(--space-24);
     min-width: 0;
   }
 
@@ -505,31 +505,21 @@
      cannot be shared, and a copy that drifts should be visible in a diff. */
   h3 {
     margin: 0;
-    padding-bottom: 8px;
+    padding-bottom: var(--space-8);
     border-bottom: 1px solid var(--border);
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--ink);
   }
 
-  .body {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
-    color: var(--text);
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-
-  .error {
-    padding: 8px 12px;
-    border: 1px solid #c5221f;
-    border-radius: 6px;
-    background: #fce8e6;
-    color: #8a1c17;
-  }
+  /* The text blocks come from the shared layer now. The local `.body`,
+     `.caption` and `.error` are deleted, not tokenised: the shared ones in
+     `src/styles/utilities.css` declare the same values (`.body` margin 0,
+     min-width 0, 14/400/1.5 in `--text`, wrap anywhere; `.caption` the same
+     at 1.4 in `--muted`; `.error` the danger border, the 6px radius and the
+     danger background), and a scoped local copy would outrank the shared one.
+     The markup keeps `class="body"`, `class="body error"` and `class="caption"`. */
 
   ul {
     margin: 0;
@@ -537,18 +527,18 @@
     list-style: none;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: var(--space-16);
     min-width: 0;
   }
 
   li {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--space-4);
     min-width: 0;
-    padding: 16px;
+    padding: var(--space-16);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: var(--list);
   }
 
@@ -558,30 +548,22 @@
      (D-24). A code can be long clamped zip text, so it wraps anywhere. */
   h4 {
     margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--ink);
     min-width: 0;
     overflow-wrap: anywhere;
   }
 
+  /* The DISPLAY role owns the size, the weight and the leading now, so the
+     local rule states only what a role does not: the ink, the min-width and
+     the wrap. The role's triple is 26px/600/1.3 - exactly what this rule
+     declared - so the figure renders as before (the UI-SPEC: the spend
+     headline is a FIGURE, not a title). */
   .headline {
     margin: 0;
-    font-size: 26px;
-    font-weight: 600;
-    line-height: 1.3;
     color: var(--ink);
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-
-  .caption {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
-    color: var(--muted);
     min-width: 0;
     overflow-wrap: anywhere;
   }
@@ -593,15 +575,15 @@
   dl {
     display: grid;
     grid-template-columns: auto 1fr;
-    gap: 4px 16px;
+    gap: var(--space-4) var(--space-16);
     margin: 0;
     min-width: 0;
   }
 
   dt {
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--muted);
     min-width: 0;
     overflow-wrap: anywhere;
@@ -609,9 +591,9 @@
 
   dd {
     margin: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-tight);
     color: var(--text);
     text-align: right;
     font-variant-numeric: tabular-nums;
@@ -620,14 +602,17 @@
   /* 8px before the disclosure, per the UI-SPEC: it is a different KIND of
      thing from the figures above it — a way into rows rather than a row. */
   .breakdown {
-    margin-top: 8px;
+    margin-top: var(--space-8);
     min-width: 0;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--muted);
   }
 
+  /* There is no `summary` rule to nest this under, so it stays top-level:
+     nesting needs a parent, and inventing one would be a rule describing
+     nothing. */
   summary:focus-visible {
     outline: 3px solid var(--focus);
     outline-offset: 2px;
@@ -636,8 +621,8 @@
   .tables {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    margin-top: 8px;
+    gap: var(--space-16);
+    margin-top: var(--space-8);
     min-width: 0;
   }
 
@@ -647,7 +632,7 @@
      8px is the `.tables` gap's, so the two disclosures open to the same
      indentation. */
   details > table {
-    margin-top: 8px;
+    margin-top: var(--space-8);
   }
 
   /* The clip pattern (`AccountTag.svelte`, `LoginTable.svelte`), NOT the visible
@@ -671,8 +656,8 @@
   table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 14px;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    line-height: var(--lh-tight);
   }
 
   /* The caption is VISIBLE, not the visually-hidden pattern the monthly data
@@ -681,24 +666,24 @@
      "By year" over a code column would otherwise be a puzzle. */
   caption {
     text-align: left;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--muted);
-    padding-bottom: 4px;
+    padding-bottom: var(--space-4);
   }
 
   th {
-    padding: 8px 12px;
-    font-weight: 600;
+    padding: var(--space-8) var(--space-12);
+    font-weight: var(--fw-semibold);
     color: var(--muted);
     text-align: left;
     border-bottom: 1px solid var(--border);
   }
 
   td {
-    padding: 8px 12px;
-    font-weight: 400;
+    padding: var(--space-8) var(--space-12);
+    font-weight: var(--fw-regular);
     color: var(--text);
     border-bottom: 1px solid var(--border);
     /* A game code is 80 characters of clamped zip text in the long-text

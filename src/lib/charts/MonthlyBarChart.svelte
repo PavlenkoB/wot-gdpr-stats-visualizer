@@ -222,7 +222,7 @@
   anywhere else on the page dismisses the pinned tooltip. It is on the scroller
   rather than the svg because the scroller is the chart's whole addressable box.
 -->
-<div class="scroller" data-testid="bar-scroller" data-tooltip-surface bind:contentRect={rect}>
+<div class="chart-scroll" data-testid="bar-scroller" data-tooltip-surface bind:contentRect={rect}>
   <svg
     bind:this={element}
     data-testid={chartTestId}
@@ -396,11 +396,21 @@
 </div>
 
 <style>
-  .scroller {
+  /*
+    The horizontal scroller. It is a CHART scroller and not a focusable region,
+    so it does NOT take the shared `.scroller`: that one is the focusable scroll
+    region with `isolation: isolate` and a focus ring, and a chart scroller must
+    not gain either. This is the local `chart-scroll` hook, and it keeps its own
+    declarations. `overflow-y: hidden` is not cosmetic: with the default
+    `visible` the browser computes a used `overflow-y` of `auto` and the focus
+    ring's 1.5px overhang starts a second scroll axis on a chart that should
+    have one. The 4px of vertical padding is the room that overhang needs.
+  */
+  .chart-scroll {
     overflow-x: auto;
     overflow-y: hidden;
     max-width: 100%;
-    padding: 4px 0;
+    padding: var(--space-4) 0;
     min-width: 0;
   }
 
@@ -410,9 +420,9 @@
   }
 
   .axis {
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-tight);
     fill: var(--muted);
   }
 
@@ -457,7 +467,7 @@
 
   .focus-ring-inner,
   .hover-ring-inner {
-    stroke: #ffffff;
+    stroke: var(--white);
     stroke-width: 1;
   }
 </style>

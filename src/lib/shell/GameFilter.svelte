@@ -32,6 +32,15 @@
    * `aria-labelledby` points at the visible "Filter by game" span, so the group
    * a screen reader announces is the same sentence the sighted reader reads. A
    * visually hidden duplicate would be one more thing to drift from the copy.
+   *
+   * ## The radios are hidden by the SHARED utility
+   *
+   * The inputs carry the class `visually-hidden`, which `src/styles/utilities.css`
+   * defines once: the clip pattern is a project-wide contract, not a per-file
+   * copy. This file used to carry its own copy of the same clip block, and a
+   * scoped copy outranks the global one, so the two could drift apart without
+   * anybody noticing. The local copy is deleted, and the shared block states
+   * the same declarations, so the computed style is unchanged.
    */
   interface Props {
     /** The tokens to offer, already decided by `filterChips`; never hostile. */
@@ -114,14 +123,14 @@
   .game-filter {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--space-4);
     min-width: 0;
   }
 
   .label {
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--text);
   }
 
@@ -137,69 +146,62 @@
   .chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: var(--space-8);
     min-width: 0;
   }
 
+  /* The chip's own states are NESTED under it (D-05): `&:hover`,
+     `&:has(input:checked)` and `&:has(input:focus-visible)` flatten to the
+     compound selectors the flat rules had, so the specificity and the source
+     order are exactly what they were. */
   .chip {
     display: inline-flex;
     align-items: center;
     min-height: 44px;
     box-sizing: border-box;
-    padding: 0 16px;
+    padding: 0 var(--space-16);
     border: 1px solid var(--faint);
     border-radius: var(--radius-control);
     background: var(--page);
     color: var(--text);
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     white-space: nowrap;
     cursor: pointer;
-  }
 
-  /* Hover only on an unselected chip: a selected chip is already showing where
-     the choice went, and swapping its fill under the pointer would make the
-     selection look like it moved. */
-  .chip:hover {
-    background: var(--hover);
-  }
+    /* Hover only on an unselected chip: a selected chip is already showing where
+       the choice went, and swapping its fill under the pointer would make the
+       selection look like it moved. */
+    &:hover {
+      background: var(--hover);
+    }
 
-  /* Selected: the list's own selection language — the `--sel` fill with an ink
-     border and an ink bottom bar, NOT the filled-ink primary button. Status is
-     never colour alone: the checked radio state says the same thing to a
-     screen reader and in the DOM. */
-  .chip:has(input:checked) {
-    background: var(--sel);
-    color: var(--ink);
-    border-color: var(--ink);
-    box-shadow: inset 0 -3px 0 var(--ink);
-  }
+    /* Selected: the list's own selection language — the `--sel` fill with an ink
+       border and an ink bottom bar, NOT the filled-ink primary button. Status is
+       never colour alone: the checked radio state says the same thing to a
+       screen reader and in the DOM. */
+    &:has(input:checked) {
+      background: var(--sel);
+      color: var(--ink);
+      border-color: var(--ink);
+      box-shadow: inset 0 -3px 0 var(--ink);
 
-  .chip:has(input:checked):hover {
-    background: var(--sel);
-  }
+      /* The plain `:hover` above outranks the selected rule on specificity, so
+         a selected chip would lose its fill under the pointer. This puts it
+         back, and it is NESTED under the selected rule because it extends it
+         (D-05): `&:hover` flattens to the compound the flat rule had. */
+      &:hover {
+        background: var(--sel);
+      }
+    }
 
-  /* The focus ring is on the visible chip, never on the hidden input, so it is
-     where the reader's attention already is. No transition and no animation:
-     motion is for meaning in this project, and a selection already has three. */
-  .chip:has(input:focus-visible) {
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
-  }
-
-  /* The clip pattern, copied from `LoginTable.svelte` and `Playtime.svelte`:
-     the input must stay in the accessibility tree (a `display: none` radio is
-     removed from it and the group announces nothing) while measuring nothing. */
-  .visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
+    /* The focus ring is on the visible chip, never on the hidden input, so it is
+       where the reader's attention already is. No transition and no animation:
+       motion is for meaning in this project, and a selection already has three. */
+    &:has(input:focus-visible) {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
   }
 </style>

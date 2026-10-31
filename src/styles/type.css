@@ -1,0 +1,76 @@
+/* =============================================================================
+   The typography roles (Phase 14, D-06, D-07).
+
+   A role sets SIZE, WEIGHT and LINE HEIGHT only - plus `overflow-wrap`,
+   `text-transform` and `letter-spacing` where the role table lists them.
+
+   A role NEVER sets colour, margin, display or position. Colour belongs to
+   the context that uses the role; margin, display and position belong to the
+   element's own rule. A role that also set a colour would paint every
+   element that took it the same colour, which is the opposite of what a role
+   is for.
+
+   A role is applied only where the site's computed triple EQUALS the role's
+   triple. Where it does not, the component rule carries the tokens directly,
+   because adopting a near-miss role would change the pixels.
+   ============================================================================= */
+
+.t-hero {
+  font-size: var(--fs-hero);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-hero);
+}
+
+.t-stat {
+  font-size: var(--fs-stat);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-stat);
+}
+
+/* The pane title role. It is named for the title rather than for the
+   display role it resembles, because the title size SWITCHES with the
+   viewport (32px from 900px up, 26px below) and `.t-display` does not. */
+.t-title {
+  font-size: var(--fs-title);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-heading);
+  overflow-wrap: anywhere;
+}
+
+.t-display {
+  font-size: var(--fs-display);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-heading);
+}
+
+.t-heading {
+  font-size: var(--fs-heading);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-heading);
+}
+
+.t-body {
+  font-size: var(--fs-body);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-body);
+}
+
+.t-body-strong {
+  font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-body);
+}
+
+.t-caption {
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-tight);
+}
+
+.t-label {
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}

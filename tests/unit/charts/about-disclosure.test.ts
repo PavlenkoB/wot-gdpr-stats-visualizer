@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { componentPath } from '../../helpers/components.ts';
+import { resolveTokens, ruleDeclarations, styleText, tokenMap } from '../../helpers/css.ts';
+import { readTokenSource } from '../../helpers/styles.ts';
 
 // =============================================================================
 // AboutDisclosure placement guard (08-06)
@@ -141,6 +143,17 @@ describe('AboutDisclosure.svelte', () => {
   const raw = readFileSync(componentPath('AboutDisclosure.svelte'), 'utf8');
   const source = stripComments(raw);
 
+  /**
+   * The token declarations, so a px assertion can be resolved back to pixels.
+   *
+   * The disclosure's sizes are TOKENS now (Phase 14, D-01). A reader that
+   * matched `font-size: Npx` in the source would find NOTHING once the sizes
+   * were tokenised, and a loop over an empty array asserts nothing - a vacuous
+   * pass. Resolving the tokens first turns the declaration back into the px it
+   * stands for, so the 14px floor is still checked against the real value.
+   */
+  const TOKENS = tokenMap(readTokenSource());
+
   test('renders a details element with a summary', () => {
     expect(source).toMatch(/<details\b[\s\S]*<summary>[\s\S]*<\/summary>[\s\S]*<\/details>/);
   });
@@ -152,14 +165,21 @@ describe('AboutDisclosure.svelte', () => {
   });
 
   test('the summary is at least 44px high', () => {
-    const rule = /summary\s*\{([^}]*)\}/.exec(source);
-    expect(rule, 'a summary rule exists').not.toBeNull();
-    expect(rule?.[1]).toMatch(/min-height:\s*44px/);
+    // The rule is looked up by SELECTOR, so a nested block does not hide it and
+    // a rule that moved does not silently stop answering.
+    const rule = ruleDeclarations(styleText(raw), 'summary');
+    expect(rule, 'a summary rule exists').not.toBe('');
+    expect(rule).toMatch(/min-height:\s*44px/);
   });
 
   test('declares no font-size under 14px', () => {
-    const sizes = [...source.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)].map((m) => Number(m[1]));
-    expect(sizes.length).toBeGreaterThan(0);
+    const resolved = resolveTokens(source, TOKENS);
+    const sizes = [...resolved.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)].map((m) =>
+      Number(m[1]),
+    );
+    // The non-vacuity check: an empty match would make the loop below assert
+    // nothing at all, and the 14px floor would be unproven.
+    expect(sizes.length, 'the disclosure declares at least one font-size').toBeGreaterThan(0);
     for (const size of sizes) expect(size).toBeGreaterThanOrEqual(14);
   });
 

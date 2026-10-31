@@ -81,13 +81,15 @@
       The phone's top bar: a 48px row with the back button at the left and the
       title centred. It does not stick and declares no position, so nothing floats
       over the content at any width. The title is decorative here (the region and
-      the section heading already carry it).
+      the section heading already carry it), and it carries the shared Title
+      role (D-12): 26px below 900px, where the phone block hides the in-content
+      heading and leaves this one visible.
     -->
     <div class="phone-bar">
       <button type="button" data-testid="back-button-sections" onclick={onback}>
         {BACK_TO_SECTIONS_LABEL}
       </button>
-      <span class="phone-title" aria-hidden="true">{title}</span>
+      <span class="t-heading phone-title" aria-hidden="true">{title}</span>
     </div>
   {/if}
 

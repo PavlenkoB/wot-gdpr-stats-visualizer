@@ -1187,8 +1187,11 @@ export function formatEmptyYearRun(from: number, to: number): string {
  * sentence about nothing. That is also why the parameter is nullable rather
  * than 0 — a zero boundary and an absent one are different facts.
  *
- * The first sentence is the accessibility relief for a rank-based ramp: it
- * tells the reader the scale is ranked, not proportional.
+ * The first sentence is the accessibility relief for a rank-based, discrete
+ * scale: it tells the reader the scale is ranked, not proportional. The scale
+ * itself is no longer a relief case — each of its five data steps clears 3:1
+ * on white — but the note is still the words the shading cannot be, so it
+ * stays.
  */
 export function formatCalendarLegendNote(darkestSeconds: number | null): string {
   const base = 'Shades rank your active days, so ordinary days stay distinguishable from outliers.';
@@ -3229,11 +3232,12 @@ export function formatMapTooltipLines(
 /**
  * The legend's note: the logarithmic rule in words, then the step starts.
  *
- * The FIRST sentence is the accessibility relief for a ramp whose lightest
- * steps sit below the 3:1 non-text floor on white. Shading is never the only
- * carrier of a value, and this line is what tells the reader the scale is
- * logarithmic rather than proportional — the same job the Phase 4 legend note
- * does for a rank-based ramp.
+ * The FIRST sentence is the accessibility relief for a rank-based, discrete
+ * scale: its five data steps each clear 3:1 on white, so no step needs a
+ * relief rule any more — but shading is still never the only carrier of a
+ * value, and this line is what tells the reader the scale is logarithmic
+ * rather than proportional, the same job the Phase 4 legend note does for the
+ * calendar's rank-based scale.
  *
  * Duplicate step starts are collapsed: two levels can round to the same
  * boundary, and naming it twice reads as two steps that start in the same

@@ -91,7 +91,7 @@
 </script>
 
 <div class="overview" data-testid="overview" aria-busy={screen === 'loading' ? 'true' : 'false'}>
-  <h2 id="overview-heading" class="section-title">{PANE_TITLES.overview}</h2>
+  <h2 id="overview-heading" class="t-title section-title">{PANE_TITLES.overview}</h2>
 
   <OverviewBento {result} {view} {screen} onopen={(pane) => onopen?.(pane)} />
 </div>
@@ -100,17 +100,40 @@
   .overview {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: var(--space-16);
     min-width: 0;
   }
 
+  /*
+    The Title role (D-12) owns the size, the weight, the line height and the
+    wrapping; this rule states only what a role may not.
+
+    AND THE COMPENSATION (D-16, owner-confirmed 2026-10-25).
+    The Overview title is 32px at 900px and up, like every other pane title,
+    and its 1.3 line box is 41.6px - 7.8px TALLER than the 26px x 1.3 row the
+    Overview had before. In a flex column that pushes every tile down by
+    7.8px and changes the size of the whole page, which D-15 forbids.
+
+    So the title block keeps today's row height: the negative bottom margin is
+    EXACTLY the difference between the two line boxes, written from the
+    tokens so it follows them:
+
+        (var(--fs-display) - var(--fs-title)) * var(--lh-heading)
+
+    At 900px and up that is (26px - 32px) x 1.3 = -7.8px, so 41.6px of line
+    box nets 33.8px - today's row. Below 900px `--fs-title` IS
+    `--fs-display`, so the margin is 0 and nothing changes there either.
+
+    The compensation is a MARGIN and nothing else: no line height, no fixed
+    height, no overflow. A title with its own height would stop following the
+    role, and the whole point of the role is that it does not.
+
+    The rule stays top-level, because the phone block of `src/app.css` hides
+    the title at 480px and below and its `margin: -1px` outranks a nested rule.
+  */
   .section-title {
-    margin: 0;
-    font-size: 26px;
-    font-weight: 600;
-    line-height: 1.3;
+    margin: 0 0 calc((var(--fs-display) - var(--fs-title)) * var(--lh-heading));
     color: var(--ink);
     min-width: 0;
-    overflow-wrap: anywhere;
   }
 </style>

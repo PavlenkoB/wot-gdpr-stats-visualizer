@@ -14,7 +14,7 @@
 //
 // What is left is the WIRING, and wiring is exactly what silently rots: a
 // `viewBox` creeps onto a chart that must never scale, a cell grows an inline
-// fill so it no longer reads the one ramp declaration, a "one delegated
+// fill so it no longer reads the one scale declaration, a "one delegated
 // listener" grid grows a per-cell `addEventListener`, the `aria-busy` that the
 // UI-SPEC puts on the charts container is put on the wrong element, the D-01
 // basis caption moves into a tooltip where a sighted reader cannot see it.
@@ -34,7 +34,7 @@
 // Asserted: the things whose failure is silent and whose fix is invisible to a
 // passing arithmetic test — roles, test hooks, attribute names, the
 // constant-vs-literal distinction, the prohibitions (no `@html`, no inline
-// style, no per-cell listener, no `viewBox`, no motion, no ramp hex).
+// style, no per-cell listener, no `viewBox`, no motion, no scale hex).
 // Not asserted: layout geometry and colour rendering. Those are
 // `pnpm run check` (svelte-check's a11y rules) and plan 04-11's Playwright,
 // because a regex cannot tell you a 3px focus ring is not clipped.
@@ -50,9 +50,14 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { componentPath } from '../../helpers/components.ts';
+import { resolveTokens, ruleDeclarations, styleText, tokenMap } from '../../helpers/css.ts';
+import { readTokenSource } from '../../helpers/styles.ts';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const LIB = path.join(REPO_ROOT, 'src/lib');
+
+/** The token declarations, so a px assertion can be resolved back to pixels. */
+const TOKENS = tokenMap(readTokenSource());
 
 const CHARTS = 'PlaytimeCharts.svelte';
 const GRID = 'HourGrid.svelte';
@@ -183,14 +188,17 @@ describe('04-09 Task 1 — the charts container, the weekday by hour grid and th
     expect(code(LEGEND)).toMatch(/data-testid=\{testId\}/);
   });
 
-  test('the legend and the cells read the ONE ramp declaration, never a literal hex', () => {
-    // `src/app.css` declares `--ramp-0`..`--ramp-5` once and
-    // `contrast.test.ts` already fails on any component restating a step; what
-    // is asserted here is the positive half — that the components actually
-    // reach for the variables, so removing the consumers fails here too.
-    for (const level of [0, 1, 2, 3, 4, 5]) {
-      expect(code(LEGEND)).toContain(`var(--ramp-${level})`);
-      expect(code(GRID)).toContain(`var(--ramp-${level})`);
+  test('the legend and the cells read the ONE heat scale, never a literal hex', () => {
+    // `src/styles/tokens.css` declares `--heat-empty` and `--heat-1` to
+    // `--heat-5` once and `contrast.test.ts` already fails on any component
+    // restating a step; what is asserted here is the positive half — that the
+    // components actually reach for the variables, so removing the consumers
+    // fails here too. Level 0 is the neutral empty swatch, not a data step.
+    expect(code(LEGEND), 'the legend empty swatch').toContain('var(--heat-empty)');
+    expect(code(GRID), 'the grid empty cell').toContain('var(--heat-empty)');
+    for (const level of [1, 2, 3, 4, 5]) {
+      expect(code(LEGEND), `the legend level ${level}`).toContain(`var(--heat-${level})`);
+      expect(code(GRID), `the grid level ${level}`).toContain(`var(--heat-${level})`);
     }
   });
 
@@ -450,7 +458,7 @@ describe('04-09 Task 3 — the session length list', () => {
     expect(code(LIST)).not.toContain('ChartTooltip');
   });
 
-  test('the bars are stretched rects on ONE ramp step, and an empty bin draws no rect', () => {
+  test('the bars are stretched rects on ONE heat step, and an empty bin draws no rect', () => {
     // A zero-width bar is a hairline of colour where there is nothing to
     // count, and it reads as "a tiny amount" rather than "none".
     expect(code(LIST)).toMatch(/row\.count > 0/);
@@ -461,12 +469,12 @@ describe('04-09 Task 3 — the session length list', () => {
     expect(code(LIST)).toContain('viewBox="0 0 100 12"');
     expect(code(LIST)).toContain('preserveAspectRatio="none"');
     expect(code(LIST)).toContain('width={row.barWidth}');
-    // ONE step, not six. The ramp is a sequential scale and these bars are
-    // counts of unrelated buckets, so length is the encoding and colour is
-    // decoration — a six-step ramp would imply an ordering the reader has to
-    // learn and would make the sub-3:1 light steps carry meaning.
-    expect(code(LIST)).toContain('var(--ramp-4)');
-    expect(code(LIST)).not.toMatch(/var\(--ramp-[0-35]\)/);
+    // ONE step, not five. The heat scale is a sequential scale and these bars
+    // are counts of unrelated buckets, so length is the encoding and colour is
+    // decoration — a five-step scale would imply an ordering the reader has
+    // to learn.
+    expect(code(LIST)).toContain('var(--heat-3)');
+    expect(code(LIST)).not.toMatch(/var\(--heat-(?:empty|[1245])\)/);
   });
 
   test('the section carries its title and the D-05 explanation, and NO legend', () => {
@@ -628,19 +636,20 @@ describe('04-10 Task 1 — the calendar heatmap: year blocks, cells and the basi
     expect(body).toContain('cell.y');
   });
 
-  test('cells read the ONE ramp declaration, never a level interpolated or a hex written', () => {
+  test('cells read the ONE heat scale, never a level interpolated or a hex written', () => {
     // The scale is rank-based (D-04), so the six tokens are the whole
-    // vocabulary: interpolating a level (`--ramp-{n}`) or restating a hex in
-    // the component would both be a second place the ramp is declared, which
+    // vocabulary: interpolating a level (`--heat-{n}`) or restating a hex in
+    // the component would both be a second place the scale is declared, which
     // is exactly what `contrast.test.ts` fails on.
     const body = code(CALENDAR);
-    for (let level = 0; level <= 5; level += 1) {
-      expect(body, `level ${level}`).toContain(`var(--ramp-${level})`);
+    expect(body, 'level 0').toContain('var(--heat-empty)');
+    for (let level = 1; level <= 5; level += 1) {
+      expect(body, `level ${level}`).toContain(`var(--heat-${level})`);
     }
-    for (const hex of ['#eef0f2', '#b2dcd4', '#7cc7bc', '#43a89c', '#1f7a74', '#0d4f4c']) {
+    for (const hex of ['#eef0f2', '#47a374', '#6b8a14', '#8c6400']) {
       expect(body, hex).not.toContain(hex);
     }
-    expect(body).not.toMatch(/--ramp-\{/);
+    expect(body).not.toMatch(/--heat-\{/);
   });
 
   test('a collapsed run of empty years is one line and no grid', () => {
@@ -814,7 +823,19 @@ describe('04-10 Task 2 — the roving tab stop, the shared tooltip and the measu
     // carries vertical padding and the svg allows overflow — otherwise the ring
     // is clipped on the bottom row and the rightmost column.
     expect(body).toMatch(/overflow:\s*visible/);
-    expect(body).toMatch(/\.scroller\s*\{[\s\S]*?padding:\s*4px\s+0/);
+    // The chart scroller is a LOCAL hook, not the shared focusable region: a
+    // chart is not a keyboard-scrollable region, so it must not gain the
+    // shared `.scroller`'s isolation or its focus ring.
+    expect(body, 'the calendar scroller class').toContain('class="chart-scroll"');
+    expect(body, 'the calendar never uses the shared scroller').not.toContain('class="scroller"');
+    const scroll = resolveTokens(
+      ruleDeclarations(styleText(source(CALENDAR)), '.chart-scroll'),
+      TOKENS,
+    );
+    expect(scroll, 'the calendar chart-scroll rule').toMatch(/padding:\s*4px\s+0/);
+    expect(scroll, 'the calendar chart-scroll rule').toMatch(/overflow-x:\s*auto/);
+    expect(scroll, 'the calendar chart-scroll rule').toMatch(/overflow-y:\s*hidden/);
+    expect(scroll, 'the chart scroller is not an isolation region').not.toContain('isolation');
     // One ring only, for the day that has focus, and only in its own year.
     expect(body.match(/class="focus-ring/g) ?? []).toHaveLength(2);
   });
@@ -939,18 +960,21 @@ describe('04-14 — a failed and a dropped selection change both reconcile', () 
 
 describe('04-18: tile and legend layout contracts', () => {
   /**
-   * One rule's declarations, by selector, scoped to the braces of that rule.
+   * One rule's declarations, by selector, with the tokens resolved to pixels.
    *
    * Scoped because these assertions are about ONE rule each. A `toContain` over
    * the whole stylesheet would be satisfied by a different rule or by prose, and
    * a selector matched without its braces would be satisfied by another
    * selector's list. A rule that is not there yields `''`, so the assertion
    * below names the rule it did not find instead of throwing on a null match.
+   *
+   * The reader is the brace-aware one from `tests/helpers/css.ts`, so it sees a
+   * NESTED rule (a `& h5` under its parent) that a regular expression cannot,
+   * and `resolveTokens` turns a `var(--space-8)` back into the `8px` these
+   * assertions are about, so the claim stays a claim about pixels.
    */
-  function rule(body: string, selector: string): string {
-    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const match = new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{([^{}]*)\\}`, 'm').exec(body);
-    return match?.[1] ?? '';
+  function rule(file: string, selector: string): string {
+    return resolveTokens(ruleDeclarations(styleText(source(file)), selector), TOKENS);
   }
 
   test('a tile value wraps as a pair, and neither part of it ever breaks', () => {
@@ -959,9 +983,8 @@ describe('04-18: tile and legend layout contracts', () => {
     // and "the whole unit below the whole numeral". The break-inside-the-part
     // outcome needs two rules the old stylesheet did not have: a row that may
     // wrap at all, and a value that may not be broken to fit.
-    const body = code(SUMMARY);
-    const dd = rule(body, 'dd');
-    const unit = rule(body, '.unit');
+    const dd = rule(SUMMARY, 'dd');
+    const unit = rule(SUMMARY, '.unit');
 
     expect(dd, 'the summary dd rule').toContain('flex-wrap: wrap');
     // NOT `anywhere`. That rule came from the UI-SPEC's blanket sentence about
@@ -977,7 +1000,27 @@ describe('04-18: tile and legend layout contracts', () => {
     // The cause is held in place by the RULES that were changed, and the two
     // tiles' minimum width and the 128px grid track are what keep two per row
     // at 375px. Neither may be "fixed" by widening the tile instead.
-    expect(rule(body, 'dl'), 'the summary dl rule').toContain('minmax(128px, 1fr)');
+    expect(rule(SUMMARY, 'dl'), 'the summary dl rule').toContain('minmax(128px, 1fr)');
+  });
+
+  test('the three tile numerals take the Display role, and the local rule lets it win', () => {
+    // D-08: the numeral is the Display role (26px at desktop width, and 18px
+    // at 375px because the phone block's `.shell .playtime-summary dd` rule
+    // outranks the role). The role owns the size, the weight and the line
+    // height, so the `dd` rule must declare NONE of them: a scoped rule that
+    // still declared a font-size would outrank the global role and the numeral
+    // would keep the size it had before the migration.
+    const markup = code(SUMMARY);
+    const openings = markup.match(/<dd\b[^>]*>/g) ?? [];
+    expect(openings.length, 'the summary has three tile numerals').toBe(3);
+    for (const opening of openings) {
+      expect(opening, `the summary dd opening: ${opening}`).toContain('class="t-display"');
+    }
+
+    const dd = rule(SUMMARY, 'dd');
+    expect(dd, 'the summary dd rule').not.toContain('font-size');
+    expect(dd, 'the summary dd rule').not.toContain('font-weight');
+    expect(dd, 'the summary dd rule').not.toContain('line-height');
   });
 
   test('the legend note is always its own full row, 8px under the swatch row', () => {
@@ -986,9 +1029,8 @@ describe('04-18: tile and legend layout contracts', () => {
     // ACCIDENT, each 4px under the row. A full-row basis makes the placement a
     // rule instead of a consequence of the sentence's length, and the row gap
     // carries the UI-SPEC's 8px `sm` step down to it.
-    const body = code(LEGEND);
-    const row = rule(body, '.row');
-    const note = rule(body, '.note');
+    const row = rule(LEGEND, '.row');
+    const note = rule(LEGEND, '.note');
 
     // The shorthand `gap: <row> <column>`, or the two longhands. Both are the
     // same declaration written two ways and both are accepted here, because the

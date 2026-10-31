@@ -59,9 +59,9 @@
 <span class="rows" aria-hidden="true">
   {#each drawn as row, index (index)}
     <span class="row">
-      <span class="name">
+      <span class="t-body name">
         {row.name}
-        {#if row.sub !== null}<span class="sub">{row.sub}</span>{/if}
+        {#if row.sub !== null}<span class="t-caption sub">{row.sub}</span>{/if}
       </span>
       <span class="cell">
         {#if row.bar}
@@ -77,7 +77,7 @@
           </svg>
         {/if}
       </span>
-      <span class="num">{row.text}</span>
+      <span class="t-body num">{row.text}</span>
     </span>
   {/each}
 </span>
@@ -86,9 +86,9 @@
   .rows {
     display: grid;
     grid-template-columns: minmax(72px, 1fr) clamp(60px, 30%, 152px) auto;
-    column-gap: 8px;
+    column-gap: var(--space-8);
     min-width: 0;
-    margin-top: 8px;
+    margin-top: var(--space-8);
   }
 
   .row {
@@ -103,18 +103,12 @@
   .name {
     display: block;
     min-width: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
     color: var(--ink);
     overflow-wrap: anywhere;
   }
 
   .sub {
     display: block;
-    font-size: 12px;
-    font-weight: 400;
-    line-height: 1.4;
     color: var(--muted);
   }
 
@@ -130,9 +124,6 @@
 
   .num {
     display: block;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
     color: var(--text);
     text-align: right;
   }

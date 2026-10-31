@@ -1,0 +1,261 @@
+/* =============================================================================
+   The design tokens (Phase 14, D-01, D-06, D-11, D-12).
+
+   THE CONTRACT
+   This is the only file in the project allowed to hold a hex colour, a px font
+   size or a px spacing value. Every other file reads a custom property:
+
+     font-size: var(--fs-body);
+     padding: var(--space-8);
+     color: var(--danger-ink);
+
+   Two checks enforce the contract, and they arrive in this phase: plan 14-03
+   adds tests/unit/guards/design-tokens-guards.test.ts, and
+   tests/unit/charts/contrast.test.ts recomputes the recorded contrast ratios
+   from the declarations below.
+
+   The legacy palette, the flow and Overview colours and the heat STOPS were
+   MOVED here from src/app.css by plan 14-02, with their values unchanged, so
+   this file now holds EVERY custom property of the app and src/app.css holds
+   none. The derived heat steps read the stops declared further down this same
+   block; a custom property resolves at computed-value time, so the reference
+   is valid whichever order the two are written in.
+
+   Nothing in this file may reference an external resource: the stylesheet is
+   the one place a remote fetch could hide outside the TypeScript scan.
+   ============================================================================= */
+
+:root {
+  /* The type scale (D-06): six sizes, and the title size that switches. */
+  --fs-caption: 12px;
+  --fs-body: 14px;
+  --fs-heading: 18px;
+  --fs-display: 26px;
+  --fs-stat: 32px;
+  --fs-hero: 56px;
+  /* The pane title size. It is `--fs-display` below 900px and `--fs-stat`
+     from 900px up; the switch lives in the media query at the end of this
+     file, so a fractional viewport width can never fall between two rules. */
+  --fs-title: var(--fs-display);
+
+  /* The two weights of the project, and only two. */
+  --fw-regular: 400;
+  --fw-semibold: 600;
+
+  /* The line heights the roles are built from. */
+  --lh-hero: 1.1;
+  --lh-stat: 1.2;
+  --lh-heading: 1.3;
+  --lh-tight: 1.4;
+  --lh-body: 1.5;
+
+  /* The component spacing scale (D-04). */
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-24: 24px;
+
+  /* The layout values (OI-7). These are NOT scale members: they are the
+     measured gutters and page paddings, and each keeps its pixel value. */
+  --layout-gutter: 20px;
+  --layout-section: 32px;
+  --layout-page-x: 40px;
+  --layout-page-y: 48px;
+  --layout-page-bottom: 64px;
+
+  /* The one radius the scale snaps to (OI-6): the 6px control radius. */
+  --radius-sm: 6px;
+
+  /* The three elevations of the Overview tile: at rest, under the pointer and
+     open. They are the SAME translucent ink the tile has always cast, written
+     as a mix of --ink with transparent instead of a literal rgba(), so the
+     shadow follows the ink token and no component carries a colour function.
+
+     The three mixes compute to the channels and the alpha the literals had -
+     rgba(17, 17, 17, 0.05), rgba(17, 17, 17, 0.08) and rgba(17, 17, 17, 0.1) -
+     because mixing an opaque colour with transparent in sRGB keeps the colour
+     and mixes only the alpha. The pixel compare in plan 14-19 proves it. */
+  --elev-rest: 0 1px 2px color-mix(in srgb, var(--ink) 5%, transparent);
+  --elev-hover: 0 4px 12px color-mix(in srgb, var(--ink) 8%, transparent);
+  --elev-open: 0 8px 24px color-mix(in srgb, var(--ink) 10%, transparent);
+
+  /* The status colours. The values are the 08-UI-SPEC Color table's, and
+     `tests/unit/charts/contrast.test.ts` recomputes the recorded ratios from
+     these declarations, so a token that drifts from the table fails a test
+     rather than a review nobody reads. */
+  --danger: #c5221f;
+  --danger-ink: #8a1c17;
+  --danger-bg: #fce8e6;
+  --danger-bg-strong: #f5d4d1;
+  --warn-line: #f9ab00;
+  --warn-bg: #fef7e0;
+  --warn-ink: #8a5a00;
+  --white: #ffffff;
+
+  /* The spinner track and the arc it shows when the motion is off: the
+     focus-ring blue at 25% and at 60%. They are mixes of --focus with
+     transparent, so the two copies of the spinner (the app root's and the
+     import bar's) read ONE blue and no component carries a literal. */
+  --spinner-track: color-mix(in srgb, var(--focus) 25%, transparent);
+  --spinner-arc-still: color-mix(in srgb, var(--focus) 60%, transparent);
+
+  /* The heat scale (D-11): five data steps and one neutral empty swatch, and
+     the ONE value scale in the app. Every heatmap cell, the legend swatch, the
+     country map and the duration bars read var(--heat-N), so the six steps can
+     only be wrong in one place.
+
+     The levels are RANK-based and DISCRETE, not a linear min-max scale (D-04):
+     `levelOf` returns 0 for no data and 1 to 5 by rank - level 5 is the top
+     fifth of the slice's non-zero values, whatever that value is - so a step
+     is never derived from the data and the scale must NOT be interpolated.
+     Lightness falls strictly from the empty swatch to level 5, which is what
+     lets darkness alone carry "more"; the measured ratios live in the spec's
+     Color table, and `tests/unit/charts/contrast.test.ts` recomputes them from
+     these declarations, so the table is the contract and this block is its
+     implementation. A new chart component must not restate a step as literal
+     hex.
+
+     The two derived steps fall back to the stop below them, and the @supports
+     block at the end of this file replaces the fallback where the browser can
+     mix the two. The stops themselves are declared further down this file, in
+     the Overview palette group that plan 14-02 moved here; plan 14-09 made
+     this scale the app-wide replacement for the Activity ramp. */
+  --heat-empty: #eef0f2;
+  --heat-1: var(--heat-low);
+  --heat-2: var(--heat-low);
+  --heat-3: var(--heat-mid);
+  --heat-4: var(--heat-mid);
+  --heat-5: var(--heat-peak);
+
+  /* The groups below were MOVED here from src/app.css by plan 14-02, with
+     their values unchanged: the legacy chrome palette, the flow colours, and
+     the Overview palette with the heat stops. The contract comments travel
+     with their values, because the reasoning is what a later reader needs.
+     The Activity ramp that stood here was DELETED by plan 14-09: the heat
+     scale above replaced it. */
+  /* The neutral chrome palette (Phase 8, "Day 10"). These paint the shell, the
+     list pane, cards, borders and text, and nothing else: the data colours
+     below (--flow-in, --flow-out) are untouched and stay the only colours a
+     chart mark may use. --faint is decoration and dashed borders ONLY,
+     never text (measured 3.36:1 on the page, under the 4.5:1 a text colour
+     needs); --muted is the lightest colour that may carry words. The values are
+     the 08-UI-SPEC Build Notes block, and `tests/unit/charts/contrast.test.ts`
+     recomputes the recorded ratios from these declarations. A component must
+     read var(--ink) and friends rather than restate a hex. */
+  --page: #ffffff;
+  --list: #f5f5f5;
+  --card: #ffffff;
+  --border: #dcdcdc;
+  --faint: #8c8c8c;
+  --ink: #111111;
+  --text: #3a3a3a;
+  --muted: #5c5c5c;
+  --sel: #e0e0e0;
+  --hover: #ececec;
+  --chip: #ececec;
+  --track: #ececec;
+  --focus: #1a73e8;
+  --radius-card: 8px;
+  --radius-control: 8px;
+
+  /* The clearance above the content that the sticky calendar year head and
+     the tooltip flip threshold read (UI-SPEC Spacing). Still derived as the
+     sticky chrome's height plus one md of breathing room; the master-detail
+     shell has no sticky chrome over the content (the list pane is a column
+     beside it), so the chrome height is zero and the value is the 16px of
+     breathing room. The year head (`top: calc(var(--nav-offset) - 16px)`)
+     therefore sticks at the very top, and the tooltip flips below an anchor
+     only when it is within 16px plus the gap of the viewport top. Not a
+     spacing-scale token. */
+  --nav-offset: var(--space-16);
+
+  /* The flow colours: one hue for money and premium time coming IN, one for it
+     going OUT. These are marks ONLY — never text, never chrome, never a status
+     colour. They paint bars, the legend swatch and the monthly table's sign
+     column, and nothing else; a flow hue on a heading or a border would be
+     borrowing a meaning the spec does not grant it.
+
+     Unlike the heat scale above, these are deliberately NOT a lightness scale. A
+     diverging chart's meaning is which side of the zero line a bar is on, not
+     how large it is, so lightness would be solving the wrong problem and the
+     two directions would still need a second channel to tell them apart.
+
+     That second channel is why the two are only about 1.36:1 apart: close
+     enough to read as one family of "money", far enough apart to tell at a
+     glance, and close enough that colour must never be the ONLY cue. Above and
+     below the zero line, the legend's words, the tooltip's line and the monthly
+     table all state the same thing in text — a reader who cannot separate these
+     two hues loses nothing, and a reader who cannot read colour at all does not
+     lose the direction either.
+
+     A component must not restate either value as literal hex; read
+     var(--flow-in) / var(--flow-out). The Color table is the contract and
+     `tests/unit/charts/contrast.test.ts` recomputes the recorded 8.17 / 6.01 (white)
+     and 7.34 / 5.40 (hover surface) ratios from these declarations. */
+  --flow-in: #4c3fa6;
+  --flow-out: #a14a00;
+
+  /* The Overview palette (Phase 13, 13-UI-SPEC Color). Ten tokens, declared
+     once here, and they are the ONLY colours the Overview page may use.
+
+     The five group dots carry IDENTITY and nothing else: a dot tells the eye
+     which group a tile belongs to, and the group NAME beside it is the text
+     meaning. No meaning is ever carried by colour alone, and the dots are
+     aria-hidden. --ov-pinned is the Pinned group's dot and is the same amber
+     as the pinned star's fill, which is why it is declared twice rather than
+     as one token read twice: the two are separate roles that happen to share
+     a value today, and a component reads the role it paints.
+
+     --ov-star-fill is a decorative fill and --ov-star-stroke is what carries
+     the star's contrast (4.17:1 against the page against the fill's 2.28:1);
+     a pinned star is always accompanied by its text label, so the fill never
+     has to be readable on its own.
+
+     The value scale --heat-low to --heat-peak is the ONE value scale in the
+     app and it REPLACED the Activity ramp (D-13, plan 14-09): it is green at
+     the low end, olive in the middle and dark gold at the peak, and its
+     LIGHTNESS FALLS as the value rises, so the peak bar is the darkest one in
+     greyscale too. The lightest step was darkened from the sketch's value to
+     reach 3:1 against the white tile (D-22); it is 3.11:1 now, and every
+     colour along the eased scale clears 3:1 as well.
+
+     Bars sit on WHITE and never on a grey track: the track grey would drop
+     the lightest step to 2.63:1, which is why the Overview draws no track.
+
+     A component must read var(--heat-low) and friends and must never restate
+     a hex. The Color table is the contract and
+     `tests/unit/charts/contrast.test.ts` recomputes the recorded ratios from
+     these declarations, so a token that drifts from the table fails a test
+     rather than a review nobody reads. */
+  --ov-time: #1f7a74;
+  --ov-tanks: #c26a1b;
+  --ov-records: #8f4a80;
+  --ov-totals: #3a6aa8;
+  --ov-pinned: #e0a020;
+  --ov-star-fill: #e0a020;
+  --ov-star-stroke: #a8710a;
+  --heat-low: #47a374;
+  --heat-mid: #6b8a14;
+  --heat-peak: #8c6400;
+}
+
+/* The title size switch (D-12). A single min-width query has the same effect
+   as a min/max pair and leaves no gap at a fractional viewport width. */
+@media (min-width: 900px) {
+  :root {
+    --fs-title: var(--fs-stat);
+  }
+}
+
+/* The derived heat steps (D-11). The colour space is `srgb` and not `oklab`
+   on purpose: the contrast test mirrors channel averaging in gamma-encoded
+   sRGB, and an oklab expression would give a different colour for the same
+   two stops. The mix is written only here, inside a custom property: a
+   fully literal one would be folded into a static colour by the build. */
+@supports (color: color-mix(in srgb, red, blue)) {
+  :root {
+    --heat-2: color-mix(in srgb, var(--heat-low) 50%, var(--heat-mid));
+    --heat-4: color-mix(in srgb, var(--heat-mid) 50%, var(--heat-peak));
+  }
+}

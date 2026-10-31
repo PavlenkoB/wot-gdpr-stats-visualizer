@@ -194,35 +194,30 @@
      styles cannot be shared. */
   h4 {
     margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--ink);
   }
 
   /* Caption role: the sentence that explains the numbering, and the two notes
-     under the table. `overflow-wrap: anywhere` so a long sentence cannot widen
-     the card at 375px. 14/400/1.4 is the UI-SPEC's Caption row exactly — this
-     rule was 12px until 05-20, below the floor that same spec sets (G-05-10). */
-  .caption {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
-    color: var(--muted);
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
+     under the table, take the SHARED `.caption` block in
+     `src/styles/utilities.css` — 14/400/1.4 muted with `margin: 0`,
+     `min-width: 0` and `overflow-wrap: anywhere`, so a long sentence cannot
+     widen the card at 375px. The local copy is gone; a scoped selector outranks
+     the shared one, so a leftover local rule would silently win.
 
+     What the shared block does not say is the note's own offset from the table,
+     so that stays local. */
   .note {
-    margin-top: 8px;
+    margin-top: var(--space-8);
   }
 
   details {
     min-width: 0;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--muted);
   }
 
@@ -254,14 +249,14 @@
   .scroll-box {
     min-width: 0;
     overflow-x: auto;
-  }
 
-  /* The accent focus ring, exactly as the summary above it and the vehicle
-     table's scroller both carry it: the accent is reserved for focus, and this
-     region is a new member of "every interactive element". */
-  .scroll-box:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
+    /* The accent focus ring, exactly as the summary above it and the vehicle
+       table's scroller both carry it: the accent is reserved for focus, and this
+       region is a new member of "every interactive element". */
+    &:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
   }
 
   /* The scroll box for an export with a great many battle types. A class
@@ -276,20 +271,20 @@
 
   table {
     width: 100%;
-    margin-top: 8px;
+    margin-top: var(--space-8);
     border-collapse: collapse;
-    font-size: 14px;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    line-height: var(--lh-tight);
   }
 
   /* Label role, muted, on the UI-SPEC's header surface. */
   th {
-    padding: 4px 8px;
+    padding: var(--space-4) var(--space-8);
     border-bottom: 1px solid var(--border);
     background: var(--list);
     color: var(--muted);
-    font-size: 14px;
-    font-weight: 600;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
     text-align: left;
     white-space: nowrap;
   }
@@ -301,18 +296,19 @@
      Caption size the UI-SPEC's "Table body cells" row names, and these cells
      were 12px until 05-20 (G-05-10). */
   td {
-    padding: 4px 8px;
+    padding: var(--space-4) var(--space-8);
     border-bottom: 1px solid var(--hover);
     color: var(--text);
-    font-size: 14px;
-    font-weight: 400;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-regular);
     text-align: right;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
-  }
 
-  td.label {
-    text-align: left;
-    font-variant-numeric: normal;
+    /* The code cell: a label the reader scans down, not a figure. */
+    &.label {
+      text-align: left;
+      font-variant-numeric: normal;
+    }
   }
 </style>

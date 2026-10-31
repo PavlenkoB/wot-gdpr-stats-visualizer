@@ -30,11 +30,11 @@
    *
    * ## What every shade is backed by
    *
-   * The lightest steps of the ramp sit below the 3:1 non-text floor on white by
-   * design, so a shade is never the only carrier of a value. The summary
-   * sentence names the leader, the legend note states every step in words, each
-   * country's accessible name and tooltip give its two figures, and the list
-   * gives every number as table text.
+   * Every data step of the heat scale clears 3:1 on white, and the empty shade
+   * is the neutral one, so a shade is never the only carrier of a value. The
+   * summary sentence names the leader, the legend note states every step in
+   * words, each country's accessible name and tooltip give its two figures, and
+   * the list gives every number as table text.
    *
    * ## The sums that hold at every size
    *
@@ -124,7 +124,7 @@
   .map-section {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--space-8);
     min-width: 0;
   }
 
@@ -133,32 +133,10 @@
      a copy that is visible. */
   h4 {
     margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--ink);
-  }
-
-  /* Body role: the summary sentence is the text equivalent of the map. */
-  .body {
-    margin: 0;
-    min-width: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
-    color: var(--text);
-    overflow-wrap: anywhere;
-  }
-
-  /* Caption role: the hint, the attribution and the not-drawn line. */
-  .caption {
-    margin: 0;
-    min-width: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
-    color: var(--muted);
-    overflow-wrap: anywhere;
   }
 
   /* The frame: a hairline border and the tile radius around a white ocean. No
@@ -166,7 +144,7 @@
   .frame {
     min-width: 0;
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: var(--page);
   }
 
@@ -176,10 +154,10 @@
   a {
     color: var(--text);
     text-decoration: underline;
-  }
 
-  a:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
+    &:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
   }
 </style>

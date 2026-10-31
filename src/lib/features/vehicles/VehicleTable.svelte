@@ -326,7 +326,7 @@
 -->
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
-  class="scroller"
+  class="scroller table-scroll"
   bind:this={scrollerEl}
   data-testid="vehicle-scroller"
   role="region"
@@ -460,21 +460,19 @@
      first-column cells tie it and win on tree order, so a scrolled table paints
      over the sticky nav (G-07-5). The nav's z-index is deliberately NOT raised
      instead: the fixed chart tooltip at z-index 2 relies on stacking being
-     z-index-free elsewhere (see the stacking note in PlaytimeCharts.svelte). */
-  .scroller {
-    position: relative;
-    isolation: isolate;
-    overflow: auto;
-    max-height: 480px;
-    min-width: 0;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--page);
-  }
+     z-index-free elsewhere (see the stacking note in PlaytimeCharts.svelte).
 
-  .scroller:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
+     The shared `.scroller` utility in `src/styles/utilities.css` supplies the
+     rest of the region: `min-width: 0`, `overflow: auto`, `isolation: isolate`
+     and the focus ring. The table's own box - the 480px cap and the bordered
+     card around it - is this file's business, not the region's, so it is the
+     hook's. */
+  .table-scroll {
+    position: relative;
+    max-height: 480px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--page);
   }
 
   /* `table-layout: fixed` with `border-collapse: separate` is what lets a
@@ -486,8 +484,8 @@
     border-collapse: separate;
     border-spacing: 0;
     width: 100%;
-    font-size: 14px;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    line-height: var(--lh-tight);
   }
 
   .sr-only {
@@ -512,24 +510,24 @@
     padding: 0;
     background: var(--list);
     color: var(--muted);
-    font-size: 14px;
-    font-weight: 600;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
     text-align: left;
     white-space: nowrap;
-  }
 
-  /* The corner cell sits above BOTH axes: z-index 3 puts it over the sticky
-     header row (2) and over the sticky first column (1). */
-  th.sticky-first {
-    left: 0;
-    z-index: 3;
-    border-right: 1px solid var(--border);
-  }
+    /* The corner cell sits above BOTH axes: z-index 3 puts it over the sticky
+       header row (2) and over the sticky first column (1). */
+    &.sticky-first {
+      left: 0;
+      z-index: 3;
+      border-right: 1px solid var(--border);
+    }
 
-  /* The sorted header's own surface, so the arrow's column is visible even
-     when the reader has scrolled past the corner. */
-  th.sorted {
-    background: var(--hover);
+    /* The sorted header's own surface, so the arrow's column is visible even
+       when the reader has scrolled past the corner. */
+    &.sorted {
+      background: var(--hover);
+    }
   }
 
   /* The sort button fills its cell: Label weight, muted text, transparent
@@ -537,28 +535,28 @@
   button {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--space-4);
     width: 100%;
     height: 40px;
-    padding: 0 8px;
+    padding: 0 var(--space-8);
     border: 0;
     background: transparent;
     color: var(--muted);
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     text-align: left;
     cursor: pointer;
-  }
 
-  button:hover {
-    background: var(--sel);
-    color: var(--text);
-  }
+    &:hover {
+      background: var(--sel);
+      color: var(--text);
+    }
 
-  button:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: -3px;
+    &:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: -3px;
+    }
   }
 
   /* A non-sortable column's label, in the same place, with the same type. */
@@ -566,11 +564,11 @@
     display: flex;
     align-items: center;
     height: 40px;
-    padding: 0 8px;
+    padding: 0 var(--space-8);
   }
 
   .arrow {
-    font-weight: 400;
+    font-weight: var(--fw-regular);
   }
 
   /* Rows are a FIXED 40px, the same constant `windowRange` divides by. A cell
@@ -582,34 +580,43 @@
 
   td {
     height: 40px;
-    padding: 0 8px;
+    padding: 0 var(--space-8);
     background: var(--page);
     color: var(--text);
-    font-size: 14px;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    line-height: var(--lh-tight);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     vertical-align: middle;
-  }
 
-  /* The first column, sticky to the scroller's left edge: a row scrolled
-     sideways has lost its vehicle name otherwise. z-index 1 sits under the
-     header row (2) and the corner (3). */
-  td.sticky-first {
-    position: sticky;
-    left: 0;
-    z-index: 1;
-    border-right: 1px solid var(--border);
+    /* The first column, sticky to the scroller's left edge: a row scrolled
+       sideways has lost its vehicle name otherwise. z-index 1 sits under the
+       header row (2) and the corner (3). */
+    &.sticky-first {
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      border-right: 1px solid var(--border);
+    }
+
+    /* A zero-battle cell is information and not an error, so it reads as
+       chrome, not as a failure. */
+    &.muted-cell {
+      color: var(--muted);
+    }
+
+    /* Numbers are right-aligned with tabular figures, so digits line up down a
+       column and a grouped number can be compared by length (D-25). */
+    &:not(.sticky-first) {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
   }
 
   /* A zero-battle row is a vehicle the player owns and has not fought, which
      is information and not an error — so it reads as chrome, not as a failure. */
   tr.muted td {
-    color: var(--muted);
-  }
-
-  td.muted-cell {
     color: var(--muted);
   }
 
@@ -640,13 +647,13 @@
   .nation {
     display: inline-block;
     max-width: 70px;
-    margin-right: 4px;
-    padding: 0 8px;
+    margin-right: var(--space-4);
+    padding: 0 var(--space-8);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: var(--chip);
     color: var(--muted);
-    font-size: 14px;
+    font-size: var(--fs-body);
     line-height: 18px;
     vertical-align: middle;
     overflow: hidden;
@@ -677,7 +684,7 @@
      because the chip is another component's markup — Svelte scoping reaches
      this component's own elements, not the ones its children render. */
   .sticky-first :global([data-testid='account-tag']) {
-    margin-right: 4px;
+    margin-right: var(--space-4);
   }
   .w-battles {
     width: 88px;
@@ -699,12 +706,5 @@
   }
   .w-numeric {
     width: 96px;
-  }
-
-  /* Numbers are right-aligned with tabular figures, so digits line up down a
-     column and a grouped number can be compared by length (D-25). */
-  td:not(.sticky-first) {
-    text-align: right;
-    font-variant-numeric: tabular-nums;
   }
 </style>

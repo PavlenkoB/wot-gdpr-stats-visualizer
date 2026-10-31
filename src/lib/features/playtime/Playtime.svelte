@@ -521,7 +521,7 @@
         leave byte-identical.
       -->
       <AboutDisclosure name={ABOUT_NAME_PLAYTIME_TOTALS} testId="about-playtime-totals">
-        <p class="caption">{PLAYTIME_MERGE_ABOUT}</p>
+        <p class="caption about-summary">{PLAYTIME_MERGE_ABOUT}</p>
       </AboutDisclosure>
     {/if}
 
@@ -578,7 +578,7 @@
   div {
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: var(--space-24);
     position: relative;
     min-width: 0;
   }
@@ -589,11 +589,11 @@
      repeats this rule in full, because scoped styles cannot be shared. */
   h3 {
     margin: 0;
-    padding-bottom: 8px;
+    padding-bottom: var(--space-8);
     border-bottom: 1px solid var(--border);
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--ink);
   }
 
@@ -602,78 +602,53 @@
   .status {
     margin: 0;
     min-height: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-body);
     color: var(--text);
     min-width: 0;
     overflow-wrap: anywhere;
+
+    /* The empty status line, hidden without leaving the accessibility tree. The
+       clip pattern, not `display: none`: a region that is not in the tree cannot
+       be announced, and this one is where the selection change is read out. */
+    &.hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
+    }
   }
 
-  /* The empty status line, hidden without leaving the accessibility tree. The
-     clip pattern, not `display: none`: a region that is not in the tree cannot
-     be announced, and this one is where the selection change is read out. */
-  .status.hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-    border: 0;
-  }
-
-  .body {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
-    color: var(--text);
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-
-  /* The project's destructive error colour, reused verbatim from
-     FailureBanner rather than re-picked: this is a failure the user needs to
-     see, and a second error red would drift from the first. The box is the
-     Body role's own 8px/12px, not the banner's, because this is body text
-     inside a card and not a notice above the dropzone. */
-  /* The "About this summary" body (Phase 10, D-06). Body role's own metrics
-     with the muted ink the other captions in this app use, and the same
-     `overflow-wrap` so the 340-character counting rule cannot widen the card at
-     375px. It is a caption rather than a `.body` because it is supplementary
-     reading, never a state message. */
-  .caption {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
-    color: var(--muted);
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-
-  .error {
-    padding: 8px 12px;
-    border: 1px solid #c5221f;
-    border-radius: 6px;
-    background: #fce8e6;
-    color: #8a1c17;
+  /* The "About this summary" body (Phase 10, D-06) is the SHARED caption with
+     ONE difference: it was 1.5 line height before the shared class took over
+     (D-02's variant rule). The hook states only that difference, because a
+     local copy of the whole caption block would shadow the shared one. The
+     shared class keeps the muted ink the other captions in this app use, and
+     the same `overflow-wrap` so the 340-character counting rule cannot widen
+     the card at 375px. It is a caption rather than a `.body` because it is
+     supplementary reading, never a state message. */
+  .about-summary {
+    line-height: var(--lh-body);
   }
 
   /* The cache-cleared notice's chrome, the amber `ExcludedNotice` already
-     uses value for value (#f9ab00 / #fef7e0 / #8a5a00): a fact about storage
-     the user should notice, not a failure of their import and not an error.
-     The Body role's own type scale, and the same `overflow-wrap` the excluded
-     explanation carries so a long sentence cannot widen the card at 375px. */
+     uses value for value (--warn-line / --warn-bg / --warn-ink): a fact about
+     storage the user should notice, not a failure of their import and not an
+     error. The Body role's own type scale, and the same `overflow-wrap` the
+     excluded explanation carries so a long sentence cannot widen the card at
+     375px. */
   .notice {
-    padding: 8px 12px;
-    border: 1px solid #f9ab00;
-    border-radius: 6px;
-    background: #fef7e0;
-    color: #8a5a00;
+    padding: var(--space-8) var(--space-12);
+    border: 1px solid var(--warn-line);
+    border-radius: var(--radius-sm);
+    background: var(--warn-bg);
+    color: var(--warn-ink);
   }
 
   /* Label above the control, in a row that wraps: at 375px the two fit, and
@@ -682,15 +657,15 @@
   .selector-row {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--space-4);
     min-width: 0;
-  }
 
-  .selector-row label {
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
-    color: var(--text);
+    & label {
+      font-size: var(--fs-body);
+      font-weight: var(--fw-semibold);
+      line-height: var(--lh-tight);
+      color: var(--text);
+    }
   }
 
   /* Label role, the same text treatment as the Phase 3 bar buttons. The
@@ -699,22 +674,22 @@
   select {
     max-width: 100%;
     min-width: 0;
-    padding: 8px 12px;
+    padding: var(--space-8) var(--space-12);
     border: 1px solid var(--faint);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: var(--page);
     color: var(--text);
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
-  }
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
 
-  select:hover {
-    background: var(--hover);
-  }
+    &:hover {
+      background: var(--hover);
+    }
 
-  select:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
+    &:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
   }
 </style>

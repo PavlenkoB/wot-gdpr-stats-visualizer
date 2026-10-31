@@ -35,8 +35,8 @@ Final decisions as of 2026-10-07: Q2 master-detail, **with an Overview landing s
 - Heading "Overview" and one line: "What your export contains. Open a section for the full charts."
 - Three status chips: "N sections with data", "N not in this export", "N folders not yet supported" (all computed from the same status derivation).
 - A responsive grid (`repeat(auto-fit, minmax(min(300px,100%),1fr))`, 16px gap) of **section cards**: label (13px/600 muted), headline (30px/600 ink), one summary line, a tiny preview where meaningful, and an underlined "Open <Section> →" link.
-  - Playtime: 12-bar monthly sparkline in ramp-3.
-  - Login history: stacked bar of logins per address (ramp 4/3/2) plus "addresses masked".
+  - Playtime: 12-bar monthly sparkline in ramp-3 (sketch only; the app now uses the heat scale since Phase 14).
+  - Login history: stacked bar of logins per address (ramp 4/3/2 in the sketch; the app now uses the heat scale since Phase 14) plus "addresses masked".
   - Payments: per-currency total plus "Each currency has its own total; nothing is converted."
   - Account: location code and creation date.
 - **Unavailable sections** appear as dashed `#f5f5f5` panels, not as links ("WoT is not in this export.", "Not in this export.").

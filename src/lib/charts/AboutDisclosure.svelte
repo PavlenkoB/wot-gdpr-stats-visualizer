@@ -46,17 +46,19 @@
   summary {
     display: inline-flex;
     align-items: center;
+    /* The 44px touch floor. It is a hit area, not a spacing value, so it stays
+       a length (D-04, UI-SPEC "Non-spacing sizes"). */
     min-height: 44px;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--ink);
     text-decoration: underline;
     cursor: pointer;
   }
 
   .about-body {
-    padding-top: 8px;
+    padding-top: var(--space-8);
     min-width: 0;
   }
 </style>

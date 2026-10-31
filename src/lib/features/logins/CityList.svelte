@@ -45,7 +45,7 @@
 <details class="list" open data-testid="city-list">
   <summary>{CITY_LIST_SUMMARY}</summary>
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-  <div class="scroller" role="region" tabindex="0" aria-label={CITY_LIST_SUMMARY}>
+  <div class="scroller list-scroll" role="region" tabindex="0" aria-label={CITY_LIST_SUMMARY}>
     <table>
       <thead>
         <tr>
@@ -71,10 +71,14 @@
     </table>
   </div>
   {#if view.moreCities > 0}
-    <p class="caption" data-testid="city-more">{formatCityMoreCities(view.moreCities)}</p>
+    <p class="caption after-list" data-testid="city-more">
+      {formatCityMoreCities(view.moreCities)}
+    </p>
   {/if}
   {#if view.noCityAddresses > 0}
-    <p class="caption" data-testid="city-no-city">{formatCityNoCity(view.noCityAddresses)}</p>
+    <p class="caption after-list" data-testid="city-no-city">
+      {formatCityNoCity(view.noCityAddresses)}
+    </p>
   {/if}
 </details>
 
@@ -85,73 +89,76 @@
 
   summary {
     display: inline-block;
-    padding: 8px 12px;
+    padding: var(--space-8) var(--space-12);
     border: 1px solid var(--faint);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: var(--page);
     color: var(--text);
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     cursor: pointer;
+
+    &:hover {
+      background: var(--hover);
+    }
+
+    &:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
   }
 
-  summary:hover {
-    background: var(--hover);
-  }
+  /* The shared `.scroller` utility in `src/styles/utilities.css` is the
+     region: `min-width: 0`, `overflow: auto`, `isolation: isolate` and the
+     focus ring.
 
-  summary:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
-  }
+     Prophylactic (G-07-5): this list's header is `position: sticky` with no
+     z-index and paints below the nav's z-index 1 today, so nothing here
+     overlaps the nav. The isolation keeps the four table scrollers one pattern
+     and contains any z-index a header is given later.
 
-  /* Prophylactic (G-07-5): this list's header is `position: sticky` with no
-     z-index and paints below the nav's z-index 1 today, so nothing here overlaps
-     the nav. The isolation keeps the four table scrollers one pattern and
-     contains any z-index a header is given later. */
-  .scroller {
-    isolation: isolate;
-    min-width: 0;
+     The list's own box - the 320px cap and the 8px gap under the summary - is
+     this file's business, not the region's, so it is the hook's. */
+  .list-scroll {
     max-height: 320px;
-    margin-top: 8px;
-    overflow: auto;
-  }
-
-  .scroller:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
+    margin-top: var(--space-8);
   }
 
   table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 14px;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    line-height: var(--lh-tight);
   }
 
   th {
     position: sticky;
     top: 0;
-    padding: 8px;
+    padding: var(--space-8);
     border-bottom: 1px solid var(--border);
     background: var(--list);
     color: var(--muted);
-    font-size: 14px;
-    font-weight: 600;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
     text-align: right;
     white-space: nowrap;
   }
 
   td {
-    padding: 8px;
+    padding: var(--space-8);
     border-bottom: 1px solid var(--hover);
     color: var(--text);
-    font-size: 14px;
-    font-weight: 400;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-regular);
     text-align: right;
     font-variant-numeric: tabular-nums;
   }
 
+  /* The name columns read as text, not as figures. The rule is a LIST of two
+     selectors, so it stays top-level: a list can neither extend a sibling nor
+     be extended by one (the same rule plan 14-10 settled for the playtime
+     summary's `th:last-child, td:last-child`). */
   th.name,
   td.name {
     min-width: 0;
@@ -160,13 +167,9 @@
     overflow-wrap: anywhere;
   }
 
-  .caption {
-    margin: 8px 0 0;
-    min-width: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
-    color: var(--muted);
-    overflow-wrap: anywhere;
+  /* The two captions under the list sit 8px below it. The shared `.caption`
+     states the rest, so the hook states only this one difference. */
+  .after-list {
+    margin-top: var(--space-8);
   }
 </style>

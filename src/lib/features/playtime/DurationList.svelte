@@ -35,16 +35,15 @@
    * happen, as against a bin holding sessions under 0.5% of the total, which
    * reads `<1` rather than `0` for the same reason.
    *
-   * ## Why the bars are one colour and not the ramp
+   * ## Why the bars are one colour and not the scale
    *
-   * The ramp is a SEQUENTIAL scale, and these bars are not sequential: they
-   * are counts of unrelated buckets, so a longer bar is "more sessions in this
-   * bucket", not "more of something the reader already has a frame for".
-   * Painting them on six steps would imply an ordering the reader has to
-   * learn and would make the light steps — the ones already below 3:1 on white
-   * by design — carry meaning. So every bar is the same mid-ramp step
-   * (`--ramp-4`) and the LENGTH is the encoding. The number beside it is the
-   * precise value, so nothing is carried by colour at all.
+   * The heat scale is a SEQUENTIAL scale, and these bars are not sequential:
+   * they are counts of unrelated buckets, so a longer bar is "more sessions in
+   * this bucket", not "more of something the reader already has a frame for".
+   * Painting them on five steps would imply an ordering the reader has to
+   * learn. So every bar is the same mid stop of the heat scale (`--heat-3`)
+   * and the LENGTH is the encoding. The number beside it is the precise
+   * value, so nothing is carried by colour at all.
    *
    * ## Why the bar's own `viewBox`
    *
@@ -117,7 +116,7 @@
   */
   .rows {
     display: grid;
-    gap: 4px;
+    gap: var(--space-4);
     margin: 0;
     padding: 0;
     list-style: none;
@@ -137,7 +136,7 @@
     display: grid;
     grid-template-columns: 96px 1fr 104px;
     align-items: center;
-    gap: 16px;
+    gap: var(--space-16);
     min-width: 0;
   }
 
@@ -146,9 +145,9 @@
      to, and neither is a heading. */
   .label,
   .count {
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-tight);
     color: var(--text);
     min-width: 0;
   }
@@ -168,14 +167,15 @@
   }
 
   /*
-    One step of the one ramp, for every bar. The 1px white stroke is the bar's
-    own separator so two adjacent bars of the same colour never merge into one
-    block, and with the stretched viewBox it is a horizontal hairline rather
-    than a 1px one — invisible at these sizes and never thicker than the bar.
+    One step of the one heat scale, for every bar: the mid stop, which clears
+    3:1 on white. The 1px white stroke is the bar's own separator so two
+    adjacent bars of the same colour never merge into one block, and with the
+    stretched viewBox it is a horizontal hairline rather than a 1px one —
+    invisible at these sizes and never thicker than the bar.
   */
   .bar-rect {
-    fill: var(--ramp-4);
-    stroke: #ffffff;
+    fill: var(--heat-3);
+    stroke: var(--white);
     stroke-width: 1;
   }
 </style>

@@ -33,7 +33,9 @@ describe('05-11 MonthlyBarChart & MonthlyDataTable component contracts', () => {
     expect(clean).not.toMatch(/\bstyle="/);
     expect(clean).not.toMatch(/\bstyle:[a-zA-Z-]+=/);
     expect(clean).not.toMatch(/from\s+['"].*ui-copy['"]/);
-    expect(clean).not.toMatch(/var\(--ramp-/);
+    // A monthly bar chart is two directions, not an ordered scale: the value
+    // scale is not this chart's vocabulary at all.
+    expect(clean).not.toMatch(/var\(--heat-/);
 
     // CSS variables usage
     expect(raw).toContain('var(--flow-in)');

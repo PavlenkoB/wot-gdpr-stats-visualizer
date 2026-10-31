@@ -322,8 +322,8 @@
 
 <div class="bento" data-testid="ov-bento" aria-busy={screen === 'loading' ? 'true' : 'false'}>
   <div class="lead">
-    <p class="caption" data-testid="ov-provenance">{provenance}</p>
-    <p class="caption" data-testid="ov-hint">{OVERVIEW_HINT}</p>
+    <p class="t-caption note" data-testid="ov-provenance">{provenance}</p>
+    <p class="t-caption note" data-testid="ov-hint">{OVERVIEW_HINT}</p>
   </div>
 
   {#if screen === 'error'}
@@ -331,15 +331,15 @@
   {/if}
 
   {#if empty}
-    <p class="body" data-testid="ov-empty">{OVERVIEW_EMPTY}</p>
+    <p class="t-body statement" data-testid="ov-empty">{OVERVIEW_EMPTY}</p>
   {/if}
 
   {#if life.length > 0}
     <div class="life" data-testid="ov-life">
-      <p class="label">{OVERVIEW_LIFE_LABEL}</p>
+      <p class="t-label label">{OVERVIEW_LIFE_LABEL}</p>
       <dl class="games">
         {#each life as game (game.token)}
-          <div class="game" data-testid="ov-life-{game.token}">
+          <div class="t-body game" data-testid="ov-life-{game.token}">
             <dt>{formatGameName(game.token)}</dt>
             <dd>
               {lifeFigure(game.seconds)}
@@ -382,7 +382,7 @@
           {/each}
           {#snippet absent()}
             {#if group.absent.length > 0}
-              <p class="absent" data-testid="ov-absent-{group.id}">
+              <p class="t-body absent" data-testid="ov-absent-{group.id}">
                 <span class="absent-prefix">{OVERVIEW_ABSENT_PREFIX}</span>{absentRest(
                   group.absent,
                 )}
@@ -393,7 +393,7 @@
       {/each}
     </div>
 
-    <p class="caption attribution" data-testid="ov-attribution">
+    <p class="t-caption note attribution" data-testid="ov-attribution">
       {OVERVIEW_ATTRIBUTION_TEXT}
       {OVERVIEW_ATTRIBUTION_NOTICE}
       <a
@@ -448,7 +448,7 @@
   .bento {
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: var(--space-24);
     min-width: 0;
     container-type: inline-size;
     font-variant-numeric: tabular-nums;
@@ -457,38 +457,31 @@
   .lead {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--space-4);
     min-width: 0;
   }
 
-  .caption,
-  .body,
-  .label {
+  /* The type of the three text blocks is the shared role in the markup
+     (`t-caption`, `t-body`, `t-label`); these hooks state only what a role
+     never owns: the margin, the wrap and the colour. */
+  .note {
     margin: 0;
     min-width: 0;
     overflow-wrap: anywhere;
-  }
-
-  .caption {
-    font-size: 12px;
-    font-weight: 400;
-    line-height: 1.4;
     color: var(--muted);
   }
 
-  .body {
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
+  .statement {
+    margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
     color: var(--ink);
   }
 
   .label {
-    font-size: 12px;
-    font-weight: 600;
-    line-height: 1.4;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+    margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
     color: var(--muted);
   }
 
@@ -497,76 +490,70 @@
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 8px 24px;
+    gap: var(--space-8) var(--space-24);
     min-width: 0;
   }
 
   .games {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px 24px;
+    gap: var(--space-8) var(--space-24);
     margin: 0;
     min-width: 0;
   }
 
   .game {
     display: flex;
-    gap: 8px;
+    gap: var(--space-8);
     align-items: baseline;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
     min-width: 0;
-  }
 
-  .game dt {
-    margin: 0;
-    color: var(--muted);
-  }
+    & dt {
+      margin: 0;
+      color: var(--muted);
+    }
 
-  .game dd {
-    margin: 0;
-    color: var(--ink);
-    font-weight: 600;
+    & dd {
+      margin: 0;
+      color: var(--ink);
+      font-weight: var(--fw-semibold);
+    }
   }
 
   .groups {
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: var(--space-24);
     min-width: 0;
   }
 
   /* One dashed row per group for the tiles that wait for their source. */
   .absent {
-    margin: 16px 0 0;
-    padding: 8px 16px;
+    margin: var(--space-16) 0 0;
+    padding: var(--space-8) var(--space-16);
     border: 1px dashed var(--faint);
     border-radius: 8px;
     background: var(--list);
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
     color: var(--ink);
     overflow-wrap: anywhere;
   }
 
   .absent-prefix {
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
   }
 
   .attribution {
-    margin-top: 8px;
-  }
+    margin-top: var(--space-8);
 
-  .attribution a {
-    color: var(--ink);
-    text-decoration: underline;
-  }
+    & a {
+      color: var(--ink);
+      text-decoration: underline;
 
-  .attribution a:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
+      &:focus-visible {
+        outline: 3px solid var(--focus);
+        outline-offset: 2px;
+      }
+    }
   }
 
   /* The skeleton tile: the real footprint, a secondary fill, no text. */

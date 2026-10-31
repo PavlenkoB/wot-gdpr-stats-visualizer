@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
-import { componentPath } from '../../helpers/components.ts';
+import { componentPath, SCALE_PX } from '../../helpers/components.ts';
+import { resolveTokens, tokenMap } from '../../helpers/css.ts';
+import { readTokenSource } from '../../helpers/styles.ts';
 
 // =============================================================================
 // Quick 261012-bog Task 2 — the Device info component contracts, by source
@@ -14,6 +16,9 @@ import { componentPath } from '../../helpers/components.ts';
 
 const BLOCK_FILE = 'DeviceInfo.svelte';
 const TABLE_FILE = 'DeviceTable.svelte';
+
+/** The token layer, so a sweep can resolve a `var(--fs-*)` back to its px. */
+const TOKENS = tokenMap(readTokenSource());
 
 function code(filename: string): string {
   return readFileSync(componentPath(filename), 'utf8');
@@ -138,21 +143,32 @@ describe('both components obey the project prohibitions', () => {
       // No style attribute on an element (the <style> block is a different thing).
       expect(markup(clean)).not.toMatch(/\sstyle\s*=/);
       expect(markup(clean)).not.toMatch(/\sstyle:/);
-      // Every font size is on the 14/18/26/30 scale.
-      const sizes = [...clean.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)].map((m) => m[1]);
-      for (const size of sizes) expect(['14', '18', '26', '30']).toContain(size);
+      // Every font size is on the 12/14/18/26/32/56 scale.
+      //
+      // The sizes are TOKENS now, so the sweep resolves them first. Without the
+      // resolution the match is EMPTY, and an empty match makes the loop below
+      // assert nothing at all - the sweep would pass on no evidence. The
+      // length check is what makes it non-vacuous.
+      const resolved = resolveTokens(clean, TOKENS);
+      const sizes = [...resolved.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)].map((m) =>
+        Number(m[1]),
+      );
+      expect(sizes.length, `${file} declares at least one font-size`).toBeGreaterThan(0);
+      for (const size of sizes) expect(SCALE_PX.has(size)).toBe(true);
       // No network API.
       for (const banned of ['fetch(', 'XMLHttpRequest', 'WebSocket', 'sendBeacon', 'EventSource']) {
         expect(clean).not.toContain(banned);
       }
     });
 
-    it(`${file} uses no colour literal outside the three status literals`, () => {
+    it(`${file} uses no colour literal`, () => {
       const clean = stripComments(code(file));
-      const literals = [...clean.matchAll(/#[0-9a-fA-F]{3,8}\b/g)].map((m) => m[0].toLowerCase());
-      for (const literal of literals) {
-        expect(['#c5221f', '#fce8e6', '#8a1c17']).toContain(literal);
-      }
+      // The three status hexes the device pane used to carry are gone: the pane
+      // now reads the shared `.error`, which reads `--danger`, `--danger-bg` and
+      // `--danger-ink`. A literal here would be a literal a token exists for,
+      // so the allow-list that used to name them is empty and the sweep is
+      // therefore a plain "none at all".
+      expect(clean).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
       expect(clean).not.toMatch(/\brgba?\(/);
       expect(clean).not.toMatch(/\bhsla?\(/);
     });

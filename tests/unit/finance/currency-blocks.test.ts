@@ -1,30 +1,32 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { componentPath } from '../../helpers/components.ts';
+import { readTokenSource } from '../../helpers/styles.ts';
 
 const BLOCK_FILE = 'CurrencyBlock.svelte';
 const LEGEND_FILE = 'FlowLegend.svelte';
 
+/** The token stylesheet: the ONE declaration site for every colour below. */
+const TOKEN_CSS = readTokenSource();
+
 /**
- * Every hex the two flow tokens and the six ramp steps are declared with in
- * `src/app.css`.
+ * Every hex the two flow tokens and the heat scale are declared with.
  *
- * They are written out HERE rather than read off the stylesheet, so a future
- * plan that changes a token has to change the test too — which is the point.
- * A test that read the hexes from `app.css` would pass forever against a
- * component that had started using the same hex directly, because the two
- * would be reading the same wrong value.
+ * They are read off the token stylesheet rather than written out here,
+ * because that file is the ONE declaration site: a list written out here would
+ * be a second copy of the same two hues, the three stops and the empty
+ * swatch, and the copy would drift the moment the scale moved. What the list
+ * still buys is the assertion that matters — the currency block may not carry
+ * any of these colours literally, so the legend's swatches and the chart's
+ * bars cannot drift apart.
  */
-const FLOW_AND_RAMP_HEXES: readonly string[] = [
-  '#4c3fa6', // --flow-in
-  '#a14a00', // --flow-out
-  '#eef0f2', // --ramp-0
-  '#b2dcd4', // --ramp-1
-  '#7cc7bc', // --ramp-2
-  '#43a89c', // --ramp-3
-  '#1f7a74', // --ramp-4
-  '#0d4f4c', // --ramp-5
-];
+const FLOW_AND_HEAT_HEXES: readonly string[] = (
+  ['--flow-in', '--flow-out', '--heat-empty', '--heat-low', '--heat-mid', '--heat-peak'] as const
+).map((token) => {
+  const match = new RegExp(`${token}\\s*:\\s*(#[0-9a-f]{3,6})`, 'i').exec(TOKEN_CSS);
+  if (match === null) throw new Error(`the token stylesheet declares no ${token}`);
+  return (match[1] as string).toLowerCase();
+});
 
 function code(filename: string): string {
   return readFileSync(componentPath(filename), 'utf8');
@@ -35,7 +37,7 @@ function code(filename: string): string {
  *
  * The prohibitions below run on this, and the reason is concrete rather than
  * defensive: this file's own header comment says "no hex literal equal to a
- * flow or ramp colour", and a comment explaining WHY `--flow-in` is read as a
+ * flow or heat colour", and a comment explaining WHY `--flow-in` is read as a
  * variable would contain `--flow-in` — but a comment quoting the rule would
  * contain the hexes themselves. Every 04-09/05-12 prohibition test strips for
  * the same reason, and three of them were caught passing vacuously during their
@@ -131,7 +133,7 @@ describe('05-13 CurrencyBlock & FlowLegend component contracts', () => {
     expect(clean).not.toContain('animation:');
   });
 
-  it('CurrencyBlock.svelte carries no flow or ramp colour literal', () => {
+  it('CurrencyBlock.svelte carries no flow or heat colour literal', () => {
     const clean = stripComments(code(BLOCK_FILE)).toLowerCase();
 
     // The flow tokens are the two hues deposits and withdrawals are drawn in,
@@ -139,12 +141,12 @@ describe('05-13 CurrencyBlock & FlowLegend component contracts', () => {
     // own. A literal here would fork the palette away from the token, and the
     // legend's swatches would then read one colour while the bars read
     // another.
-    for (const hex of FLOW_AND_RAMP_HEXES) {
+    for (const hex of FLOW_AND_HEAT_HEXES) {
       expect(clean).not.toContain(hex);
     }
-    // And the ramp is not this block's vocabulary at all: a currency chart is
-    // two directions, not an ordered scale.
-    expect(clean).not.toContain('var(--ramp-');
+    // And the value scale is not this block's vocabulary at all: a currency
+    // chart is two directions, not an ordered scale.
+    expect(clean).not.toMatch(/var\(--heat-/);
   });
 
   it('FlowLegend.svelte exists, reads both flow tokens and writes no hex', () => {
@@ -156,7 +158,7 @@ describe('05-13 CurrencyBlock & FlowLegend component contracts', () => {
     // moves the legend and the chart together.
     expect(raw).toContain('var(--flow-in)');
     expect(raw).toContain('var(--flow-out)');
-    for (const hex of FLOW_AND_RAMP_HEXES) {
+    for (const hex of FLOW_AND_HEAT_HEXES) {
       expect(clean.toLowerCase()).not.toContain(hex);
     }
 

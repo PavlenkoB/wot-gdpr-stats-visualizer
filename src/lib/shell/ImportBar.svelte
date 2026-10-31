@@ -140,10 +140,10 @@
      the empty slot, which must be free). */
   .import-bar {
     margin: 0;
-  }
 
-  .import-bar[data-variant='slim'] {
-    padding: 8px 20px;
+    &[data-variant='slim'] {
+      padding: var(--space-8) var(--layout-gutter);
+    }
   }
 
   /* The slot itself is transparent to layout: no margin, no padding, no
@@ -159,15 +159,15 @@
   .notice {
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin: 0 0 12px;
-    padding: 12px 16px;
+    gap: var(--space-12);
+    margin: 0 0 var(--space-12);
+    padding: var(--space-12) var(--space-16);
     border: 1px solid var(--border);
     border-radius: var(--radius-control);
     background: var(--page);
     color: var(--text);
-    font-size: 14px;
-    line-height: 1.5;
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
   }
 
   .processing-text {
@@ -180,12 +180,13 @@
      circular border with one quarter coloured, rotated continuously. The
      animation is disabled under prefers-reduced-motion per WCAG 2.3.3,
      and D-29 adds nothing else. The spinner is one of the few places blue
-     survives the ink-and-grey palette. */
+     survives the ink-and-grey palette; the two colours are the shared
+     spinner tokens, so this copy and the app root's read the same blue. */
   .spinner {
     display: inline-block;
     width: 1.25em;
     height: 1.25em;
-    border: 3px solid rgba(26, 115, 232, 0.25);
+    border: 3px solid var(--spinner-track);
     border-top-color: var(--focus);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
@@ -201,7 +202,7 @@
   @media (prefers-reduced-motion: reduce) {
     .spinner {
       animation: none;
-      border-top-color: rgba(26, 115, 232, 0.6);
+      border-top-color: var(--spinner-arc-still);
     }
   }
 
@@ -209,8 +210,8 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 4px 16px;
-    margin: 0 0 8px;
+    gap: var(--space-4) var(--space-16);
+    margin: 0 0 var(--space-8);
   }
 
   /* Label role: a neutral fact about when the file was parsed, never styled
@@ -219,9 +220,9 @@
   .imported-at {
     margin-right: auto;
     color: var(--text);
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
   }
 
   /* Start over is the outlined control; Clear my cached data (below) is the
@@ -230,36 +231,36 @@
      of no return. */
   .bar-button {
     min-height: 44px;
-    padding: 8px 16px;
+    padding: var(--space-8) var(--space-16);
     border: 1px solid var(--border);
     border-radius: var(--radius-control);
     background: var(--page);
     color: var(--ink);
-    font-size: 14px;
-    font-weight: 600;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
     cursor: pointer;
     transition: background-color 120ms ease;
-  }
 
-  .bar-button:hover {
-    background: var(--hover);
-  }
+    &:hover {
+      background: var(--hover);
+    }
 
-  .bar-button:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
+    &:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
   }
 
   /* Keyed on the test id rather than a second class, so the markup above stays
      exactly as the specs know it. */
   [data-testid='clear-data-control'] {
-    padding: 8px 4px;
+    padding: var(--space-8) var(--space-4);
     border: 0;
     background: none;
     text-decoration: underline;
-  }
 
-  [data-testid='clear-data-control']:hover {
-    background: none;
+    &:hover {
+      background: none;
+    }
   }
 </style>

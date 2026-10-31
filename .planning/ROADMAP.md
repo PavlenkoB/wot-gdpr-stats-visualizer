@@ -246,7 +246,68 @@ Plans:
 **Open decisions for discuss-phase:** whether the 12 / 14 / 32 / 56 scale becomes the app-wide scale or the old 14 / 18 / 26 / 30 scale gains the new steps; whether the `--heat-*` colours fully replace `--ramp-*` or coexist for the calendar; the shell's 26 px pane title; and how much of this is visual-only, since layouts are not meant to change.
 **Requirements**: TBD
 **Depends on:** Phase 13
-**Plans:** 0 plans
+**Plans:** 21/21 plans executed
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 14 to break down)
+**Wave 1**
+- [x] 14-01-PLAN.md — Tracer: tokens, roles and utilities wired through the entry import and carried by AccountTimelinePane; CSS scanner and sRGB helpers; scratch screenshot harness and the Overview baseline record
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [x] 14-02-PLAN.md — Token home: legacy custom properties move to tokens.css; the heat-scale contract in contrast.test.ts
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [x] 14-03-PLAN.md — Guards: token, shared-name, nesting-shape, network and role rules with a shrinking allowlist
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [x] 14-04-PLAN.md — Nesting compile probe and sweep; the per-folder font exemption and the regex readers of the older guards retire
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [x] 14-05-PLAN.md — Shell titles: the title role on pane, identity and phone-bar titles; the Overview title compensates its line box (D-16); identity header
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [x] 14-06-PLAN.md — Shell layout: app.css reduced to resets, layout and the phone block on tokens; .btn to utilities; list pane
+
+**Wave 7** *(blocked on Wave 6 completion)*
+- [x] 14-07-PLAN.md — Shell chrome, first half: spinner tokens, failure banner, exclusion notice, import summary, confirm panel
+
+**Wave 8** *(blocked on Wave 7 completion)*
+- [x] 14-08-PLAN.md — Shell chrome, second half: dashboard, dropzone, game filter, account tag, unsupported block
+
+**Wave 9** *(blocked on Wave 8 completion)*
+- [x] 14-09-PLAN.md — Heat scale replaces the Activity ramp on legend, calendar, hour grid, duration list and world map; the ramp is deleted
+
+**Wave 10** *(blocked on Wave 9 completion)*
+- [x] 14-10-PLAN.md — Playtime pane: Display role on the tile numerals (30px to 26px), shared text blocks and status tokens
+
+**Wave 11** *(blocked on Wave 10 completion)*
+- [x] 14-11-PLAN.md — Login history, first half: second numeral, map section, shared scroll regions; the type scale loses its temporary 30
+
+**Wave 12** *(blocked on Wave 11 completion)*
+- [x] 14-12-PLAN.md — Login history, second half: city opt-in and history blocks
+
+**Wave 13** *(blocked on Wave 12 completion)*
+- [x] 14-13-PLAN.md — Vehicles pane, first half: table and battle-type summary
+
+**Wave 14** *(blocked on Wave 13 completion)*
+- [x] 14-14-PLAN.md — Vehicles pane, second half: the statistics block (the 4px toggle gap)
+
+**Wave 15** *(blocked on Wave 14 completion)*
+- [x] 14-15-PLAN.md — Shared chart pieces: tooltip, bar chart, flow legend, monthly table, About disclosure
+
+**Wave 16** *(blocked on Wave 15 completion)*
+- [x] 14-16-PLAN.md — Finance pane: currency, premium and spend blocks on tokens
+
+**Wave 17** *(blocked on Wave 16 completion)*
+- [x] 14-17-PLAN.md — HEAT, Perks and Warships panes with their shared card and table
+
+**Wave 18** *(blocked on Wave 17 completion)*
+- [x] 14-18-PLAN.md — Device info and the rest of the account timeline
+
+**Wave 19** *(blocked on Wave 18 completion)*
+- [x] 14-19-PLAN.md — Overview tile on the shared tokens and roles, with the elevation tokens, pixel-identical
+
+**Wave 20** *(blocked on Wave 19 completion)*
+- [x] 14-20-PLAN.md — Remaining Overview components, the pixel gate and the committed D-15 result
+
+**Wave 21** *(blocked on Wave 20 completion)*
+- [x] 14-21-PLAN.md — Close-out: delete the allowlist and folder exemptions, update the design skill, full phase gate, owner open items

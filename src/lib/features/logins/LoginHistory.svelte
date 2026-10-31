@@ -442,7 +442,7 @@
     -->
     <section class="table-section">
       <h4>{LOGIN_TABLE_HEADING}</h4>
-      <p class="caption count" data-testid="login-count">
+      <p class="caption" data-testid="login-count">
         {formatLoginCountLine(listed.addresses, listed.logins)}
       </p>
       <!--
@@ -527,7 +527,7 @@
   div {
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: var(--space-24);
     min-width: 0;
   }
 
@@ -538,12 +538,12 @@
      the two in step. */
   h3 {
     margin: 0;
-    padding-bottom: 8px;
+    padding-bottom: var(--space-8);
     border-bottom: 1px solid var(--border);
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
     color: var(--ink);
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
   }
 
   /* Body role, state messages. Empty in every state but `loading`, where it is
@@ -551,48 +551,27 @@
   .status {
     margin: 0;
     min-height: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
-    color: var(--text);
     min-width: 0;
-    overflow-wrap: anywhere;
-  }
-
-  /* The empty status line, hidden without leaving the accessibility tree. The
-     clip pattern, not `display: none`: a region that is not in the tree cannot
-     be announced, and this one is where the state change is read out. */
-  .status.hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-    border: 0;
-  }
-
-  .body {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
     color: var(--text);
-    min-width: 0;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-body);
     overflow-wrap: anywhere;
-  }
 
-  /* The project's destructive error chrome, reused verbatim from
-     FailureBanner rather than re-picked: this is a failure the user needs to
-     see, and a second error red would drift from the first. */
-  .error {
-    padding: 8px 12px;
-    border: 1px solid #c5221f;
-    border-radius: 6px;
-    background: #fce8e6;
-    color: #8a1c17;
+    /* The empty status line, hidden without leaving the accessibility tree. The
+       clip pattern, not `display: none`: a region that is not in the tree
+       cannot be announced, and this one is where the state change is read out. */
+    &.hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
+    }
   }
 
   /* The reveal row wraps rather than compressing its caption: at 375px the
@@ -602,7 +581,7 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 8px 16px;
+    gap: var(--space-8) var(--space-16);
     min-width: 0;
   }
 
@@ -610,23 +589,23 @@
      accent `:focus-visible` ring — this is a new member of "every interactive
      element", and the accent is reserved for exactly that. */
   button {
-    padding: 8px 16px;
+    padding: var(--space-8) var(--space-16);
     border: 1px solid var(--faint);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: var(--page);
     color: var(--text);
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
-  }
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
 
-  button:hover {
-    background: var(--hover);
-  }
+    &:hover {
+      background: var(--hover);
+    }
 
-  button:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
+    &:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
   }
 
   /* The table's own section: the h4, the count line, the scroller and the
@@ -635,37 +614,22 @@
   .table-section {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--space-8);
     min-width: 0;
   }
 
   .city-section {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--space-8);
     min-width: 0;
   }
 
   h4 {
     margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
     color: var(--text);
-  }
-
-  .count {
-    font-weight: 600;
-    color: var(--text);
-  }
-
-  .caption {
-    margin: 0;
-    min-width: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
-    color: var(--muted);
-    overflow-wrap: anywhere;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
   }
 </style>

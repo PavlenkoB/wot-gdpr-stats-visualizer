@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { componentPath } from '../../helpers/components.ts';
+import { ruleDeclarations, styleText } from '../../helpers/css.ts';
 
 // =============================================================================
 // Plan 12-12 Task 3 - the Account timeline pane, asserted by what its SOURCE promises
@@ -218,6 +219,40 @@ describe('the timeline components: nothing untrusted reaches an attribute', () =
       }
       expect(source, name).not.toMatch(/geo\//);
     }
+  });
+});
+
+// =============================================================================
+// The shared layer (Phase 14, plan 14-01, D-02)
+// =============================================================================
+//
+// The pane used to define four of the shared class names itself - `.body`,
+// `.caption`, `.error` and `.visually-hidden` - and carried three hex
+// literals. It is now the first real consumer of the shared layer, so it is
+// the pane's own proof that the layer works: it defines NONE of the shared
+// names and holds NO colour literal.
+//
+// This is the pane-local proof, not the whole-tree one: the guard that pins
+// every file in the tree is design-tokens-guards.test.ts, which has no
+// exemption list since plan 14-21.
+// =============================================================================
+describe('AccountTimelinePane: the shared layer', () => {
+  const styles = styleText(clean(PANE));
+
+  it('defines none of the shared class names', () => {
+    for (const selector of ['.body', '.caption', '.error', '.visually-hidden']) {
+      expect(ruleDeclarations(styles, selector), selector).toBe('');
+    }
+  });
+
+  it('holds no colour literal', () => {
+    expect(styles).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+    expect(styles).not.toMatch(/\b(?:rgba?|hsla?)\(/);
+  });
+
+  it('hides the empty showing line with the shared clip class', () => {
+    expect(clean(PANE)).toContain("class:visually-hidden={showingText === ''}");
+    expect(clean(PANE)).not.toContain('class:hidden=');
   });
 });
 

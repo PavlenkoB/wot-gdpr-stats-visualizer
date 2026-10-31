@@ -230,16 +230,16 @@
     constant.
   -->
   {#if CITY_CANCELLED_TONE === 'error'}
-    <p class="error" role="alert" data-testid="city-cancelled">{CITY_CANCELLED}</p>
+    <p class="body error" role="alert" data-testid="city-cancelled">{CITY_CANCELLED}</p>
   {:else}
-    <p class="info" data-testid="city-cancelled">{CITY_CANCELLED}</p>
+    <p class="body info" data-testid="city-cancelled">{CITY_CANCELLED}</p>
   {/if}
 {/snippet}
 
 <div data-testid="city-optin" data-state={st.kind}>
   <h4>{CITY_HEADING}</h4>
   {#if st.kind === 'unavailable'}
-    <p class="info" data-testid="city-unavailable">{CITY_UNAVAILABLE}</p>
+    <p class="body info" data-testid="city-unavailable">{CITY_UNAVAILABLE}</p>
   {:else if st.kind === 'downloading'}
     <p class="body" data-testid="city-progress-line">{formatCityProgress(received, total)}</p>
     <div class="bar-row">
@@ -260,7 +260,7 @@
     <p class="body" tabindex="-1" bind:this={readyEl} data-testid="city-ready">{readyLine}</p>
     <p class="caption" data-testid="city-note">{CITY_ACCURACY_NOTE}</p>
   {:else if st.kind === 'error'}
-    <p class="error" role="alert" data-testid="city-error">{CITY_ERROR}</p>
+    <p class="body error" role="alert" data-testid="city-error">{CITY_ERROR}</p>
     {@render loadButton()}
   {:else if st.kind === 'cancelled'}
     {@render cancelledLine()}
@@ -276,70 +276,29 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 8px;
+    gap: var(--space-8);
     min-width: 0;
   }
 
   h4 {
     margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
     color: var(--text);
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
   }
 
-  /* Body role, state messages. */
-  .body,
-  .info,
-  .error {
-    margin: 0;
-    min-width: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
-    color: var(--text);
-    overflow-wrap: anywhere;
-  }
+  /* Neutral-info chrome: cancelled and unavailable (06-UI-SPEC Color).
 
-  /* Caption role: the intro and the accuracy note. */
-  .caption {
-    margin: 0;
-    min-width: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
-    color: var(--muted);
-    overflow-wrap: anywhere;
-  }
-
-  /* Neutral-info chrome: cancelled and unavailable (06-UI-SPEC Color). */
+     The message itself is the shared `.body` text block and the box is this
+     rule; the destructive box is the shared `.error` utility, which carries
+     the same border, radius and surface. */
   .info {
-    padding: 8px 12px;
+    padding: var(--space-8) var(--space-12);
     border: 1px solid var(--faint);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: var(--list);
     color: var(--text);
-  }
-
-  /* The project's destructive chrome, as the block error: a failure the user
-     needs to see. */
-  .error {
-    padding: 8px 12px;
-    border: 1px solid #c5221f;
-    border-radius: 6px;
-    background: #fce8e6;
-    color: #8a1c17;
-  }
-
-  /* The bar and Cancel share a row; at 375px they stack, because the bar's
-     minimum plus the button does not fit a 295px card. */
-  .bar-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    align-self: stretch;
-    gap: 8px 16px;
-    min-width: 0;
   }
 
   /* A native progress, 8px tall, track var(--track) and fill var(--text) (06-UI-SPEC
@@ -356,45 +315,61 @@
     color: var(--text);
     appearance: none;
     overflow: hidden;
+
+    &::-webkit-progress-bar {
+      background: var(--track);
+    }
+
+    &::-webkit-progress-value {
+      background: var(--text);
+    }
+
+    &::-moz-progress-bar {
+      background: var(--text);
+    }
   }
 
-  /* Inside the row the bar takes the free space, and wraps above Cancel when
-     less than 160px is left. */
-  .bar-row progress {
-    flex: 1 1 160px;
-    align-self: center;
-    width: auto;
-  }
+  /* The bar and Cancel share a row; at 375px they stack, because the bar's
+     minimum plus the button does not fit a 295px card.
 
-  progress::-webkit-progress-bar {
-    background: var(--track);
-  }
+     This rule comes AFTER the `progress` rule on purpose: the bar's compound
+     inside the row has the SAME specificity as the bare `progress` rule, so
+     the one that comes last is the one that wins - and the bar inside the
+     row must win, or it would be full width and stretched again. */
+  .bar-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    align-self: stretch;
+    gap: var(--space-8) var(--space-16);
+    min-width: 0;
 
-  progress::-webkit-progress-value {
-    background: var(--text);
-  }
-
-  progress::-moz-progress-bar {
-    background: var(--text);
+    /* Inside the row the bar takes the free space, and wraps above Cancel when
+       less than 160px is left. */
+    & progress {
+      flex: 1 1 160px;
+      align-self: center;
+      width: auto;
+    }
   }
 
   button {
-    padding: 8px 16px;
+    padding: var(--space-8) var(--space-16);
     border: 1px solid var(--faint);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: var(--page);
     color: var(--text);
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
-  }
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
 
-  button:hover {
-    background: var(--hover);
-  }
+    &:hover {
+      background: var(--hover);
+    }
 
-  button:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
+    &:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
   }
 </style>

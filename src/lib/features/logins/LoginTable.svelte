@@ -233,7 +233,7 @@
 
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
-  class="scroller"
+  class="scroller table-scroll"
   bind:this={scrollerEl}
   data-testid="login-scroller"
   role="region"
@@ -306,28 +306,26 @@
      column resolve against, and what makes `overflow: auto` clip this
      component's own visually-hidden text (see VehicleTable).
 
-     `isolation: isolate` makes the scroller a stacking context, so the header
-     cells' z-index 2, the corner cell's 3 and the first column's 1 are compared
-     with each other and never with the nav's z-index 1 in the page's root
-     stacking context. Without it the header cells outrank the nav and the
-     first-column cells tie it and win on tree order, so a scrolled table paints
-     over the sticky nav (G-07-5). The nav's z-index is deliberately NOT raised
-     instead: the fixed chart tooltip at z-index 2 relies on stacking being
-     z-index-free elsewhere (see the stacking note in PlaytimeCharts.svelte). */
-  .scroller {
-    position: relative;
-    isolation: isolate;
-    overflow: auto;
-    max-height: 480px;
-    min-width: 0;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--page);
-  }
+     The shared `.scroller` utility in `src/styles/utilities.css` supplies the
+     rest of the region: `min-width: 0`, `overflow: auto`, `isolation: isolate`
+     and the focus ring. The isolation makes the scroller a stacking context,
+     so the header cells' z-index 2, the corner cell's 3 and the first column's
+     1 are compared with each other and never with the nav's z-index 1 in the
+     page's root stacking context. Without it the header cells outrank the nav
+     and the first-column cells tie it and win on tree order, so a scrolled
+     table paints over the sticky nav (G-07-5). The nav's z-index is
+     deliberately NOT raised instead: the fixed chart tooltip at z-index 2
+     relies on stacking being z-index-free elsewhere (see the stacking note in
+     PlaytimeCharts.svelte).
 
-  .scroller:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
+     The table's own box - the 480px cap and the bordered card around it - is
+     this file's business, not the region's, so it is the hook's. */
+  .table-scroll {
+    position: relative;
+    max-height: 480px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--page);
   }
 
   table {
@@ -335,20 +333,8 @@
     border-collapse: separate;
     border-spacing: 0;
     width: 100%;
-    font-size: 14px;
-    line-height: 1.4;
-  }
-
-  .visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
+    font-size: var(--fs-body);
+    line-height: var(--lh-tight);
   }
 
   th {
@@ -359,22 +345,24 @@
     padding: 0;
     background: var(--list);
     color: var(--muted);
-    font-size: 14px;
-    font-weight: 600;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
     text-align: left;
     white-space: nowrap;
-  }
 
-  th.sticky-first {
-    left: 0;
-    z-index: 3;
-    border-right: 1px solid var(--border);
-  }
+    /* The corner cell: sticky in both axes, so it sits above the other
+       headers. */
+    &.sticky-first {
+      left: 0;
+      z-index: 3;
+      border-right: 1px solid var(--border);
+    }
 
-  /* The sorted header's own surface, so the arrow's column is visible even
-     when the reader has scrolled past the corner. */
-  th.sorted {
-    background: var(--hover);
+    /* The sorted header's own surface, so the arrow's column is visible even
+       when the reader has scrolled past the corner. */
+    &.sorted {
+      background: var(--hover);
+    }
   }
 
   /* The sort button fills its cell: Label weight, muted text, transparent
@@ -382,32 +370,32 @@
   button {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--space-4);
     width: 100%;
     height: 40px;
-    padding: 0 8px;
+    padding: 0 var(--space-8);
     border: 0;
     background: transparent;
     color: var(--muted);
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     text-align: left;
     cursor: pointer;
-  }
 
-  button:hover {
-    background: var(--sel);
-    color: var(--text);
-  }
+    &:hover {
+      background: var(--sel);
+      color: var(--text);
+    }
 
-  button:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: -3px;
+    &:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: -3px;
+    }
   }
 
   .arrow {
-    font-weight: 400;
+    font-weight: var(--fw-regular);
   }
 
   /* Rows are a FIXED 40px, the constant `windowRange` divides by. */
@@ -417,29 +405,55 @@
 
   td {
     height: 40px;
-    padding: 0 8px;
+    padding: 0 var(--space-8);
     background: var(--page);
     color: var(--text);
-    font-size: 14px;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    line-height: var(--lh-tight);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     vertical-align: middle;
     font-variant-numeric: tabular-nums;
+
+    &.sticky-first {
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      border-right: 1px solid var(--border);
+    }
+
+    &.right {
+      text-align: right;
+    }
+
+    /* The tagged first cell (D-18): one nowrap flex row of chips and then the
+       address. `first-tagged` rather than `.w-ip-tagged` because the LAYOUT is a
+       separate question from the WIDTH — a cell can be `w-ip` and tagged if the
+       geometry records ever disagree, and the two must not be one class.
+       `align-items: center` keeps the 18px chip and the 40px row's text on one
+       optical line, and the row height stays the 40px `windowRange` divides by. */
+    &.first-tagged {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+      white-space: nowrap;
+
+      /* The address takes what the chips left and can shrink to nothing: a long
+         IPv6 beside three chips wraps into the remaining width's two lines rather
+         than widening the sticky column (which is what would push the page sideways
+         at 375px). */
+      & .ip {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+    }
   }
 
-  td.sticky-first {
-    position: sticky;
-    left: 0;
-    z-index: 1;
-    border-right: 1px solid var(--border);
-  }
-
-  td.right {
-    text-align: right;
-  }
-
+  /* A muted cell, and a muted address inside one. The rule is a LIST of two
+     selectors, so it stays top-level: a list can neither extend a sibling nor
+     be extended by one (the same rule plan 14-10 settled for the playtime
+     summary's `th:last-child, td:last-child`). */
   td.muted-cell,
   .ip.muted-cell {
     color: var(--muted);
@@ -456,12 +470,12 @@
   .tag {
     display: inline-block;
     max-width: 100%;
-    padding: 0 8px;
+    padding: 0 var(--space-8);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: var(--chip);
     color: var(--muted);
-    font-size: 14px;
+    font-size: var(--fs-body);
     line-height: 18px;
     vertical-align: middle;
     white-space: nowrap;
@@ -485,29 +499,7 @@
     overflow: hidden;
     white-space: normal;
     overflow-wrap: anywhere;
-    line-height: 1.4;
-  }
-
-  /* The tagged first cell (D-18): one nowrap flex row of chips and then the
-     address. `first-tagged` rather than `.w-ip-tagged` because the LAYOUT is a
-     separate question from the WIDTH — a cell can be `w-ip` and tagged if the
-     geometry records ever disagree, and the two must not be one class.
-     `align-items: center` keeps the 18px chip and the 40px row's text on one
-     optical line, and the row height stays the 40px `windowRange` divides by. */
-  td.first-tagged {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    white-space: nowrap;
-  }
-
-  /* The address takes what the chips left and can shrink to nothing: a long
-     IPv6 beside three chips wraps into the remaining width's two lines rather
-     than widening the sticky column (which is what would push the page sideways
-     at 375px). */
-  td.first-tagged .ip {
-    flex: 1 1 auto;
-    min-width: 0;
+    line-height: var(--lh-tight);
   }
 
   /* The overflow count. Muted, plain text and never a chip: a third chip-shaped
@@ -515,8 +507,8 @@
   .more {
     flex-shrink: 0;
     color: var(--muted);
-    font-size: 14px;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    line-height: var(--lh-tight);
   }
 
   /* Column widths from the UI-SPEC as classes, never inline styles (CSP). */

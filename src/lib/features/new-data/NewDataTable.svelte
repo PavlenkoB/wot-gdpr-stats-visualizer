@@ -234,7 +234,7 @@
 -->
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
-  class="scroller"
+  class="scroller table-scroll"
   bind:this={scrollerEl}
   data-testid="new-data-table"
   role="region"
@@ -342,26 +342,23 @@
 </div>
 
 <style>
-  /* The scroller. `position: relative` is the containing block the sticky header
-     and first column resolve against, and it keeps the visually hidden phrase of
-     an account tag inside this box's clip instead of laying it out at the far
-     right of a wide table and widening the page. `isolation: isolate` makes the
-     scroller its own stacking context, so the header cells' z-index is compared
-     with the first column's and never with the nav's. */
-  .scroller {
-    position: relative;
-    isolation: isolate;
-    overflow: auto;
-    max-height: 480px;
-    min-width: 0;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--page);
-  }
+  /* The table's own box: the 480px cap and the bordered card around it.
+     `position: relative` is the containing block the sticky header and first
+     column resolve against, and it keeps the visually hidden phrase of an account
+     tag inside this box's clip instead of laying it out at the far right of a
+     wide table and widening the page.
 
-  .scroller:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
+     The shared `.scroller` utility in `src/styles/utilities.css` supplies the
+     rest of the region: `min-width: 0`, `overflow: auto`, `isolation: isolate`
+     (which makes the scroller its own stacking context, so the header cells'
+     z-index is compared with the first column's and never with the nav's) and
+     the focus ring. The box itself is this file's business, so it is the hook's. */
+  .table-scroll {
+    position: relative;
+    max-height: 480px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--page);
   }
 
   /* `table-layout: fixed` with `border-collapse: separate` is what lets a column
@@ -372,20 +369,8 @@
     border-collapse: separate;
     border-spacing: 0;
     width: 100%;
-    font-size: 14px;
-    line-height: 1.4;
-  }
-
-  .visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
+    font-size: var(--fs-body);
+    line-height: var(--lh-tight);
   }
 
   th {
@@ -393,23 +378,28 @@
     top: 0;
     z-index: 2;
     height: 40px;
-    padding: 0 12px;
+    padding: 0 var(--space-12);
     background: var(--list);
     color: var(--muted);
-    font-size: 14px;
-    font-weight: 600;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
     text-align: left;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     border-bottom: 1px solid var(--border);
-  }
 
-  /* The corner cell sits above BOTH axes. */
-  th.sticky-first {
-    left: 0;
-    z-index: 3;
-    border-right: 1px solid var(--border);
+    /* The corner cell sits above BOTH axes. */
+    &.sticky-first {
+      left: 0;
+      z-index: 3;
+      border-right: 1px solid var(--border);
+    }
+
+    /* A number column reads right, so the digits line up down the column. */
+    &.num {
+      text-align: right;
+    }
   }
 
   /* Rows are a FIXED 40px, the same constant `windowRange` divides by. A cell
@@ -421,48 +411,48 @@
 
   td {
     height: 40px;
-    padding: 0 12px;
+    padding: 0 var(--space-12);
     background: var(--page);
     color: var(--text);
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-tight);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     vertical-align: middle;
     font-variant-numeric: tabular-nums;
     border-bottom: 1px solid var(--border);
-  }
 
-  /* The first column, sticky to the scroller's left edge, so the account tag and
-     the row name stay visible while the table scrolls sideways. */
-  td.sticky-first {
-    position: sticky;
-    left: 0;
-    z-index: 1;
-    border-right: 1px solid var(--border);
-  }
+    /* The first column, sticky to the scroller's left edge, so the account tag and
+       the row name stay visible while the table scrolls sideways. */
+    &.sticky-first {
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      border-right: 1px solid var(--border);
+    }
 
-  th.num,
-  td.num {
-    text-align: right;
+    /* A number column reads right, so the digits line up down the column. */
+    &.num {
+      text-align: right;
+    }
   }
 
   /* The overflow count of a several-tags cell. Muted, plain text and never a
      chip: a chip-shaped `+2` would be read as an account named `+2`. */
   .more {
-    margin-right: 4px;
+    margin-right: var(--space-4);
     color: var(--muted);
-    font-size: 14px;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    line-height: var(--lh-tight);
   }
 
   /* The chip's 4px gap to the text after it. Declared here because the same
      component renders in the identity header, where the gap comes from the row's
      own gap. `:global` because the chip is another component's markup. */
   .sticky-first :global([data-testid='account-tag']) {
-    margin-right: 4px;
+    margin-right: var(--space-4);
   }
 
   /* The not-reported words: muted ink, and they are WORDS, so the meaning never

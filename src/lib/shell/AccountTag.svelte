@@ -26,6 +26,19 @@
    * one case a future caller may want (a tag with the phrase alone) rather than
    * because anything needs it today. When it is false the chip node is not
    * rendered at all — there is no empty span left behind to hold the gap.
+   *
+   * ## The phrase is hidden by the SHARED utility
+   *
+   * The span carries the class `visually-hidden`, which `src/styles/utilities.css`
+   * defines once: the clip pattern is a project-wide contract, not a per-file
+   * copy. This file used to carry its own copy of the same clip block, and a
+   * scoped copy outranks the global one, so the two could drift apart without
+   * anybody noticing. The local copy is deleted, and the shared block states
+   * the same declarations, so the computed style is unchanged: the phrase is in
+   * the accessibility tree and nowhere else, and `position: absolute` inside a
+   * positioned ancestor keeps it inside a scrolling cell's clip rather than
+   * letting it lay out at the far right of a wide table and widen the page at
+   * 375px.
    */
   interface Props {
     /** The letter to draw: `A`, `B`, … `AA`. Derived from the header order. */
@@ -70,34 +83,17 @@
   .tag {
     display: inline-block;
     min-width: 24px;
-    padding: 0 8px;
+    padding: 0 var(--space-8);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: var(--chip);
     color: var(--muted);
-    font-size: 14px;
-    font-weight: 600;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
     line-height: 18px;
     text-align: center;
     white-space: nowrap;
     vertical-align: middle;
     flex-shrink: 0;
-  }
-
-  /* The clip pattern the app already uses (`LoginTable.svelte`, and the
-     `sr-only` in `VehicleTable.svelte`). The phrase is in the accessibility
-     tree and nowhere else: `position: absolute` inside a positioned ancestor
-     keeps it inside a scrolling cell's clip rather than letting it lay out at
-     the far right of a wide table and widen the page at 375px. */
-  .visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
   }
 </style>

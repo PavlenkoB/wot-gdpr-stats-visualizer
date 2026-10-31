@@ -6,18 +6,19 @@
    *
    * ## Why this copies ChartLegend's chrome rather than extending it
    *
-   * `ChartLegend` renders an ordinal RAMP: it takes the levels in use, prints
-   * one swatch per level, and its two words are `Less` and `More`. A flow
-   * legend has no ramp and no ordinal — it names two CATEGORIES, deposits and
-   * withdrawals, which is why the words are the whole point of it.
+   * `ChartLegend` renders an ordinal heat SCALE: it takes the levels in use,
+   * prints one swatch per level, and its two words are `Less` and `More`. A
+   * flow legend has no scale and no ordinal — it names two CATEGORIES,
+   * deposits and withdrawals, which is why the words are the whole point of
+   * it.
    *
    * The two share their chrome exactly: the same wrapping row, the same 12px
    * square swatch, the same caption type on the words, and the same rule that
    * the swatches are `aria-hidden` because they carry nothing a screen reader
    * needs. That is why this file is a copy and not a prop on `ChartLegend`: a
    * shared component would have taken a "no words, just swatches" branch and a
-   * per-swatch colour, and the ramp's six-step vocabulary would then be
-   * present in a component that never draws a ramp.
+   * per-swatch colour, and the scale's six-swatch vocabulary would then be
+   * present in a component that never draws a scale.
    *
    * ## Why colour is never the only cue
    *
@@ -62,14 +63,14 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 4px 8px;
+    gap: var(--space-4) var(--space-8);
     margin: 0;
     min-width: 0;
     /* Caption role, exactly as `ChartLegend`'s row: the whole legend is
        explanatory text, so the words and the swatches are all metadata. */
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-tight);
     color: var(--muted);
   }
 

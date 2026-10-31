@@ -1,0 +1,103 @@
+/* =============================================================================
+   The shared utilities (Phase 14, D-02).
+
+   Every class in this file is defined ONCE, and no component redefines it. A
+   scoped selector outranks a global one, so a leftover local copy would
+   silently win over this file and the two would drift apart without anybody
+   noticing. A component that needs a DIFFERENT look takes a different hook
+   class beside the shared one and states only the difference.
+
+   `.caption` is the muted 14px note. It is NOT the 12px `.t-caption` role
+   from type.css: the role and the utility are different things at different
+   sizes, and the near-identical names are a trap worth naming here.
+
+   The ORDER of the rules below is part of the contract. `.error` comes after
+   `.body` so that an element carrying both classes shows the danger colour;
+   `.visually-hidden` comes after `.caption` so that its margin wins over the
+   caption's.
+   ============================================================================= */
+
+/* The muted note. */
+.caption {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-tight);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+/* The body paragraph. */
+.body {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-body);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* The destructive box. The border and the radius are part of it: every local
+   copy carried both, and a box that loses them reads as a paragraph rather
+   than as a failure. */
+.error {
+  padding: var(--space-8) var(--space-12);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
+  background: var(--danger-bg);
+  color: var(--danger-ink);
+}
+
+/* The clip block: invisible on screen, still in the accessibility tree. A
+   region that is not in the tree cannot be announced, so this is the clip
+   pattern and never `display: none`. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The focusable scroll region. */
+.scroller {
+  min-width: 0;
+  overflow: auto;
+  isolation: isolate;
+
+  &:focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+  }
+}
+
+/* The button. It moved here from `src/app.css` (plan 14-06): the shared names
+   live in this file and nowhere else, so a component that needs a button
+   cannot define a second one. No component uses it today - it is here so the
+   ONE definition of the button exists before the first component reaches for
+   it. Its states are NESTED under the block (D-05): `&:hover` and `&.primary`
+   flatten to the same selectors the flat rules had. */
+.btn {
+  min-height: 44px;
+  padding: var(--space-8) var(--space-16);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--page);
+  color: var(--ink);
+
+  &:hover {
+    background: var(--hover);
+  }
+
+  &.primary {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--page);
+  }
+}

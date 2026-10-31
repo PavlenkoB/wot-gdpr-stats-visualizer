@@ -544,7 +544,7 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 16px;
+    gap: var(--space-16);
     min-height: 60vh;
     max-width: 640px;
     margin: 0 auto;
@@ -557,8 +557,8 @@
   .privacy {
     margin: 0;
     text-align: center;
-    font-size: 14px;
-    line-height: 1.5;
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
     color: var(--muted);
   }
 

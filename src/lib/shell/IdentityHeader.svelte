@@ -125,7 +125,7 @@
          id — a test asking for the nickname must find nothing before an
          export is loaded, and a placeholder wearing the real test id would
          make that assertion lie. -->
-    <h2 class="skeleton-title" data-testid="identity-title">{IDENTITY_SKELETON_TITLE}</h2>
+    <h2 class="t-title skeleton-title" data-testid="identity-title">{IDENTITY_SKELETON_TITLE}</h2>
     <p class="skeleton-prompt">{IDENTITY_SKELETON_PROMPT}</p>
   {:else if variant === 'multi'}
     <!-- D-13 / UI-SPEC Surface 1. The title is the COUNT, not a nickname: with
@@ -133,11 +133,11 @@
          the existing IDENTITY_CAPTION, reused as is — D-12's "as of export"
          qualifies the whole list, and the import-time dates are not per-row
          anyway. -->
-    <h2 class="multi-title" data-testid="identity-multi-title">
+    <h2 class="t-title multi-title" data-testid="identity-multi-title">
       {formatAccountCount(rows.length)}
     </h2>
 
-    <p class="caption">{IDENTITY_CAPTION}</p>
+    <p class="caption identity-caption">{IDENTITY_CAPTION}</p>
 
     <!-- `role="list"` is explicit because the list-style reset drops list
          semantics in some engines. The accessible name is the STATIC
@@ -178,11 +178,15 @@
                 letter={letterOf(index)}
                 label={formatAccountLegendLabel(letterOf(index))}
               />
-              <h3 class="multi-name" class:id-only={row.idOnly} data-testid="identity-multi-name">
+              <h3
+                class="t-heading multi-name"
+                class:id-only={row.idOnly}
+                data-testid="identity-multi-name"
+              >
                 {row.name}
               </h3>
             </div>{/if}{#if !showTagLegend}<h3
-              class="multi-name"
+              class="t-heading multi-name"
               class:id-only={row.idOnly}
               data-testid="identity-multi-name"
             >
@@ -208,18 +212,18 @@
     <!-- D-16: no User_Info row, so the account ID is the title. No caption,
          no value list and no ID line: the ID line would repeat the title,
          and an empty value list would suggest data that does not exist. -->
-    <h2 class="fallback-title" data-testid="identity-title">
+    <h2 class="t-title fallback-title" data-testid="identity-title">
       {formatIdentityFallbackTitle(result?.accountRoot ?? '')}
     </h2>
   {:else}
-    <h2 class="nickname" data-testid="identity-nickname">
+    <h2 class="t-title nickname" data-testid="identity-nickname">
       {valueOrUnknown(identity?.nickname ?? null)}
     </h2>
 
     <!-- D-12: the caption qualifies the values as the export's, not as a
          verified or current fact. It is a paragraph, not a heading, and it
          carries no date — `importedAt` is when WE parsed the file. -->
-    <p class="caption">{IDENTITY_CAPTION}</p>
+    <p class="caption identity-caption">{IDENTITY_CAPTION}</p>
 
     <dl class="identity-details">
       <!-- D-13 (amended after UAT G-05-7): the raw `REGION` string, never
@@ -253,33 +257,32 @@
   section {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding: 4px 20px 4px;
+    gap: var(--space-4);
+    padding: var(--space-4) var(--layout-gutter) var(--space-4);
     min-width: 0;
   }
 
-  /* Display role (26 / 600 / 1.3) — the one place the size is spent, since the
-     h1 is demoted to the product label in the list pane. It collapses to the
-     Heading size at phone width, in the phone block of `src/app.css`. */
+  /* The Title role (D-12): 32px from 900px up, 26px below. The role owns the
+     size, the weight, the line height and the wrapping; this rule states only
+     what a role may not: the margin, the colour and the shrink. The phone
+     block of `src/app.css` no longer overrides the size — the role is the one
+     answer to "how big is a title", and a rule of specificity (0,3,0) would
+     have beaten it. */
   .nickname,
   .skeleton-title,
   .fallback-title,
   .multi-title {
     margin: 0;
-    font-size: 26px;
-    font-weight: 600;
-    line-height: 1.3;
     color: var(--ink);
     min-width: 0;
-    overflow-wrap: anywhere;
   }
 
-  .caption {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
-    color: var(--muted);
+  /* The shared caption block of `src/styles/utilities.css` (14 / 400 / 1.4 in
+     `--muted`) with ONE difference: this caption is a label, so it is
+     semibold. The hook class states only the difference, because a local copy
+     of `.caption` would shadow the shared one and could drift from it. */
+  .identity-caption {
+    font-weight: var(--fw-semibold);
   }
 
   /* Two columns sized by content and 1fr, so the value column takes the
@@ -287,23 +290,23 @@
   dl {
     display: grid;
     grid-template-columns: max-content 1fr;
-    gap: 4px 16px;
+    gap: var(--space-4) var(--space-16);
     margin: 0;
   }
 
   dt {
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--muted);
   }
 
   /* Body role for the values (D-13, D-15). */
   dd {
     margin: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-body);
     color: var(--text);
     min-width: 0;
     overflow-wrap: anywhere;
@@ -317,13 +320,18 @@
      the same Label role an ID line already takes, so the demotion is a change
      of TYPE only. The text, the `h3` and the row's accessible name are
      untouched — a rootless account keeps the only identifier it has. Sharing
-     the selector means the two cannot drift apart in a later edit. */
+     the selector means the two cannot drift apart in a later edit.
+
+     The three type declarations STAY here even though the row name takes the
+     Heading role: this rule is what demotes an ID-only row, and a rule that
+     only stated the size would leave the weight and the line height to the
+     role. It outranks the role on specificity, so the demotion holds. */
   .account-id,
   .multi-name.id-only {
     margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--muted);
     min-width: 0;
     overflow-wrap: anywhere;
@@ -335,9 +343,9 @@
      wording, not a muted heading. */
   .skeleton-prompt {
     margin: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-body);
     color: var(--muted);
   }
 
@@ -363,10 +371,10 @@
      read as one list, and the Day 10 chrome uses hairlines for exactly this. */
   .multi-row {
     border-top: 1px solid var(--border);
-    padding: 8px 0;
+    padding: var(--space-8) 0;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--space-4);
     min-width: 0;
   }
 
@@ -381,20 +389,19 @@
   .multi-head {
     display: flex;
     align-items: baseline;
-    gap: 8px;
+    gap: var(--space-8);
     min-width: 0;
   }
 
-  /* Heading role, for a row that HAS a nickname. `--ink`, and `overflow-wrap:
-     anywhere` for a long nickname or a 20-digit account root: both are
-     untrusted, so their length is not knowable in advance and neither may
-     widen the 320px pane. The id-only case opts out of this role above and
-     takes the Label role instead, so an absence never looks like a presence. */
+  /* The Heading role, for a row that HAS a nickname: 18 / 600 / 1.3. The role
+     owns those three; this rule states the margin, the colour and the wrap.
+     `--ink`, and `overflow-wrap: anywhere` for a long nickname or a 20-digit
+     account root: both are untrusted, so their length is not knowable in
+     advance and neither may widen the 320px pane. The id-only case opts out of
+     the role above and takes the Label role instead, so an absence never looks
+     like a presence. */
   .multi-name {
     margin: 0;
-    font-size: 18px;
-    font-weight: 600;
-    line-height: 1.3;
     color: var(--ink);
     min-width: 0;
     overflow-wrap: anywhere;

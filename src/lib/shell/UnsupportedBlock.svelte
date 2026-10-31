@@ -85,16 +85,16 @@
 <style>
   .intro {
     margin: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-body);
     color: var(--text);
   }
 
   .banners {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--space-8);
     margin: 0;
     padding: 0;
     list-style: none;
@@ -112,10 +112,10 @@
   .banner {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding: 12px 16px;
+    gap: var(--space-4);
+    padding: var(--space-12) var(--space-16);
     border: 1px solid var(--faint);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: var(--list);
     color: var(--text);
     min-width: 0;
@@ -125,25 +125,25 @@
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 4px;
+    gap: var(--space-4);
     margin: 0;
     min-width: 0;
   }
 
   /* Label role: the folder name is what the user scans the block for. */
   .banner-folder {
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     overflow-wrap: anywhere;
     min-width: 0;
   }
 
   /* Body role: the suffix is a sentence, not a label. */
   .banner-suffix {
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-body);
     overflow-wrap: anywhere;
     min-width: 0;
   }

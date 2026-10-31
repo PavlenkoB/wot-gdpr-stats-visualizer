@@ -442,10 +442,10 @@ test('G-04-UI-2: at 375px the hours tile keeps its numeral and its unit whole', 
 
     for (const tile of measured) {
       expect(tile.numberLines, `${tile.testId} numeral lines at ${width}px`).toBe(1);
-      // The UI-SPEC numeral sizes (R10): 30px on desktop, 18px at 375px. The
-      // computed value, since the claim is what the reader sees.
+      // The UI-SPEC numeral sizes (R10, D-08): 26px on desktop, 18px at 375px.
+      // The computed value, since the claim is what the reader sees.
       expect(tile.fontSize, `${tile.testId} numeral size at ${width}px`).toBe(
-        width === 375 ? '18px' : '30px',
+        width === 375 ? '18px' : '26px',
       );
       // And the dd is not a scroller holding its own overflow either: an
       // unbreakable numeral that does not fit would be clipped rather than
@@ -464,7 +464,7 @@ test('G-04-UI-2: at 375px the hours tile keeps its numeral and its unit whole', 
 
     if (width === 1280) {
       // At 1280 the pair still shares one line, and this is the assertion that
-      // says so: one 30px Display line at 1.2 measures about 36px, so a dd
+      // says so: one 26px Display line at 1.3 measures about 34px, so a dd
       // under 40px cannot be holding two line boxes. It is also the half that
       // passed BEFORE the fix, which is what makes the 375 half meaningful —
       // the change is a fix at one width and nothing at the other.

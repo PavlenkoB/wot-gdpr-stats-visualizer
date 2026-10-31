@@ -43,10 +43,16 @@
   table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 14px;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    line-height: var(--lh-tight);
   }
 
+  /*
+    The clip block, under its own local name. It is not the shared
+    `.visually-hidden` utility: that one is named `visually-hidden`, and a clip
+    block under any other name stays local (D-02). The `margin: -1px` is the
+    visually-hidden idiom, and it is allowed because this rule declares `clip`.
+  */
   .sr-only {
     position: absolute;
     width: 1px;
@@ -60,16 +66,16 @@
   }
 
   th {
-    padding: 8px 12px;
-    font-weight: 600;
+    padding: var(--space-8) var(--space-12);
+    font-weight: var(--fw-semibold);
     color: var(--muted);
     text-align: left;
     border-bottom: 1px solid var(--border);
   }
 
   td {
-    padding: 8px 12px;
-    font-weight: 400;
+    padding: var(--space-8) var(--space-12);
+    font-weight: var(--fw-regular);
     color: var(--text);
     border-bottom: 1px solid var(--border);
   }

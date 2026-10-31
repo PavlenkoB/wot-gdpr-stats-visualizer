@@ -9,132 +9,11 @@
   background: var(--page);
   /* The Body role (14px, 08-UI-SPEC Typography) is the page default, so every
      element that declares no size inherits it and the 1.25em spinners scale
-     with it. A component that needs another size picks a declared role. */
-  font-size: 14px;
-  line-height: 1.5;
-
-  /* The neutral chrome palette (Phase 8, "Day 10"). These paint the shell, the
-     list pane, cards, borders and text, and nothing else: the data colours
-     below (--ramp-0..5, --flow-in, --flow-out) are untouched and stay the only
-     colours a chart mark may use. --faint is decoration and dashed borders ONLY,
-     never text (measured 3.36:1 on the page, under the 4.5:1 a text colour
-     needs); --muted is the lightest colour that may carry words. The values are
-     the 08-UI-SPEC Build Notes block, and `tests/unit/charts/contrast.test.ts`
-     recomputes the recorded ratios from these declarations. A component must
-     read var(--ink) and friends rather than restate a hex. */
-  --page: #ffffff;
-  --list: #f5f5f5;
-  --card: #ffffff;
-  --border: #dcdcdc;
-  --faint: #8c8c8c;
-  --ink: #111111;
-  --text: #3a3a3a;
-  --muted: #5c5c5c;
-  --sel: #e0e0e0;
-  --hover: #ececec;
-  --chip: #ececec;
-  --track: #ececec;
-  --focus: #1a73e8;
-  --radius-card: 8px;
-  --radius-control: 8px;
-
-  /* The clearance above the content that the sticky calendar year head and
-     the tooltip flip threshold read (UI-SPEC Spacing). Still derived as the
-     sticky chrome's height plus one md of breathing room; the master-detail
-     shell has no sticky chrome over the content (the list pane is a column
-     beside it), so the chrome height is zero and the value is the 16px of
-     breathing room. The year head (`top: calc(var(--nav-offset) - 16px)`)
-     therefore sticks at the very top, and the tooltip flips below an anchor
-     only when it is within 16px plus the gap of the viewport top. Not a
-     spacing-scale token. */
-  --nav-offset: 16px;
-
-  /* The Activity data ramp, and the single source of it: every heatmap cell,
-     the legend swatch and the duration bars read var(--ramp-N), so the six
-     steps can only be wrong in one place. The levels are RANK-based, not a
-     linear min-max scale (D-04) — level 5 is the top fifth of the slice's
-     non-zero values, whatever that value is — so a step is never derived from
-     the data and the ramp must not be interpolated. Lightness is strictly
-     monotonic, which is what lets darkness alone carry "more play"; the
-     measured ratios live in the spec's Color table, and
-     `tests/unit/charts/contrast.test.ts` recomputes them from these declarations, so
-     the table is the contract and this block is its implementation. A new
-     chart component must not restate a step as literal hex. */
-  --ramp-0: #eef0f2;
-  --ramp-1: #b2dcd4;
-  --ramp-2: #7cc7bc;
-  --ramp-3: #43a89c;
-  --ramp-4: #1f7a74;
-  --ramp-5: #0d4f4c;
-
-  /* The flow colours: one hue for money and premium time coming IN, one for it
-     going OUT. These are marks ONLY — never text, never chrome, never a status
-     colour. They paint bars, the legend swatch and the monthly table's sign
-     column, and nothing else; a flow hue on a heading or a border would be
-     borrowing a meaning the spec does not grant it.
-
-     Unlike the ramp above, these are deliberately NOT a lightness scale. A
-     diverging chart's meaning is which side of the zero line a bar is on, not
-     how large it is, so lightness would be solving the wrong problem and the
-     two directions would still need a second channel to tell them apart.
-
-     That second channel is why the two are only about 1.36:1 apart: close
-     enough to read as one family of "money", far enough apart to tell at a
-     glance, and close enough that colour must never be the ONLY cue. Above and
-     below the zero line, the legend's words, the tooltip's line and the monthly
-     table all state the same thing in text — a reader who cannot separate these
-     two hues loses nothing, and a reader who cannot read colour at all does not
-     lose the direction either.
-
-     A component must not restate either value as literal hex; read
-     var(--flow-in) / var(--flow-out). The Color table is the contract and
-     `tests/unit/charts/contrast.test.ts` recomputes the recorded 8.17 / 6.01 (white)
-     and 7.34 / 5.40 (hover surface) ratios from these declarations. */
-  --flow-in: #4c3fa6;
-  --flow-out: #a14a00;
-
-  /* The Overview palette (Phase 13, 13-UI-SPEC Color). Ten tokens, declared
-     once here, and they are the ONLY colours the Overview page may use.
-
-     The five group dots carry IDENTITY and nothing else: a dot tells the eye
-     which group a tile belongs to, and the group NAME beside it is the text
-     meaning. No meaning is ever carried by colour alone, and the dots are
-     aria-hidden. --ov-pinned is the Pinned group's dot and is the same amber
-     as the pinned star's fill, which is why it is declared twice rather than
-     as one token read twice: the two are separate roles that happen to share
-     a value today, and a component reads the role it paints.
-
-     --ov-star-fill is a decorative fill and --ov-star-stroke is what carries
-     the star's contrast (4.17:1 against the page against the fill's 2.28:1);
-     a pinned star is always accompanied by its text label, so the fill never
-     has to be readable on its own.
-
-     The value scale --heat-low to --heat-peak is the Overview's own scale and
-     it REPLACES the Activity ramp on this page (D-13): it is green at the low
-     end, olive in the middle and dark gold at the peak, and its LIGHTNESS
-     FALLS as the value rises, so the peak bar is the darkest one in greyscale
-     too. The lightest step was darkened from the sketch's value to reach 3:1
-     against the white tile (D-22); it is 3.11:1 now, and every colour along
-     the eased ramp clears 3:1 as well.
-
-     Bars sit on WHITE and never on a grey track: the track grey would drop
-     the lightest step to 2.63:1, which is why the Overview draws no track.
-
-     A component must read var(--heat-low) and friends and must never restate
-     a hex. The Color table is the contract and
-     `tests/unit/charts/contrast.test.ts` recomputes the recorded ratios from
-     these declarations, so a token that drifts from the table fails a test
-     rather than a review nobody reads. */
-  --ov-time: #1f7a74;
-  --ov-tanks: #c26a1b;
-  --ov-records: #8f4a80;
-  --ov-totals: #3a6aa8;
-  --ov-pinned: #e0a020;
-  --ov-star-fill: #e0a020;
-  --ov-star-stroke: #a8710a;
-  --heat-low: #47a374;
-  --heat-mid: #6b8a14;
-  --heat-peak: #8c6400;
+     with it. A component that needs another size picks a declared role. The
+     two values are the shared tokens, so the page default and the scale can
+     never drift apart. */
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
 }
 
 body {
@@ -151,7 +30,7 @@ input,
 select,
 textarea {
   font-family: inherit;
-  font-size: 14px;
+  font-size: var(--fs-body);
 }
 
 /* The app root owns no width cap, margin or padding any more: the shell is
@@ -186,7 +65,7 @@ main {
 .pane-detail {
   flex: 999 1 560px;
   min-width: 0;
-  padding: 32px 40px 64px;
+  padding: var(--layout-section) var(--layout-page-x) var(--layout-page-bottom);
 }
 
 /* Desktop: the list is a sticky full-height column that scrolls INTERNALLY when
@@ -201,18 +80,23 @@ main {
     top: 0;
     height: 100vh;
     overflow: auto;
-  }
 
-  /* The pane scrolls internally on desktop, so the import footer holds the
-     bottom edge of the viewport and the rows scroll under it: Start over, Clear
-     my cached data and the compact dropzone stay on screen at any window
-     height. The opaque background is what lets the rows disappear beneath it;
-     the top border ListPane draws still separates the two. Below 900px the pane
-     is not a scroll container, so the rule would do nothing useful there. */
-  .pane-list .import-region {
-    position: sticky;
-    bottom: 0;
-    background: var(--list);
+    /* The pane scrolls internally on desktop, so the import footer holds the
+       bottom edge of the viewport and the rows scroll under it: Start over,
+       Clear my cached data and the compact dropzone stay on screen at any
+       window height. The opaque background is what lets the rows disappear
+       beneath it; the top border ListPane draws still separates the two.
+       Below 900px the pane is not a scroll container, so the rule would do
+       nothing useful there.
+
+       The rule is NESTED under its own parent (D-05): `& .import-region`
+       flattens to the same `.pane-list .import-region` selector, so the
+       specificity and the source order are exactly what the flat rule had. */
+    & .import-region {
+      position: sticky;
+      bottom: 0;
+      background: var(--list);
+    }
   }
 }
 
@@ -244,25 +128,6 @@ summary:focus-visible,
 a:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: -3px;
-}
-
-.btn {
-  min-height: 44px;
-  padding: 8px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-control);
-  background: var(--page);
-  color: var(--ink);
-}
-
-.btn:hover {
-  background: var(--hover);
-}
-
-.btn.primary {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--page);
 }
 
 /* THE one phone-width block in this project (D-03, and the UI-SPEC's single-block
@@ -301,7 +166,7 @@ a:focus-visible {
   }
 
   .pane-detail {
-    padding: 16px 16px 48px;
+    padding: var(--space-16) var(--space-16) var(--layout-page-y);
   }
 
   /* D-08: the 44px touch-target floor, as a FLOOR and not as a per-component
@@ -349,16 +214,26 @@ a:focus-visible {
   .shell .pane-list nav > ul {
     border-top: 1px solid var(--border);
     background: var(--page);
-  }
 
-  .shell .pane-list nav > ul > li:last-child {
-    margin-top: 16px;
-    border-top: 1px solid var(--border);
+    /* The last row is the import row's separator. Nested under its own parent
+       (D-05): `& > li:last-child` flattens to the same selector, so the
+       specificity and the source order are exactly what the flat rule had. */
+    & > li:last-child {
+      margin-top: var(--space-16);
+      border-top: 1px solid var(--border);
+    }
   }
 
   .shell .pane-list .row {
     min-height: 64px;
     grid-template-columns: minmax(0, 1fr) auto 12px;
+
+    /* The footer row is shorter than the other rows. Nested under its own
+       parent (D-05): `&.footer` flattens to `.shell .pane-list .row.footer`,
+       the same selector and the same specificity as the flat rule had. */
+    &.footer {
+      min-height: 52px;
+    }
   }
 
   /* One type selector above the base `.row` and no more: the row's hover and
@@ -369,16 +244,12 @@ a:focus-visible {
     background: var(--page);
   }
 
-  .shell .pane-list .row.footer {
-    min-height: 52px;
-  }
-
   .shell .pane-list .chevron {
     display: block;
     grid-column: 3;
     grid-row: 1;
     align-self: center;
-    font-size: 18px;
+    font-size: var(--fs-heading);
     line-height: 1;
     color: var(--muted);
   }
@@ -389,26 +260,22 @@ a:focus-visible {
     min-height: 48px;
   }
 
-  /* IdentityHeader: the Display title collapses to the Heading size, and the
-     header sits on the page colour, full width. */
+  /* IdentityHeader: the header sits on the page colour, full width. Its TITLE
+     is the shared Title role's, and the role is not overridden here: this rule
+     would carry a specificity of (0,3,0) and would beat the role, which would
+     make the title the one size the app answers to in two places. */
   .shell [data-testid='identity-header'] {
     background: var(--page);
-  }
-
-  .shell [data-testid='identity-header'] .nickname,
-  .shell [data-testid='identity-header'] .skeleton-title,
-  .shell [data-testid='identity-header'] .fallback-title,
-  .shell [data-testid='identity-header'] .multi-title {
-    font-size: 18px;
   }
 
   /* Overview and DashboardSection: the detail's top bar already shows the
      title, so the in-content heading is hidden visually with the clip pattern
      (NOT display: none, the heading must stay in the accessibility tree: a
-     section is labelled by it). The Overview numerals collapse to 18px. */
+     section is labelled by it). The heading's SIZE is the shared Title role's
+     and is not restated here: an override of this specificity would beat the
+     role, and the role is the one answer to "how big is a title". */
   .shell .overview > .section-title,
   .shell section[data-testid^='dashboard-section-'] > .section-title {
-    font-size: 18px;
     position: absolute;
     width: 1px;
     height: 1px;
@@ -421,7 +288,7 @@ a:focus-visible {
   }
 
   .shell .overview .headline {
-    font-size: 18px;
+    font-size: var(--fs-heading);
   }
 
   /* DetailPane: the phone's top bar, a 48px row with the back button at the left
@@ -431,28 +298,36 @@ a:focus-visible {
     grid-template-columns: 1fr auto 1fr;
     align-items: center;
     height: 48px;
-    margin-bottom: 8px;
+    margin-bottom: var(--space-8);
     border-bottom: 1px solid var(--border);
+
+    /* The back button. Nested under its own parent (D-05): `& button`
+       flattens to the same selector, so the specificity and the source order
+       are exactly what the flat rule had. */
+    & button {
+      justify-self: start;
+      min-height: 48px;
+      padding: 0 var(--space-8) 0 0;
+      border: 0;
+      background: none;
+      color: var(--ink);
+      font: inherit;
+      font-size: var(--fs-body);
+      font-weight: var(--fw-semibold);
+      cursor: pointer;
+    }
   }
 
-  .shell .pane-detail .phone-bar button {
-    justify-self: start;
-    min-height: 48px;
-    padding: 0 8px 0 0;
-    border: 0;
-    background: none;
-    color: var(--ink);
-    font: inherit;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-  }
-
+  /* The phone bar's title. Its SIZE, WEIGHT and LINE HEIGHT are the shared
+     Heading role's (18px), not the Title role's, and the role is not
+     restated here: this rule has a higher specificity than the role, so an
+     override would win and the bar would carry a second answer to "how big
+     is a heading". The bar is one nowrap line beside the back button, and at
+     the Title role's 26px the longest pane name ("Warships crews &
+     storage", 306px) is cut to an ellipsis at 375px (276px free) and 320px
+     (221px free); at 18px it needs 218px and fits at both. */
   .shell .pane-detail .phone-title {
     min-width: 0;
-    font-size: 18px;
-    font-weight: 600;
-    line-height: 1.3;
     color: var(--ink);
     text-align: center;
     white-space: nowrap;
@@ -469,7 +344,7 @@ a:focus-visible {
      count on a third line. */
   .shell [data-testid='duration-chart'] .row {
     grid-template-columns: 1fr auto;
-    row-gap: 4px;
+    row-gap: var(--space-4);
   }
 
   .shell [data-testid='duration-chart'] .label {
@@ -489,7 +364,7 @@ a:focus-visible {
      elements carry the unique hook classes. */
   .shell .playtime-summary dd,
   .shell .login-summary dd {
-    font-size: 18px;
+    font-size: var(--fs-heading);
   }
 }
 
@@ -499,16 +374,16 @@ a:focus-visible {
 h1,
 h2 {
   margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  line-height: 1.3;
+  font-size: var(--fs-heading);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-heading);
 }
 
 p {
-  margin: 8px 0;
+  margin: var(--space-8) 0;
 }
 
 ul {
-  margin: 8px 0;
-  padding-left: 20px;
+  margin: var(--space-8) 0;
+  padding-left: var(--layout-gutter);
 }

@@ -85,15 +85,15 @@
   <dl data-testid="login-summary-counts">
     <div class="tile">
       <dt>{LOGIN_TILE_IPS}</dt>
-      <dd data-testid="login-tile-ips">{formatNumber(tiles.ips)}</dd>
+      <dd class="t-display" data-testid="login-tile-ips">{formatNumber(tiles.ips)}</dd>
     </div>
     <div class="tile">
       <dt>{LOGIN_TILE_COUNTRIES}</dt>
-      <dd data-testid="login-tile-countries">{formatNumber(tiles.countries)}</dd>
+      <dd class="t-display" data-testid="login-tile-countries">{formatNumber(tiles.countries)}</dd>
     </div>
     <div class="tile">
       <dt>{LOGIN_TILE_UNKNOWN}</dt>
-      <dd data-testid="login-tile-unknown">{formatNumber(tiles.unknownIps)}</dd>
+      <dd class="t-display" data-testid="login-tile-unknown">{formatNumber(tiles.unknownIps)}</dd>
     </div>
   </dl>
 
@@ -119,7 +119,7 @@
         the block's single mask flag. Never the raw `ip`, never a CSS toggle
         over two strings (D-07, T-06-28).
       -->
-      <dd data-testid="login-tile-top-ip" class="fact">
+      <dd data-testid="login-tile-top-ip" class="fact t-heading">
         {#if tiles.topIp !== null}
           {displayIp(tiles.topIp, revealed)}
         {:else}
@@ -135,7 +135,7 @@
 
     <div class="tile">
       <dt>{LOGIN_TILE_TOP_COUNTRY}</dt>
-      <dd data-testid="login-tile-top-country" class="fact">
+      <dd data-testid="login-tile-top-country" class="fact t-heading">
         {#if tiles.topCountry !== null}
           {tiles.topCountry.name}
         {:else}
@@ -152,7 +152,7 @@
 
     <div class="tile">
       <dt>{LOGIN_TILE_RANGE}</dt>
-      <dd data-testid="login-tile-range" class="fact">
+      <dd data-testid="login-tile-range" class="fact t-heading">
         {#if range !== null}
           {range}
         {:else}
@@ -168,7 +168,7 @@
   .summary {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: var(--space-16);
     min-width: 0;
   }
 
@@ -181,13 +181,13 @@
   dl {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
-    gap: 16px;
+    gap: var(--space-16);
     margin: 0;
     min-width: 0;
-  }
 
-  dl[data-testid='login-summary-facts'] {
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    &[data-testid='login-summary-facts'] {
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    }
   }
 
   /* The Phase 4 Playtime tile, value for value: `dt` above `dd`, 4px apart,
@@ -195,8 +195,8 @@
   .tile {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding: 16px;
+    gap: var(--space-4);
+    padding: var(--space-16);
     border: 1px solid var(--border);
     border-radius: var(--radius-card);
     background: var(--list);
@@ -204,43 +204,33 @@
   }
 
   dt {
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--muted);
   }
 
   /* Display role for a count numeral. A grouped number is not untrusted text
-     and never wraps mid-token, so this tile does not take `anywhere`. */
+     and never wraps mid-token, so this tile does not take `anywhere`.
+
+     The role owns the size, the weight and the line height, so this rule does
+     not declare them: the phone block's `.shell .login-summary dd` rule in
+     `src/app.css` outranks the role and sets 18px at 375px, which is why the
+     rule stays top-level and un-nested (D-08). */
   dd {
     margin: 0;
     min-width: 0;
-    font-size: 30px;
-    font-weight: 600;
-    line-height: 1.2;
     color: var(--ink);
-  }
 
-  /*
-    Heading role for a fact value — a masked or revealed address, a country
-    name, a date range. Heading rather than Display so an address never wraps
-    mid-token at tile width, and `anywhere` so a full IPv6 wraps INSIDE the
-    tile rather than widening it (06-UI-SPEC section 12).
-  */
-  dd.fact {
-    font-size: 18px;
-    line-height: 1.3;
-    overflow-wrap: anywhere;
-  }
-
-  .caption {
-    margin: 0;
-    min-width: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
-    color: var(--muted);
-    overflow-wrap: anywhere;
+    /*
+      Heading role for a fact value — a masked or revealed address, a country
+      name, a date range. Heading rather than Display so an address never wraps
+      mid-token at tile width, and `anywhere` so a full IPv6 wraps INSIDE the
+      tile rather than widening it (06-UI-SPEC section 12).
+    */
+    &.fact {
+      overflow-wrap: anywhere;
+    }
   }
 
   /*

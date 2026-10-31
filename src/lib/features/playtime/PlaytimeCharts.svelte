@@ -254,7 +254,7 @@
   .charts {
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: var(--space-24);
     min-width: 0;
   }
 
@@ -266,7 +266,7 @@
   .chart {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--space-8);
     min-width: 0;
   }
 
@@ -274,22 +274,9 @@
      title reads as a level of its own without introducing a fifth size. */
   h4 {
     margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--ink);
-  }
-
-  /* Caption role for every explanatory line: the timezone basis (D-01), the
-     start-basis note, the keyboard hint and — via `ChartLegend` — the scale
-     note. `var(--muted)` is the muted text the role table names. */
-  .caption {
-    margin: 0;
-    min-width: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
-    color: var(--muted);
-    overflow-wrap: anywhere;
   }
 </style>

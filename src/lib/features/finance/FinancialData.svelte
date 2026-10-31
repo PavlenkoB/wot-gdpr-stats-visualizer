@@ -70,17 +70,13 @@
   .financial {
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: var(--space-24);
     min-width: 0;
   }
 
-  .body {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
-    color: var(--text);
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
+  /* The text block comes from the shared layer now. The local `.body` is
+     deleted, not tokenised: the shared `.body` in `src/styles/utilities.css`
+     declares the same seven values (margin 0, min-width 0, 14/400/1.5,
+     `--text`, wrap anywhere), and a scoped local copy would outrank the
+     shared one. The markup keeps `class="body"`. */
 </style>

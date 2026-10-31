@@ -1,6 +1,6 @@
 /* CHOSEN PALETTE: "Day 10, ink + teal (ramp kept)" (2026-10-07).
-   Chrome becomes neutral ink on white; the data ramp stays the app's existing teal.
-   Put the neutrals on :root in src/app.css next to the existing --ramp-0..5 (do NOT change the ramp).
+   Chrome becomes neutral ink on white. Phase 14 (2026-10-28) RETIRED the teal data ramp:
+   data now reads the --heat-* scale, and the neutrals live in src/styles/tokens.css, not src/app.css.
    Hex values below were checked for contrast by hand only; run the existing contrast test after wiring. */
 :root{
   --page:#ffffff;
@@ -21,6 +21,6 @@
   --error:#c5221f;                            /* existing, unchanged */
   --radius-card:8px; --radius-control:8px;
   --font:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
-  /* data ramp, ALREADY in src/app.css and kept as is:
+  /* data ramp as it stood when this was chosen. RETIRED in Phase 14 (D-10): replaced by --heat-empty and --heat-1..5.
      --ramp-0:#eef0f2 --ramp-1:#b2dcd4 --ramp-2:#7cc7bc --ramp-3:#43a89c --ramp-4:#1f7a74 --ramp-5:#0d4f4c */
 }

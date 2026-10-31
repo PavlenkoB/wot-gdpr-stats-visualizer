@@ -1,22 +1,22 @@
 # Visual Language
 
-Final palette chosen 2026-10-07: **"Day 10, ink + teal (ramp kept)"**. Chrome is neutral ink on white; data stays in the app's existing teal ramp. Verified against `src/` and `src/app.css`; where a sketch disagrees with the app, the app wins.
+Final palette chosen 2026-10-07: **"Day 10, ink + teal (ramp kept)"**. Chrome is neutral ink on white. (Superseded by Phase 14, 2026-10-28: the "teal ramp kept" part no longer holds; data colour is now the green to olive to dark gold heat scale `--heat-empty`, `--heat-1` to `--heat-5` in `src/styles/tokens.css`. The neutral chrome below is unchanged.) Verified against `src/` and `src/app.css`; where a sketch disagrees with the app, the app wins.
 
 ## Design Decisions
 - **Light theme, white page.** Page `#ffffff`, list pane and dashed "not in this export" panels `#f5f5f5`, cards `#ffffff`, hairlines `#dcdcdc`.
 - **Neutral ink chrome.** Ink `#111111` is the "primary": section and card titles, headline numbers, links, the selected-row bar and the one filled primary button. Body text `#3a3a3a`, muted text `#5c5c5c` (captions, labels), faint `#8c8c8c` for decoration and dashed borders only, never text.
 - **Links are underlined ink**, e.g. "Open Playtime →" and "Clear my cached data". Colour must not be the only cue; the underline carries it.
 - **Primary button** (only "Load city-level detail (~12 MB)"): filled `#111111`, white text, 44px high. Every other button is outlined (white, `#dcdcdc` border, ink text), so there is no competing action.
-- **Data keeps the app's teal ramp, unchanged**: `--ramp-0..5` = `#eef0f2 #b2dcd4 #7cc7bc #43a89c #1f7a74 #0d4f4c`. The contract tests in `tests/unit/charts/contrast.test.ts` stay valid because the ramp is not touched. Bars and the sparkline use `--ramp-3` (sparkline) and `--ramp-4` (bars); the login stacked bar uses ramp 4 / 3 / 2.
+- **Data colour (superseded by Phase 14, D-10): the heat scale.** The teal ramp (`--ramp-0..5`) was deleted. Data reads `--heat-empty` (`#eef0f2`) and `--heat-1` to `--heat-5` (green `#47a374`, olive `#6b8a14`, dark gold `#8c6400`, two `color-mix` midpoints), pinned by `tests/unit/charts/contrast.test.ts` (D-11 as amended: 3:1 on white for the five data steps, lightness strictly monotonic, adjacent floor 1.1:1). Bars (session length) and the calendar and hour-grid cells read `--heat-N`, not `--ramp-N`.
 - **Selection must read against hover** (research: a common list-detail mistake). Selected row: `#e0e0e0` background, 3px inset ink bar on the left, title in ink. Hover: `#ececec` only (lighter), no bar.
 - **Focus ring stays blue**: 3px solid `#1a73e8`, offset inward on rows. It is the one place blue remains, for visibility; do not recolour it to ink.
 - **Warning and error colours are unchanged**: `#fef7e0` / `#8a5a00` for the excluded-rows chip, `#c5221f` for errors.
-- **Type:** the app's stack, `system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`, no webfont. Section title 26px/600; chart card title 16px/600; list title 14px/600; tile numerals 30px/600 with a 14px muted unit; labels 12px uppercase, letter-spacing .06em; captions 12.5px muted.
+- **Type:** the app's stack, `system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`, no webfont. Section title 26px/600; chart card title 16px/600; list title 14px/600; tile numerals 30px/600 in the sketch (the sizes are now the Phase 14 scale 12 / 14 / 18 / 26 / 32 / 56px; 30px was retired) with a 14px muted unit; labels 12px uppercase, letter-spacing .06em; captions 12.5px muted.
 - **Shape:** cards and tiles 8px radius, 1px `#dcdcdc` border, no shadows on the shell and detail sections (the Overview tiles are the one exception: see the Overview additions below); controls 8px; chips fully rounded; dashed `#8c8c8c` border for drop targets and unavailable panels.
 - **Stat tiles:** `#f5f5f5` or white background, 1px border, uppercase label over a large number; grid `repeat(auto-fit, minmax(min(200px, 100%), 1fr))`.
 - **Controls are at least 44px tall** (48px on phone).
 - **Heatmaps** (unchanged from the app): calendar 7 rows, column flow, 14px cells, 3px gap, 2px radius; hour grid with a label column and 24 columns, 22px-high cells; legend "Less [6 swatches] More"; ranks stay rank-based.
-- **Bars (session length):** 12px high track `#ececec`, fill `--ramp-4`, label left (96px), "count · percent" right (84px); all 12 bins shown including zeros.
+- **Bars (session length):** 12px high track `#ececec`, fill `--heat-3` in the app (the sketch used `--ramp-4`; superseded by Phase 14), label left (96px), "count · percent" right (84px); all 12 bins shown including zeros.
 - **Tables:** 13px, 12px muted header, 1px row rules, no zebra, inside an `overflow-x:auto` card with a `min-width`.
 - **Explanatory notes:** one visible caption under a chart; the rest in an "About this chart" `<details>` (44px summary, ink text underlined). Keep the app's real copy.
 - **Provenance line** in each detail header ("From Activity_history · 1 file, 311 rows · 1 session row excluded"); raw folder names are never headings.
@@ -41,10 +41,10 @@ table{width:100%;border-collapse:collapse;font-size:13px}
 th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;padding:8px 6px;border-bottom:1px solid var(--border)}
 td{padding:10px 6px;border-bottom:1px solid var(--border)}
 ```
-Targets, not drop-in code: keep per-bucket aggregation, existing `--ramp-N` fills, tooltips and in-chart keyboard navigation.
+Targets, not drop-in code: keep per-bucket aggregation, the `--heat-N` fills (the sketch's `--ramp-N` was superseded by Phase 14), tooltips and in-chart keyboard navigation.
 
 ## Wiring notes for the build
-- Add the neutrals as `:root` tokens in `src/app.css`; leave `--ramp-*` and `--flow-in/--flow-out` untouched.
+- Superseded by Phase 14: the neutrals are `:root` tokens in `src/styles/tokens.css` (not `src/app.css`); the `--ramp-*` tokens no longer exist; `--flow-in/--flow-out` stay.
 - Replace existing blue `#1a73e8` uses with ink where it is chrome (link, selected bar, nav underline), but keep it for the focus ring and spinner if the existing tests rely on it. Grep for `#1a73e8` first.
 - Existing text colours `#3c4043` / `#5f6368` are close to `#3a3a3a` / `#5c5c5c`; migrate them together in one pass so contrast tests see one consistent set.
 - Re-run `tests/unit/charts/contrast.test.ts` and add the new neutral pairs to it (ink on white and on `#f5f5f5`, muted on `#f5f5f5`, white on ink for the primary button).

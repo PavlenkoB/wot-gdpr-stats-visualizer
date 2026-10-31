@@ -352,7 +352,7 @@
   on the scroller rather than the svg because the scroller is the chart's
   whole addressable box.
 -->
-<div class="scroller" data-testid="hour-scroller" data-tooltip-surface>
+<div class="chart-scroll" data-testid="hour-scroller" data-tooltip-surface>
   <svg
     bind:this={element}
     data-testid="hour-chart"
@@ -400,9 +400,10 @@
 
         {#each row.cells as cell (cell.index)}
           <!--
-            One rect per cell, 24 x 24, and the fill is the level class: the ramp
-            is read from the one `--ramp-N` declaration in app.css, never
-            restated as a hex here. The 1px white stroke is what separates two
+            One rect per cell, 24 x 24, and the fill is the level class: the
+            scale is read from the one `--heat-empty` and `--heat-1` to
+            `--heat-5` declaration in tokens.css, never restated as a hex here.
+            The 1px white stroke is what separates two
             adjacent cells of the SAME level, where a 0px gap would merge them
             into one block.
 
@@ -472,7 +473,7 @@
       svg rather than a CSS outline (which the svg clips).
 
       Two rects, because the accent alone is unreadable on the dark end of the
-      ramp (2.1:1 on level 5): a 3px var(--focus) stroke OUTSIDE a 1px #ffffff one,
+      heat scale: a 3px var(--focus) stroke OUTSIDE a 1px var(--white) one,
       so there is always a light edge between the ring and the cell under it.
       Both are inset from the cell's own box, and both carry no fill and no
       pointer events, so the ring is decoration that cannot be clicked or
@@ -506,11 +507,11 @@
     the focus ring's 1.5px overhang starts a second scroll axis. The padding
     is the room that overhang needs.
   */
-  .scroller {
+  .chart-scroll {
     overflow-x: auto;
     overflow-y: hidden;
     max-width: 100%;
-    padding: 4px 0;
+    padding: var(--space-4) 0;
     min-width: 0;
   }
 
@@ -529,9 +530,9 @@
      element so the fourteen labels are one rule. `fill`, not `color` — SVG
      text takes its paint from `fill`. */
   .axis {
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-tight);
     fill: var(--muted);
   }
 
@@ -543,28 +544,28 @@
     which is the failure Pattern 6 probed.
   */
   .cell {
-    stroke: #ffffff;
+    stroke: var(--white);
     stroke-width: 1;
     outline: none;
   }
 
   .level-0 {
-    fill: var(--ramp-0);
+    fill: var(--heat-empty);
   }
   .level-1 {
-    fill: var(--ramp-1);
+    fill: var(--heat-1);
   }
   .level-2 {
-    fill: var(--ramp-2);
+    fill: var(--heat-2);
   }
   .level-3 {
-    fill: var(--ramp-3);
+    fill: var(--heat-3);
   }
   .level-4 {
-    fill: var(--ramp-4);
+    fill: var(--heat-4);
   }
   .level-5 {
-    fill: var(--ramp-5);
+    fill: var(--heat-5);
   }
 
   /*
@@ -586,7 +587,7 @@
 
   .focus-ring-inner,
   .hover-ring-inner {
-    stroke: #ffffff;
+    stroke: var(--white);
     stroke-width: 1;
   }
 </style>

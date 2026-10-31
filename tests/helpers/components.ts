@@ -43,13 +43,15 @@ export function listComponentFiles(): string[] {
 }
 
 /**
- * The type scale, in px, every pane outside the Overview is held to.
+ * The type scale, in px, EVERY pane is held to (Phase 14, plan 14-04, D-03
+ * and D-06).
+ *
+ * One scale for the whole app (D-06): the Overview's 12 / 14 / 32 / 56px and the
+ * shell's 14 / 18 / 26px are ONE set, and the per-folder exemption that kept
+ * the Overview apart is gone (plan 14-21 deleted the Overview-only constant).
+ *
+ * The 30px size is GONE. The last two numerals that declared it took the
+ * Display role (26px) in plans 14-10 and 14-11, so nothing in the app renders
+ * at 30px any more and this set is exactly the six sizes of D-06.
  */
-export const SCALE_PX: ReadonlySet<number> = new Set([14, 18, 26, 30]);
-
-/**
- * The Overview pane's own type scale (13-UI-SPEC): a 12px caption, a 14px
- * label, a 32px numeral and a 56px display size. It replaces the shared scale
- * for the Overview and only the Overview.
- */
-export const OVERVIEW_SCALE_PX: ReadonlySet<number> = new Set([12, 14, 32, 56]);
+export const SCALE_PX: ReadonlySet<number> = new Set([12, 14, 18, 26, 32, 56]);

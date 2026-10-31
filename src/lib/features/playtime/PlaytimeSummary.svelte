@@ -97,18 +97,22 @@
   <dl data-testid="playtime-tiles">
     <div class="tile">
       <dt>{TILE_LABEL_TOTAL_PLAYTIME}</dt>
-      <dd data-testid="playtime-total-hours">
+      <dd class="t-display" data-testid="playtime-total-hours">
         <span class="number">{hours.value}</span>
         <span class="unit">{hours.unit}</span>
       </dd>
     </div>
     <div class="tile">
       <dt>{TILE_LABEL_SESSIONS}</dt>
-      <dd data-testid="playtime-total-sessions">{formatNumber(slice.sessions)}</dd>
+      <dd class="t-display" data-testid="playtime-total-sessions">
+        {formatNumber(slice.sessions)}
+      </dd>
     </div>
     <div class="tile">
       <dt>{TILE_LABEL_ACTIVE_DAYS}</dt>
-      <dd data-testid="playtime-active-days">{formatNumber(slice.dayIndex.length)}</dd>
+      <dd class="t-display" data-testid="playtime-active-days">
+        {formatNumber(slice.dayIndex.length)}
+      </dd>
     </div>
   </dl>
 
@@ -171,7 +175,7 @@
   .summary {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--space-8);
     min-width: 0;
   }
 
@@ -185,7 +189,7 @@
   dl {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
-    gap: 16px;
+    gap: var(--space-16);
     margin: 0;
     min-width: 0;
   }
@@ -193,8 +197,8 @@
   .tile {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding: 16px;
+    gap: var(--space-4);
+    padding: var(--space-16);
     border: 1px solid var(--border);
     border-radius: var(--radius-card);
     background: var(--list);
@@ -202,15 +206,15 @@
   }
 
   dt {
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--muted);
   }
 
   /* Display role for the number, with the unit in Label beside it. `baseline`
      alignment is what puts "1,204" and "hours" on one line's baseline rather
-     than centring a 14px word against a 28px numeral.
+     than centring a 14px word against a 26px numeral.
 
      A tile value is a FORMATTED NUMBER plus a fixed word, and never untrusted
      text, so `overflow-wrap: anywhere` does not apply to it. That rule was
@@ -220,28 +224,31 @@
      character, so both parts shrank rather than either wrapping. `normal` plus
      a wrapping row gives the only two outcomes that keep a figure readable —
      both parts on one line, or the WHOLE unit on its own line under the WHOLE
-     numeral (what happens at 375px, where the pair needs 118.9px inside a
-     105px tile). It stays `anywhere` for the untrusted text elsewhere in this
-     component: the split table's cells and the notes below. */
+     numeral. The pair needs 92px inside a 130px dd at 375px and 113px inside a
+     248px one at 1280px, so it takes the first outcome at both widths
+     (MEASURED at the current build). It stays `anywhere` for the untrusted
+     text elsewhere in this component: the split table's cells and the notes
+     below.
+
+     The role owns the size, the weight and the line height, so this rule does
+     not: the phone block's `.shell .playtime-summary dd` rule outranks the
+     role and sets 18px at 375px, which is why the rule stays top-level. */
   dd {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
     row-gap: 0;
-    column-gap: 4px;
+    column-gap: var(--space-4);
     margin: 0;
     min-width: 0;
-    font-size: 30px;
-    font-weight: 600;
-    line-height: 1.2;
     color: var(--ink);
     overflow-wrap: normal;
   }
 
   .unit {
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--muted);
     /* One word, always: the smallest breakable thing in this component, and
        the part that read as "hour" over "s" before the dd rule above was
@@ -264,11 +271,11 @@
      A table's caption is announced with the table, so it is not a heading and
      not a second copy of the selector's label. */
   caption {
-    margin-bottom: 4px;
+    margin-bottom: var(--space-4);
     text-align: left;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--muted);
     min-width: 0;
     overflow-wrap: anywhere;
@@ -276,7 +283,7 @@
 
   th,
   td {
-    padding: 8px 0;
+    padding: var(--space-8) 0;
     text-align: left;
     vertical-align: top;
     min-width: 0;
@@ -285,18 +292,18 @@
   }
 
   th {
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--muted);
   }
 
   /* Caption role for the numbers, which is what the typography role table
      assigns to body cells. */
   td {
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-tight);
     color: var(--text);
   }
 
@@ -306,21 +313,21 @@
   th:last-child,
   td:last-child {
     width: 96px;
-    padding-left: 16px;
+    padding-left: var(--space-16);
   }
 
   /* Selection in the Label weight on a distinct surface, so it is legible
      without colour. */
   tr.selected td {
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
     background: var(--sel);
   }
 
   .note {
     margin: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-tight);
     color: var(--muted);
     min-width: 0;
     overflow-wrap: anywhere;

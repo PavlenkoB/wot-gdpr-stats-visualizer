@@ -96,7 +96,7 @@
 >
   <h3 id="{testId}-title">{title}</h3>
   {#if view.status !== 'not-in-export'}
-    <p class="caption">{formatDeviceFromFile(file)}</p>
+    <p class="caption under-title">{formatDeviceFromFile(file)}</p>
   {/if}
   {@render header?.()}
 
@@ -150,57 +150,43 @@
   .card {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--space-8);
     min-width: 0;
-    padding: 16px;
+    padding: var(--space-16);
     border: 1px solid var(--border);
     border-radius: var(--radius-card);
     background: var(--page);
-  }
 
-  /* D-09: a file that is in the export but that this viewer reads none of. The
-     same dashed language as the shell's unavailable panels; the sentence carries
-     the meaning, colour never does. */
-  .card.skipped {
-    border: 1px dashed var(--faint);
-    background: var(--list);
+    /* D-09: a file that is in the export but that this viewer reads none of. The
+       same dashed language as the shell's unavailable panels; the sentence carries
+       the meaning, colour never does. */
+    &.skipped {
+      border: 1px dashed var(--faint);
+      background: var(--list);
+    }
   }
 
   h3 {
     margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--ink);
     min-width: 0;
     overflow-wrap: anywhere;
   }
 
-  .caption {
-    /* 4px below the title: the card's 8px gap less 4px. */
-    margin: -4px 0 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
-    color: var(--muted);
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-
-  .body {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
-    color: var(--text);
-    min-width: 0;
-    overflow-wrap: anywhere;
+  /* The caption sits 4px below the title: the card's 8px gap less 4px. The shared
+     `.caption` in `src/styles/utilities.css` supplies the margin, the muted ink
+     and the type, so this hook states the difference and nothing else. */
+  .under-title {
+    margin-top: calc(var(--space-4) * -1);
   }
 
   .block {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--space-4);
     min-width: 0;
   }
 
@@ -214,23 +200,23 @@
   dl {
     display: grid;
     grid-template-columns: max-content 1fr;
-    gap: 4px 16px;
+    gap: var(--space-4) var(--space-16);
     margin: 0;
     min-width: 0;
   }
 
   dt {
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--muted);
   }
 
   dd {
     margin: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-body);
     color: var(--ink);
     text-align: right;
     font-variant-numeric: tabular-nums;

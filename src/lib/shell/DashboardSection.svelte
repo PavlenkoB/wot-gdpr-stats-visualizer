@@ -136,7 +136,7 @@
   data-testid="dashboard-section-{id}"
   data-status={status}
 >
-  <h2 id="{id}-heading" class="section-title">{title}</h2>
+  <h2 id="{id}-heading" class="t-title section-title">{title}</h2>
 
   {#if statusLine !== null}
     <p class="status" data-testid="section-status">{statusLine}</p>
@@ -197,22 +197,21 @@
   section {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: var(--space-12);
     min-width: 0;
   }
 
-  /* The Display role (26 / 600 / 1.3), collapsing to the 18px Heading role at
-     phone width, where the phone block of `src/app.css` also hides it visually
-     (the detail's top bar already shows the title). The title wraps instead of
-     overflowing: it can be a long untrusted string. */
+  /* The Title role (D-12): 32px from 900px up, 26px below. The role owns the
+     size, the weight, the line height and the wrapping, so this rule states
+     only what a role may not: the margin, the colour and the shrink. At
+     phone width the phone block of `src/app.css` hides the title visually
+     (the detail's top bar already shows it), so the rule stays top-level and
+     carries no scope class of its own: a nested rule would raise its
+     specificity above the phone block's. */
   .section-title {
     margin: 0;
-    font-size: 26px;
-    font-weight: 600;
-    line-height: 1.3;
     color: var(--ink);
     min-width: 0;
-    overflow-wrap: anywhere;
   }
 
   /* The provenance line: one 14px/400 line that wraps on a phone.
@@ -229,12 +228,12 @@
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    column-gap: 4px;
-    row-gap: 4px;
+    column-gap: var(--space-4);
+    row-gap: var(--space-4);
     min-width: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-tight);
     color: var(--muted);
   }
 
@@ -244,9 +243,11 @@
   }
 
   /*
-    The combined caption: the Label role (14 / 600 / 1.4) in `--muted`, which
-    is the measured text colour that already passes 4.5:1 on both surfaces. No
-    new colour, no media query, no transition, no `aria-live` — the tokens and
+    The combined caption: the Label role's triple (14 / 600 / 1.4) in
+    `--muted`, which is the measured text colour that already passes 4.5:1 on
+    both surfaces. The role table has no 14px-at-1.4 role, so the three
+    declarations stay here as tokens rather than becoming a class. No new
+    colour, no media query, no transition, no `aria-live` — the tokens and
     the roles are the ones the single-account header labels already use, so the
     line reads as part of the provenance block rather than as an alert.
   */
@@ -255,26 +256,26 @@
     margin: 0;
     min-width: 0;
     overflow-wrap: anywhere;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--muted);
   }
 
   .status {
     margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     min-width: 0;
     overflow-wrap: anywhere;
   }
 
   .note {
     margin: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-body);
     color: var(--text);
     min-width: 0;
     overflow-wrap: anywhere;
@@ -290,7 +291,7 @@
   section[data-status='not-loaded'],
   section[data-status='no-export'],
   section[data-status='empty'] {
-    padding: 20px;
+    padding: var(--layout-gutter);
     border: 1px dashed var(--faint);
     border-radius: 8px;
     background: var(--list);

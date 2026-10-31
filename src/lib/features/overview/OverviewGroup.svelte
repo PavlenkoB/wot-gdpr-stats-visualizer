@@ -71,15 +71,15 @@
 
 <section class="group" data-testid="ov-group-{id}" aria-labelledby={headingId}>
   <div class="head">
-    <h3 class="title" id={headingId}>
+    <h3 class="t-label title" id={headingId}>
       <span class="dot g-{id}" aria-hidden="true"></span>{heading}
     </h3>
     <span class="hair" aria-hidden="true"></span>
     {#if legend}
       <span class="legend">
-        <span class="word">{low}</span>
+        <span class="t-caption word">{low}</span>
         <span class="swatch" aria-hidden="true"></span>
-        <span class="word">{peak}</span>
+        <span class="t-caption word">{peak}</span>
       </span>
     {/if}
   </div>
@@ -102,21 +102,16 @@
   .head {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin: 0 0 8px;
+    gap: var(--space-8);
+    margin: 0 0 var(--space-8);
   }
 
   .title {
     display: flex;
     flex: 0 0 auto;
     align-items: center;
-    gap: 4px;
+    gap: var(--space-4);
     margin: 0;
-    font-size: 12px;
-    font-weight: 600;
-    line-height: 1.4;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
     color: var(--muted);
   }
 
@@ -158,13 +153,10 @@
     display: inline-flex;
     flex: 0 0 auto;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-8);
   }
 
   .word {
-    font-size: 12px;
-    font-weight: 400;
-    line-height: 1.4;
     color: var(--muted);
   }
 
@@ -179,16 +171,16 @@
   .grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
+    gap: var(--space-16);
     grid-auto-flow: row;
-  }
 
-  .grid.dense {
-    grid-auto-flow: dense;
-  }
+    &.dense {
+      grid-auto-flow: dense;
+    }
 
-  .grid:has(:global(.tile.open)) {
-    align-items: start;
+    &:has(:global(.tile.open)) {
+      align-items: start;
+    }
   }
 
   @container (min-width: 480px) {

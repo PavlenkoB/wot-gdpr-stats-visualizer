@@ -106,24 +106,25 @@
      panel border/background follows the same palette the existing
      known-deferred badge + skip-count tag use, so the destructive-
      confirm chrome reads as part of the established semantic family
-     rather than a new color. The panel's text stays default body
+     rather than a new color. The amber is the shared warn palette
+     (--warn-line, --warn-bg). The panel's text stays default body
      color for readability (the UI-SPEC explicitly: "the panel's own
      text stays default body color for readability"). */
   .confirm-panel {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: var(--space-16);
     /* The panel is the LAST child of the import bar, so the 12px that used
        to sit under it now sits above it, and the space below it comes from
        the bar's own place in the page gap. */
-    margin: 12px 0 0;
-    padding: 16px;
-    border: 1px solid #f9ab00;
-    border-radius: 6px;
-    background: #fef7e0;
+    margin: var(--space-12) 0 0;
+    padding: var(--space-16);
+    border: 1px solid var(--warn-line);
+    border-radius: var(--radius-sm);
+    background: var(--warn-bg);
     color: var(--ink);
-    font-size: 14px;
-    line-height: 1.5;
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
   }
 
   .confirm-message {
@@ -133,7 +134,7 @@
   .confirm-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: var(--space-8);
   }
 
   /* Neutral dismiss button (UI-SPEC "Destructive-trigger design rule"):
@@ -143,50 +144,49 @@
      color, hover background var(--hover)), the neutral palette the
      duplicate-loaded banner and "Imported on ..." timestamp use. */
   .confirm-cancel {
-    padding: 8px 16px;
+    padding: var(--space-8) var(--space-16);
     border: 1px solid var(--faint);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: var(--page);
     color: var(--text);
-    font-size: 14px;
-    font-weight: 600;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
     cursor: pointer;
     transition: background-color 120ms ease;
-  }
 
-  .confirm-cancel:hover {
-    background: var(--hover);
-  }
+    &:hover {
+      background: var(--hover);
+    }
 
-  .confirm-cancel:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
+    &:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
   }
 
   /* Destructive commit button (UI-SPEC Color table — "Destructive"):
      this is the actual point of irreversible commitment across all
-     three destructive flows. Mirrors the hex values FailureBanner
-     already uses (border #c5221f / background #fce8e6 / text
-     #8a1c17), so the project's destructive error color is reused
-     verbatim. */
+     three destructive flows. It reads the same shared danger palette
+     FailureBanner uses (--danger, --danger-bg, --danger-ink), so the
+     project's destructive error color is reused verbatim. */
   .confirm-commit {
-    padding: 8px 16px;
-    border: 1px solid #c5221f;
-    border-radius: 6px;
-    background: #fce8e6;
-    color: #8a1c17;
-    font-size: 14px;
-    font-weight: 600;
+    padding: var(--space-8) var(--space-16);
+    border: 1px solid var(--danger);
+    border-radius: var(--radius-sm);
+    background: var(--danger-bg);
+    color: var(--danger-ink);
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
     cursor: pointer;
     transition: background-color 120ms ease;
-  }
 
-  .confirm-commit:hover {
-    background: #f5d4d1;
-  }
+    &:hover {
+      background: var(--danger-bg-strong);
+    }
 
-  .confirm-commit:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
+    &:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
   }
 </style>

@@ -17,13 +17,13 @@
   .failure-banner {
     /* 12px, not 16px: the banner now renders inside the import bar's
        notice slot, whose children all carry the same 12px bottom margin. */
-    margin: 0 0 12px;
-    padding: 12px 16px;
-    border: 1px solid #c5221f;
-    border-radius: 6px;
-    background: #fce8e6;
-    color: #8a1c17;
-    font-size: 14px;
-    line-height: 1.5;
+    margin: 0 0 var(--space-12);
+    padding: var(--space-12) var(--space-16);
+    border: 1px solid var(--danger);
+    border-radius: var(--radius-sm);
+    background: var(--danger-bg);
+    color: var(--danger-ink);
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
   }
 </style>

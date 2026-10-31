@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
-import { componentPath } from '../../helpers/components.ts';
+import { componentPath, SCALE_PX } from '../../helpers/components.ts';
+import { resolveTokens, ruleDeclarations, styleText, tokenMap } from '../../helpers/css.ts';
+import { readTokenSource, UTILITIES_CSS } from '../../helpers/styles.ts';
 import { formatNewDataCell } from '../../../src/lib/features/new-data/new-data-cell.ts';
 import { maskIp } from '../../../src/lib/geo/ip.ts';
 import {
@@ -18,6 +20,17 @@ import {
 // Every test asserts the file EXISTS first, because an empty string contains no
 // forbidden token and would pass vacuously. The rendered half (the DOM node
 // budget, the 375px overflow, no address in any attribute) is plan 11-11's.
+//
+// PHASE 14, PLAN 14-17: the CSS half of this file reads the components' rules
+// through the token-aware helpers. The card and the table are on the shared
+// tokens and the shared `.scroller`, so a rule that asserted `padding: 16px`
+// as SOURCE TEXT would now find nothing. The two helpers keep the assertion
+// and change its form:
+//   - `ruleDeclarations` looks a rule up BY SELECTOR, so a nested block does not
+//     hide it and a rule that moved does not silently stop answering;
+//   - `resolveTokens` turns `var(--space-16)` back into the `16px` it stands
+//     for, so the expected value stays the number the reader knows.
+// Every assertion below states the same fact it stated before the migration.
 // =============================================================================
 
 const TABLE_FILE = 'NewDataTable.svelte';
@@ -40,12 +53,42 @@ function markup(source: string): string {
   return source.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<style[\s\S]*?<\/style>/g, '');
 }
 
-/** The declarations of the first rule whose selector is exactly `selector`. */
-function ruleBody(source: string, selector: string): string {
-  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const match = new RegExp(`(?:^|\\n)\\s*${escaped}\\s*\\{([^}]*)\\}`).exec(source);
-  expect(match, `a rule for ${selector}`).not.toBeNull();
-  return match![1]!.replace(/\s+/g, ' ');
+/**
+ * The token declarations, so a px assertion can be resolved back to pixels.
+ *
+ * The components' sizes and spacing are TOKENS now (Phase 14, D-01, D-04). A
+ * reader that matched `padding: 16px` in the source would find NOTHING once the
+ * value was tokenised, and a loop over an empty match asserts nothing - a
+ * vacuous pass. Resolving the tokens first turns the declaration back into the
+ * value it stands for.
+ */
+const TOKENS = tokenMap(readTokenSource());
+
+/**
+ * The declarations of one rule of a component, with the tokens resolved.
+ *
+ * The rule is looked up by SELECTOR, so a nested block does not hide it and a
+ * rule that moved does not silently stop answering. A rule that is not there
+ * answers with the empty string, and the assertion above it fails - a guard
+ * that cannot tell a missing rule from an empty one passes vacuously.
+ */
+function rule(source: string, selector: string): string {
+  const declarations = ruleDeclarations(styleText(source), selector);
+  expect(declarations, `a rule for ${selector}`).not.toBe('');
+  return resolveTokens(declarations, TOKENS);
+}
+
+/**
+ * The declarations of one rule of a SHARED stylesheet, with the tokens resolved.
+ *
+ * The shared classes live once in `src/styles/utilities.css`, so the reader
+ * that asserts them asks that file, and the component that uses them is still
+ * asked to carry the class.
+ */
+function sharedRule(path: string, selector: string): string {
+  const declarations = ruleDeclarations(readFileSync(path, 'utf8'), selector);
+  expect(declarations, `a rule for ${selector} in ${path}`).not.toBe('');
+  return resolveTokens(declarations, TOKENS);
 }
 
 /** The comment-free source of a component that must exist. */
@@ -182,21 +225,34 @@ describe('NewDataTable.svelte contract', () => {
     expect(source).toContain('formatDeviceTableLabel(tableLabel)');
     expect(source).toContain('<caption class="visually-hidden">{regionName}</caption>');
     expect(source).toContain('scope="col"');
-    expect(source).toMatch(/max-height:\s*480px/);
-    expect(source).toMatch(/outline:\s*3px solid var\(--focus\)/);
-    expect(source).toMatch(/outline-offset:\s*2px/);
+    // The scroll region is the SHARED one now: the markup carries the shared
+    // class and the table's own box is a local hook beside it.
+    expect(markup(source)).toContain('class="scroller table-scroll"');
+    expect(rule(source, '.table-scroll')).toMatch(/max-height:\s*480px/);
+    // The focus ring is the shared region's: it lives in `src/styles/utilities.css`
+    // now, so the assertion reads it there, and the markup must carry the class
+    // for the ring to reach the table at all.
+    const ring = sharedRule(UTILITIES_CSS, '.scroller:focus-visible');
+    expect(ring).toMatch(/outline:\s*3px solid var\(--focus\)/);
+    expect(ring).toMatch(/outline-offset:\s*2px/);
   });
 
   it('sticks the header row and the first column', () => {
     const source = clean(TABLE_FILE);
-    expect(source).toMatch(/th\s*\{[^}]*position:\s*sticky;[^}]*top:\s*0/);
-    expect(source).toMatch(/td\.sticky-first\s*\{[^}]*position:\s*sticky;[^}]*left:\s*0/);
-    expect(source).toMatch(/background:\s*var\(--page\)/);
+    const header = rule(source, 'th');
+    expect(header).toMatch(/position:\s*sticky/);
+    expect(header).toMatch(/top:\s*0/);
+    const first = rule(source, 'td.sticky-first');
+    expect(first).toMatch(/position:\s*sticky/);
+    expect(first).toMatch(/left:\s*0/);
+    // The cells paint their own opaque background, so the sticky first column
+    // covers the cells that scroll under it.
+    expect(rule(source, 'td')).toContain('background: var(--page)');
   });
 
   it('draws every row at a fixed 40px, windowed above the threshold with two spacer rows', () => {
     const source = clean(TABLE_FILE);
-    expect(source).toMatch(/tbody tr\s*\{[^}]*height:\s*40px/);
+    expect(rule(source, 'tbody tr')).toMatch(/height:\s*40px/);
     expect(source).toContain('windowRange(scrollTop, SCROLLER_MAX_PX, rows.length)');
     expect(source).toContain('shouldWindow(rows.length)');
     // No measurement of the DOM: the viewport is the constant, never a read.
@@ -248,8 +304,8 @@ describe('NewDataTable.svelte contract', () => {
     expect(source).toMatch(
       /index === 0 && tagged\s*\? base \+ \(severalTags \? SEVERAL_TAGS_EXTRA_PX : TAG_EXTRA_PX\)\s*: base/,
     );
-    expect(source).toMatch(
-      /\.sticky-first :global\(\[data-testid='account-tag'\]\)\s*\{[^}]*margin-right:\s*4px/,
+    expect(rule(source, ".sticky-first :global([data-testid='account-tag'])")).toContain(
+      'margin-right: 4px',
     );
   });
 
@@ -346,8 +402,16 @@ describe('the new-game components obey the project prohibitions', () => {
 
     it(`${file} uses only scale font sizes and no colour literal`, () => {
       const source = clean(file);
-      const sizes = [...source.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)].map((m) => m[1]);
-      for (const size of sizes) expect(['14', '18', '26', '30']).toContain(size);
+      const resolved = resolveTokens(source, TOKENS);
+      const sizes = [...resolved.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)].map((m) =>
+        Number(m[1]),
+      );
+      // The non-vacuity check: an empty match would make the loop below assert
+      // nothing at all, and the scale would be unproven. The sizes are TOKENS
+      // now, so the sweep resolves them first - without the resolution the match
+      // would be empty and the sweep would pass on nothing.
+      expect(sizes.length, `${file} declares at least one font-size`).toBeGreaterThan(0);
+      for (const size of sizes) expect(SCALE_PX.has(size)).toBe(true);
       expect(source).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
       expect(source).not.toMatch(/\b(?:rgba?|hsla?)\(/);
     });
@@ -374,15 +438,20 @@ describe('NewDataCard.svelte contract', () => {
     expect(html).toContain('<h3 id="{testId}-title">{title}</h3>');
     expect(html).toContain('aria-labelledby="{testId}-title"');
     // Label role in --ink with no bottom rule: the card border already separates.
-    expect(source).toMatch(/h3\s*\{[^}]*font-weight:\s*600[^}]*color:\s*var\(--ink\)/);
-    expect(source).not.toMatch(/h3\s*\{[^}]*border-bottom/);
+    const title = rule(source, 'h3');
+    expect(title).toMatch(/font-weight:\s*600/);
+    expect(title).toContain('color: var(--ink)');
+    expect(title).not.toContain('border-bottom');
   });
 
   it('shows a From {file} caption through formatDeviceFromFile for every state but not-in-export', () => {
     const source = clean(CARD_FILE);
     expect(source).toContain("{#if view.status !== 'not-in-export'}");
-    expect(source).toContain('<p class="caption">{formatDeviceFromFile(file)}</p>');
-    expect(source).toMatch(/\.caption\s*\{[^}]*color:\s*var\(--muted\)/);
+    expect(source).toContain('<p class="caption under-title">{formatDeviceFromFile(file)}</p>');
+    // The muted ink is the SHARED caption's now: the card states only the
+    // difference, the negative top margin that puts it 4px under the title.
+    expect(sharedRule(UTILITIES_CSS, '.caption')).toContain('color: var(--muted)');
+    expect(rule(source, '.under-title')).toContain('margin-top: calc(4px * -1)');
   });
 
   it('renders exactly the four states with their sentences', () => {
@@ -404,13 +473,15 @@ describe('NewDataCard.svelte contract', () => {
   it('draws a skipped card with a dashed --faint border on a --list fill', () => {
     const source = clean(CARD_FILE);
     expect(source).toContain("class:skipped={view.status === 'skipped'}");
-    const skipped = ruleBody(source, '.card.skipped');
+    const skipped = rule(source, '.card.skipped');
     expect(skipped).toContain('border: 1px dashed var(--faint)');
     expect(skipped).toContain('background: var(--list)');
-    const card = ruleBody(source, '.card');
+    const card = rule(source, '.card');
+    // The declarations are the resolved ones: `var(--space-16)` is the `16px`
+    // the card pads with and `var(--radius-card)` is the `8px` card radius.
     for (const declaration of [
       'border: 1px solid var(--border)',
-      'border-radius: var(--radius-card)',
+      'border-radius: 8px',
       'background: var(--page)',
       'padding: 16px',
       'display: flex',
@@ -437,13 +508,15 @@ describe('NewDataCard.svelte contract', () => {
     expect(html).toContain('{#each blocks as block, blockIndex (blockIndex)}');
     expect(html).toMatch(/\{#if tagOf\(block\) !== null\}/);
     expect(source).toContain('tags === null ? null : (tags.get(row.account) ?? null)');
-    expect(source).toMatch(
-      /dl\s*\{[^}]*grid-template-columns:\s*max-content 1fr[^}]*gap:\s*4px 16px/,
-    );
-    expect(source).toMatch(/dt\s*\{[^}]*font-weight:\s*600[^}]*color:\s*var\(--muted\)/);
-    expect(source).toMatch(
-      /dd\s*\{[^}]*text-align:\s*right[^}]*font-variant-numeric:\s*tabular-nums/,
-    );
+    const list = rule(source, 'dl');
+    expect(list).toContain('grid-template-columns: max-content 1fr');
+    expect(list).toContain('gap: 4px 16px');
+    const term = rule(source, 'dt');
+    expect(term).toMatch(/font-weight:\s*600/);
+    expect(term).toContain('color: var(--muted)');
+    const detail = rule(source, 'dd');
+    expect(detail).toContain('text-align: right');
+    expect(detail).toContain('font-variant-numeric: tabular-nums');
     expect(html).toContain('formatNewDataColumnLabel(fileKey, column.id)');
     expect(html).toContain('{cell.text}');
   });

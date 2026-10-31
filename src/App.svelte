@@ -353,12 +353,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 12px;
+    gap: var(--space-12);
     margin: 0;
     /* `main` no longer pads, so the on-load check carries its own padding. */
-    padding: 48px 16px;
-    font-size: 14px;
-    line-height: 1.5;
+    padding: var(--layout-page-y) var(--space-16);
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
   }
 
   .cache-check-text {
@@ -383,12 +383,14 @@
 
   /* CSS-only spinner, identical to ImportBar.svelte's `.spinner` —
      1.25em circular border with one quarter coloured, rotated
-     continuously. prefers-reduced-motion disables the animation. */
+     continuously. prefers-reduced-motion disables the animation. The two
+     colours are the shared spinner tokens: the focus blue at 25% for the
+     track and at 60% for the still arc. */
   .spinner {
     display: inline-block;
     width: 1.25em;
     height: 1.25em;
-    border: 3px solid rgba(26, 115, 232, 0.25);
+    border: 3px solid var(--spinner-track);
     border-top-color: var(--focus);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
@@ -404,7 +406,7 @@
   @media (prefers-reduced-motion: reduce) {
     .spinner {
       animation: none;
-      border-top-color: rgba(26, 115, 232, 0.6);
+      border-top-color: var(--spinner-arc-still);
     }
   }
 </style>

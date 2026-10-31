@@ -49,7 +49,7 @@ import {
   waitForImported,
 } from '../_support/helpers.ts';
 import { SCALE_5K_SPEC, buildSessionsExport } from '../../fixtures/sessions-fixtures.ts';
-import { OVERVIEW_SCALE_PX, SCALE_PX } from '../../helpers/components.ts';
+import { SCALE_PX } from '../../helpers/components.ts';
 
 // =============================================================================
 // 08-02 - the master-detail shell: selection, mounting and persistence
@@ -61,23 +61,21 @@ import { OVERVIEW_SCALE_PX, SCALE_PX } from '../../helpers/components.ts';
 // mounted, the rest are absent rather than hidden).
 
 /**
- * The sizes the Overview page is measured against. The Overview shows its own
- * scale (12 / 14 / 32 / 56px, 13-UI-SPEC) BESIDE the list pane, which keeps the
- * shared scale, and the check is page-wide, so the Overview page may show text on
- * EITHER approved scale. Which one an element belongs to is decided BY FILE: the
- * source-level guard (`phase8-ui-review-guards.test.ts`) owns that per-file rule.
+ * The sizes the Overview page is measured against: the ONE app-wide scale
+ * (12 / 14 / 18 / 26 / 32 / 56px, D-06). The Overview and every other pane are
+ * held to the same set; there is no per-pane scale any more.
  */
-const OVERVIEW_PAGE_SCALE: readonly number[] = [...SCALE_PX, ...OVERVIEW_SCALE_PX];
+const OVERVIEW_PAGE_SCALE: readonly number[] = [...SCALE_PX];
 
-/** Every other pane is held to the shared 14 / 18 / 26 / 30px scale alone. */
+/** Every other pane is held to the same app-wide scale. */
 const BASE_SCALE: readonly number[] = [...SCALE_PX];
 
 /**
  * Every visible element that shows text (a non-blank direct text node) and every
  * visible control (button, input, select, textarea, summary) whose computed
- * font-size is NOT on the given scale (08-UI-SPEC Typography; the Overview's own
- * scale is 13-UI-SPEC). An empty list is the contract: no 16px page default and
- * no 13.33px native control. The scale defaults to the Overview page's.
+ * font-size is NOT on the given scale (08-UI-SPEC Typography, D-06). An empty list
+ * is the contract: no 16px page default and no 13.33px native control. The scale
+ * defaults to the app-wide one.
  */
 async function offScaleText(
   page: Page,

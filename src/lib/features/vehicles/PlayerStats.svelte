@@ -1076,7 +1076,7 @@
   div {
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: var(--space-24);
     position: relative;
     min-width: 0;
   }
@@ -1087,11 +1087,11 @@
      this rule in full, because scoped styles cannot be shared. */
   h3 {
     margin: 0;
-    padding-bottom: 8px;
+    padding-bottom: var(--space-8);
     border-bottom: 1px solid var(--border);
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--ink);
   }
 
@@ -1099,47 +1099,44 @@
      h4 table and nothing skips a level (05-UI-SPEC section 1). */
   h4 {
     margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     color: var(--text);
   }
 
   .status {
     margin: 0;
     min-height: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-body);
     color: var(--text);
     min-width: 0;
     overflow-wrap: anywhere;
+
+    /* The empty status line, hidden without leaving the accessibility tree. The
+       clip pattern, not `display: none`: a region that is not in the tree cannot
+       be announced, and this one is where the selection change is read out. */
+    &.hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
+    }
   }
 
-  /* The empty status line, hidden without leaving the accessibility tree. The
-     clip pattern, not `display: none`: a region that is not in the tree cannot
-     be announced, and this one is where the selection change is read out. */
-  .status.hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-    border: 0;
-  }
-
-  .body {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
-    color: var(--text);
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
+  /* The text block comes from the shared layer now. The local `.body` is
+     deleted, not tokenised: the shared `.body` in `src/styles/utilities.css`
+     declares the same seven values (margin 0, min-width 0, 14/400/1.5, `--text`,
+     `overflow-wrap: anywhere`), and a scoped local copy would outrank the
+     shared one - the migration would have been a no-op with extra steps. The
+     markup keeps `class="body"`, `class="body error"` and `class="body info"`. */
 
   /* Caption role: the count line, the derived-value note and the two hints.
      Real text under the table rather than tooltips, because they describe the
@@ -1147,22 +1144,21 @@
      a 60-character vehicle id cannot widen the card at 375px. 14/400/1.4 is the
      UI-SPEC's Caption row exactly — Label size at Body weight — and this rule
      was 12px until 05-20, which put it below the floor the same spec sets
-     (G-05-10). */
-  .caption {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
-    color: var(--muted);
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
+     (G-05-10).
+
+     The rule itself is deleted, not tokenised: the shared `.caption` in
+     `src/styles/utilities.css` declares the same seven values, and a scoped
+     local copy would outrank the shared one. The markup keeps `class="caption"`
+     and `class="caption search-hint"`. */
 
   /* The count line is the one Caption a reader looks FOR, so it is the one
-     that gets the body's weight — it is a figure, not an aside. */
+     that gets the body's weight — it is a figure, not an aside. The hook stays
+     local and only lifts the weight and the colour: the shared `.caption`
+     supplies the margin, the min-width, the 1.4 leading, the muted colour and
+     the wrap, exactly as the deleted local `.caption` did. */
   .count {
-    font-size: 14px;
-    font-weight: 600;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
     color: var(--text);
   }
 
@@ -1170,22 +1166,19 @@
      no rows is a fact about the export, and the destructive red is reserved
      for a query that failed. */
   .info {
-    padding: 8px 12px;
+    padding: var(--space-8) var(--space-12);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: var(--list);
     color: var(--text);
   }
 
   /* The project's destructive error colour, reused verbatim from
-     FailureBanner rather than re-picked (05-UI-SPEC Color). */
-  .error {
-    padding: 8px 12px;
-    border: 1px solid #c5221f;
-    border-radius: 6px;
-    background: #fce8e6;
-    color: #8a1c17;
-  }
+     FailureBanner rather than re-picked (05-UI-SPEC Color). The rule itself is
+     deleted, not tokenised: the shared `.error` in `src/styles/utilities.css`
+     declares the same chrome with the same three status colours as tokens
+     (`--danger`, `--danger-bg`, `--danger-ink`), and the markup keeps
+     `class="body error"`. */
 
   /* The controls row: a flex row that WRAPS, so at 375px the Game control and
      the search box stack rather than overflowing (UI-SPEC section 14). Each
@@ -1205,22 +1198,22 @@
     flex-direction: row;
     flex-wrap: wrap;
     align-items: flex-end;
-    gap: 16px;
+    gap: var(--space-16);
     min-width: 0;
   }
 
   .control {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--space-4);
     min-width: 0;
-  }
 
-  .control label {
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
-    color: var(--text);
+    & label {
+      font-size: var(--fs-body);
+      font-weight: var(--fw-semibold);
+      line-height: var(--lh-tight);
+      color: var(--text);
+    }
   }
 
   /* D-11's search hint: the shared `.caption` rule with ONE addition, a 1.5
@@ -1230,10 +1223,10 @@
      the 14px, the 400 weight, the `--muted` colour and the zero margin, the
      `.control` column's own `gap: 4px` doing the separating — is the caption
      family unchanged, which is what stops a later edit styling this hint as a
-     label and making it look like a second control. */
+     label and making it look like a second control. The margin 0 comes from
+     the shared caption, so this hook declares the leading and nothing else. */
   .search-hint {
-    margin: 0;
-    line-height: 1.5;
+    line-height: var(--lh-body);
   }
 
   /* Label role, the Phase 4 select exactly (05-UI-SPEC section 3). The
@@ -1243,23 +1236,23 @@
   select {
     max-width: 100%;
     min-width: 0;
-    padding: 8px 12px;
+    padding: var(--space-8) var(--space-12);
     border: 1px solid var(--faint);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: var(--page);
     color: var(--text);
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
-  }
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
 
-  select:hover {
-    background: var(--hover);
-  }
+    &:hover {
+      background: var(--hover);
+    }
 
-  select:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
+    &:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
   }
 
   /* The search box: the select's chrome exactly (05-UI-SPEC section 3), with
@@ -1270,23 +1263,23 @@
   input {
     max-width: 100%;
     min-width: 0;
-    padding: 8px 12px;
+    padding: var(--space-8) var(--space-12);
     border: 1px solid var(--faint);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: var(--page);
     color: var(--text);
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
-  }
+    font-size: var(--fs-body);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-tight);
 
-  input:hover {
-    background: var(--hover);
-  }
+    &:hover {
+      background: var(--hover);
+    }
 
-  input:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
+    &:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
   }
 
   /* D-13's per-title header. A two-column grid rather than a table, so it is
@@ -1297,44 +1290,44 @@
   .header {
     display: grid;
     grid-template-columns: max-content 1fr;
-    gap: 4px 16px;
+    gap: var(--space-4) var(--space-16);
     margin: 0;
     min-width: 0;
-  }
 
-  /* Label role, the muted colour the UI-SPEC's "Per-title header dt" row
-     specifies. */
-  .header dt {
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
-    color: var(--muted);
-  }
+    /* Label role, the muted colour the UI-SPEC's "Per-title header dt" row
+       specifies. */
+    & dt {
+      font-size: var(--fs-body);
+      font-weight: var(--fw-semibold);
+      line-height: var(--lh-tight);
+      color: var(--muted);
+    }
 
-  /* Body role in the body colour, wrapping. The expiry is the export's own
-     string and may be anything the game wrote, so the wrap rule is the same
-     one every other untrusted string in the project uses. */
-  .header dd {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
-    color: var(--ink);
-    min-width: 0;
-    overflow-wrap: anywhere;
+    /* Body role in the body colour, wrapping. The expiry is the export's own
+       string and may be anything the game wrote, so the wrap rule is the same
+       one every other untrusted string in the project uses. */
+    & dd {
+      margin: 0;
+      font-size: var(--fs-body);
+      font-weight: var(--fw-regular);
+      line-height: var(--lh-body);
+      color: var(--ink);
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
   }
 
   /* D-02's per-account block: the tag line, when there is one, sits 4px above
      its `dl` (UI-SPEC Surface 5). A plain column; the bare `div` rule above gives
      every div a 24px gap, which is the gap BETWEEN blocks and not inside one. */
   .wowp-account {
-    gap: 4px;
+    gap: var(--space-4);
   }
 
   .wowp-tag {
     margin: 0;
-    font-size: 14px;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    line-height: var(--lh-tight);
     color: var(--text);
   }
 
@@ -1346,71 +1339,75 @@
      for focus, and this is a new member of "every interactive element". */
   .picker {
     min-width: 0;
-  }
 
-  .picker > summary {
-    display: inline-block;
-    padding: 8px 12px;
-    border: 1px solid var(--faint);
-    border-radius: 6px;
-    background: var(--page);
-    color: var(--text);
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
-    cursor: pointer;
-  }
+    & > summary {
+      display: inline-block;
+      padding: var(--space-8) var(--space-12);
+      border: 1px solid var(--faint);
+      border-radius: var(--radius-sm);
+      background: var(--page);
+      color: var(--text);
+      font-size: var(--fs-body);
+      font-weight: var(--fw-semibold);
+      line-height: var(--lh-tight);
+      cursor: pointer;
 
-  .picker > summary:hover {
-    background: var(--hover);
-  }
+      &:hover {
+        background: var(--hover);
+      }
 
-  .picker > summary:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
-  }
+      &:focus-visible {
+        outline: 3px solid var(--focus);
+        outline-offset: 2px;
+      }
+    }
 
-  /* A fieldset rather than a div: the checkboxes are ONE control group, and a
-     screen reader announces them as one thing with a name. The legend is the
-     Label role, muted, matching the two control labels above. */
-  .picker fieldset {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px 16px;
-    margin: 12px 0 0;
-    padding: 8px 12px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    min-width: 0;
-  }
+    /* A fieldset rather than a div: the checkboxes are ONE control group, and a
+       screen reader announces them as one thing with a name. The legend is the
+       Label role, muted, matching the two control labels above. */
+    & fieldset {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-4) var(--space-16);
+      margin: var(--space-12) 0 0;
+      padding: var(--space-8) var(--space-12);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      min-width: 0;
+    }
 
-  .picker legend {
-    padding: 0 4px;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
-    color: var(--muted);
+    & legend {
+      padding: 0 var(--space-4);
+      font-size: var(--fs-body);
+      font-weight: var(--fw-semibold);
+      line-height: var(--lh-tight);
+      color: var(--muted);
+    }
   }
 
   /* Body-weight Caption label beside a native checkbox, per the UI-SPEC — 14px
      like every other Caption, which it was not until 05-20 (G-05-10). The
      native input is left at the platform's own size: restyling a checkbox is
-     how a control stops looking like the one every other platform shows. */
+     how a control stops looking like the one every other platform shows.
+
+     The 4px gap between the checkbox and its label is the phase's ONE spacing
+     snap (D-04, UI-SPEC Spacing Scale): the rule said 6px, and 6px is off the
+     4 / 8 / 12 / 16 / 24 scale. The value is the owner's, not the executor's. */
   .toggle {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--space-4);
     min-width: 0;
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.4;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-tight);
     color: var(--muted);
     cursor: pointer;
-  }
 
-  .toggle input:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
+    & input:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
   }
 
   /* Visually hidden but in the accessibility tree, the same clip pattern the

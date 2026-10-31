@@ -28,9 +28,10 @@
    *
    * ## Why the fill is a class
    *
-   * `level-N` paints `var(--ramp-N)` from the ONE declaration in `src/app.css`.
-   * A shade restated as a hex value here would be a second place for the ramp to
-   * be wrong in, and `contrast.test.ts` fails on it.
+   * `level-N` paints `var(--heat-empty)` and `var(--heat-1)` to `var(--heat-5)`
+   * from the ONE declaration in `src/styles/tokens.css`. A shade restated as a
+   * hex value here would be a second place for the scale to be wrong in, and
+   * `contrast.test.ts` fails on it.
    *
    * ## Why the SVG holds no text
    *
@@ -458,31 +459,33 @@
     stroke: var(--border);
     stroke-width: 1px;
     vector-effect: non-scaling-stroke;
-  }
 
-  /* The ring is the only focus mark, so the browser's own box around a focused
-     country is switched off. */
-  .shape:focus {
-    outline: none;
+    /* The ring is the only focus mark, so the browser's own box around a
+       focused country is switched off. The state is NESTED under its own
+       block (D-05): `&:focus` flattens to the same selector, so the
+       specificity and the source order are exactly what the flat rule had. */
+    &:focus {
+      outline: none;
+    }
   }
 
   .level-0 {
-    fill: var(--ramp-0);
+    fill: var(--heat-empty);
   }
   .level-1 {
-    fill: var(--ramp-1);
+    fill: var(--heat-1);
   }
   .level-2 {
-    fill: var(--ramp-2);
+    fill: var(--heat-2);
   }
   .level-3 {
-    fill: var(--ramp-3);
+    fill: var(--heat-3);
   }
   .level-4 {
-    fill: var(--ramp-4);
+    fill: var(--heat-4);
   }
   .level-5 {
-    fill: var(--ramp-5);
+    fill: var(--heat-5);
   }
 
   /* The marker for a country too small to see: its own shade and a muted stroke,
@@ -514,7 +517,7 @@
   }
 
   .ring-inner {
-    stroke: #ffffff;
+    stroke: var(--white);
     stroke-width: 1px;
   }
 

@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { componentPath, listComponentFiles } from '../../helpers/components.ts';
+import { ruleDeclarations, styleText, tokenMap } from '../../helpers/css.ts';
+import { TOKENS_CSS } from '../../helpers/styles.ts';
 
 // =============================================================================
 // Phase 5 layout guards (plan 05-20).
@@ -34,11 +36,23 @@ import { componentPath, listComponentFiles } from '../../helpers/components.ts';
 // instead of by the expensive one.
 //
 // WHY THE PATTERNS ARE COPIED RATHER THAN IMPORTED
-// `stripComments` follows `tests/unit/charts/bar-chart-components.test.ts` and
-// `ruleDeclarations` follows the rule-body-by-selector lookup in
-// `tests/unit/charts/contrast.test.ts`. Neither is imported: test files do not import
-// from each other in this repository, and a shared helper module would be a new
-// thing to keep standing between two files that only need a regex.
+// `stripComments` follows `tests/unit/charts/bar-chart-components.test.ts`.
+// It is copied: test files do not import from each other in this repository.
+//
+// THE EXCEPTIONS, AND WHAT THEY BUY (Phase 14)
+// The token map and the token file's path are imported, from
+// `tests/helpers/css.ts` and `tests/helpers/styles.ts`. The rule they serve is
+// the one this guard could not serve on its own: a rule that states its size
+// as `var(--fs-body)` says nothing to a reader that only understands px, and
+// the floor can only be judged once the token has been resolved. A copy of
+// the token map in two files would be two answers to one question.
+//
+// The rule READER is imported too, and it is the one this guard was blind to.
+// The local copy read a rule body with `[^}]*`, which stops at the first
+// closing brace - so a NESTED rule (`.card { & .controls { ... } }`) was
+// invisible to it, and a guard written against an invisible rule is a guard
+// that passes vacuously. Plan 14-04 replaced the copy with the brace-aware
+// reader, so a migrated component's nested rules are read.
 // =============================================================================
 
 const __filename = fileURLToPath(import.meta.url);
@@ -72,70 +86,72 @@ function stripComments(source: string): string {
     .replace(/^\s*\/\/.*/gm, '');
 }
 
-/** A regex metacharacter-safe copy of `text`. */
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/**
- * The declaration body of the FIRST rule whose selector list is EXACTLY
- * `selector`.
- *
- * "Exactly" is the point. `.controls` matches here; `.controls, .other` and
- * `header .controls` do not, because a rule that merely mentions the class in
- * a longer list is a different rule, and a guard that accepted one of those
- * would be satisfied by a declaration nobody reads as the controls row. The
- * rule must also be a whole rule rather than a mention inside a body's value,
- * which is why the match is anchored on a rule boundary (`}` or the start of
- * the source) rather than on the class name alone.
- */
-function ruleDeclarations(source: string, selector: string): string {
-  const boundary = '(?:^|[};])';
-  const pattern = new RegExp(`${boundary}\\s*${escapeRegExp(selector)}\\s*\\{([^}]*)\\}`, 'm');
-  return pattern.exec(source)?.[1] ?? '';
-}
-
 /** The page root size in app.css (Body role); a `rem` is judged against what the page computes. */
 const ROOT_FONT_SIZE_PX = 14;
 
 /**
- * The Overview folder and its own floor (13-UI-SPEC Typography, 13-04 Task 2).
+ * The one font-size floor (Phase 14, plan 14-04, D-06).
  *
- * The floor is 14px everywhere because a 14px caption is readable and a 13px
- * one is not. The Overview page declares a 12px LABEL and CAPTION role, and
- * that is the ONE floor in the project that is lower — so the floor is
- * resolved PER FILE here, exactly as the font-size SCALE is resolved per file
- * in the phase-8 guard, and for the same reason: a global exemption is a
- * global weakening.
+ * 12px is the smallest size on the shared type scale, so it is the floor
+ * everywhere. There is no per-folder floor any more: the Overview used to
+ * have its own 12px floor while every other pane had 14px, and that
+ * difference was the last shape of the Overview's separate design generation.
+ *
+ * The floor is a property of the SIZE, not of the file, so a rule that states
+ * a size smaller than 12px fails wherever it is written.
  */
-const OVERVIEW_DIR = 'src/lib/features/overview/';
-const OVERVIEW_MIN_FONT_SIZE_PX = 12;
+const MIN_FONT_SIZE_PX = 12;
 
 /** A repo-relative name with forward slashes, whatever the platform separator is. */
 function posix(label: string): string {
   return label.split(path.sep).join('/');
 }
 
-/** The minimum font size the given file may declare. */
-function fontFloorPx(label: string): number {
-  return posix(label).startsWith(OVERVIEW_DIR) ? OVERVIEW_MIN_FONT_SIZE_PX : ROOT_FONT_SIZE_PX;
-}
-
 /** One stylesheet the floor is measured over. */
 type Stylesheet = { label: string; source: string };
 
 /**
- * Every font size in the given stylesheets that is below ITS file's floor.
+ * The token map of the token file.
  *
- * Pure and argument-taking, so the exemption's scope can be exercised by the
- * self-tests below with synthetic entries rather than only through the real
- * tree.
+ * A rule may state its size as a token (`var(--fs-body)`) rather than as a
+ * px value, and the floor can only be judged once the token is resolved. The
+ * map is read from `src/styles/tokens.css` - the file that OWNS the sizes -
+ * so a token that is renamed or removed fails here rather than silently
+ * reading as "no size at all".
+ */
+const TOKEN_MAP = tokenMap(readFileSync(TOKENS_CSS, 'utf8'));
+
+/**
+ * The size a token declares, in px.
+ *
+ * A token may name another token (`--fs-title` is `var(--fs-display)`), so
+ * the chain is followed for a few hops before giving up. Null when the token
+ * is not declared, or when it does not resolve to a px length.
+ */
+function tokenSizePx(name: string): number | null {
+  let current = name;
+  for (let hop = 0; hop < 4; hop += 1) {
+    const value = TOKEN_MAP.get(current);
+    if (value === undefined) return null;
+    const px = /^(\d+(?:\.\d+)?)px$/.exec(value);
+    if (px !== null) return Number(px[1]);
+    const ref = /^var\(\s*(--[\w-]+)\s*\)$/.exec(value);
+    if (ref === null) return null;
+    current = ref[1]!;
+  }
+  return null;
+}
+
+/**
+ * Every font size in the given stylesheets that is below the floor.
+ *
+ * Pure and argument-taking, so the floor can be exercised by the self-tests
+ * below with synthetic entries rather than only through the real tree.
  */
 function fontSizeFloorOffenders(entries: readonly Stylesheet[]): string[] {
   const offenders: string[] = [];
 
   for (const { label, source } of entries) {
-    const floor = fontFloorPx(label);
     for (const match of source.matchAll(/(?:^|[;{\s])font-size\s*:\s*([^;}]+)/g)) {
       const raw = (match[1] ?? '').trim();
       const where = `${label}: font-size: ${raw}`;
@@ -146,6 +162,27 @@ function fontSizeFloorOffenders(entries: readonly Stylesheet[]): string[] {
       if (/^0(?:\.0+)?$/.test(raw)) continue;
       if (/^(inherit|initial|unset)$/.test(raw)) continue;
 
+      // A size stated as a token (Phase 14, D-01): resolved through the token
+      // map and then judged against the floor. A token that is not declared
+      // stays an offender - the guard cannot read it, and a guard that waves
+      // an unreadable value through has stopped guarding.
+      const token = /^var\(\s*(--[\w-]+)\s*\)$/.exec(raw);
+      if (token !== null) {
+        const pixels = tokenSizePx(token[1]!);
+        if (pixels === null) {
+          offenders.push(
+            `${where} — the token ${token[1]} is not a size this guard can read, so it cannot be judged against the ${MIN_FONT_SIZE_PX}px floor`,
+          );
+          continue;
+        }
+        if (pixels < MIN_FONT_SIZE_PX) {
+          offenders.push(
+            `${where} — ${pixels}px is below the ${MIN_FONT_SIZE_PX}px floor (UI-SPEC Typography)`,
+          );
+        }
+        continue;
+      }
+
       const size = /^(\d+(?:\.\d+)?)(px|rem)?$/.exec(raw);
       if (size === null) {
         offenders.push(
@@ -155,8 +192,10 @@ function fontSizeFloorOffenders(entries: readonly Stylesheet[]): string[] {
       }
       const value = Number(size[1]);
       const pixels = size[2] === 'rem' ? value * ROOT_FONT_SIZE_PX : value;
-      if (pixels < floor) {
-        offenders.push(`${where} — ${pixels}px is below the ${floor}px floor (UI-SPEC Typography)`);
+      if (pixels < MIN_FONT_SIZE_PX) {
+        offenders.push(
+          `${where} — ${pixels}px is below the ${MIN_FONT_SIZE_PX}px floor (UI-SPEC Typography)`,
+        );
       }
     }
   }
@@ -167,7 +206,7 @@ function fontSizeFloorOffenders(entries: readonly Stylesheet[]): string[] {
 describe('phase 5 layout guards (05-20)', () => {
   it('declares the Vehicle statistics controls row as a wrapping flex ROW', () => {
     const source = componentSource('PlayerStats.svelte');
-    const controls = ruleDeclarations(source, '.controls');
+    const controls = ruleDeclarations(styleText(source), '.controls');
 
     // The row: `display: flex` alone makes it a COLUMN, and a column cannot
     // sit the Game control beside the search box at any width. `flex-direction:
@@ -211,10 +250,10 @@ describe('phase 5 layout guards (05-20)', () => {
   //   - The keywords `inherit`, `initial` and `unset`, which state no size of
   //     their own and so cannot be below the floor.
   // ===========================================================================
-  it('declares no font-size below its floor (14px, or 12px under features/overview) in any component stylesheet or app.css', () => {
+  it('declares no font-size below the 12px floor in any component stylesheet or app.css', () => {
     const offenders = fontSizeFloorOffenders(stylesheetFiles());
 
-    expect(offenders, `font sizes below the 14px floor:\n  ${offenders.join('\n  ')}`).toEqual([]);
+    expect(offenders, `font sizes below the 12px floor:\n  ${offenders.join('\n  ')}`).toEqual([]);
   });
 
   // ===========================================================================
@@ -253,7 +292,7 @@ describe('phase 5 layout guards (05-20)', () => {
 
     // The rule: horizontal overflow contained. `overflow-x: auto` is what
     // fixes the spill — measured, deleting it fails the 375px browser test.
-    const scrollBox = ruleDeclarations(source, '.scroll-box');
+    const scrollBox = ruleDeclarations(styleText(source), '.scroll-box');
     expect(scrollBox).toMatch(/(?:^|;)\s*overflow-x:\s*auto\s*;/);
     // `min-width: 0` is the declaration that lets a box be narrower than its
     // content, which a scroll container has to be able to be. It is NOT what
@@ -267,55 +306,115 @@ describe('phase 5 layout guards (05-20)', () => {
     // twelve codes still scrolls vertically in a 320px box, and `overflow: auto`
     // on this modifier is what does that. Losing it would drop the vertical
     // bound the UI-SPEC's "more than 12 rows" line asks for.
-    const scrolls = ruleDeclarations(source, '.scrolls');
+    const scrolls = ruleDeclarations(styleText(source), '.scrolls');
     expect(scrolls).toMatch(/(?:^|;)\s*max-height:\s*320px\s*;/);
     expect(scrolls).toMatch(/(?:^|;)\s*overflow:\s*auto\s*;/);
   });
 });
 
 // =============================================================================
-// The Overview floor exemption, and the self-tests that keep it scoped
-// (13-04 Task 2, 13-UI-SPEC Typography, T-13-12)
+// The ONE font-size floor, and the self-tests that keep it single
+// (14-04, D-06)
 // =============================================================================
 //
-// The floor is lowered for the Overview folder ALONE, because that page
-// declares a 12px Label and Caption role. The three assertions below are the
-// shape of that scope: a 12px caption is legal there, a 12px caption is
-// illegal everywhere else, and even inside the Overview a size below 12px
-// still fails — the exemption lowers the floor, it does not remove it.
+// The floor used to be per file: 14px everywhere except in the Overview
+// folder, which declared a 12px Label and Caption role and so had its own
+// 12px floor. That difference was the last shape of the Overview's separate
+// design generation, and plan 14-04 retired it.
+//
+// The assertions below are the single floor, stated as tests: 12px passes
+// wherever it is written, 11px fails wherever it is written, and the floor
+// applies to a size NAMED AS A TOKEN exactly as it applies to a raw px value.
+//
+// The last assertion is the one that protects the whole guard: a floor that
+// is measured over a list of files is only worth anything if the list has the
+// Overview in it. A component folder that fell out of the sweep would be
+// exempt from the floor without anybody having decided that it should be.
 // =============================================================================
-describe('the Overview font-size floor exemption (13-UI-SPEC Typography)', () => {
+describe('the one font-size floor (14-04, D-06)', () => {
   /** A synthetic stylesheet entry declaring one font size. */
   const entry = (label: string, size: string): Stylesheet => ({
     label,
     source: `.x { font-size: ${size}; }`,
   });
 
-  it('a 12px caption passes under the Overview label', () => {
+  it('a 12px caption passes wherever it is written', () => {
     expect(
       fontSizeFloorOffenders([entry('src/lib/features/overview/Tile.svelte', '12px')]),
     ).toEqual([]);
+    expect(fontSizeFloorOffenders([entry('src/lib/shell/Shell.svelte', '12px')])).toEqual([]);
+    expect(fontSizeFloorOffenders([entry('src/app.css', '12px')])).toEqual([]);
   });
 
-  it('a 12px caption fails under any other label', () => {
-    expect(fontSizeFloorOffenders([entry('src/lib/shell/Shell.svelte', '12px')])).toHaveLength(1);
-    expect(fontSizeFloorOffenders([entry('src/app.css', '12px')])).toHaveLength(1);
-  });
-
-  it('an 11px size fails even under the Overview label', () => {
+  it('an 11px size fails wherever it is written', () => {
     expect(
       fontSizeFloorOffenders([entry('src/lib/features/overview/Tile.svelte', '11px')]),
+    ).toHaveLength(1);
+    expect(fontSizeFloorOffenders([entry('src/lib/shell/Shell.svelte', '11px')])).toHaveLength(1);
+  });
+
+  it('a var() that names a 12px token passes', () => {
+    expect(
+      fontSizeFloorOffenders([entry('src/lib/shell/Shell.svelte', 'var(--fs-caption)')]),
+    ).toEqual([]);
+  });
+
+  it('a var() that names no declared token fails', () => {
+    expect(
+      fontSizeFloorOffenders([entry('src/lib/shell/Shell.svelte', 'var(--fs-nope)')]),
     ).toHaveLength(1);
   });
 
   it('the Overview components are inside the sweep this floor is measured over', () => {
-    // A per-file floor is only worth anything if the file is in the sweep: a
-    // component folder that is not listed here would be exempt from the floor
-    // without anybody having decided that it should be.
     const labels = stylesheetFiles().map(({ label }) => posix(label));
     expect(
-      labels.filter((label) => label.startsWith(OVERVIEW_DIR)),
+      labels.filter((label) => label.includes('features/overview/')),
       'the Overview components are listed by the component sweep',
     ).not.toEqual([]);
+  });
+});
+
+// =============================================================================
+// The token layer in the font-size floor (Phase 14, plan 14-01, D-01)
+// =============================================================================
+//
+// A rule may state its size as `var(--fs-body)` instead of `14px`. The floor
+// is a property of the SIZE, so the token has to be resolved before the floor
+// can be judged - otherwise every tokenised size would read as "no size at
+// all" and the guard would pass on the very rules that carry the design.
+//
+// A token that is NOT declared stays an offender: the guard cannot tell what
+// it resolves to, and a guard that waves an unreadable value through has
+// stopped guarding.
+// =============================================================================
+describe('the font-size token layer (14-01, D-01)', () => {
+  /** A synthetic stylesheet entry declaring one font size. */
+  const entry = (label: string, size: string): Stylesheet => ({
+    label,
+    source: `.x { font-size: ${size}; }`,
+  });
+
+  it('passes a var() that names a size at or above the floor', () => {
+    expect(fontSizeFloorOffenders([entry('src/lib/shell/Shell.svelte', 'var(--fs-body)')])).toEqual(
+      [],
+    );
+  });
+
+  it('judges a var() against the one floor', () => {
+    // `--fs-caption` is 12px, and 12px is the floor: it passes everywhere.
+    // The token is RESOLVED before the floor is judged, so the answer is the
+    // size the token names and not the text of the declaration.
+    expect(
+      fontSizeFloorOffenders([entry('src/lib/shell/Shell.svelte', 'var(--fs-caption)')]),
+    ).toEqual([]);
+    expect(
+      fontSizeFloorOffenders([entry('src/lib/features/overview/Tile.svelte', 'var(--fs-caption)')]),
+    ).toEqual([]);
+  });
+
+  it('fails a var() that names no declared token', () => {
+    expect(
+      fontSizeFloorOffenders([entry('src/lib/shell/Shell.svelte', 'var(--fs-nope)')]),
+    ).toHaveLength(1);
   });
 });
