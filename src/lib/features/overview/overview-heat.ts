@@ -19,7 +19,7 @@
 // and not in a caller's arithmetic.
 //
 // THE STOPS ARE THE CONTRACT, AND THE CONTRACT LIVES IN THE STYLESHEET
-// The three stops are declared once, in `src/app.css`, as custom properties;
+// The three stops are declared once, in `src/styles/tokens.css`, as custom properties;
 // this module holds their channel VALUES so the ramp can be computed in
 // TypeScript (a CSS gradient cannot be sampled per bar) and a unit test
 // compares the two, so a token that drifts from this module fails a test
@@ -45,7 +45,7 @@
  * The three stops of the Overview value scale, as 0-255 sRGB channel triples.
  *
  * These are the channel values of the `--heat-low`, `--heat-mid` and
- * `--heat-peak` custom properties in `src/app.css`; a unit test parses those
+ * `--heat-peak` custom properties in `src/styles/tokens.css`; a unit test parses those
  * three declarations and asserts that they agree with this array, so the
  * stylesheet stays the single place a colour is written down.
  */

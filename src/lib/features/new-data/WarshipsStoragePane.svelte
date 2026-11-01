@@ -149,7 +149,7 @@
     -->
     <p class="body error" role="alert">{WOWS_STORAGE_ERROR}</p>
   {:else if cards !== null}
-    <p class="caption">{WOWS_STORAGE_INTRO}</p>
+    <p class="muted-note">{WOWS_STORAGE_INTRO}</p>
 
     {#each WOWS_CARD_IDS as id (id)}
       <NewDataCard

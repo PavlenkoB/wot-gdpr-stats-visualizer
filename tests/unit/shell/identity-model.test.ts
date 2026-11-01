@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { componentPath } from '../../helpers/components.ts';
 import { ruleDeclarations, styleText } from '../../helpers/css.ts';
-import { readTokenSource } from '../../helpers/styles.ts';
+import { readShellSource, readTokenSource } from '../../helpers/styles.ts';
 import {
   accountCountOf,
   accountRows,
@@ -642,15 +642,15 @@ describe('IdentityHeader.svelte — the multi variant wiring', () => {
     // the account root stays inside it — a row that hid or moved its ID would
     // take away the only identifier a rootless account has.
     const source = headerSource();
-    expect(source, 'the title binds a modifier off row.idOnly').toContain(
-      'class:id-only={row.idOnly}',
+    expect(source, 'the title swaps its role off row.idOnly').toContain(
+      "{row.idOnly ? 't-note-strong id-only' : 't-heading'}",
     );
 
     // ONE element carries all three: the `h3`, the documented test id and the
     // row's own name as its text. The `[\s\S]*?` hops attribute line breaks, so
     // this survives a Prettier reflow rather than pinning a formatting choice.
     const title = source.match(
-      /<h3\b(?=[^>]*data-testid="identity-multi-name")(?=[^>]*class:id-only=\{row\.idOnly\})[^>]*>([\s\S]*?)<\/h3>/,
+      /<h3\b(?=[^>]*data-testid="identity-multi-name")(?=[^>]*row\.idOnly \? 't-note-strong id-only' : 't-heading')[^>]*>([\s\S]*?)<\/h3>/,
     );
     expect(title, 'the ID-only title is the same h3, with the modifier').not.toBeNull();
     expect(title?.[1]?.trim(), 'the title renders the row name, not a prefix or a fallback').toBe(
@@ -696,7 +696,7 @@ describe('IdentityHeader.svelte — the multi variant wiring', () => {
   });
 
   test('no media query, no transition and no animation in the component', () => {
-    // One phone block lives in src/app.css; a component query would be a second
+    // One phone block lives in src/styles/shell.css; a component query would be a second
     // one, and the phase8 UI-review guard pins that there is exactly one.
     const source = headerSource();
     expect(source).not.toContain('@media');
@@ -729,24 +729,47 @@ describe('IdentityHeader.svelte — the multi variant wiring', () => {
     // was DELETED rather than restated: an override is a second answer to
     // "how big is a title", and the role is the one answer.
     const appCss = readFileSync(new URL('../../../src/app.css', import.meta.url), 'utf8');
+    const shellCss = readShellSource();
+    expect(shellCss.length, 'the shell stylesheet was read').toBeGreaterThan(0);
     expect(appCss).not.toContain('.multi-title');
-    const phoneBlocks = appCss.match(/max-width\s*:\s*480px/g) ?? [];
+    expect(shellCss).not.toContain('.multi-title');
+    const phoneBlocks = `${appCss}\n${shellCss}`.match(/max-width\s*:\s*480px/g) ?? [];
     expect(phoneBlocks, 'exactly one phone block under src').toHaveLength(1);
   });
 
   test('the row name takes the heading role, and an ID-only row is still demoted', () => {
     // The named row's title is a row title, not a pane title: the Heading
-    // role (18 / 600 / 1.3), never the Title role.
+    // role (18 / 600 / 1.3), never the Title role. The demotion is a change of
+    // role in the markup, so exactly one role is ever on the element: a named
+    // row takes `.t-heading`, an ID-only row takes `.t-note-strong`.
     const source = headerSource();
-    expect(source).toContain('class="t-heading multi-name"');
+    const titles = [...source.matchAll(/<h3\b(?=[^>]*identity-multi-name)[^>]*>/g)].map(
+      (match) => match[0],
+    );
+    expect(titles.length, 'both templates render the row title').toBe(2);
+    for (const title of titles) {
+      expect(title).toContain(
+        "class=\"multi-name {row.idOnly ? 't-note-strong id-only' : 't-heading'}\"",
+      );
+      expect(title, 'no role is stacked on the title').not.toMatch(
+        /class="[^"]*t-heading[^"]*t-note/,
+      );
+    }
 
-    // The demotion is a TYPE change and it has to survive the role: the
-    // ID-only rule still declares the 14px token, the semibold weight and the
-    // muted colour, and it outranks the role on specificity.
+    // The ID line takes the strong note role in both templates.
+    const idLines = [...source.matchAll(/<p\b[^>]*class="account-id[^"]*"[^>]*>/g)].map(
+      (match) => match[0],
+    );
+    expect(idLines.length, 'both templates render the ID line').toBe(2);
+    for (const line of idLines) {
+      expect(line).toContain('class="account-id t-note-strong"');
+    }
+
+    // The shared rule keeps the muted colour and no longer declares any type:
+    // the role is the one answer to "how big is an ID-only title".
     const body = ruleDeclarations(styleText(source), '.multi-name.id-only');
     expect(body, 'the ID-only rule exists').not.toBe('');
-    expect(body).toContain('font-size: var(--fs-body);');
-    expect(body).toContain('font-weight: var(--fw-semibold);');
     expect(body).toContain('color: var(--muted);');
+    expect(body).not.toMatch(/font-size|font-weight|line-height/);
   });
 });

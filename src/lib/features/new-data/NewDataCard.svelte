@@ -94,9 +94,9 @@
   data-status={view.status}
   aria-labelledby="{testId}-title"
 >
-  <h3 id="{testId}-title">{title}</h3>
+  <h3 id="{testId}-title" class="t-note-strong">{title}</h3>
   {#if view.status !== 'not-in-export'}
-    <p class="caption under-title">{formatDeviceFromFile(file)}</p>
+    <p class="muted-note under-title">{formatDeviceFromFile(file)}</p>
   {/if}
   {@render header?.()}
 
@@ -120,7 +120,7 @@
               revealed,
               battleTypeColumnId,
             })}
-            <dt>{formatNewDataColumnLabel(fileKey, column.id)}</dt>
+            <dt class="t-note-strong">{formatNewDataColumnLabel(fileKey, column.id)}</dt>
             <dd>
               {#if cell.muted}
                 <span class="not-reported">{cell.text}</span>
@@ -168,16 +168,13 @@
 
   h3 {
     margin: 0;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--ink);
     min-width: 0;
     overflow-wrap: anywhere;
   }
 
   /* The caption sits 4px below the title: the card's 8px gap less 4px. The shared
-     `.caption` in `src/styles/utilities.css` supplies the margin, the muted ink
+     `.muted-note` in `src/styles/utilities.css` supplies the margin, the muted ink
      and the type, so this hook states the difference and nothing else. */
   .under-title {
     margin-top: calc(var(--space-4) * -1);
@@ -206,9 +203,6 @@
   }
 
   dt {
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--muted);
   }
 

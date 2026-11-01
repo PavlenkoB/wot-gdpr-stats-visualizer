@@ -115,7 +115,7 @@
   -->
   {#if variant === 'slim'}
     <div class="persistent-bar" data-testid="persistent-bar">
-      <span class="imported-at" data-testid="imported-at">{importedOn}</span>
+      <span class="imported-at t-note-strong" data-testid="imported-at">{importedOn}</span>
       <button type="button" class="bar-button" data-testid="start-over" onclick={onstartover}
         >{START_OVER_LABEL}</button
       >
@@ -214,15 +214,12 @@
     margin: 0 0 var(--space-8);
   }
 
-  /* Label role: a neutral fact about when the file was parsed, never styled
+  /* Strong Note role (`.t-note-strong`): a neutral fact about when the file was parsed, never styled
      as a warning. It takes the slack on a wide bar; on a narrow one the row
      wraps and the buttons take a line of their own. */
   .imported-at {
     margin-right: auto;
     color: var(--text);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
   }
 
   /* Start over is the outlined control; Clear my cached data (below) is the

@@ -66,7 +66,7 @@
           <!-- The folder name is an untrusted zip-entry string. It is
                interpolated as text, wraps, and is never truncated: a user
                needs the real name to look it up in their own archive. -->
-          <span class="banner-folder" data-testid="banner-folder">{entry.name}</span>
+          <span class="banner-folder t-note-strong" data-testid="banner-folder">{entry.name}</span>
           <span class="banner-suffix">{UNSUPPORTED_BANNER_SUFFIX}</span>
         </p>
         <ImportSummary
@@ -130,11 +130,9 @@
     min-width: 0;
   }
 
-  /* Label role: the folder name is what the user scans the block for. */
+  /* The type comes from the strong-note role (the folder name is what the
+     user scans the block for); this rule keeps only the wrap. */
   .banner-folder {
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     overflow-wrap: anywhere;
     min-width: 0;
   }

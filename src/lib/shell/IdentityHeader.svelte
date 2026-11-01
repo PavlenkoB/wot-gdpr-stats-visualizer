@@ -137,7 +137,7 @@
       {formatAccountCount(rows.length)}
     </h2>
 
-    <p class="caption identity-caption">{IDENTITY_CAPTION}</p>
+    <p class="muted-note identity-caption">{IDENTITY_CAPTION}</p>
 
     <!-- `role="list"` is explicit because the list-style reset drops list
          semantics in some engines. The accessible name is the STATIC
@@ -179,30 +179,28 @@
                 label={formatAccountLegendLabel(letterOf(index))}
               />
               <h3
-                class="t-heading multi-name"
-                class:id-only={row.idOnly}
+                class="multi-name {row.idOnly ? 't-note-strong id-only' : 't-heading'}"
                 data-testid="identity-multi-name"
               >
                 {row.name}
               </h3>
             </div>{/if}{#if !showTagLegend}<h3
-              class="t-heading multi-name"
-              class:id-only={row.idOnly}
+              class="multi-name {row.idOnly ? 't-note-strong id-only' : 't-heading'}"
               data-testid="identity-multi-name"
             >
               {row.name}
             </h3>{/if}
 
           {#if row.idLine !== null}
-            <p class="account-id" data-testid="identity-multi-id">{row.idLine}</p>
+            <p class="account-id t-note-strong" data-testid="identity-multi-id">{row.idLine}</p>
           {/if}
 
           <dl>
             {#if row.games !== null}
-              <dt>{IDENTITY_GAMES_LABEL}</dt>
+              <dt class="t-note-strong">{IDENTITY_GAMES_LABEL}</dt>
               <dd data-testid="identity-multi-games">{row.games}</dd>
             {/if}
-            <dt>{IDENTITY_ACTIVITY_LABEL}</dt>
+            <dt class="t-note-strong">{IDENTITY_ACTIVITY_LABEL}</dt>
             <dd data-testid="identity-multi-years">{row.activity}</dd>
           </dl>
         </li>
@@ -223,17 +221,17 @@
     <!-- D-12: the caption qualifies the values as the export's, not as a
          verified or current fact. It is a paragraph, not a heading, and it
          carries no date — `importedAt` is when WE parsed the file. -->
-    <p class="caption identity-caption">{IDENTITY_CAPTION}</p>
+    <p class="muted-note identity-caption">{IDENTITY_CAPTION}</p>
 
     <dl class="identity-details">
       <!-- D-13 (amended after UAT G-05-7): the raw `REGION` string, never
            mapped to a friendly name. The label names it a location code
            because a real export stores a numeric regional code beside a
            city, not a game realm; the old "Region" wording read as one. -->
-      <dt>{IDENTITY_REGION_LABEL}</dt>
+      <dt class="t-note-strong">{IDENTITY_REGION_LABEL}</dt>
       <dd data-testid="identity-region">{valueOrUnknown(identity?.region ?? null)}</dd>
       <!-- D-15: date-only, no time and no timezone (the field has neither). -->
-      <dt>{IDENTITY_CREATED_LABEL}</dt>
+      <dt class="t-note-strong">{IDENTITY_CREATED_LABEL}</dt>
       <dd data-testid="identity-created">{formatCreatedDate(identity?.createdAt ?? null)}</dd>
     </dl>
 
@@ -241,7 +239,7 @@
       <!-- D-14: the account root, a secondary line. Untrusted zip-entry text
            (T-03-18): displayed because it is the requirement, and rendered
            as text only. -->
-      <p class="account-id" data-testid="identity-account-id">
+      <p class="account-id t-note-strong" data-testid="identity-account-id">
         {formatAccountId(result?.accountRoot ?? '')}
       </p>
     {/if}
@@ -265,7 +263,7 @@
   /* The Title role (D-12): 32px from 900px up, 26px below. The role owns the
      size, the weight, the line height and the wrapping; this rule states only
      what a role may not: the margin, the colour and the shrink. The phone
-     block of `src/app.css` no longer overrides the size — the role is the one
+     block of `src/styles/shell.css` no longer overrides the size — the role is the one
      answer to "how big is a title", and a rule of specificity (0,3,0) would
      have beaten it. */
   .nickname,
@@ -280,7 +278,7 @@
   /* The shared caption block of `src/styles/utilities.css` (14 / 400 / 1.4 in
      `--muted`) with ONE difference: this caption is a label, so it is
      semibold. The hook class states only the difference, because a local copy
-     of `.caption` would shadow the shared one and could drift from it. */
+     of `.muted-note` would shadow the shared one and could drift from it. */
   .identity-caption {
     font-weight: var(--fw-semibold);
   }
@@ -295,9 +293,6 @@
   }
 
   dt {
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--muted);
   }
 
@@ -312,26 +307,23 @@
     overflow-wrap: anywhere;
   }
 
-  /* The Label-role ID line, 14/600/1.4 in `--muted`.
+  /* The ID line: the Strong Note role (`.t-note-strong`, 14 / 600 / 1.4) in
+     `--muted`. The role is the class on the element; this rule keeps the
+     margin, the colour and the wrap.
 
      D-17 / T-09-28: `.multi-name.id-only` shares THIS rule rather than
      restating the values. An account root with no User_Info is an absence, and
-     an absence must not wear the row's most prominent type: its number takes
-     the same Label role an ID line already takes, so the demotion is a change
-     of TYPE only. The text, the `h3` and the row's accessible name are
+     an absence must not wear the row's most prominent type, so the demotion is
+     a change of ROLE in the markup: a named row's `h3` takes `.t-heading`, an
+     ID-only row's `h3` takes `.t-note-strong`, and exactly one of the two is
+     ever on the element. There is no specificity contest and nothing here
+     overrides a role. The text, the `h3` and the row's accessible name are
      untouched — a rootless account keeps the only identifier it has. Sharing
-     the selector means the two cannot drift apart in a later edit.
-
-     The three type declarations STAY here even though the row name takes the
-     Heading role: this rule is what demotes an ID-only row, and a rule that
-     only stated the size would leave the weight and the line height to the
-     role. It outranks the role on specificity, so the demotion holds. */
+     the selector means the colour and the wrap cannot drift apart in a later
+     edit. */
   .account-id,
   .multi-name.id-only {
     margin: 0;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--muted);
     min-width: 0;
     overflow-wrap: anywhere;
@@ -397,9 +389,9 @@
      owns those three; this rule states the margin, the colour and the wrap.
      `--ink`, and `overflow-wrap: anywhere` for a long nickname or a 20-digit
      account root: both are untrusted, so their length is not knowable in
-     advance and neither may widen the 320px pane. The id-only case opts out of
-     the role above and takes the Label role instead, so an absence never looks
-     like a presence. */
+     advance and neither may widen the 320px pane. The id-only case takes the
+     Strong Note role instead of this one, so an absence never looks like a
+     presence. */
   .multi-name {
     margin: 0;
     color: var(--ink);

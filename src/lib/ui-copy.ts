@@ -179,9 +179,12 @@ export const REPLACE_DATASET_LABEL = 'Replace dataset';
  * cached data" control. Per D-22, the two entry points use the
  * IDENTICAL copy — a single source of truth here prevents the two
  * flows from drifting.
+ *
+ * The last sentence exists because the pinned Overview tiles outlive a clear
+ * by design (13-D-14): they are tile ids kept in this browser, never data.
  */
 export const CONFIRM_CLEAR_MESSAGE =
-  "This will permanently delete your cached export data. You'll need to re-upload the zip to view it again.";
+  "This will permanently delete your cached export data. You'll need to re-upload the zip to view it again. Your pinned Overview tiles stay in this browser; they hold no export data.";
 
 /**
  * D-21: ConfirmPanel dismiss-button label for the clear-data flows.

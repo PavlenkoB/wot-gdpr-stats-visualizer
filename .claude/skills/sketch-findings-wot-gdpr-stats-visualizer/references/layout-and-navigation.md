@@ -57,7 +57,7 @@ The app shell is a wrapping flex row: list `flex: 1 0 320px`, detail `flex: 999 
 - Two screens, no router: **list screen** then **detail screen**, selection held as component state. The list screen's first row is Overview.
 - **List screen:** identity header on white, then a grouped white list with 64px rows (title and summary left, headline right, chevron), a second group with the "Not yet supported" row (52px), then replace / start-over / clear actions at 48px.
 - **Detail screen:** top bar with a 48px-high back button "‹ Sections" at the left and the section title centred. Overview cards stack in one column. Stat tiles become a compact 3-up row (22px numerals). Calendar and hour grids sit in horizontally scrolling boxes; "About this chart" has a 44px summary.
-- All touch targets >= 44px (48px on phone), matching the existing floor in `src/app.css`.
+- All touch targets >= 44px (48px on phone), matching the existing floor in `src/styles/shell.css`.
 
 ## CSS Patterns
 ```css

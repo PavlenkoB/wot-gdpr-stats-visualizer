@@ -217,7 +217,13 @@
 </script>
 
 {#snippet loadButton()}
-  <button type="button" data-testid="city-load" bind:this={loadEl} onclick={onPress}>
+  <button
+    type="button"
+    class="t-note-strong"
+    data-testid="city-load"
+    bind:this={loadEl}
+    onclick={onPress}
+  >
     {loadLabel}
   </button>
 {/snippet}
@@ -237,7 +243,7 @@
 {/snippet}
 
 <div data-testid="city-optin" data-state={st.kind}>
-  <h4>{CITY_HEADING}</h4>
+  <h4 class="t-note-strong">{CITY_HEADING}</h4>
   {#if st.kind === 'unavailable'}
     <p class="body info" data-testid="city-unavailable">{CITY_UNAVAILABLE}</p>
   {:else if st.kind === 'downloading'}
@@ -249,7 +255,13 @@
         max={total ?? undefined}
         value={total === null ? undefined : received}
       ></progress>
-      <button type="button" data-testid="city-cancel" bind:this={cancelEl} onclick={onCancel}>
+      <button
+        type="button"
+        class="t-note-strong"
+        data-testid="city-cancel"
+        bind:this={cancelEl}
+        onclick={onCancel}
+      >
         {CITY_CANCEL_LABEL}
       </button>
     </div>
@@ -258,7 +270,7 @@
     <progress data-testid="city-decoding" aria-label={CITY_DECODING_NAME}></progress>
   {:else if st.kind === 'ready'}
     <p class="body" tabindex="-1" bind:this={readyEl} data-testid="city-ready">{readyLine}</p>
-    <p class="caption" data-testid="city-note">{CITY_ACCURACY_NOTE}</p>
+    <p class="muted-note" data-testid="city-note">{CITY_ACCURACY_NOTE}</p>
   {:else if st.kind === 'error'}
     <p class="body error" role="alert" data-testid="city-error">{CITY_ERROR}</p>
     {@render loadButton()}
@@ -266,7 +278,7 @@
     {@render cancelledLine()}
     {@render loadButton()}
   {:else if st.kind === 'idle'}
-    <p class="caption" data-testid="city-intro">{intro}</p>
+    <p class="muted-note" data-testid="city-intro">{intro}</p>
     {@render loadButton()}
   {/if}
 </div>
@@ -283,9 +295,6 @@
   h4 {
     margin: 0;
     color: var(--text);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
   }
 
   /* Neutral-info chrome: cancelled and unavailable (06-UI-SPEC Color).
@@ -359,9 +368,6 @@
     border-radius: var(--radius-sm);
     background: var(--page);
     color: var(--text);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
 
     &:hover {
       background: var(--hover);

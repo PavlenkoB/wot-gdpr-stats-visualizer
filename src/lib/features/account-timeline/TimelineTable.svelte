@@ -154,7 +154,11 @@
   aria-label={regionName}
   onscroll={onScroll}
 >
-  <table bind:this={tableEl} aria-rowcount={windowed ? entries.length + 1 : undefined}>
+  <table
+    class="t-note"
+    bind:this={tableEl}
+    aria-rowcount={windowed ? entries.length + 1 : undefined}
+  >
     <caption class="visually-hidden">{regionName}</caption>
     <thead>
       <tr>
@@ -259,8 +263,6 @@
     border-collapse: separate;
     border-spacing: 0;
     width: 100%;
-    font-size: var(--fs-body);
-    line-height: var(--lh-tight);
   }
 
   th {
@@ -298,9 +300,6 @@
     padding: 0 var(--space-12);
     background: var(--page);
     color: var(--text);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-regular);
-    line-height: var(--lh-tight);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -320,8 +319,6 @@
   .more {
     margin-right: var(--space-4);
     color: var(--muted);
-    font-size: var(--fs-body);
-    line-height: var(--lh-tight);
   }
 
   /* The chip's 4px gap to the text after it; `:global` because the chip is

@@ -10,7 +10,7 @@
 //
 // WHY THE FLOOR IS GLOBAL. Every button, disclosure summary and link in the app
 // is one of three elements, so one rule in the single 480px block of
-// `src/app.css` reaches all of them, including the control added next month.
+// `src/styles/shell.css` reaches all of them, including the control added next month.
 // A per-component rule would be a thing to remember per component. These tests
 // are the other half of that bargain: they enumerate the controls that exist
 // today, so a later component whose own rule defeats the floor fails HERE, by

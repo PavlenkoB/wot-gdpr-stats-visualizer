@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { componentPath } from '../../helpers/components.ts';
-import { resolveTokens, ruleDeclarations, styleText, tokenMap } from '../../helpers/css.ts';
-import { readTokenSource } from '../../helpers/styles.ts';
+import { effectiveFontSizes, ruleDeclarations, styleText, tokenMap } from '../../helpers/css.ts';
+import { readTokenSource, TYPE_CSS } from '../../helpers/styles.ts';
 
 // =============================================================================
 // AboutDisclosure placement guard (08-06)
@@ -151,11 +151,13 @@ describe('AboutDisclosure.svelte', () => {
    * were tokenised, and a loop over an empty array asserts nothing - a vacuous
    * pass. Resolving the tokens first turns the declaration back into the px it
    * stands for, so the 14px floor is still checked against the real value.
+   * The size now comes from a role class (14-D-07), so the sweep counts the
+   * roles the markup uses as well as the declarations of the style block.
    */
   const TOKENS = tokenMap(readTokenSource());
 
   test('renders a details element with a summary', () => {
-    expect(source).toMatch(/<details\b[\s\S]*<summary>[\s\S]*<\/summary>[\s\S]*<\/details>/);
+    expect(source).toMatch(/<details\b[\s\S]*<summary\b[^>]*>[\s\S]*<\/summary>[\s\S]*<\/details>/);
   });
 
   test('builds the summary text from formatAboutThis and renders its children', () => {
@@ -173,14 +175,17 @@ describe('AboutDisclosure.svelte', () => {
   });
 
   test('declares no font-size under 14px', () => {
-    const resolved = resolveTokens(source, TOKENS);
-    const sizes = [...resolved.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)].map((m) =>
-      Number(m[1]),
-    );
+    const sizes = effectiveFontSizes(raw, TOKENS, readFileSync(TYPE_CSS, 'utf8'));
     // The non-vacuity check: an empty match would make the loop below assert
     // nothing at all, and the 14px floor would be unproven.
     expect(sizes.length, 'the disclosure declares at least one font-size').toBeGreaterThan(0);
     for (const size of sizes) expect(size).toBeGreaterThanOrEqual(14);
+  });
+
+  test('the summary takes the strong note role and declares no type of its own', () => {
+    expect(source).toMatch(/<summary class="t-note-strong">/);
+    const rule = ruleDeclarations(styleText(raw), 'summary');
+    expect(rule).not.toMatch(/font-size|font-weight|line-height/);
   });
 
   test('has no inline style attribute and no overflow declaration', () => {

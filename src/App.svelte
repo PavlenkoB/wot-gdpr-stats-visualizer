@@ -339,7 +339,8 @@
   /* The app root is a plain block: the shell owns the page layout and each
      pane pads itself (Phase 8), so `main` declares no padding, no gap and no
      flex column. A scoped rule here would outrank the global `main` rule in
-     `src/app.css`, which is why this one deliberately says less than it used
+     `src/app.css` (the element resets; the shell layout is in
+     `src/styles/shell.css`), which is why this one deliberately says less than it used
      to rather than repeating it. */
   main {
     display: block;

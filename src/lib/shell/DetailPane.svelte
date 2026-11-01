@@ -13,7 +13,7 @@
    * programmatic focus: removing it would leave a keyboard user with no sign of
    * where focus went.
    *
-   * No overflow is declared (see `.pane-detail` in app.css): the page stays the
+   * No overflow is declared (see `.pane-detail` in shell.css): the page stays the
    * one vertical scroller.
    */
   interface Props {

@@ -563,7 +563,7 @@ describe('the phone query', () => {
 });
 
 describe('the side-by-side query', () => {
-  // The number must match the sticky-list `min-width` block in src/app.css: the
+  // The number must match the sticky-list `min-width` block in src/styles/shell.css: the
   // stylesheet and the focus choreography are two readers of one breakpoint.
   test('is the 900px sticky-list breakpoint', () => {
     expect(SIDE_BY_SIDE_MIN_WIDTH_PX).toBe(900);

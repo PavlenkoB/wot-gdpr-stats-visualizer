@@ -959,7 +959,7 @@ test.describe('05-13 virtual currency: the sample export', () => {
     ] as const) {
       const chart = charts.nth(index);
       await expect(chart.locator('h4')).toHaveText(code);
-      await expect(chart.locator('p.caption.title')).toHaveText(title);
+      await expect(chart.locator('p.muted-note.title')).toHaveText(title);
       await expect(chart.locator('p.body')).toHaveText(summary);
     }
 
@@ -1200,7 +1200,7 @@ test.describe('05-13 virtual currency: the sample export (other rows and tables)
     await expect(pill).toContainText('6 operation rows excluded');
     await expect(pill).toContainText(CURRENCY_EXCLUDED_EXPLANATION);
 
-    const caption = block.locator('p.caption').first();
+    const caption = block.locator('p.muted-note').first();
     const pillTop = (await pill.boundingBox())!.y;
     const captionBottom = (await caption.boundingBox())!.y + (await caption.boundingBox())!.height;
     expect(pillTop).toBeGreaterThanOrEqual(captionBottom);
@@ -1218,7 +1218,7 @@ test.describe('05-13 virtual currency: the sample export (other rows and tables)
     // reads as a broken row rather than as a code the export left out.
     await expect(rows.nth(3)).toContainText(CURRENCY_BLANK_CODE);
     for (let i = 0; i < 4; i += 1) {
-      await expect(rows.nth(i).locator('p.caption')).toHaveText(EXPECTED_OTHER_ROWS[i]!);
+      await expect(rows.nth(i).locator('p.muted-note')).toHaveText(EXPECTED_OTHER_ROWS[i]!);
     }
 
     // UAH appears here and NOT as a chart, with no title caption: the export
@@ -1544,7 +1544,7 @@ test.describe('05-13 virtual currency: no currency clears the threshold', () => 
     // The caption and the section's own sub-heading still render, so the block
     // does not collapse into a bare list.
     await expect(block.locator('h3')).toHaveText(FINANCIAL_CURRENCY_HEADING);
-    await expect(block.locator('p.caption').first()).toHaveText(CURRENCY_BLOCK_CAPTION);
+    await expect(block.locator('p.muted-note').first()).toHaveText(CURRENCY_BLOCK_CAPTION);
     // Nothing was excluded, so the pill is ABSENT rather than "0 excluded".
     await expect(block.getByTestId('currency-excluded')).toHaveCount(0);
 
@@ -1553,7 +1553,7 @@ test.describe('05-13 virtual currency: no currency clears the threshold', () => 
     const codes_ = await other.locator('p.code').allTextContents();
     expect(codes_).toEqual(codes);
     for (let i = 0; i < 5; i += 1) {
-      await expect(other.nth(i).locator('p.caption')).toHaveText(
+      await expect(other.nth(i).locator('p.muted-note')).toHaveText(
         formatOtherCurrencyRow(
           {
             code: codes[i]!,
@@ -1596,7 +1596,7 @@ test.describe('05-13 virtual currency: the cap of eight', () => {
     await expect(other).toHaveCount(2);
     await expect(other.nth(0)).toContainText(codes[8]!);
     await expect(other.nth(1)).toContainText(codes[9]!);
-    await expect(other.nth(0).locator('p.caption')).toHaveText(
+    await expect(other.nth(0).locator('p.muted-note')).toHaveText(
       formatOtherCurrencyRow(
         {
           code: codes[8]!,
@@ -1667,7 +1667,7 @@ test.describe('05-13 virtual currency: singular forms', () => {
         'en-US',
       ),
     ).toBe('Deposited 7 · Withdrawn 0 · 2019-05 · 1 operation');
-    await expect(other.locator('p.caption')).toHaveText(
+    await expect(other.locator('p.muted-note')).toHaveText(
       'Deposited 7 · Withdrawn 0 · 2019-05 · 1 operation',
     );
   });
@@ -2082,7 +2082,7 @@ test.describe('05-17 virtual currency: an income counts as up', () => {
       'en-US',
     );
     expect(expectedCaption).toBe('Deposited 600 · Withdrawn 0 · 2019-01 to 2019-04 · 5 operations');
-    await expect(rows.locator('p.caption')).toHaveText(expectedCaption);
+    await expect(rows.locator('p.muted-note')).toHaveText(expectedCaption);
   });
 
   test('(income-month) a month of nothing but incomes names its operations', async ({ page }) => {

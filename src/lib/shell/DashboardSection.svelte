@@ -139,7 +139,7 @@
   <h2 id="{id}-heading" class="t-title section-title">{title}</h2>
 
   {#if statusLine !== null}
-    <p class="status" data-testid="section-status">{statusLine}</p>
+    <p class="status t-note-strong" data-testid="section-status">{statusLine}</p>
   {/if}
 
   <!--
@@ -166,8 +166,11 @@
     conditional TAG being adjacent to its neighbours can.
   -->
   {#if counts !== null && (status === 'pending' || status === 'ready' || emptySkip)}
-    <div class="provenance" data-testid="provenance">
-      {#if combinedCaption !== null}<p class="combined" data-testid="combined-caption">
+    <div class="provenance t-note" data-testid="provenance">
+      {#if combinedCaption !== null}<p
+          class="combined t-note-strong"
+          data-testid="combined-caption"
+        >
           {combinedCaption}
         </p>{/if}<span class="from">{formatProvenanceFrom(source)}</span>
       <ImportSummary
@@ -204,7 +207,7 @@
   /* The Title role (D-12): 32px from 900px up, 26px below. The role owns the
      size, the weight, the line height and the wrapping, so this rule states
      only what a role may not: the margin, the colour and the shrink. At
-     phone width the phone block of `src/app.css` hides the title visually
+     phone width the phone block of `src/styles/shell.css` hides the title visually
      (the detail's top bar already shows it), so the rule stays top-level and
      carries no scope class of its own: a nested rule would raise its
      specificity above the phone block's. */
@@ -214,7 +217,9 @@
     min-width: 0;
   }
 
-  /* The provenance line: one 14px/400 line that wraps on a phone.
+  /* The provenance line: one line in the Note role (14 / 400 / 1.4) that wraps
+     on a phone. The role is the class on the element; this rule keeps the layout
+     and the colour.
 
      The 4px ROW gap is why: D-11's combined caption takes `flex-basis: 100%`,
      so it becomes its own flex line, and with a zero row gap the 600-weight
@@ -231,9 +236,6 @@
     column-gap: var(--space-4);
     row-gap: var(--space-4);
     min-width: 0;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-regular);
-    line-height: var(--lh-tight);
     color: var(--muted);
   }
 
@@ -243,30 +245,24 @@
   }
 
   /*
-    The combined caption: the Label role's triple (14 / 600 / 1.4) in
-    `--muted`, which is the measured text colour that already passes 4.5:1 on
-    both surfaces. The role table has no 14px-at-1.4 role, so the three
-    declarations stay here as tokens rather than becoming a class. No new
-    colour, no media query, no transition, no `aria-live` — the tokens and
-    the roles are the ones the single-account header labels already use, so the
-    line reads as part of the provenance block rather than as an alert.
+    The combined caption: the Strong Note role (`.t-note-strong`, 14 / 600 /
+    1.4) in `--muted`, which is the measured text colour that already passes
+    4.5:1 on both surfaces. The role owns the type; this rule keeps the layout
+    and the colour. No new colour, no media query, no transition, no
+    `aria-live` — the role is the one the single-account header labels already
+    use, so the line reads as part of the provenance block rather than as an
+    alert.
   */
   .combined {
     flex-basis: 100%;
     margin: 0;
     min-width: 0;
     overflow-wrap: anywhere;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--muted);
   }
 
   .status {
     margin: 0;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     min-width: 0;
     overflow-wrap: anywhere;
   }

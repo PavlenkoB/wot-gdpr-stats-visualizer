@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { componentPath } from '../../helpers/components.ts';
-import { ruleDeclarations, styleText } from '../../helpers/css.ts';
+import { effectiveFontSizes, ruleDeclarations, styleText, tokenMap } from '../../helpers/css.ts';
+import { readTokenSource, TYPE_CSS } from '../../helpers/styles.ts';
+import { SCALE_PX } from '../../helpers/components.ts';
 
 // =============================================================================
 // Plan 12-12 Task 3 - the Account timeline pane, asserted by what its SOURCE promises
@@ -227,7 +229,7 @@ describe('the timeline components: nothing untrusted reaches an attribute', () =
 // =============================================================================
 //
 // The pane used to define four of the shared class names itself - `.body`,
-// `.caption`, `.error` and `.visually-hidden` - and carried three hex
+// `.muted-note`, `.error` and `.visually-hidden` - and carried three hex
 // literals. It is now the first real consumer of the shared layer, so it is
 // the pane's own proof that the layer works: it defines NONE of the shared
 // names and holds NO colour literal.
@@ -240,7 +242,7 @@ describe('AccountTimelinePane: the shared layer', () => {
   const styles = styleText(clean(PANE));
 
   it('defines none of the shared class names', () => {
-    for (const selector of ['.body', '.caption', '.error', '.visually-hidden']) {
+    for (const selector of ['.body', '.muted-note', '.error', '.visually-hidden']) {
       expect(ruleDeclarations(styles, selector), selector).toBe('');
     }
   });
@@ -274,5 +276,44 @@ describe('Dashboard: the account-timeline branch', () => {
     const mount = /<AccountTimelinePane\b[^>]*>/s.exec(dashboard);
     expect(mount, 'an AccountTimelinePane mount').not.toBeNull();
     expect(mount![0]).not.toContain('gameFilter');
+  });
+});
+
+describe('the timeline components take their type from the note roles (14-D-07)', () => {
+  const TOKENS = tokenMap(readTokenSource());
+
+  /** The declarations of one rule, which must exist and must not restate the type. */
+  function expectNoType(source: string, selector: string): void {
+    const declarations = ruleDeclarations(styleText(source), selector);
+    expect(declarations, `a rule for ${selector}`).not.toBe('');
+    expect(declarations).not.toMatch(/font-(size|weight)|line-height/);
+  }
+
+  it('puts the strong role on the toggle, the filter label and every chip', () => {
+    const pane = markup(clean(PANE));
+    expect(pane).toMatch(
+      /<button\s+type="button"\s+class="t-note-strong"\s+data-testid="timeline-mask-toggle"/,
+    );
+    const filter = markup(clean(FILTER));
+    expect(filter).toContain('<span class="label t-note-strong"');
+    expect(filter.match(/<label class="chip t-note-strong"/g) ?? []).toHaveLength(2);
+    expectNoType(clean(PANE), 'button');
+    expectNoType(clean(FILTER), '.label');
+    expectNoType(clean(FILTER), '.chip');
+  });
+
+  it('puts the regular role on the table and leaves the cells to inherit it', () => {
+    const source = clean(TABLE);
+    expect(markup(source)).toMatch(/<table\s+class="t-note"\s/);
+    for (const selector of ['table', 'td', '.more']) expectNoType(source, selector);
+  });
+
+  it('keeps the size sweep non-vacuous: every size counted is on the scale', () => {
+    const typeCss = readFileSync(TYPE_CSS, 'utf8');
+    for (const file of [PANE, FILTER, TABLE]) {
+      const sizes = effectiveFontSizes(clean(file), TOKENS, typeCss);
+      expect(sizes.length, `${file} declares at least one font-size`).toBeGreaterThan(0);
+      for (const size of sizes) expect(SCALE_PX.has(size)).toBe(true);
+    }
   });
 });

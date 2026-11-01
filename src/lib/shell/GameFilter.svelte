@@ -75,7 +75,7 @@
 </script>
 
 <div class="game-filter" data-testid="game-filter">
-  <span class="label" id={`${groupId}-label`}>{GAME_FILTER_LABEL}</span>
+  <span class="label t-note-strong" id={`${groupId}-label`}>{GAME_FILTER_LABEL}</span>
   <div class="chips" role="radiogroup" aria-labelledby={`${groupId}-label`}>
     <!--
       All games first, then the tokens `filterChips` decided on, in the fixed
@@ -83,7 +83,7 @@
       one, so it is offered first and named in the copy rather than in
       `GAME_FILTER_TOKENS`.
     -->
-    <label class="chip" data-testid="game-filter-chip-all">
+    <label class="chip t-note-strong" data-testid="game-filter-chip-all">
       <input
         class="visually-hidden"
         type="radio"
@@ -101,7 +101,7 @@
       why.
     -->
     {#each games as game, index (index)}
-      <label class="chip" data-testid={`game-filter-chip-${chipId(game)}`}>
+      <label class="chip t-note-strong" data-testid={`game-filter-chip-${chipId(game)}`}>
         <input
           class="visually-hidden"
           type="radio"
@@ -128,9 +128,6 @@
   }
 
   .label {
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--text);
   }
 
@@ -164,9 +161,6 @@
     border-radius: var(--radius-control);
     background: var(--page);
     color: var(--text);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     white-space: nowrap;
     cursor: pointer;
 

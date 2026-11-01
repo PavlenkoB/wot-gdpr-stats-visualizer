@@ -232,6 +232,13 @@ None of this can run before the branch is merged to `main`:
   IndexedDB cache from the browser. Nothing sensitive leaves the machine through
   this app, but the cached parsed export sits in origin storage, so publish only
   projects you trust under the same account.
+- The app keeps one other thing in the browser: a short list of the Overview
+  tiles you pinned (tile names only, never a figure, a date or anything from the
+  export), in the browser's local storage under one key. It is written only when
+  you pin or unpin a tile, and it survives "Clear my cached data" and "Start
+  over" by design. Like the IndexedDB cache, another project published under the
+  same account's github.io origin can read it, which is harmless because it
+  holds no export data.
 - The CSP is defence in depth. Enforcement is the lint ban plus request counting,
   as described under "What the page requests, and what enforces it".
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { componentPath } from '../../helpers/components.ts';
+import { ruleDeclarations, styleText } from '../../helpers/css.ts';
 
 const CHART_FILE = 'MonthlyBarChart.svelte';
 const TABLE_FILE = 'MonthlyDataTable.svelte';
@@ -65,5 +66,26 @@ describe('05-11 MonthlyBarChart & MonthlyDataTable component contracts', () => {
     expect(clean).not.toContain('{@html');
     expect(clean).not.toMatch(/\bstyle="/);
     expect(clean).not.toMatch(/\bstyle:[a-zA-Z-]+=/);
+  });
+
+  it('every axis label takes the note role and the axis rule keeps only the paint (14-D-07)', () => {
+    const raw = code(CHART_FILE);
+    const labels = stripComments(raw).match(/<text\s+class="axis [^"]*"/g) ?? [];
+    expect(labels.length, 'the chart draws axis labels').toBeGreaterThan(0);
+    for (const label of labels) expect(label).toContain('t-note');
+
+    const rule = ruleDeclarations(styleText(raw), '.axis');
+    expect(rule, 'the axis rule exists').not.toBe('');
+    expect(rule).toContain('fill: var(--muted)');
+    expect(rule).not.toMatch(/font-size|font-weight|line-height/);
+  });
+
+  it('the table takes the strong note role and its rule declares no size or line height (14-D-07)', () => {
+    const raw = code(TABLE_FILE);
+    expect(stripComments(raw)).toMatch(/<table class="t-note-strong"/);
+
+    const rule = ruleDeclarations(styleText(raw), 'table');
+    expect(rule, 'the table rule exists').not.toBe('');
+    expect(rule).not.toMatch(/font-size|line-height/);
   });
 });

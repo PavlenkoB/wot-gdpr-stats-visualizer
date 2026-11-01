@@ -32,7 +32,7 @@
 </script>
 
 <details class="about" data-testid={testId}>
-  <summary>{formatAboutThis(name)}</summary>
+  <summary class="t-note-strong">{formatAboutThis(name)}</summary>
   <div class="about-body">
     {@render children()}
   </div>
@@ -49,9 +49,6 @@
     /* The 44px touch floor. It is a hit area, not a spacing value, so it stays
        a length (D-04, UI-SPEC "Non-spacing sizes"). */
     min-height: 44px;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--ink);
     text-decoration: underline;
     cursor: pointer;

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { componentPath, SCALE_PX } from '../../helpers/components.ts';
-import { resolveTokens, tokenMap } from '../../helpers/css.ts';
-import { readTokenSource } from '../../helpers/styles.ts';
+import { effectiveFontSizes, ruleDeclarations, styleText, tokenMap } from '../../helpers/css.ts';
+import { readTokenSource, TYPE_CSS } from '../../helpers/styles.ts';
 
 // =============================================================================
 // Plan 11-09 - the two new-game panes and their shell wiring
@@ -74,12 +74,15 @@ describe('DashboardSection.svelte provenanceLabel', () => {
     expect(source).toContain('const source = $derived(provenanceLabel ?? folder ?? title);');
   });
 
-  it('keeps the whitespace-sensitive provenance block byte-identical', () => {
+  it('keeps the whitespace-sensitive provenance block flush (the caption carries the note role)', () => {
     // The caption is the FIRST child, flush against the From span, so a
     // one-account pane has no leading whitespace text node.
     const raw = readFileSync(SECTION_PATH, 'utf8');
     expect(raw).toContain(
-      '{#if combinedCaption !== null}<p class="combined" data-testid="combined-caption">\n' +
+      '{#if combinedCaption !== null}<p\n' +
+        '          class="combined t-note-strong"\n' +
+        '          data-testid="combined-caption"\n' +
+        '        >\n' +
         '          {combinedCaption}\n' +
         '        </p>{/if}<span class="from">{formatProvenanceFrom(source)}</span>',
     );
@@ -180,12 +183,10 @@ describe('the new-game panes obey the project prohibitions', () => {
     });
 
     it(`${file} uses only scale font sizes`, () => {
-      // The sizes are TOKENS now, so they are resolved before they are read: the
-      // match would otherwise be empty and the sweep would assert nothing.
-      const resolved = resolveTokens(clean(file), TOKENS);
-      const sizes = [...resolved.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)].map((m) =>
-        Number(m[1]),
-      );
+      // The sizes are TOKENS and note ROLES now, so the tokens are resolved and
+      // the role classes in the markup are counted too: the match would otherwise
+      // be empty and the sweep would assert nothing.
+      const sizes = effectiveFontSizes(clean(file), TOKENS, readFileSync(TYPE_CSS, 'utf8'));
       expect(sizes.length, `${file} declares at least one font-size`).toBeGreaterThan(0);
       for (const size of sizes) expect(SCALE_PX.has(size)).toBe(true);
     });
@@ -274,6 +275,16 @@ describe('both panes follow the Device info load rules (T-11-32)', () => {
 // -----------------------------------------------------------------------------
 
 describe('HeatPane.svelte contract', () => {
+  it('puts the strong note role on the mask toggle and leaves the type to the role', () => {
+    const html = markup(clean(HEAT_FILE));
+    expect(html).toMatch(
+      /<button\s+type="button"\s+class="t-note-strong"\s+data-testid="heat-mask-toggle"/,
+    );
+    const rule = ruleDeclarations(styleText(clean(HEAT_FILE)), 'button');
+    expect(rule, 'a rule for button').not.toBe('');
+    expect(rule).not.toMatch(/font-(size|weight)|line-height/);
+  });
+
   it('shows the loading sentence in the status line and a fixed error sentence', () => {
     const source = clean(HEAT_FILE);
     expect(source).toContain("blockState === 'loading' ? HEAT_LOADING : announcement");

@@ -43,16 +43,16 @@
 </script>
 
 <details class="list" open data-testid="city-list">
-  <summary>{CITY_LIST_SUMMARY}</summary>
+  <summary class="t-note-strong">{CITY_LIST_SUMMARY}</summary>
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <div class="scroller list-scroll" role="region" tabindex="0" aria-label={CITY_LIST_SUMMARY}>
-    <table>
+    <table class="t-note">
       <thead>
         <tr>
-          <th scope="col" class="name">{CITY_COL_CITY}</th>
-          <th scope="col" class="name">{CITY_COL_COUNTRY}</th>
-          <th scope="col">{CITY_COL_LOGINS}</th>
-          <th scope="col">{CITY_COL_IPS}</th>
+          <th scope="col" class="name t-note-strong">{CITY_COL_CITY}</th>
+          <th scope="col" class="name t-note-strong">{CITY_COL_COUNTRY}</th>
+          <th scope="col" class="t-note-strong">{CITY_COL_LOGINS}</th>
+          <th scope="col" class="t-note-strong">{CITY_COL_IPS}</th>
         </tr>
       </thead>
       <tbody>
@@ -71,12 +71,12 @@
     </table>
   </div>
   {#if view.moreCities > 0}
-    <p class="caption after-list" data-testid="city-more">
+    <p class="muted-note after-list" data-testid="city-more">
       {formatCityMoreCities(view.moreCities)}
     </p>
   {/if}
   {#if view.noCityAddresses > 0}
-    <p class="caption after-list" data-testid="city-no-city">
+    <p class="muted-note after-list" data-testid="city-no-city">
       {formatCityNoCity(view.noCityAddresses)}
     </p>
   {/if}
@@ -94,9 +94,6 @@
     border-radius: var(--radius-sm);
     background: var(--page);
     color: var(--text);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     cursor: pointer;
 
     &:hover {
@@ -128,8 +125,6 @@
   table {
     width: 100%;
     border-collapse: collapse;
-    font-size: var(--fs-body);
-    line-height: var(--lh-tight);
   }
 
   th {
@@ -139,8 +134,6 @@
     border-bottom: 1px solid var(--border);
     background: var(--list);
     color: var(--muted);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
     text-align: right;
     white-space: nowrap;
   }
@@ -149,8 +142,6 @@
     padding: var(--space-8);
     border-bottom: 1px solid var(--hover);
     color: var(--text);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-regular);
     text-align: right;
     font-variant-numeric: tabular-nums;
   }
@@ -167,7 +158,7 @@
     overflow-wrap: anywhere;
   }
 
-  /* The two captions under the list sit 8px below it. The shared `.caption`
+  /* The two captions under the list sit 8px below it. The shared `.muted-note`
      states the rest, so the hook states only this one difference. */
   .after-list {
     margin-top: var(--space-8);

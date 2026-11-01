@@ -46,9 +46,23 @@
         ? 'section-caption'
         : 'banner-counts',
   );
+
+  /**
+   * The class the line wears. The variant is a name in the prop contract and
+   * the source of the test id; the class is a style hook. `caption` is the
+   * shared muted note and `banner` adds the Strong Note role (`.t-note-strong`)
+   * to its hook class; both differ from the variant name, so the two are mapped
+   * here and not left to coincide.
+   */
+  const VARIANT_CLASS = {
+    summary: 'summary',
+    caption: 'muted-note',
+    banner: 'banner t-note-strong',
+  } as const;
+  const variantClass = $derived(VARIANT_CLASS[variant]);
 </script>
 
-<p class={variant} data-testid={testId}>
+<p class={variantClass} data-testid={testId}>
   {#if showCounts}
     <span class="counts">{formatImportSummary(counts.fileCount, counts.rowCount)}</span>
   {/if}
@@ -59,7 +73,7 @@
       number. Amber, not red: a skipped row is a parse diagnostic about the
       export's own formatting, not a failure of the user's data.
     -->
-    <span class="skip-tag" data-testid="skip-tag"
+    <span class="skip-tag t-note-strong" data-testid="skip-tag"
       >{formatSkippedRowCount(counts.skippedRowCount)}</span
     >
   {/if}
@@ -80,18 +94,16 @@
     color: var(--text);
   }
 
-  /* The `caption` variant has no local rule any more: the shared `.caption`
-     in src/styles/utilities.css states exactly the same muted 14px/400/1.4
-     note, and the `p` element rule above already supplies the margin, the
-     minimum width and the wrap. The dynamic class value therefore resolves
+  /* The `caption` variant has no local rule any more: it wears the
+     shared `.muted-note` of src/styles/utilities.css, which states exactly
+     the same muted 14px/400/1.4 note, and the `p` element rule above already
+     supplies the margin, the minimum width and the wrap. The dynamic class value therefore resolves
      to the shared block with an unchanged computed style. */
 
-  /* Label role: metadata, not the thing the card is about. 400 weight,
-     because inside the provenance line it reads as part of one sentence. */
+  /* Strong Note role (`.t-note-strong`, from the variant map): metadata, not
+     the thing the card is about. The role owns the type; this rule keeps the
+     colour. */
   .banner {
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--text);
   }
 
@@ -108,8 +120,5 @@
     border-radius: 999px;
     background: var(--warn-bg);
     color: var(--warn-ink);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
   }
 </style>

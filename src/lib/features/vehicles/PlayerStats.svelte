@@ -695,7 +695,7 @@
   data-title-state={titleState}
   aria-busy={playerState === 'loading' ? 'true' : 'false'}
 >
-  <h3>{PLAYER_STATS_HEADING}</h3>
+  <h3 class="t-note-strong">{PLAYER_STATS_HEADING}</h3>
 
   <!--
     The block's one EXPLICIT live region, present in EVERY state and empty when
@@ -741,7 +741,7 @@
     -->
     <div class="controls" data-testid="player-stats-controls">
       <div class="control">
-        <label for={selectId}>{TITLE_CONTROL_LABEL}</label>
+        <label class="t-note-strong" for={selectId}>{TITLE_CONTROL_LABEL}</label>
         <!--
           A native `<select>` (D-05): its keyboard and screen-reader behaviour
           is the platform's, and its options are export-derived text, which is
@@ -752,6 +752,7 @@
           option text itself — which is what the suffix is for.
         -->
         <select
+          class="t-note-strong"
           id={selectId}
           data-testid="player-stats-title-selector"
           value={view.title}
@@ -784,8 +785,9 @@
       -->
       {#if view.battleTypes.length > 0}
         <div class="control">
-          <label for={battleTypeId}>{BATTLE_TYPE_CONTROL_LABEL}</label>
+          <label class="t-note-strong" for={battleTypeId}>{BATTLE_TYPE_CONTROL_LABEL}</label>
           <select
+            class="t-note-strong"
             id={battleTypeId}
             data-testid="player-stats-battle-type-selector"
             value={view.battleType ?? ''}
@@ -826,8 +828,9 @@
         reader both have to interpret.
       -->
       <div class="control">
-        <label for={searchId}>{VEHICLE_SEARCH_LABEL}</label>
+        <label class="t-note-strong" for={searchId}>{VEHICLE_SEARCH_LABEL}</label>
         <input
+          class="t-note"
           id={searchId}
           type="search"
           data-testid="vehicle-search"
@@ -844,7 +847,7 @@
           layout specs read.
         -->
         {#if tags !== null}<p
-            class="caption search-hint"
+            class="muted-note search-hint"
             id={searchHintId}
             data-testid="vehicle-search-hint"
           >
@@ -886,7 +889,7 @@
     -->
     {#if headerBattles !== null}
       <dl class="header" data-testid="player-stats-header">
-        <dt>{HEADER_LIFETIME_BATTLES_LABEL}</dt>
+        <dt class="t-note-strong">{HEADER_LIFETIME_BATTLES_LABEL}</dt>
         <dd data-testid="lifetime-battles">
           {headerBattles.text}
           {#if headerBattles.hidden !== null}
@@ -894,7 +897,7 @@
           {/if}
         </dd>
         {#if headerExpires !== null}
-          <dt>{HEADER_PREMIUM_EXPIRES_LABEL}</dt>
+          <dt class="t-note-strong">{HEADER_PREMIUM_EXPIRES_LABEL}</dt>
           <dd data-testid="premium-expires">
             {headerExpires.text}
             {#if headerExpires.hidden !== null}
@@ -922,17 +925,17 @@
       more accounts), flush against the `dl` with no whitespace between them.
     -->
     {#if view.wowpAccount !== null}
-      <h4>{WOWP_ACCOUNT_STATS_HEADING}</h4>
+      <h4 class="t-note-strong">{WOWP_ACCOUNT_STATS_HEADING}</h4>
       {#each wowpAccounts as entry (entry.account)}
         {@const tag = tags === null ? null : (tags.get(entry.account) ?? null)}
         <div class="wowp-account">
-          {#if tag !== null}<p class="wowp-tag">
+          {#if tag !== null}<p class="wowp-tag t-note">
               <AccountTag letter={tag.letter} label={tagLabel(tag)} />
             </p>{/if}
           <dl class="header" data-testid="wowp-account-stats">
             {#each view.wowpAccount.columns as column, index (column.id)}
               {@const shown = formatVehicleCell(entry.cells[index]!, column.kind)}
-              <dt>{wowpColumnLabel(column.id)}</dt>
+              <dt class="t-note-strong">{wowpColumnLabel(column.id)}</dt>
               <dd>
                 {shown.text}
                 {#if shown.hidden !== null}
@@ -973,7 +976,7 @@
     {/if}
 
     {#if titleStateLine === ''}
-      <h4>{VEHICLE_TABLE_TITLE}</h4>
+      <h4 class="t-note-strong">{VEHICLE_TABLE_TITLE}</h4>
 
       <!--
         The count line and the derived-value note sit ABOVE the table and the
@@ -986,7 +989,7 @@
         not the count, because a reader has to be able to see that the filter
         is what emptied it.
       -->
-      <p class="caption count" data-testid="vehicle-count">{countLine}</p>
+      <p class="muted-note count" data-testid="vehicle-count">{countLine}</p>
       <!--
         D-07's note, under the count line and before the derived-value note: it
         qualifies the COUNT the reader is looking at, so it belongs beside it
@@ -997,7 +1000,7 @@
       {#if battleTypeNote !== ''}
         <p class="body info" data-testid="battle-type-note">{battleTypeNote}</p>
       {/if}
-      <p class="caption note">{VEHICLE_DERIVED_NOTE}</p>
+      <p class="muted-note note">{VEHICLE_DERIVED_NOTE}</p>
 
       <!--
         D-10's column picker, and the reason it is a picker and not a row
@@ -1015,12 +1018,13 @@
       -->
       {#if extras.length > 0}
         <details class="picker" data-testid="column-picker">
-          <summary>{COLUMN_PICKER_SUMMARY}</summary>
+          <summary class="t-note-strong">{COLUMN_PICKER_SUMMARY}</summary>
           <fieldset>
-            <legend>{COLUMN_PICKER_LEGEND}</legend>
+            <legend class="t-note-strong">{COLUMN_PICKER_LEGEND}</legend>
             {#each extras as column (column.key)}
-              <label class="toggle">
+              <label class="toggle t-note">
                 <input
+                  class="t-note"
                   type="checkbox"
                   data-testid="column-toggle-{column.key}"
                   checked={selection.pickedExtraKeys.includes(column.key)}
@@ -1046,7 +1050,7 @@
           in.
         -->
         {#if view.allBattlesOnly}
-          <p class="caption note" data-testid="warships-all-note">{WARSHIPS_ALL_NOTE}</p>
+          <p class="muted-note note" data-testid="warships-all-note">{WARSHIPS_ALL_NOTE}</p>
         {/if}
         <VehicleTable
           {columns}
@@ -1066,8 +1070,8 @@
         DOM; saying so, and naming the box that does find them, is the honest
         thing to do and is why the search is a control at all.
       -->
-      <p class="caption hint">{VEHICLE_SCROLL_HINT}</p>
-      <p class="caption hint">{VEHICLE_FIND_HINT}</p>
+      <p class="muted-note hint">{VEHICLE_SCROLL_HINT}</p>
+      <p class="muted-note hint">{VEHICLE_FIND_HINT}</p>
     {/if}
   {/if}
 </div>
@@ -1089,9 +1093,6 @@
     margin: 0;
     padding-bottom: var(--space-8);
     border-bottom: 1px solid var(--border);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--ink);
   }
 
@@ -1099,9 +1100,6 @@
      h4 table and nothing skips a level (05-UI-SPEC section 1). */
   h4 {
     margin: 0;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--text);
   }
 
@@ -1146,16 +1144,16 @@
      was 12px until 05-20, which put it below the floor the same spec sets
      (G-05-10).
 
-     The rule itself is deleted, not tokenised: the shared `.caption` in
+     The rule itself is deleted, not tokenised: the shared `.muted-note` in
      `src/styles/utilities.css` declares the same seven values, and a scoped
-     local copy would outrank the shared one. The markup keeps `class="caption"`
-     and `class="caption search-hint"`. */
+     local copy would outrank the shared one. The markup keeps `class="muted-note"`
+     and `class="muted-note search-hint"`. */
 
   /* The count line is the one Caption a reader looks FOR, so it is the one
      that gets the body's weight — it is a figure, not an aside. The hook stays
-     local and only lifts the weight and the colour: the shared `.caption`
+     local and only lifts the weight and the colour: the shared `.muted-note`
      supplies the margin, the min-width, the 1.4 leading, the muted colour and
-     the wrap, exactly as the deleted local `.caption` did. */
+     the wrap, exactly as the deleted local `.muted-note` did. */
   .count {
     font-size: var(--fs-body);
     font-weight: var(--fw-semibold);
@@ -1209,14 +1207,11 @@
     min-width: 0;
 
     & label {
-      font-size: var(--fs-body);
-      font-weight: var(--fw-semibold);
-      line-height: var(--lh-tight);
       color: var(--text);
     }
   }
 
-  /* D-11's search hint: the shared `.caption` rule with ONE addition, a 1.5
+  /* D-11's search hint: the shared `.muted-note` rule with ONE addition, a 1.5
      line height instead of the captions' 1.4. A hint sits under a control the
      eye is about to use, so it gets the airier leading of a line the reader
      reads rather than the tight leading of a table caption; everything else —
@@ -1241,9 +1236,6 @@
     border-radius: var(--radius-sm);
     background: var(--page);
     color: var(--text);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
 
     &:hover {
       background: var(--hover);
@@ -1256,8 +1248,9 @@
   }
 
   /* The search box: the select's chrome exactly (05-UI-SPEC section 3), with
-     Body 16/400 text rather than Label 14/600 — what is typed into a box is
-     the reader's own words, not a label. The same accent focus ring, because
+     the regular `.t-note` role rather than the select's `.t-note-strong` —
+     what is typed into a box is the reader's own words, not a label. The same
+     accent focus ring, because
      it is a new member of "every interactive element" and the accent is
      reserved for focus. */
   input {
@@ -1268,9 +1261,6 @@
     border-radius: var(--radius-sm);
     background: var(--page);
     color: var(--text);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-regular);
-    line-height: var(--lh-tight);
 
     &:hover {
       background: var(--hover);
@@ -1297,9 +1287,6 @@
     /* Label role, the muted colour the UI-SPEC's "Per-title header dt" row
        specifies. */
     & dt {
-      font-size: var(--fs-body);
-      font-weight: var(--fw-semibold);
-      line-height: var(--lh-tight);
       color: var(--muted);
     }
 
@@ -1326,8 +1313,6 @@
 
   .wowp-tag {
     margin: 0;
-    font-size: var(--fs-body);
-    line-height: var(--lh-tight);
     color: var(--text);
   }
 
@@ -1347,9 +1332,6 @@
       border-radius: var(--radius-sm);
       background: var(--page);
       color: var(--text);
-      font-size: var(--fs-body);
-      font-weight: var(--fw-semibold);
-      line-height: var(--lh-tight);
       cursor: pointer;
 
       &:hover {
@@ -1378,9 +1360,6 @@
 
     & legend {
       padding: 0 var(--space-4);
-      font-size: var(--fs-body);
-      font-weight: var(--fw-semibold);
-      line-height: var(--lh-tight);
       color: var(--muted);
     }
   }
@@ -1398,9 +1377,6 @@
     align-items: center;
     gap: var(--space-4);
     min-width: 0;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-regular);
-    line-height: var(--lh-tight);
     color: var(--muted);
     cursor: pointer;
 

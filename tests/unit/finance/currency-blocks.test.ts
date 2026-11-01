@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { componentPath } from '../../helpers/components.ts';
+import { ruleDeclarations, styleText } from '../../helpers/css.ts';
 import { readTokenSource } from '../../helpers/styles.ts';
 
 const BLOCK_FILE = 'CurrencyBlock.svelte';
@@ -168,6 +169,13 @@ describe('05-13 CurrencyBlock & FlowLegend component contracts', () => {
     expect(clean).toContain('aria-hidden="true"');
     expect(clean).toContain('FLOW_LEGEND_DEPOSITED');
     expect(clean).toContain('FLOW_LEGEND_WITHDRAWN');
+
+    // 14-D-07: the row takes the note role, so its own rule carries no type.
+    expect(clean).toMatch(/<p class="row t-note">/);
+    const row = ruleDeclarations(styleText(raw), '.row');
+    expect(row, 'the flow legend row rule exists').not.toBe('');
+    expect(row).not.toMatch(/font-size|font-weight|line-height/);
+    expect(row).toContain('color: var(--muted)');
     // The words are real TEXT in a wrapping row, not a `title` and not a
     // tooltip: at 375px the two phrases do not fit on one line, and a legend
     // that scrolls horizontally to be read is not a legend.
@@ -175,5 +183,60 @@ describe('05-13 CurrencyBlock & FlowLegend component contracts', () => {
     expect(clean).not.toMatch(/\bstyle="/);
     expect(clean).not.toMatch(/\bstyle:[a-zA-Z-]+=/);
     expect(clean).toContain('flex-wrap: wrap');
+  });
+});
+
+const PREMIUM_FILE = 'PremiumBlock.svelte';
+const NO_TYPE = /font-size|font-weight|line-height/;
+
+/** The declarations of one scoped rule in a component, or `''` when there is none. */
+function rule(file: string, selector: string): string {
+  return ruleDeclarations(styleText(code(file)), selector);
+}
+
+describe('15-11 Task 1 - the currency block and the premium block on the note roles', () => {
+  it('every heading, the currency code and every disclosure takes the strong role', () => {
+    const currency = stripComments(code(BLOCK_FILE));
+    expect(currency).not.toBe('');
+    for (const tag of ['h3', 'h4']) {
+      const opened = currency.match(new RegExp(`<${tag}\\b`, 'g')) ?? [];
+      expect(opened.length, `${tag} elements exist`).toBeGreaterThan(0);
+      expect(
+        currency.match(new RegExp(`<${tag} class="t-note-strong"`, 'g')) ?? [],
+        tag,
+      ).toHaveLength(opened.length);
+    }
+    expect(currency).toContain('<p class="code t-note-strong">');
+    const details = currency.match(/<details\b/g) ?? [];
+    expect(details.length).toBeGreaterThan(0);
+    expect(currency.match(/<details\s+class="t-note-strong"/g) ?? []).toHaveLength(details.length);
+
+    const premium = stripComments(code(PREMIUM_FILE));
+    expect(premium).not.toBe('');
+    expect(premium).toContain('<h3 class="t-note-strong">');
+    expect(premium).toContain('<h4 class="chart-title t-note-strong">');
+    const premiumDetails = premium.match(/<details\b/g) ?? [];
+    expect(premiumDetails.length).toBeGreaterThan(0);
+    expect(premium.match(/<details class="t-note-strong"/g) ?? []).toHaveLength(
+      premiumDetails.length,
+    );
+  });
+
+  it('the seven rules keep their chrome and leave the type out', () => {
+    for (const [file, selectors] of [
+      [BLOCK_FILE, ['h3', 'h4', '.code', 'details']],
+      [PREMIUM_FILE, ['h3', 'h4.chart-title', 'details']],
+    ] as const) {
+      for (const selector of selectors) {
+        const declarations = rule(file, selector);
+        expect(declarations, `${file} ${selector} rule exists`).not.toBe('');
+        expect(declarations, `${file} ${selector}`).not.toMatch(NO_TYPE);
+      }
+    }
+    expect(rule(BLOCK_FILE, 'h3')).toContain('border-bottom: 1px solid var(--border)');
+    expect(rule(BLOCK_FILE, '.code')).toContain('overflow-wrap: anywhere');
+    expect(rule(BLOCK_FILE, 'details')).toContain('color: var(--muted)');
+    expect(rule(PREMIUM_FILE, 'h3')).toContain('border-bottom: 1px solid var(--border)');
+    expect(rule(PREMIUM_FILE, 'details')).toContain('color: var(--muted)');
   });
 });

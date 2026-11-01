@@ -459,7 +459,7 @@
     keeps its content in the tree, so the id still resolves for the cells.
   -->
   <AboutDisclosure name={ABOUT_NAME_CALENDAR} testId="about-calendar">
-    <p class="caption" id={hintId}>{CALENDAR_KEYBOARD_HINT}</p>
+    <p class="muted-note" id={hintId}>{CALENDAR_KEYBOARD_HINT}</p>
   </AboutDisclosure>
 
   {#each model.blocks as block (block.kind === 'year' ? `y${block.year}` : `e${block.fromYear}`)}
@@ -470,7 +470,7 @@
         dozens of empty 366-cell rectangles between two real years, and the
         node count would stop being a function of the active years.
       -->
-      <p class="caption" data-testid="calendar-empty-run">
+      <p class="muted-note" data-testid="calendar-empty-run">
         {formatEmptyYearRun(block.fromYear, block.toYear)}
       </p>
     {:else}
@@ -488,8 +488,8 @@
           below the tooltip and anything else that is positioned.
         -->
         <div class="year-head" data-testid="calendar-year-head-{block.year}">
-          <h5>{block.year}</h5>
-          <p class="caption">
+          <h5 class="t-note-strong">{block.year}</h5>
+          <p class="muted-note">
             {formatYearSummary(block.seconds, block.sessions, block.activeDays)}
           </p>
         </div>
@@ -524,7 +524,7 @@
               full date; these are for a sighted reader scanning the columns.
             -->
             {#each block.monthLabels as label (label.month)}
-              <text class="axis" x={label.x} y={14} aria-hidden="true">
+              <text class="axis t-note" x={label.x} y={14} aria-hidden="true">
                 {MONTH_SHORT[label.month - 1]}
               </text>
             {/each}
@@ -543,7 +543,7 @@
             -->
             {#each model.layout.weekdayLabelRows as row (row)}
               <text
-                class="axis"
+                class="axis t-note"
                 x={model.layout.gutter - model.layout.labelPad}
                 y={model.layout.band +
                   row * model.layout.rowPitch +
@@ -728,15 +728,13 @@
     background: var(--page);
     border-bottom: 1px solid var(--border);
 
-    /* The year itself is the Label role, var(--ink) — the same role the chart
-       titles use, so a year reads as a level of the same kind rather than
-       introducing a sixth size. `h1` -> `h2` section -> `h3` Playtime -> `h4`
-       chart title -> `h5` year: nothing skips a level. */
+    /* The year itself is the strong note role (`.t-note-strong`, on the `h5`),
+       var(--ink) — the same role the chart titles use, so a year reads as a
+       level of the same kind rather than introducing a sixth size. `h1` ->
+       `h2` section -> `h3` Playtime -> `h4` chart title -> `h5` year: nothing
+       skips a level. */
     & h5 {
       margin: 0;
-      font-size: var(--fs-body);
-      font-weight: var(--fw-semibold);
-      line-height: var(--lh-tight);
       color: var(--ink);
     }
   }
@@ -807,13 +805,10 @@
     stroke-width: 1;
   }
 
-  /* Axis text: the Caption role, set in the style block rather than per
-     element so the fifteen labels are one rule. `fill`, not `color` — SVG
-     text takes its paint from `fill`. */
+  /* Axis text: the type comes from the note role (`.t-note`, on each label);
+     this rule keeps the paint. `fill`, not `color` — SVG text takes its paint
+     from `fill`. */
   .axis {
-    font-size: var(--fs-body);
-    font-weight: var(--fw-regular);
-    line-height: var(--lh-tight);
     fill: var(--muted);
   }
 

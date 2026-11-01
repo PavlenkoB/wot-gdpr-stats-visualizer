@@ -540,8 +540,8 @@ test.describe('05-16 scale: 50,000 virtual-currency operations in a real browser
       const row = others.nth(index);
       // The code and the figures are separate elements on purpose (a screen
       // reader reads the code as a label, then the figures), so the sentence
-      // is the row's `p.caption` and the code is its own `p.code`.
-      await expect(row.locator('p.caption')).toHaveText(
+      // is the row's `p.muted-note` and the code is its own `p.code`.
+      await expect(row.locator('p.muted-note')).toHaveText(
         formatOtherCurrencyRow(
           {
             code: group.code === '' ? null : group.code,
@@ -567,7 +567,7 @@ test.describe('05-16 scale: 50,000 virtual-currency operations in a real browser
       uah,
       'the generator must still emit the stray UAH at 50,000 rows',
     ).toBeGreaterThanOrEqual(0);
-    await expect(charts.nth(uah).locator('p.caption.title')).toHaveCount(0);
+    await expect(charts.nth(uah).locator('p.muted-note.title')).toHaveCount(0);
   });
 
   test("(2) every chart draws the oracle's months and their figures add up to its totals", async () => {

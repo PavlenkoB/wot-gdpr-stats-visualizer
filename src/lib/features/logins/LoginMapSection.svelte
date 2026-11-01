@@ -88,7 +88,7 @@
 </script>
 
 <section class="map-section" data-testid="login-map-section">
-  <h4>{MAP_HEADING}</h4>
+  <h4 class="t-note-strong">{MAP_HEADING}</h4>
   {#if summary.args === null}
     <p class="body" data-testid="login-map-summary">{MAP_NO_COUNTRIES}</p>
   {:else}
@@ -96,13 +96,13 @@
       {formatMapSummary(...summary.args)}
     </p>
     <AboutDisclosure name={ABOUT_NAME_MAP} testId="about-map">
-      <p class="caption" id={hintId}>{MAP_KEYBOARD_HINT}</p>
+      <p class="muted-note" id={hintId}>{MAP_KEYBOARD_HINT}</p>
     </AboutDisclosure>
     <div class="frame" data-testid="login-map-frame">
       <WorldMap {rows} {max} {hintId} />
     </div>
     <ChartLegend levels={legendLevels} note={legendNote} testId="map-legend" />
-    <p class="caption" data-testid="map-attribution">
+    <p class="muted-note" data-testid="map-attribution">
       <a
         href="https://db-ip.com"
         target="_blank"
@@ -111,7 +111,7 @@
       >{MAP_ATTRIBUTION_SUFFIX}
     </p>
     {#if notDrawn > 0}
-      <p class="caption" data-testid="map-not-drawn">{formatMapNotDrawn(notDrawn)}</p>
+      <p class="muted-note" data-testid="map-not-drawn">{formatMapNotDrawn(notDrawn)}</p>
     {/if}
     <CountryList {rows} {unknown} />
   {/if}
@@ -133,9 +133,6 @@
      a copy that is visible. */
   h4 {
     margin: 0;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--ink);
   }
 

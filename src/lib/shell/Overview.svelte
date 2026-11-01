@@ -128,7 +128,7 @@
     height, no overflow. A title with its own height would stop following the
     role, and the whole point of the role is that it does not.
 
-    The rule stays top-level, because the phone block of `src/app.css` hides
+    The rule stays top-level, because the phone block of `src/styles/shell.css` hides
     the title at 480px and below and its `margin: -1px` outranks a nested rule.
   */
   .section-title {

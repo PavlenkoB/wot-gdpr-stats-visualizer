@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { componentPath, SCALE_PX } from '../../helpers/components.ts';
-import { resolveTokens, ruleDeclarations, styleText, tokenMap } from '../../helpers/css.ts';
-import { readTokenSource, UTILITIES_CSS } from '../../helpers/styles.ts';
+import {
+  effectiveFontSizes,
+  resolveTokens,
+  ruleDeclarations,
+  styleText,
+  tokenMap,
+} from '../../helpers/css.ts';
+import { readTokenSource, TYPE_CSS, UTILITIES_CSS } from '../../helpers/styles.ts';
 import { formatNewDataCell } from '../../../src/lib/features/new-data/new-data-cell.ts';
 import { maskIp } from '../../../src/lib/geo/ip.ts';
 import {
@@ -402,14 +408,11 @@ describe('the new-game components obey the project prohibitions', () => {
 
     it(`${file} uses only scale font sizes and no colour literal`, () => {
       const source = clean(file);
-      const resolved = resolveTokens(source, TOKENS);
-      const sizes = [...resolved.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)].map((m) =>
-        Number(m[1]),
-      );
+      // The sizes are TOKENS and note ROLES now, so the sweep resolves the
+      // tokens and counts the role classes the markup uses as well.
+      const sizes = effectiveFontSizes(source, TOKENS, readFileSync(TYPE_CSS, 'utf8'));
       // The non-vacuity check: an empty match would make the loop below assert
-      // nothing at all, and the scale would be unproven. The sizes are TOKENS
-      // now, so the sweep resolves them first - without the resolution the match
-      // would be empty and the sweep would pass on nothing.
+      // nothing at all, and the scale would be unproven.
       expect(sizes.length, `${file} declares at least one font-size`).toBeGreaterThan(0);
       for (const size of sizes) expect(SCALE_PX.has(size)).toBe(true);
       expect(source).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
@@ -435,11 +438,11 @@ describe('NewDataCard.svelte contract', () => {
     const source = clean(CARD_FILE);
     const html = markup(source);
     expect(html).toMatch(/<section[^>]*data-testid=\{testId\}[^>]*data-status=\{view\.status\}/);
-    expect(html).toContain('<h3 id="{testId}-title">{title}</h3>');
+    expect(html).toContain('<h3 id="{testId}-title" class="t-note-strong">{title}</h3>');
     expect(html).toContain('aria-labelledby="{testId}-title"');
     // Label role in --ink with no bottom rule: the card border already separates.
+    // The semibold title is the strong note role's, on the element.
     const title = rule(source, 'h3');
-    expect(title).toMatch(/font-weight:\s*600/);
     expect(title).toContain('color: var(--ink)');
     expect(title).not.toContain('border-bottom');
   });
@@ -447,10 +450,10 @@ describe('NewDataCard.svelte contract', () => {
   it('shows a From {file} caption through formatDeviceFromFile for every state but not-in-export', () => {
     const source = clean(CARD_FILE);
     expect(source).toContain("{#if view.status !== 'not-in-export'}");
-    expect(source).toContain('<p class="caption under-title">{formatDeviceFromFile(file)}</p>');
+    expect(source).toContain('<p class="muted-note under-title">{formatDeviceFromFile(file)}</p>');
     // The muted ink is the SHARED caption's now: the card states only the
     // difference, the negative top margin that puts it 4px under the title.
-    expect(sharedRule(UTILITIES_CSS, '.caption')).toContain('color: var(--muted)');
+    expect(sharedRule(UTILITIES_CSS, '.muted-note')).toContain('color: var(--muted)');
     expect(rule(source, '.under-title')).toContain('margin-top: calc(4px * -1)');
   });
 
@@ -511,8 +514,9 @@ describe('NewDataCard.svelte contract', () => {
     const list = rule(source, 'dl');
     expect(list).toContain('grid-template-columns: max-content 1fr');
     expect(list).toContain('gap: 4px 16px');
+    // The semibold term is the strong note role's, on the element.
+    expect(html).toContain('<dt class="t-note-strong">');
     const term = rule(source, 'dt');
-    expect(term).toMatch(/font-weight:\s*600/);
     expect(term).toContain('color: var(--muted)');
     const detail = rule(source, 'dd');
     expect(detail).toContain('text-align: right');

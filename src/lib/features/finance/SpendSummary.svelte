@@ -285,7 +285,7 @@
   data-state={blockState}
   aria-busy={blockState === 'loading' ? 'true' : 'false'}
 >
-  <h3>{SPEND_HEADING}</h3>
+  <h3 class="t-note-strong">{SPEND_HEADING}</h3>
 
   <!--
     `no-rows` and `not-in-export` are NOT branches here, and their absence is
@@ -323,7 +323,7 @@
     {#if accountCountOf(result) >= 2}<p class="body" data-testid="finance-combined-note">
         {FINANCE_COMBINED_NOTE}
       </p>{/if}
-    <p class="caption">{SPEND_INTRO}</p>
+    <p class="muted-note">{SPEND_INTRO}</p>
 
     <ul>
       {#each readyView.cards as card, index (index)}
@@ -335,7 +335,7 @@
           below exists — an attribute cannot say "this has no unit".
         -->
         <li data-testid="spend-card" data-currency={card.code ?? ''}>
-          <h4>{card.code ?? UNKNOWN_CURRENCY_HEADING}</h4>
+          <h4 class="t-note-strong">{card.code ?? UNKNOWN_CURRENCY_HEADING}</h4>
           <!--
             Display role: this is the figure the card exists for, and it is the
             ONLY money at that size on the page. `overflow-wrap: anywhere`
@@ -352,10 +352,10 @@
             three-letter code has nothing to warn about.
           -->
           {#if card.code === null}
-            <p class="caption">{UNKNOWN_CURRENCY_CAPTION}</p>
+            <p class="muted-note">{UNKNOWN_CURRENCY_CAPTION}</p>
           {/if}
 
-          <p class="caption" data-testid="spend-paid-count">{formatPaidOrders(card.paid)}</p>
+          <p class="muted-note" data-testid="spend-paid-count">{formatPaidOrders(card.paid)}</p>
 
           <!--
             A DEFINITION LIST rather than three paragraphs, so a screen reader
@@ -366,8 +366,8 @@
           -->
           <dl>
             {#each statusFigures(card) as figure (figure.hook)}
-              <dt>{figure.label}</dt>
-              <dd data-testid={figure.hook}>{formatNumber(figure.count)}</dd>
+              <dt class="t-note-strong">{figure.label}</dt>
+              <dd class="t-note" data-testid={figure.hook}>{formatNumber(figure.count)}</dd>
             {/each}
           </dl>
 
@@ -379,7 +379,7 @@
             that says "Includes 0 gift orders" is a fact about nothing.
           -->
           {#if card.gifts > 0}
-            <p class="caption" data-testid="spend-gift">
+            <p class="muted-note" data-testid="spend-gift">
               {formatGiftLine(card.gifts, rowMoney(card.code, card.giftUnits))}
             </p>
           {/if}
@@ -392,11 +392,11 @@
             five cards would need five independent flags, and a reader
             comparing two months of gold has no reason to have opened this.
           -->
-          <details class="breakdown" data-testid="spend-breakdown">
+          <details class="breakdown t-note-strong" data-testid="spend-breakdown">
             <summary>{SPEND_BREAKDOWN_DISCLOSURE}</summary>
             <div class="tables">
-              <table>
-                <caption>{SPEND_BY_YEAR}</caption>
+              <table class="t-note-strong">
+                <caption class="t-note-strong">{SPEND_BY_YEAR}</caption>
                 <thead>
                   <tr>
                     <th scope="col">{HEADER_YEAR}</th>
@@ -415,8 +415,8 @@
                 </tbody>
               </table>
 
-              <table>
-                <caption>{SPEND_BY_GAME}</caption>
+              <table class="t-note-strong">
+                <caption class="t-note-strong">{SPEND_BY_GAME}</caption>
                 <thead>
                   <tr>
                     <th scope="col">{HEADER_GAME}</th>
@@ -449,10 +449,10 @@
             node between them either.
           -->
           {#if tags !== null && perAccountRows(card).length > 0}
-            <details class="breakdown" data-testid="spend-per-account">
+            <details class="breakdown t-note-strong" data-testid="spend-per-account">
               <summary>{SPEND_PER_ACCOUNT_SUMMARY}</summary>
-              <table>
-                <caption class="sr-only">{SPEND_PER_ACCOUNT_SUMMARY}</caption>
+              <table class="t-note-strong">
+                <caption class="sr-only t-note-strong">{SPEND_PER_ACCOUNT_SUMMARY}</caption>
                 <thead>
                   <tr>
                     <th scope="col">{HEADER_ACCOUNT}</th>
@@ -507,19 +507,16 @@
     margin: 0;
     padding-bottom: var(--space-8);
     border-bottom: 1px solid var(--border);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--ink);
   }
 
   /* The text blocks come from the shared layer now. The local `.body`,
-     `.caption` and `.error` are deleted, not tokenised: the shared ones in
+     `.muted-note` and `.error` are deleted, not tokenised: the shared ones in
      `src/styles/utilities.css` declare the same values (`.body` margin 0,
-     min-width 0, 14/400/1.5 in `--text`, wrap anywhere; `.caption` the same
+     min-width 0, 14/400/1.5 in `--text`, wrap anywhere; `.muted-note` the same
      at 1.4 in `--muted`; `.error` the danger border, the 6px radius and the
      danger background), and a scoped local copy would outrank the shared one.
-     The markup keeps `class="body"`, `class="body error"` and `class="caption"`. */
+     The markup keeps `class="body"`, `class="body error"` and `class="muted-note"`. */
 
   ul {
     margin: 0;
@@ -548,9 +545,6 @@
      (D-24). A code can be long clamped zip text, so it wraps anywhere. */
   h4 {
     margin: 0;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--ink);
     min-width: 0;
     overflow-wrap: anywhere;
@@ -581,9 +575,6 @@
   }
 
   dt {
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--muted);
     min-width: 0;
     overflow-wrap: anywhere;
@@ -591,9 +582,6 @@
 
   dd {
     margin: 0;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-regular);
-    line-height: var(--lh-tight);
     color: var(--text);
     text-align: right;
     font-variant-numeric: tabular-nums;
@@ -604,9 +592,6 @@
   .breakdown {
     margin-top: var(--space-8);
     min-width: 0;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--muted);
   }
 
@@ -656,8 +641,6 @@
   table {
     width: 100%;
     border-collapse: collapse;
-    font-size: var(--fs-body);
-    line-height: var(--lh-tight);
   }
 
   /* The caption is VISIBLE, not the visually-hidden pattern the monthly data
@@ -666,9 +649,6 @@
      "By year" over a code column would otherwise be a puzzle. */
   caption {
     text-align: left;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--muted);
     padding-bottom: var(--space-4);
   }

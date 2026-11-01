@@ -204,30 +204,31 @@
     -->
     <p class="body error" role="alert">{PERKS_ERROR}</p>
   {:else if cards !== null}
-    <p class="caption">{PERKS_INTRO}</p>
+    <p class="muted-note">{PERKS_INTRO}</p>
 
     {#if mergedAway > 0}
-      <p class="caption" data-testid="perks-merge-note">{formatMergeNote(mergedAway)}</p>
+      <p class="muted-note" data-testid="perks-merge-note">{formatMergeNote(mergedAway)}</p>
     {/if}
 
     {#if canReveal}
       <div class="reveal-row">
         <button
           type="button"
+          class="t-note-strong"
           data-testid="perks-mask-toggle"
           data-masked={revealed ? 'false' : 'true'}
           onclick={onToggle}
         >
           {revealed ? PERKS_MASK_TOGGLE_HIDE : PERKS_MASK_TOGGLE_SHOW}
         </button>
-        <p class="caption" data-testid="perks-mask-caption">
+        <p class="muted-note" data-testid="perks-mask-caption">
           {revealed ? PERKS_MASK_CAPTION_REVEALED : PERKS_MASK_CAPTION_MASKED}
         </p>
       </div>
     {/if}
 
     <AboutDisclosure name={ABOUT_NAME_PERKS} testId="about-perks">
-      <p class="caption">{PERKS_ABOUT}</p>
+      <p class="muted-note">{PERKS_ABOUT}</p>
     </AboutDisclosure>
 
     {#each PERKS_CARD_IDS as id (id)}
@@ -299,9 +300,6 @@
     border-radius: var(--radius-sm);
     background: var(--page);
     color: var(--text);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
 
     &:hover {
       background: var(--hover);

@@ -241,20 +241,26 @@
   aria-label={regionName}
   onscroll={onScroll}
 >
-  <table data-testid="login-table" bind:this={tableEl} aria-rowcount={rows.length + leadingRows}>
+  <table
+    class="t-note"
+    data-testid="login-table"
+    bind:this={tableEl}
+    aria-rowcount={rows.length + leadingRows}
+  >
     <caption class="visually-hidden">{regionName}</caption>
     <thead>
       <tr aria-rowindex="1">
         {#each columns as column, columnIndex (column.key)}
           <th
             scope="col"
-            class={column.widthClass}
+            class="{column.widthClass} t-note-strong"
             class:sorted={sort.key === column.key}
             class:sticky-first={columnIndex === 0}
             aria-sort={ariaSort(column)}
           >
             <button
               type="button"
+              class="t-note-strong"
               data-testid="login-sort-{column.key}"
               onclick={() => onSort(column.key)}
             >
@@ -333,8 +339,6 @@
     border-collapse: separate;
     border-spacing: 0;
     width: 100%;
-    font-size: var(--fs-body);
-    line-height: var(--lh-tight);
   }
 
   th {
@@ -345,8 +349,6 @@
     padding: 0;
     background: var(--list);
     color: var(--muted);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
     text-align: left;
     white-space: nowrap;
 
@@ -377,9 +379,6 @@
     border: 0;
     background: transparent;
     color: var(--muted);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     text-align: left;
     cursor: pointer;
 
@@ -408,8 +407,6 @@
     padding: 0 var(--space-8);
     background: var(--page);
     color: var(--text);
-    font-size: var(--fs-body);
-    line-height: var(--lh-tight);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -507,8 +504,6 @@
   .more {
     flex-shrink: 0;
     color: var(--muted);
-    font-size: var(--fs-body);
-    line-height: var(--lh-tight);
   }
 
   /* Column widths from the UI-SPEC as classes, never inline styles (CSP). */

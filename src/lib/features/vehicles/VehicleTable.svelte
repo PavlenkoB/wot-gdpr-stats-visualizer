@@ -335,7 +335,12 @@
   aria-busy={updating ? 'true' : 'false'}
   onscroll={onScroll}
 >
-  <table data-testid="vehicle-table" bind:this={tableEl} aria-rowcount={rows.length + 1}>
+  <table
+    class="t-note"
+    data-testid="vehicle-table"
+    bind:this={tableEl}
+    aria-rowcount={rows.length + 1}
+  >
     <!-- Repeats the region's name, so a screen reader entering the table is
          told what it is standing in. The visible title is the h4 above it. -->
     <caption class="sr-only">{regionName}</caption>
@@ -352,6 +357,7 @@
             {#if column.sortable}
               <button
                 type="button"
+                class="t-note-strong"
                 data-testid="vehicle-sort-{column.key}"
                 onclick={() => onSort(column.key)}
               >
@@ -484,8 +490,6 @@
     border-collapse: separate;
     border-spacing: 0;
     width: 100%;
-    font-size: var(--fs-body);
-    line-height: var(--lh-tight);
   }
 
   .sr-only {
@@ -530,8 +534,9 @@
     }
   }
 
-  /* The sort button fills its cell: Label weight, muted text, transparent
-     background, and the 40px height the header declares. */
+  /* The sort button fills its cell: muted text, transparent background, and
+     the 40px height the header declares. Size, weight and line height come
+     from the `.t-note-strong` role on the button. */
   button {
     display: flex;
     align-items: center;
@@ -542,9 +547,6 @@
     border: 0;
     background: transparent;
     color: var(--muted);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     text-align: left;
     cursor: pointer;
 
@@ -583,8 +585,6 @@
     padding: 0 var(--space-8);
     background: var(--page);
     color: var(--text);
-    font-size: var(--fs-body);
-    line-height: var(--lh-tight);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

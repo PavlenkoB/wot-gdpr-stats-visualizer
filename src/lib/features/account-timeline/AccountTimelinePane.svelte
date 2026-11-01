@@ -198,10 +198,10 @@
     <!-- The FIXED sentence, never the worker's detail. `role="alert"` only. -->
     <p class="body error" role="alert">{TIMELINE_ERROR}</p>
   {:else if view !== null}
-    <p class="caption">{TIMELINE_INTRO}</p>
+    <p class="muted-note">{TIMELINE_INTRO}</p>
 
     {#if mergedAway > 0}
-      <p class="caption" data-testid="timeline-merge-note">{formatMergeNote(mergedAway)}</p>
+      <p class="muted-note" data-testid="timeline-merge-note">{formatMergeNote(mergedAway)}</p>
     {/if}
 
     <!--
@@ -222,20 +222,21 @@
         <div class="reveal-row">
           <button
             type="button"
+            class="t-note-strong"
             data-testid="timeline-mask-toggle"
             data-masked={revealed ? 'false' : 'true'}
             onclick={onToggle}
           >
             {revealed ? MASK_TOGGLE_HIDE : MASK_TOGGLE_SHOW}
           </button>
-          <p class="caption" data-testid="timeline-mask-caption">
+          <p class="muted-note" data-testid="timeline-mask-caption">
             {revealed ? MASK_CAPTION_REVEALED : MASK_CAPTION_MASKED}
           </p>
         </div>
       {/if}
 
       <AboutDisclosure name={ABOUT_NAME_TIMELINE} testId="about-account-timeline">
-        <p class="caption">{TIMELINE_ABOUT}</p>
+        <p class="muted-note">{TIMELINE_ABOUT}</p>
       </AboutDisclosure>
 
       {#if showKindFilter(present)}
@@ -250,7 +251,7 @@
     insertion rather than by its text. Empty means visually hidden, not absent.
   -->
   <p
-    class="caption"
+    class="muted-note"
     class:visually-hidden={showingText === ''}
     data-testid="timeline-showing"
     role="status"
@@ -290,9 +291,6 @@
     border-radius: var(--radius-sm);
     background: var(--page);
     color: var(--text);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
 
     &:hover {
       background: var(--hover);

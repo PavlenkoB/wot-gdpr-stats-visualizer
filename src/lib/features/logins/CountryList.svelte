@@ -43,7 +43,7 @@
 </script>
 
 <details class="list" data-testid="country-list">
-  <summary>{COUNTRY_LIST_SUMMARY}</summary>
+  <summary class="t-note-strong">{COUNTRY_LIST_SUMMARY}</summary>
   <!--
     A scrolling region is a keyboard-scrollable box only if it can take focus, so
     it is a focusable `region` with the summary's own words as its name, the same
@@ -52,12 +52,12 @@
   -->
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <div class="scroller list-scroll" role="region" tabindex="0" aria-label={COUNTRY_LIST_SUMMARY}>
-    <table>
+    <table class="t-note">
       <thead>
         <tr>
-          <th scope="col" class="name">{COUNTRY_COL_COUNTRY}</th>
-          <th scope="col">{COUNTRY_COL_LOGINS}</th>
-          <th scope="col">{COUNTRY_COL_IPS}</th>
+          <th scope="col" class="name t-note-strong">{COUNTRY_COL_COUNTRY}</th>
+          <th scope="col" class="t-note-strong">{COUNTRY_COL_LOGINS}</th>
+          <th scope="col" class="t-note-strong">{COUNTRY_COL_IPS}</th>
         </tr>
       </thead>
       <tbody>
@@ -98,9 +98,6 @@
     border-radius: var(--radius-sm);
     background: var(--page);
     color: var(--text);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     cursor: pointer;
 
     &:hover {
@@ -132,8 +129,6 @@
   table {
     width: 100%;
     border-collapse: collapse;
-    font-size: var(--fs-body);
-    line-height: var(--lh-tight);
   }
 
   /* Label role, muted, on the header surface. */
@@ -144,8 +139,6 @@
     border-bottom: 1px solid var(--border);
     background: var(--list);
     color: var(--muted);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
     text-align: right;
     white-space: nowrap;
   }
@@ -156,8 +149,6 @@
     padding: var(--space-8);
     border-bottom: 1px solid var(--hover);
     color: var(--text);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-regular);
     text-align: right;
     font-variant-numeric: tabular-nums;
   }

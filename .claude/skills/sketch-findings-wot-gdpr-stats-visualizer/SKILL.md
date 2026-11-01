@@ -14,7 +14,7 @@ The user's stated favourite was the **Q2 master-detail family**, narrowed in ske
 
 Sketch session wrapped: 2026-10-07. Design pass and palette decision: 2026-10-07 (live canvas https://claude.ai/artifact/XM5a7aV2p2XWze9DFi37G3).
 Overview redesign (sketches 022-030, spikes 001-003): 2026-10-22 (live canvas https://claude.ai/artifact/BJc6oZ2QEQkphxoKkq1Pa1).
-Design unification (Phase 14): 2026-10-25 to 2026-10-28; shared token layer in `src/styles/`, one type scale, the heat scale replaces the Activity ramp.
+Design unification (Phase 14): 2026-10-25 to 2026-10-28; shared token layer in `src/styles/`, one type scale, the heat scale replaces the Activity ramp. Phase 15 (tech-debt cleanup, 2026-11): completed the note roles, moved the shell layout out of `app.css` into `shell.css`, and renamed the muted-note utility.
 </context>
 
 <design_direction>
@@ -24,7 +24,7 @@ Design unification (Phase 14): 2026-10-25 to 2026-10-28; shared token layer in `
 
 - **Layout:** two panes. Left: a list of sections (Overview first, then Playtime, Login history, Vehicles, Finance, Payments, Account, and a quiet "Not yet supported" footer row). Right: the selected section. Overview is the default view. **It is now a personal-insights page of grouped, pinnable tiles (see `references/overview-insights.md`), not status chips plus section cards.** Unavailable list rows stay muted; unavailable Overview tiles are dashed "not in this export" tiles. `j`/`k` and arrow keys move the selection. Phone: list screen then detail screen with a back button.
 - **Palette:** white page, neutral ink chrome (`#111` titles, links, selected bar, one filled primary button), light grey list pane, hairlines `#dcdcdc`. Selected row `#e0e0e0` with a 3px ink bar; hover `#ececec`. **Data colour: the Activity teal ramp was RETIRED by Phase 14 (D-10) and replaced by the Overview heat scale** (`--heat-empty` and `--heat-1` to `--heat-5`: three stops, green `#47a374` to olive `#6b8a14` to dark gold `#8c6400`, with two `color-mix(in srgb, ...)` midpoints; level 0 is the neutral grey `#eef0f2`). Do not reintroduce `--ramp-*`. Keyboard focus ring stays blue `#1a73e8`.
-- **Type:** the app's own system-ui stack (no webfont). Phase 14 scale: 12 / 14 / 18 / 26 / 32 / 56px (`--fs-caption`, `--fs-body`, `--fs-heading`, `--fs-display`, `--fs-stat`, `--fs-hero`), weights 400 / 600, nine `.t-*` roles in `src/styles/type.css`; page titles are 32px from 900px up and 26px below.
+- **Type:** the app's own system-ui stack (no webfont). Phase 14 scale: 12 / 14 / 18 / 26 / 32 / 56px (`--fs-caption`, `--fs-body`, `--fs-heading`, `--fs-display`, `--fs-stat`, `--fs-hero`), weights 400 / 600, ten `.t-*` roles in `src/styles/type.css`, including the compact pair for secondary lines, labels and table cells, `.t-note` (14/400/1.4) and `.t-note-strong` (14/600/1.4); page titles are 32px from 900px up and 26px below.
 - **Notes pattern:** one caption under each chart plus an "About this chart" disclosure. Provenance line ("From Activity_history · 1 file, 311 rows") instead of raw folder names as headings.
 - **Empty state:** large dashed drop target and a privacy sentence.
 
@@ -33,10 +33,10 @@ Explicitly not chosen: preview-card and big-type lists, polar clock, properties 
 Constraints from AGENTS.md that the build must respect:
 - Svelte 5 runes, no new dependencies; charts stay hand-rolled SVG/CSS grid.
 - No client-side router: selecting a section is component state, never a route.
-- One phone-width block at 480px (`src/app.css`), 44px touch-target floor.
+- One phone-width block at 480px (`src/styles/shell.css`), 44px touch-target floor.
 - Heatmaps aggregate per bucket (never one node per raw row); keep existing in-chart keyboard navigation.
-- Tokens, roles and utilities live in `src/styles/` (`tokens.css`, `type.css`, `utilities.css`, imported by `src/main.ts` in that order); `src/app.css` keeps the element resets, the shell layout and the one phone block. The type scale is 12 / 14 / 18 / 26 / 32 / 56px (`--fs-*`); spacing is 4 / 8 / 12 / 16 / 24 (`--space-*`) with the gutters under `--layout-*`. The guard that enforces all of it, on every file with no exemption, is `tests/unit/guards/design-tokens-guards.test.ts`; the heat scale is pinned by `tests/unit/charts/contrast.test.ts`.
-- One-line edits: change a size in `--fs-*`; change a colour in `tokens.css`; change a role in `type.css`; change a shared box in `utilities.css`. Never restate a size, a gap or a colour in a component.
+- Tokens, roles and utilities live in `src/styles/` (`tokens.css`, `type.css`, `utilities.css`, imported by `src/main.ts` in that order, followed by `src/app.css` and then `src/styles/shell.css`); `src/app.css` keeps the element resets only, and `shell.css` holds the shell layout and the one phone block. The type scale is 12 / 14 / 18 / 26 / 32 / 56px (`--fs-*`); spacing is 4 / 8 / 12 / 16 / 24 (`--space-*`) with the gutters under `--layout-*`. The guard that enforces all of it, on every file with no exemption, is `tests/unit/guards/design-tokens-guards.test.ts`; the heat scale is pinned by `tests/unit/charts/contrast.test.ts`.
+- One-line edits: change a size in `--fs-*`; change a colour in `tokens.css`; change a role in `type.css` (the note roles included); change a shared box in `utilities.css` (the `.muted-note` utility there holds the muted colour, zero margin and wrapping). Never restate a size, a gap or a colour in a component.
 </design_direction>
 
 <findings_index>

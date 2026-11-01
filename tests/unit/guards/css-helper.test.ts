@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   ancestry,
+  effectiveFontSizes,
   flatSelectors,
+  roleClassesIn,
   resolveTokens,
   ruleDeclarations,
   scanRules,
@@ -10,7 +12,8 @@ import {
   styleText,
   tokenMap,
 } from '../../helpers/css.ts';
-import { readTokenSource } from '../../helpers/styles.ts';
+import { readFileSync } from 'node:fs';
+import { readTokenSource, TYPE_CSS } from '../../helpers/styles.ts';
 
 // =============================================================================
 // The brace-aware CSS reader (Phase 14, plan 14-01, R1).
@@ -213,16 +216,16 @@ describe('the rule lookup: the case the old regex loses', () => {
 
   it('sees through a header comment that holds an apostrophe (14-04)', () => {
     // The scanner is not comment-aware. An apostrophe in a comment - here
-    // `caption's` - opens a quote the scanner never closes, so the rest of
+    // `note's` - opens a quote the scanner never closes, so the rest of
     // the file is read as one quoted string and NO rule is found. The
     // lookup strips the comments first, exactly as `tokenMap` does, so a
     // missing rule and a mis-parsed file cannot look the same.
-    const css = `/* The muted note: caption's own line. */
-      .caption {
+    const css = `/* The muted note: the note's own line. */
+      .muted-note {
         color: red;
       }
     `;
-    expect(ruleDeclarations(css, '.caption')).toBe('color: red;');
+    expect(ruleDeclarations(css, '.muted-note')).toBe('color: red;');
   });
 });
 
@@ -356,5 +359,81 @@ describe('the real token file', () => {
 
   it('keeps the FIRST --fs-title, the default rather than the 900px override', () => {
     expect(map.get('--fs-title')).toBe('var(--fs-display)');
+  });
+});
+
+describe('roleClassesIn', () => {
+  it('finds a role in a static class attribute', () => {
+    expect(roleClassesIn('<p class="row t-note">x</p>')).toEqual(['t-note']);
+  });
+
+  it('finds a role in a class: directive', () => {
+    expect(roleClassesIn('<p class:t-note-strong={on}>x</p>')).toEqual(['t-note-strong']);
+  });
+
+  it('finds the roles in the string literals of a class expression', () => {
+    const source = `<p class={on ? 't-note-strong' : 't-note'}>x</p>`;
+    expect(roleClassesIn(source).sort()).toEqual(['t-note', 't-note-strong']);
+  });
+
+  it('finds a role inside an interpolation of a quoted class attribute', () => {
+    const source = `<h3 class="multi-name {idOnly ? 't-note-strong id-only' : 't-heading'}">x</h3>`;
+    expect(roleClassesIn(source).sort()).toEqual(['t-heading', 't-note-strong']);
+  });
+
+  it('returns each role once', () => {
+    expect(roleClassesIn('<p class="t-note"></p><p class="t-note"></p>')).toEqual(['t-note']);
+  });
+
+  it('does not find a role named only in a comment', () => {
+    expect(roleClassesIn('<!-- <p class="t-note"> -->\n<p class="row">x</p>')).toEqual([]);
+  });
+
+  it('does not find a role named in the style block as a selector', () => {
+    const source = '<p class="row">x</p>\n<style>\n  .t-note { color: red; }\n</style>';
+    expect(roleClassesIn(source)).toEqual([]);
+  });
+
+  it('does not find a role that is only part of a longer class name', () => {
+    expect(roleClassesIn('<p class="row-t-note foo_t-note">x</p>')).toEqual([]);
+  });
+
+  it('does not find a name outside the t- family', () => {
+    expect(roleClassesIn('<p class="note body">x</p>')).toEqual([]);
+  });
+});
+
+describe('effectiveFontSizes', () => {
+  const tokens = new Map([['--fs-body', '14px']]);
+  const typeCss = '.t-note { font-size: var(--fs-body); font-weight: 400; }';
+
+  it('yields the declared size and then the role size', () => {
+    const source = '<p class="t-note">x</p>\n<style>\n  p { font-size: 16px; }\n</style>';
+    expect(effectiveFontSizes(source, tokens, typeCss)).toEqual([16, 14]);
+  });
+
+  it('resolves a token in a declaration', () => {
+    const source = '<p>x</p><style>p { font-size: var(--fs-body); }</style>';
+    expect(effectiveFontSizes(source, tokens, typeCss)).toEqual([14]);
+  });
+
+  it('counts a role alone once its declaration has moved out of the style block', () => {
+    const source = '<p class="t-note">x</p><style>p { color: red; }</style>';
+    expect(effectiveFontSizes(source, tokens, typeCss)).toEqual([14]);
+  });
+
+  it('yields an empty list for a source with neither', () => {
+    expect(effectiveFontSizes('<p class="row">x</p>', tokens, typeCss)).toEqual([]);
+  });
+
+  it('yields no size for a role the role file does not define', () => {
+    expect(effectiveFontSizes('<p class="t-nope">x</p>', tokens, typeCss)).toEqual([]);
+  });
+
+  it('reads the real role file', () => {
+    const real = readFileSync(TYPE_CSS, 'utf8');
+    const realTokens = tokenMap(readTokenSource());
+    expect(effectiveFontSizes('<p class="t-note"></p>', realTokens, real)).toEqual([14]);
+    expect(effectiveFontSizes('<p class="t-note-strong"></p>', realTokens, real)).toEqual([14]);
   });
 });

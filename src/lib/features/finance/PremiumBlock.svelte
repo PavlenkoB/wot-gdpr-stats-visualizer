@@ -176,7 +176,7 @@
   data-state={blockState}
   aria-busy={blockState === 'loading' ? 'true' : 'false'}
 >
-  <h3>{FINANCIAL_PREMIUM_HEADING}</h3>
+  <h3 class="t-note-strong">{FINANCIAL_PREMIUM_HEADING}</h3>
 
   {#if blockState === 'loading'}
     <p class="body" role="status">{FINANCIAL_LOADING}</p>
@@ -193,10 +193,10 @@
 
     {#if chartModel !== null}
       <div class="chart-container">
-        <h4 class="chart-title">{PREMIUM_CHART_TITLE}</h4>
-        <p class="caption">{BAR_CHART_BASIS_CAPTION}</p>
+        <h4 class="chart-title t-note-strong">{PREMIUM_CHART_TITLE}</h4>
+        <p class="muted-note">{BAR_CHART_BASIS_CAPTION}</p>
         <AboutDisclosure name={ABOUT_NAME_PREMIUM} testId="about-premium">
-          <p class="caption hint" id="premium-keyboard-hint">{BAR_CHART_KEYBOARD_HINT}</p>
+          <p class="muted-note hint" id="premium-keyboard-hint">{BAR_CHART_KEYBOARD_HINT}</p>
         </AboutDisclosure>
 
         <MonthlyBarChart
@@ -219,7 +219,7 @@
           {onTip}
         />
 
-        <details data-testid="monthly-table-disclosure" bind:open={tableOpen}>
+        <details class="t-note-strong" data-testid="monthly-table-disclosure" bind:open={tableOpen}>
           <summary>{MONTHLY_TABLE_DISCLOSURE}</summary>
           {#if tableOpen}
             <MonthlyDataTable columns={PREMIUM_TABLE_HEADERS} rows={tableRows} />
@@ -238,7 +238,7 @@
     />
 
     {#if listedCount > 0}
-      <details data-testid="premium-unrecognised">
+      <details class="t-note-strong" data-testid="premium-unrecognised">
         <summary>{formatPremiumUnrecognisedDisclosure(listedCount)}</summary>
         <ul class="unrecognised">
           {#each excludedView.unrecognised as value (value)}
@@ -265,19 +265,16 @@
     margin: 0;
     padding-bottom: var(--space-8);
     border-bottom: 1px solid var(--border);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--ink);
   }
 
   /* The text blocks come from the shared layer now. The local `.body`,
-     `.caption` and `.error` are deleted, not tokenised: the shared ones in
+     `.muted-note` and `.error` are deleted, not tokenised: the shared ones in
      `src/styles/utilities.css` declare the same values (`.body` margin 0,
-     min-width 0, 14/400/1.5 in `--text`, wrap anywhere; `.caption` the same
+     min-width 0, 14/400/1.5 in `--text`, wrap anywhere; `.muted-note` the same
      at 1.4 in `--muted`; `.error` the danger border, the 6px radius and the
      danger background), and a scoped local copy would outrank the shared one.
-     The markup keeps `class="body"`, `class="body error"` and `class="caption"`. */
+     The markup keeps `class="body"`, `class="body error"` and `class="muted-note"`. */
 
   .chart-container {
     display: flex;
@@ -288,9 +285,6 @@
 
   h4.chart-title {
     margin: 0;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--ink);
   }
 
@@ -300,9 +294,6 @@
 
   details {
     min-width: 0;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--muted);
   }
 

@@ -7,18 +7,20 @@
    noticing. A component that needs a DIFFERENT look takes a different hook
    class beside the shared one and states only the difference.
 
-   `.caption` is the muted 14px note. It is NOT the 12px `.t-caption` role
-   from type.css: the role and the utility are different things at different
-   sizes, and the near-identical names are a trap worth naming here.
+   `.muted-note` is the muted 14px note: the same 14 / 400 / 1.4 triple as the
+   `.t-note` role of type.css, plus the muted colour, a zero margin, a zero
+   minimum width and the wrap. The utility and the role are different things
+   (the role never sets a colour or a margin), and neither is the 12px
+   `.t-caption` role.
 
    The ORDER of the rules below is part of the contract. `.error` comes after
    `.body` so that an element carrying both classes shows the danger colour;
-   `.visually-hidden` comes after `.caption` so that its margin wins over the
-   caption's.
+   `.visually-hidden` comes after `.muted-note` so that its margin wins over
+   the note's.
    ============================================================================= */
 
 /* The muted note. */
-.caption {
+.muted-note {
   margin: 0;
   min-width: 0;
   font-size: var(--fs-body);
@@ -74,30 +76,5 @@
   &:focus-visible {
     outline: 3px solid var(--focus);
     outline-offset: 2px;
-  }
-}
-
-/* The button. It moved here from `src/app.css` (plan 14-06): the shared names
-   live in this file and nowhere else, so a component that needs a button
-   cannot define a second one. No component uses it today - it is here so the
-   ONE definition of the button exists before the first component reaches for
-   it. Its states are NESTED under the block (D-05): `&:hover` and `&.primary`
-   flatten to the same selectors the flat rules had. */
-.btn {
-  min-height: 44px;
-  padding: var(--space-8) var(--space-16);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-control);
-  background: var(--page);
-  color: var(--ink);
-
-  &:hover {
-    background: var(--hover);
-  }
-
-  &.primary {
-    background: var(--ink);
-    border-color: var(--ink);
-    color: var(--page);
   }
 }

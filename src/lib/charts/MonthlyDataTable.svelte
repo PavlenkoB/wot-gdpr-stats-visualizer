@@ -12,7 +12,7 @@
 </script>
 
 <div class="table-container">
-  <table data-testid={testId}>
+  <table class="t-note-strong" data-testid={testId}>
     <caption class="sr-only">Monthly data table</caption>
     <thead>
       <tr>
@@ -40,11 +40,12 @@
     border-top: 1px solid var(--border);
   }
 
+  /* The table takes the strong note role in the markup (the weight the baseline
+     records for it, which the caption and the head rows inherit); `th` and `td`
+     state their own weight below. */
   table {
     width: 100%;
     border-collapse: collapse;
-    font-size: var(--fs-body);
-    line-height: var(--lh-tight);
   }
 
   /*

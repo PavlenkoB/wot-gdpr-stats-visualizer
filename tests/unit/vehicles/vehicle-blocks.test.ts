@@ -69,6 +69,7 @@ import {
   WARSHIPS_ALL_NOTE,
 } from '../../../src/lib/ui-copy';
 import { componentPath } from '../../helpers/components.ts';
+import { ruleDeclarations, styleText } from '../../helpers/css.ts';
 
 const TABLE = 'VehicleTable.svelte';
 const BLOCK = 'PlayerStats.svelte';
@@ -392,7 +393,9 @@ describe('05-12 Task 2 — the block: one live region, the controls, the count l
     expect(code(BLOCK)).toMatch(/<h4[^>]*>\s*\{VEHICLE_TABLE_TITLE\}\s*<\/h4>/);
     // And the Game select's label is the inventory's constant too — no literal
     // "Game" beside it anywhere in the template.
-    expect(code(BLOCK)).toContain(`<label for={selectId}>{TITLE_CONTROL_LABEL}</label>`);
+    expect(code(BLOCK)).toContain(
+      `<label class="t-note-strong" for={selectId}>{TITLE_CONTROL_LABEL}</label>`,
+    );
     expect(code(BLOCK)).not.toMatch(new RegExp(`>\\s*${TITLE_CONTROL_LABEL}\\s*<`));
   });
 
@@ -750,7 +753,7 @@ describe('11-10 Task 2 - the Account statistics block in PlayerStats.svelte', ()
 
   test('its heading is an h4 and its cells go through the one Vehicles cell formatter', () => {
     const body = code(BLOCK);
-    expect(body).toMatch(/<h4>\{WOWP_ACCOUNT_STATS_HEADING\}<\/h4>/);
+    expect(body).toMatch(/<h4 class="t-note-strong">\{WOWP_ACCOUNT_STATS_HEADING\}<\/h4>/);
     expect(body).toContain('formatVehicleCell(entry.cells[index]!, column.kind)');
     expect(body).toContain('WOWP_ACCOUNT_COLUMN_LABELS');
   });
@@ -792,5 +795,119 @@ describe('11-10 Task 2 - the Account statistics block in PlayerStats.svelte', ()
     const section = body.slice(start, body.indexOf('data-testid="player-stats-title-state"'));
     expect(section).not.toMatch(/nickname/i);
     expect(section).not.toContain('{@html');
+  });
+});
+
+// =============================================================================
+// The Vehicles pane on the note roles (Phase 15, 14-D-07)
+//
+// The summary and the table no longer hand-write the 14px / 1.4 pair: the
+// element carries `.t-note` or `.t-note-strong` and the scoped rule keeps only
+// what is the component's own. Each rule is asserted to EXIST before it is
+// asserted to leave the type out, because an empty string declares nothing.
+// =============================================================================
+
+const NO_TYPE = /font-size|font-weight|line-height/;
+
+/** The declarations of one scoped rule, or `''` when there is none. */
+function rule(file: string, selector: string): string {
+  return ruleDeclarations(styleText(source(file)), selector);
+}
+
+describe('15-10 Task 1 - the battle-type summary and the vehicle table on the note roles', () => {
+  test('the summary heading, disclosure and table take the strong role', () => {
+    const body = code(SUMMARY);
+    expect(body).not.toBe('');
+    expect(body).toMatch(/<h4 class="t-note-strong">/);
+    expect(body).toMatch(/<details open class="t-note-strong"/);
+    expect(body).toMatch(/<table class="t-note-strong"/);
+  });
+
+  test('the summary rules for h4, details and table keep the chrome and leave the type out', () => {
+    for (const selector of ['h4', 'details', 'table']) {
+      const declarations = rule(SUMMARY, selector);
+      expect(declarations, `${selector} rule exists`).not.toBe('');
+      expect(declarations).not.toMatch(NO_TYPE);
+    }
+    expect(rule(SUMMARY, 'h4')).toContain('color: var(--ink)');
+    expect(rule(SUMMARY, 'details')).toContain('min-width: 0');
+    expect(rule(SUMMARY, 'table')).toContain('border-collapse: collapse');
+  });
+
+  test('the vehicle table takes the regular role and every sort button the strong role', () => {
+    const body = code(TABLE);
+    expect(body).not.toBe('');
+    expect(body).toMatch(/<table\s+class="t-note"/);
+    const buttons = body.match(/<button\b/g) ?? [];
+    expect(buttons.length).toBeGreaterThan(0);
+    expect(body.match(/<button\s+type="button"\s+class="t-note-strong"/g) ?? []).toHaveLength(
+      buttons.length,
+    );
+  });
+
+  test('the table, td and button rules keep the geometry and leave the type out', () => {
+    for (const selector of ['table', 'td', 'button']) {
+      const declarations = rule(TABLE, selector);
+      expect(declarations, `${selector} rule exists`).not.toBe('');
+      expect(declarations).not.toMatch(NO_TYPE);
+    }
+    expect(rule(TABLE, 'table')).toContain('table-layout: fixed');
+    expect(rule(TABLE, 'td')).toContain('height: 40px');
+    expect(rule(TABLE, 'button')).toContain('height: 40px');
+  });
+});
+
+describe('15-10 Task 2 - the statistics block on the note roles', () => {
+  test('headings, labels, header terms, picker summary and legend take the strong role', () => {
+    const body = code(BLOCK);
+    expect(body).not.toBe('');
+    for (const tag of ['h3', 'h4', 'dt', 'summary', 'legend']) {
+      const opened = body.match(new RegExp(`<${tag}\\b`, 'g')) ?? [];
+      expect(opened.length, `${tag} elements exist`).toBeGreaterThan(0);
+      expect(body.match(new RegExp(`<${tag} class="t-note-strong"`, 'g')) ?? [], tag).toHaveLength(
+        opened.length,
+      );
+    }
+    // Every `.control` label, whichever branch renders it.
+    const labels = body.match(/<label\b[^>]*\bfor=/g) ?? [];
+    expect(labels.length).toBeGreaterThan(0);
+    expect(body.match(/<label class="t-note-strong" for=/g) ?? []).toHaveLength(labels.length);
+  });
+
+  test('every select takes the strong role and every input and the toggle label the regular role', () => {
+    const body = code(BLOCK);
+    const selects = body.match(/<select\b/g) ?? [];
+    expect(selects.length).toBeGreaterThan(0);
+    expect(body.match(/<select\s+class="t-note-strong"/g) ?? []).toHaveLength(selects.length);
+    // The element rule matched the search box AND the checkboxes, so both
+    // carry the class.
+    const inputs = body.match(/<input\b/g) ?? [];
+    expect(inputs.length).toBeGreaterThan(0);
+    expect(body.match(/<input\s+class="t-note"/g) ?? []).toHaveLength(inputs.length);
+    expect(body).toMatch(/<label class="toggle t-note">/);
+    expect(body).toMatch(/<p class="wowp-tag t-note">/);
+  });
+
+  test('the ten rules keep their chrome and leave the type out', () => {
+    for (const selector of [
+      'h3',
+      'h4',
+      '.control label',
+      'select',
+      'input',
+      '.header dt',
+      '.wowp-tag',
+      '.picker > summary',
+      '.picker legend',
+      '.toggle',
+    ]) {
+      const declarations = rule(BLOCK, selector);
+      expect(declarations, `${selector} rule exists`).not.toBe('');
+      expect(declarations, selector).not.toMatch(NO_TYPE);
+    }
+    expect(rule(BLOCK, 'h3')).toContain('border-bottom: 1px solid var(--border)');
+    expect(rule(BLOCK, 'select')).toContain('border: 1px solid var(--faint)');
+    expect(rule(BLOCK, 'input')).toContain('border: 1px solid var(--faint)');
+    expect(rule(BLOCK, '.toggle')).toContain('gap: var(--space-4)');
   });
 });

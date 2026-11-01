@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { componentPath } from '../../helpers/components.ts';
+import { ruleDeclarations, styleText } from '../../helpers/css.ts';
 
 // =============================================================================
 // Plan 12-09 - the Perks pane, asserted by what its SOURCE promises
@@ -120,6 +121,16 @@ describe('PerksPane: the cards', () => {
 });
 
 describe('PerksPane: the mask (T-12-28, D-13)', () => {
+  it('puts the strong note role on the toggle and leaves the type to the role', () => {
+    const source = clean(PANE_FILE);
+    expect(markup(source)).toMatch(
+      /<button\s+type="button"\s+class="t-note-strong"\s+data-testid="perks-mask-toggle"/,
+    );
+    const rule = ruleDeclarations(styleText(source), 'button');
+    expect(rule, 'a rule for button').not.toBe('');
+    expect(rule).not.toMatch(/font-(size|weight)|line-height/);
+  });
+
   const pane = clean(PANE_FILE);
 
   it('gates the toggle by hasMaskableRows over the coupon and bonus-code cards', () => {

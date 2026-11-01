@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { componentPath, listComponentFiles } from '../../helpers/components.ts';
 import { ruleDeclarations, styleText, tokenMap } from '../../helpers/css.ts';
-import { TOKENS_CSS } from '../../helpers/styles.ts';
+import { TOKENS_CSS, readShellSource, shellHomeName } from '../../helpers/styles.ts';
 
 // =============================================================================
 // Phase 5 layout guards (plan 05-20).
@@ -62,15 +62,20 @@ const SRC = path.join(REPO_ROOT, 'src');
 const APP_CSS = path.join(SRC, 'app.css');
 
 /**
- * Every file the font floor is measured over: each component's stylesheet and
- * `app.css`, which carries the root `font-size` and the nav's.
+ * Every file the font floor is measured over: each component's stylesheet,
+ * `app.css`, which carries the root `font-size` and the nav's, and the shell
+ * stylesheet.
  */
 function stylesheetFiles(): readonly { label: string; source: string }[] {
   const files = listComponentFiles().map((name) => ({
     label: path.relative(REPO_ROOT, componentPath(name)),
     source: stripComments(readFileSync(componentPath(name), 'utf8')),
   }));
-  return [...files, { label: 'src/app.css', source: stripComments(readFileSync(APP_CSS, 'utf8')) }];
+  return [
+    ...files,
+    { label: 'src/app.css', source: stripComments(readFileSync(APP_CSS, 'utf8')) },
+    { label: shellHomeName(), source: stripComments(readShellSource()) },
+  ];
 }
 
 /** A component's source with its comments removed. */
@@ -251,7 +256,11 @@ describe('phase 5 layout guards (05-20)', () => {
   //     their own and so cannot be below the floor.
   // ===========================================================================
   it('declares no font-size below the 12px floor in any component stylesheet or app.css', () => {
-    const offenders = fontSizeFloorOffenders(stylesheetFiles());
+    const sheets = stylesheetFiles();
+    const labels = sheets.map((sheet) => sheet.label);
+    expect(labels, 'the floor still covers app.css').toContain('src/app.css');
+    expect(labels, 'the floor covers the shell stylesheet').toContain(shellHomeName());
+    const offenders = fontSizeFloorOffenders(sheets);
 
     expect(offenders, `font sizes below the 12px floor:\n  ${offenders.join('\n  ')}`).toEqual([]);
   });

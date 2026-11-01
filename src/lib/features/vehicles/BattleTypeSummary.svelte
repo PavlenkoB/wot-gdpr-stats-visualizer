@@ -97,10 +97,10 @@
   sentence that explains why a code reads the way it does, and it is the reason
   to open the table at all.
 -->
-<h4>{BATTLE_TYPE_SUMMARY_HEADING}</h4>
-<p class="caption">{BATTLE_TYPE_SUMMARY_CAPTION}</p>
+<h4 class="t-note-strong">{BATTLE_TYPE_SUMMARY_HEADING}</h4>
+<p class="muted-note">{BATTLE_TYPE_SUMMARY_CAPTION}</p>
 
-<details open data-testid="battle-type-summary-disclosure">
+<details open class="t-note-strong" data-testid="battle-type-summary-disclosure">
   <summary>{BATTLE_TYPE_SUMMARY_DISCLOSURE}</summary>
   <!--
     The scroll box wraps the TABLE and not the details, so the summary control
@@ -136,7 +136,7 @@
     tabindex="0"
     aria-label={BATTLE_TYPE_SUMMARY_HEADING}
   >
-    <table data-testid="battle-type-summary">
+    <table class="t-note-strong" data-testid="battle-type-summary">
       <thead>
         <tr>
           <!--
@@ -180,7 +180,7 @@
     </table>
   </div>
   {#if isWarships}
-    <p class="caption note" data-testid="battle-type-summary-note">
+    <p class="muted-note note" data-testid="battle-type-summary-note">
       {BATTLE_TYPE_SUMMARY_NOTE_WARSHIPS}
     </p>
   {/if}
@@ -190,18 +190,16 @@
   /* The table title, an h4 so the outline is h1 > h2 section > h3 block >
      h4 and nothing skips a level (05-UI-SPEC section 1). Label role in the
      chart-title colour, which is what the UI-SPEC's "chart / table titles" row
-     specifies. `PlayerStats.svelte` repeats this rule in full, because scoped
-     styles cannot be shared. */
+     specifies. Size, weight and line height come from the `.t-note-strong`
+     role on the element. `PlayerStats.svelte` repeats this rule in full,
+     because scoped styles cannot be shared. */
   h4 {
     margin: 0;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--ink);
   }
 
   /* Caption role: the sentence that explains the numbering, and the two notes
-     under the table, take the SHARED `.caption` block in
+     under the table, take the SHARED `.muted-note` block in
      `src/styles/utilities.css` — 14/400/1.4 muted with `margin: 0`,
      `min-width: 0` and `overflow-wrap: anywhere`, so a long sentence cannot
      widen the card at 375px. The local copy is gone; a scoped selector outranks
@@ -215,9 +213,6 @@
 
   details {
     min-width: 0;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--muted);
   }
 
@@ -273,8 +268,6 @@
     width: 100%;
     margin-top: var(--space-8);
     border-collapse: collapse;
-    font-size: var(--fs-body);
-    line-height: var(--lh-tight);
   }
 
   /* Label role, muted, on the UI-SPEC's header surface. */

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ancestry, flatSelectors, scanRules } from '../../helpers/css.ts';
 import { contrastRatio } from '../../helpers/contrast.ts';
-import { readTokenSource } from '../../helpers/styles.ts';
+import { readShellSource, readTokenSource, shellHomeName } from '../../helpers/styles.ts';
 
 // =============================================================================
 // Phase 8 UI-review guards (quick 261008-x40): the top three findings of
@@ -20,8 +20,8 @@ import { readTokenSource } from '../../helpers/styles.ts';
 //     shared token since plan 14-06;
 //   - the list-pane footer is sticky at the bottom of the scrolling pane at 900px
 //     and above;
-//   - the phone width is declared once, in src/app.css, and no comment claims
-//     otherwise.
+//   - the phone width is declared once, in the shell stylesheet, and no comment
+//     claims otherwise.
 //
 //   The type scale and the colour-literal rules are NOT here any more: since
 //   plan 14-21 they live in design-tokens-guards.test.ts (G1 and G4), on every
@@ -69,6 +69,9 @@ const SOURCES = FILES.map((file) => ({
 }));
 
 const APP_CSS_STRIPPED = stripComments(readFileSync(APP_CSS, 'utf8'));
+
+/** The shell stylesheet (layout and the one phone block), comment-stripped. */
+const SHELL_CSS_STRIPPED = stripComments(readShellSource());
 
 /**
  * The token source, comment-stripped.
@@ -120,7 +123,7 @@ describe('phase 8 UI-review guards (quick 261008-x40)', () => {
     expect(contrastRatio('#ffffff', text!)).toBeGreaterThanOrEqual(7);
   });
 
-  it('native controls get one explicit element-level body size outside the phone block', () => {
+  it('native controls get one explicit element-level body size at every width', () => {
     const rule = /(?:^|[};])\s*button\s*,\s*input\s*,\s*select\s*,\s*textarea\s*\{([^}]*)\}/m.exec(
       APP_CSS_STRIPPED,
     );
@@ -131,20 +134,31 @@ describe('phase 8 UI-review guards (quick 261008-x40)', () => {
     expect(rule![1]).toMatch(/font-size:\s*var\(--fs-body\)/);
     expect(rule![1]).toMatch(/font-family:\s*inherit/);
 
-    const firstMedia = APP_CSS_STRIPPED.indexOf('@media');
-    expect(firstMedia).toBeGreaterThan(-1);
-    expect(rule!.index, 'the rule precedes the first @media').toBeLessThan(firstMedia);
+    // The rule is a TOP-LEVEL rule (no at-rule and no parent rule around it),
+    // and app.css holds no width query at all, so it holds at every width.
+    const rules = scanRules(APP_CSS_STRIPPED);
+    const at = rules.findIndex((_, index) => {
+      const flat = flatSelectors(rules, index);
+      return (
+        flat.length === 4 &&
+        ['button', 'input', 'select', 'textarea'].every((selector) => flat.includes(selector))
+      );
+    });
+    expect(at, 'the native-control rule is found by the scanner').toBeGreaterThan(-1);
+    expect(rules[at]!.parent, 'the rule is a top-level rule').toBeNull();
+    expect(APP_CSS_STRIPPED, 'app.css declares no media query').not.toContain('@media');
   });
 
   it('the list-pane footer is sticky inside the min-width 900px block', () => {
     // The rule is NESTED under its own parent since plan 14-06 (D-05), so a
     // regex over the block's text can no longer find it: the brace-aware
     // scanner finds the rule, and the flat selector is what identifies it.
-    const rules = scanRules(APP_CSS_STRIPPED);
+    expect(SHELL_CSS_STRIPPED.length, 'the shell stylesheet was read').toBeGreaterThan(0);
+    const rules = scanRules(SHELL_CSS_STRIPPED);
     const index = rules.findIndex((_, at) =>
       flatSelectors(rules, at).includes('.pane-list .import-region'),
     );
-    expect(index, 'a `.pane-list .import-region` rule in app.css').toBeGreaterThan(-1);
+    expect(index, 'a `.pane-list .import-region` rule in the shell stylesheet').toBeGreaterThan(-1);
 
     // And it is inside the min-width 900px at-rule, which is the only place
     // the pane is a scroll container. The rule is nested under its own parent
@@ -168,7 +182,7 @@ describe('phase 8 UI-review guards (quick 261008-x40)', () => {
 //
 // The 08-UI-SPEC says the phone width is declared once. The re-audit found it
 // declared in nine places across eight components. Every phone rule now lives in
-// the one block in src/app.css, each selector namespaced under `.shell` and the
+// the one block in the shell stylesheet, each selector namespaced under `.shell` and the
 // component's own unique hook so it is strictly more specific than the scoped
 // rule it replaced and never depends on the order two stylesheets land in.
 
@@ -176,22 +190,24 @@ describe('phase 8 UI-review guards (quick 261008-x40)', () => {
 const PHONE_QUERY = /max-width\s*:\s*480px/g;
 
 describe('phase 8 UI re-review guards (quick 261009-0qw)', () => {
-  it('declares exactly one phone-width query under src, and it is in app.css', () => {
+  it('declares exactly one phone-width query under src, and it is in the shell stylesheet', () => {
     expect(SOURCES.length, 'the walk visited the source tree').toBeGreaterThan(50);
+    expect(shellHomeName(), 'the shell stylesheet has a name').not.toBe('');
+    const home = path.normalize(shellHomeName());
 
     const counts = SOURCES.map(({ name, source }) => ({
       name,
       count: (source.match(PHONE_QUERY) ?? []).length,
     })).filter(({ count }) => count > 0);
 
-    const outside = counts.filter(({ name }) => name !== path.join('src', 'app.css'));
+    const outside = counts.filter(({ name }) => name !== home);
     expect(
       outside.map(({ name, count }) => `${name} (${count})`),
-      'move these rules into the app.css phone block with a namespaced selector',
+      'move these rules into the shell stylesheet phone block with a namespaced selector',
     ).toEqual([]);
 
-    const inApp = counts.find(({ name }) => name === path.join('src', 'app.css'));
-    expect(inApp?.count, 'app.css holds exactly one phone-width query').toBe(1);
+    const inShell = counts.find(({ name }) => name === home);
+    expect(inShell?.count, `${home} holds exactly one phone-width query`).toBe(1);
   });
 
   it('no comment still says a component repeats the phone query because a scoped rule outranks the global one', () => {

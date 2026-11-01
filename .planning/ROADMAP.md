@@ -311,3 +311,48 @@ Plans:
 
 **Wave 21** *(blocked on Wave 20 completion)*
 - [x] 14-21-PLAN.md — Close-out: delete the allowlist and folder exemptions, update the design skill, full phase gate, owner open items
+
+### Phase 15: tech-debt-cleanup
+
+**Goal:** Close the v1.1 milestone-audit tech debt: add the `.t-note` / `.t-note-strong` roles (D-07), move the shell layout and phone block out of `src/app.css` (D-02), rename `.caption` / `.t-caption`, remove or adopt the orphaned `.btn` / `.t-body-strong`, and confirm the privacy copy covers the `wg-overview-pins` localStorage key. No visible change except where stated.
+**Requirements**: none new (v1.1 requirements all complete; see `.planning/v1.1-MILESTONE-AUDIT.md`)
+**Depends on:** Phase 14
+**Plans:** 13/13 plans complete
+
+Plans:
+**Wave 1**
+- [x] 15-01-PLAN.md — Tracer: the `.t-note` / `.t-note-strong` roles, the orphans removed, the G7 offender function, one migrated component, and the committed style-equality harness with its baseline
+- [x] 15-02-PLAN.md — Privacy copy: the Start over / Clear confirmation and the README say the pinned Overview tiles stay; one unit test
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [x] 15-03-PLAN.md — The shell layout and the single phone block move from `src/app.css` to `src/styles/shell.css`; guards and readers repointed, G5 narrowed
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [x] 15-04-PLAN.md — Stale `app.css` pointers in comments, tests and the design skill; a scanner and a comment-only checker
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [x] 15-05-PLAN.md — The muted 14px note utility is renamed `.muted-note` across `src/` and `tests/` so it stops colliding with `.t-caption`
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [x] 15-06-PLAN.md — Shell chrome sites onto the note roles (identity header role swap)
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [x] 15-07-PLAN.md — Shared chart pieces onto the note roles; the effective-size test helper and a tooltip state in the harness
+
+**Wave 7** *(blocked on Wave 6 completion)*
+- [x] 15-08-PLAN.md — Playtime pane onto the note roles
+
+**Wave 8** *(blocked on Wave 7 completion)*
+- [x] 15-09-PLAN.md — Login history pane onto the note roles
+
+**Wave 9** *(blocked on Wave 8 completion)*
+- [x] 15-10-PLAN.md — Vehicles pane onto the note roles
+
+**Wave 10** *(blocked on Wave 9 completion)*
+- [x] 15-11-PLAN.md — Finance and Payments panes onto the note roles
+
+**Wave 11** *(blocked on Wave 10 completion)*
+- [x] 15-12-PLAN.md — HEAT, Warships, Perks, Device info and Account timeline onto the note roles (the last 18 sites)
+
+**Wave 12** *(blocked on Wave 11 completion)*
+- [x] 15-13-PLAN.md — G7 live over the whole tree, the role-consumer guard, the design skill, the full gate, the final equality result and the graph refresh

@@ -23,6 +23,12 @@
 //   of dynamic access that would make one necessary. The module lives with
 //   its only consumers.
 //
+// THE ROLE READERS (Phase 15, 14-D-07)
+//   `roleClassesIn` lists the `t-` role classes a component's markup uses, and
+//   `effectiveFontSizes` counts both the font sizes its style block declares
+//   and the sizes of the roles it uses, so a "declares at least one font-size"
+//   sweep stays non-vacuous once a declaration has moved into a role.
+//
 // WHAT IT DOES NOT DEPEND ON
 //   Node built-ins only, and no library. A test helper that pulled a parser
 //   in would make the guards' behaviour depend on a dependency version.
@@ -324,4 +330,60 @@ export function resolveTokens(text: string, map: Map<string, string>): string {
     if (!PLAIN_VALUE.test(value)) return whole;
     return value;
   });
+}
+
+/** A role class: a whole `t-` token, not the tail of a longer name. */
+const ROLE_NAME = /(?<![\w-])(t-[a-z][\w-]*)(?![\w-])/g;
+
+/**
+ * The distinct role classes (names starting with `t-`) a component's MARKUP
+ * uses, in order of first appearance.
+ *
+ * It reads three places: a static `class="..."` (including the string
+ * literals inside an interpolation of one), a `class={...}` expression, and a
+ * `class:name` directive. Comments and the style block are removed first, so
+ * a selector (`.t-note { ... }`) or a comment that names a role is not a use.
+ * A name must be a whole token: `row-t-note` does not use `t-note`.
+ */
+export function roleClassesIn(source: string): string[] {
+  const markup = stripCssComments(source).replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+  const found: string[] = [];
+  const add = (text: string): void => {
+    for (const match of text.matchAll(ROLE_NAME)) {
+      if (!found.includes(match[1]!)) found.push(match[1]!);
+    }
+  };
+  for (const match of markup.matchAll(
+    /\bclass=(?:"((?:[^"{]|\{[^}]*\})*)"|'((?:[^'{]|\{[^}]*\})*)'|\{((?:[^{}]|\{[^{}]*\})*)\})/g,
+  )) {
+    add(match[1] ?? match[2] ?? match[3] ?? '');
+  }
+  for (const match of markup.matchAll(/\bclass:(t-[\w-]+)/g)) add(match[1]!);
+  return found;
+}
+
+/**
+ * Every pixel font size a component effectively sets: the `font-size`
+ * declarations of its style text (tokens resolved), followed by the size of
+ * each role class its markup uses, read from the role file.
+ *
+ * A "declares at least one font-size" sweep needs this once a component's last
+ * declaration has moved into a role (14-D-07): the declaration is gone from
+ * the source, the size is not. A role the role file does not define yields no
+ * size, so a typo cannot satisfy a sweep.
+ */
+export function effectiveFontSizes(
+  source: string,
+  tokens: Map<string, string>,
+  typeCss: string,
+): number[] {
+  const sizes: number[] = [];
+  const read = (css: string): void => {
+    for (const match of resolveTokens(css, tokens).matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)) {
+      sizes.push(Number(match[1]));
+    }
+  };
+  read(styleText(source));
+  for (const role of roleClassesIn(source)) read(ruleDeclarations(typeCss, `.${role}`));
+  return sizes;
 }

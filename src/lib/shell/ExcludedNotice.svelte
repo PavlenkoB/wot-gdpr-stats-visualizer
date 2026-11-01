@@ -72,8 +72,8 @@
 
 {#if pillText !== ''}
   <p data-testid={noticeTestId}>
-    <span class="pill">{pillText}</span>
-    <span class="explanation">{explanationText}</span>
+    <span class="pill t-note-strong">{pillText}</span>
+    <span class="explanation t-note">{explanationText}</span>
   </p>
 {/if}
 
@@ -100,22 +100,16 @@
     border-radius: 999px;
     background: var(--warn-bg);
     color: var(--warn-ink);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     max-width: 100%;
     min-width: 0;
     overflow-wrap: anywhere;
   }
 
-  /* Caption role: the reason, in muted metadata weight rather than as another
-     assertion in the Label weight the pill uses. */
+  /* Note role (`.t-note`): the reason, in muted metadata weight rather than as
+     another assertion in the strong weight the pill uses. */
   .explanation {
     min-width: 0;
     overflow-wrap: anywhere;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-regular);
-    line-height: var(--lh-tight);
     color: var(--muted);
   }
 </style>

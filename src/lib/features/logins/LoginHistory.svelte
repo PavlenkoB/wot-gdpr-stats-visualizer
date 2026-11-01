@@ -349,7 +349,7 @@
   data-state={blockState}
   aria-busy={blockState === 'loading' ? 'true' : 'false'}
 >
-  <h3>{LOGIN_HISTORY_HEADING}</h3>
+  <h3 class="t-note-strong">{LOGIN_HISTORY_HEADING}</h3>
 
   <!--
     The block's ONE live region, present in EVERY state and empty when nothing
@@ -412,13 +412,14 @@
     <div class="reveal-row">
       <button
         type="button"
+        class="t-note-strong"
         data-testid="login-mask-toggle"
         data-masked={revealed ? 'false' : 'true'}
         onclick={onToggle}
       >
         {revealed ? MASK_TOGGLE_HIDE : MASK_TOGGLE_SHOW}
       </button>
-      <p class="caption" data-testid="login-mask-caption">
+      <p class="muted-note" data-testid="login-mask-caption">
         {revealed ? MASK_CAPTION_REVEALED : MASK_CAPTION_MASKED}
       </p>
     </div>
@@ -441,8 +442,8 @@
       consent text for the one sanctioned request).
     -->
     <section class="table-section">
-      <h4>{LOGIN_TABLE_HEADING}</h4>
-      <p class="caption" data-testid="login-count">
+      <h4 class="t-note-strong">{LOGIN_TABLE_HEADING}</h4>
+      <p class="muted-note" data-testid="login-count">
         {formatLoginCountLine(listed.addresses, listed.logins)}
       </p>
       <!--
@@ -451,7 +452,7 @@
         every tile (Phase 6 D-02), and this sentence is what says so.
       -->
       {#if account !== null}
-        <p class="caption" data-testid="login-account-note">{LOGIN_ACCOUNT_NOTE}</p>
+        <p class="muted-note" data-testid="login-account-note">{LOGIN_ACCOUNT_NOTE}</p>
       {/if}
       <LoginTable
         {columns}
@@ -465,8 +466,8 @@
         resetKey={`${importedAt}|${sort.key}|${sort.dir}`}
       />
       <AboutDisclosure name={ABOUT_NAME_LOGIN_TABLE} testId="about-login-table">
-        <p class="caption">{VEHICLE_SCROLL_HINT}</p>
-        <p class="caption">{LOGIN_TABLE_FIND_HINT}</p>
+        <p class="muted-note">{VEHICLE_SCROLL_HINT}</p>
+        <p class="muted-note">{LOGIN_TABLE_FIND_HINT}</p>
       </AboutDisclosure>
       <ExcludedNotice
         count={excluded}
@@ -475,7 +476,7 @@
         testId="login-excluded"
       />
       {#if capped !== null}
-        <p class="caption" data-testid="login-cap-line">
+        <p class="muted-note" data-testid="login-cap-line">
           {formatLoginCapLine(capped.addresses, capped.logins)}
         </p>
       {/if}
@@ -541,9 +542,6 @@
     padding-bottom: var(--space-8);
     border-bottom: 1px solid var(--border);
     color: var(--ink);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
   }
 
   /* Body role, state messages. Empty in every state but `loading`, where it is
@@ -594,9 +592,6 @@
     border-radius: var(--radius-sm);
     background: var(--page);
     color: var(--text);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
 
     &:hover {
       background: var(--hover);
@@ -628,8 +623,5 @@
   h4 {
     margin: 0;
     color: var(--text);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
   }
 </style>

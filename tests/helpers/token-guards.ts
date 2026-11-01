@@ -30,13 +30,14 @@
 // THE EXEMPTIONS, AND WHY EACH ONE EXISTS
 //   - `src/styles/tokens.css` is exempt from G1, G3 and G4: a literal VALUE
 //     is the point of a token declaration.
-//   - `src/styles/*.css` is exempt from G5: the shared names are DEFINED
-//     there, once each.
+//   - `src/styles/type.css` and `src/styles/utilities.css` (SHARED_STYLE_HOMES)
+//     are exempt from G5: the shared names are DEFINED there, once each.
+//     `tokens.css` and the shell stylesheet are held to the rule.
 //   - `margin: -1px` is allowed in a rule that also declares `clip`: that is
 //     the visually-hidden idiom, and the rule says so itself.
 // =============================================================================
 
-import { scanRules, splitValueTokens, stripCssComments, styleText } from './css.ts';
+import { roleClassesIn, scanRules, splitValueTokens, stripCssComments, styleText } from './css.ts';
 
 /** One source file, as the guards read it. */
 export interface SourceEntry {
@@ -49,7 +50,7 @@ export interface SourceEntry {
 /** The token file: the one file allowed to hold a literal value. */
 export const TOKENS_CSS_NAME = 'src/styles/tokens.css';
 
-/** The nine type roles of `src/styles/type.css`. */
+/** The ten type roles of `src/styles/type.css`. */
 export const ROLE_NAMES: readonly string[] = [
   '.t-hero',
   '.t-stat',
@@ -57,7 +58,8 @@ export const ROLE_NAMES: readonly string[] = [
   '.t-display',
   '.t-heading',
   '.t-body',
-  '.t-body-strong',
+  '.t-note',
+  '.t-note-strong',
   '.t-caption',
   '.t-label',
 ];
@@ -79,13 +81,12 @@ export const ALLOWED_DUPLICATE_TOKENS: ReadonlySet<string> = new Set([
 /** The keywords a declaration may carry whatever it is. */
 const KEYWORDS: ReadonlySet<string> = new Set(['inherit', 'initial', 'unset']);
 
-/** The shared class names, which are defined once, in `src/styles/`. */
+/** The shared class names, which are defined once, in `SHARED_STYLE_HOMES`. */
 const SHARED_CLASS_NAMES: ReadonlySet<string> = new Set([
   'visually-hidden',
   'scroller',
   'error',
-  'btn',
-  'caption',
+  'muted-note',
   'body',
 ]);
 
@@ -298,9 +299,15 @@ export function colourOffenders(entry: SourceEntry): string[] {
   return offenders;
 }
 
-/** G5: a local definition of one of the shared names. */
+/**
+ * G5: a local definition of one of the shared names.
+ *
+ * Only the two files that DEFINE the shared names (`SHARED_STYLE_HOMES`) are
+ * exempt; every other file, including the rest of `src/styles/`, is held to
+ * the rule.
+ */
 export function sharedNameOffenders(entry: SourceEntry): string[] {
-  if (entry.name.startsWith('src/styles/')) return [];
+  if (SHARED_STYLE_HOMES.includes(entry.name)) return [];
   const offenders: string[] = [];
   for (const rule of scanRules(cssOf(entry))) {
     for (const part of rule.selector.split(',')) {
@@ -317,6 +324,69 @@ export function sharedNameOffenders(entry: SourceEntry): string[] {
     }
   }
   return offenders;
+}
+
+/**
+ * The two files that define the shared styles: the role file and the
+ * utilities file. Guard G5 (shared names defined once) and guard G7 (the note
+ * pair is a role) both exempt exactly these two.
+ */
+export const SHARED_STYLE_HOMES: readonly string[] = [
+  'src/styles/type.css',
+  'src/styles/utilities.css',
+];
+
+/**
+ * G7: the 14px / 1.4 pair is a role (14-D-07).
+ *
+ * A rule that declares the 14px size and the 1.4 line height together is a
+ * hand-written copy of `.t-note` / `.t-note-strong`. The WEIGHT is ignored on
+ * purpose: the pair is the subject, because a role sets its weight
+ * explicitly. The pair is legitimate only in `SHARED_STYLE_HOMES`: the role
+ * file defines it, and the shared muted-note utility states the same triple
+ * there. `tokens.css` and the shell stylesheet are NOT exempt.
+ */
+export function noteRoleOffenders(entry: SourceEntry): string[] {
+  if (SHARED_STYLE_HOMES.includes(entry.name)) return [];
+  const offenders: string[] = [];
+  for (const rule of scanRules(cssOf(entry))) {
+    const size = rule.declarations.find((declaration) => propertyOf(declaration) === 'font-size');
+    const height = rule.declarations.find(
+      (declaration) => propertyOf(declaration) === 'line-height',
+    );
+    if (size === undefined || height === undefined) continue;
+    if (valueOf(size) !== 'var(--fs-body)' || valueOf(height) !== 'var(--lh-tight)') continue;
+    offenders.push(
+      `${entry.name}: G7 note role - ${rule.selector.trim()} declares the 14px/1.4 pair; take .t-note or .t-note-strong`,
+    );
+  }
+  return offenders;
+}
+
+/**
+ * The consumer guard: every role must be used as a class by at least one
+ * `.svelte` file.
+ *
+ * This is what stops a role being shipped unused. The Phase 14 audit found two
+ * orphans (roles defined in the role file that no component took); with this
+ * guard a new role, or an old one, cannot become the next orphan. Use is read
+ * with `roleClassesIn`, so a role named only in a comment or only as a
+ * selector in a style block does not count. Names are compared without the
+ * leading dot.
+ */
+export function roleConsumerOffenders(
+  roleNames: readonly string[],
+  entries: readonly SourceEntry[],
+): string[] {
+  const used = new Set<string>();
+  for (const entry of entries) {
+    if (!entry.name.endsWith('.svelte')) continue;
+    for (const role of roleClassesIn(entry.source)) used.add(role);
+  }
+  return roleNames
+    .map((name) => name.replace(/^\./, ''))
+    .filter((name) => !used.has(name))
+    .map((name) => `role ${name} - no .svelte file uses it as a class`);
 }
 
 /** G6a: two declarations on one line, or an opening brace and a declaration. */
@@ -449,7 +519,7 @@ export function declaredOnceOffenders(entries: readonly SourceEntry[]): string[]
   return offenders;
 }
 
-/** The nine roles, and the properties a role may set. */
+/** The ten roles, and the properties a role may set. */
 export function roleOffenders(css: string): string[] {
   const offenders: string[] = [];
   // The scanner walks the text as it is: a comment in front of a selector
@@ -464,7 +534,7 @@ export function roleOffenders(css: string): string[] {
   for (const rule of rules) {
     const selector = rule.selector.trim();
     if (!ROLE_NAMES.includes(selector)) {
-      offenders.push(`role file - ${selector} is not one of the nine roles`);
+      offenders.push(`role file - ${selector} is not one of the ten roles`);
       continue;
     }
     for (const declaration of rule.declarations) {

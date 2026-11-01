@@ -75,7 +75,7 @@
       16px gap is the sm token.
     -->
     <li class="row" data-testid="duration-bin" data-bin={row.bin} data-count={row.count}>
-      <span class="label">{DURATION_BIN_LABELS[row.bin]}</span>
+      <span class="label t-note">{DURATION_BIN_LABELS[row.bin]}</span>
 
       <!--
         `preserveAspectRatio="none"` so the 0-100 width attribute is stretched
@@ -102,7 +102,7 @@
         {/if}
       </svg>
 
-      <span class="count">{formatDurationRowText(row.count, sessions)}</span>
+      <span class="count t-note">{formatDurationRowText(row.count, sessions)}</span>
     </li>
   {/each}
 </ol>
@@ -126,7 +126,7 @@
   /*
     At phone width the row becomes two lines: label and count share the first
     line and the bar takes a full-width line of its own (the rules are in the
-    phone block of `src/app.css`, keyed on this list's test id). At 375px a 96px
+    phone block of `src/styles/shell.css`, keyed on this list's test id). At 375px a 96px
     label column, a 104px count column and a 16px gap leave the bar about 150px,
     and twelve such bars in a row are twelve hard-to-compare marks. A media query
     rather than a second set of markup: two markups would be two places for the
@@ -140,14 +140,11 @@
     min-width: 0;
   }
 
-  /* The bin range, and the count beside it, are both Caption role (UI-SPEC
-     Typography): the range is a label and the count is the value it belongs
-     to, and neither is a heading. */
+  /* The bin range, and the count beside it, are both the note role
+     (`.t-note`, on each span): the range is a label and the count is the value
+     it belongs to, and neither is a heading. */
   .label,
   .count {
-    font-size: var(--fs-body);
-    font-weight: var(--fw-regular);
-    line-height: var(--lh-tight);
     color: var(--text);
     min-width: 0;
   }

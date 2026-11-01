@@ -230,7 +230,7 @@
   }
 
   /**
-   * `--nav-offset` from the one declaration in `app.css`, or 72.
+   * `--nav-offset` from the one declaration in `src/styles/tokens.css`, or 72.
    *
    * It is the clearance above content: no sticky chrome sits over the detail
    * pane any more, so it is now the 16px of breathing room, and the tooltip
@@ -326,19 +326,19 @@
 
 <div
   bind:this={element}
-  class="tooltip"
+  class="tooltip t-note"
   data-testid={testId}
   aria-hidden="true"
   hidden={request === null}
 >
-  <!-- Line 1 is Label role and line 2 is Caption, both white (UI-SPEC
-       Typography): the surface is var(--text), so the hierarchy has to come from
-       weight, not from a second colour. -->
-  <p class="line-one">{request?.line1 ?? ''}</p>
-  <p class="line-two">{request?.line2 ?? ''}</p>
+  <!-- Line 1 takes the strong note role and line 2 the note role, both white
+       (UI-SPEC Typography): the surface is var(--text), so the hierarchy has to
+       come from weight, not from a second colour. -->
+  <p class="line-one t-note-strong">{request?.line1 ?? ''}</p>
+  <p class="line-two t-note">{request?.line2 ?? ''}</p>
   {#if request?.extra}
     {#each request.extra as extraLine (extraLine)}
-      <p class="line-two">{extraLine}</p>
+      <p class="line-two t-note">{extraLine}</p>
     {/each}
   {/if}
 </div>
@@ -360,8 +360,6 @@
     /* White on the dark `--text` surface: the tooltip's own colour, not a page
        surface, so it reads `--white` and not `--page`. */
     color: var(--white);
-    font-size: var(--fs-body);
-    line-height: var(--lh-tight);
     pointer-events: none;
     overflow-wrap: anywhere;
 
@@ -381,9 +379,6 @@
 
   .line-one {
     margin: 0;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--white);
   }
 
@@ -392,9 +387,6 @@
      sentence. */
   .line-two {
     margin: var(--space-4) 0 0;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-regular);
-    line-height: var(--lh-tight);
     color: var(--white);
   }
 </style>

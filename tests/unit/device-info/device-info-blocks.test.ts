@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { componentPath, SCALE_PX } from '../../helpers/components.ts';
-import { resolveTokens, tokenMap } from '../../helpers/css.ts';
-import { readTokenSource } from '../../helpers/styles.ts';
+import { effectiveFontSizes, ruleDeclarations, styleText, tokenMap } from '../../helpers/css.ts';
+import { readTokenSource, TYPE_CSS } from '../../helpers/styles.ts';
 
 // =============================================================================
 // Quick 261012-bog Task 2 — the Device info component contracts, by source
@@ -145,14 +145,12 @@ describe('both components obey the project prohibitions', () => {
       expect(markup(clean)).not.toMatch(/\sstyle:/);
       // Every font size is on the 12/14/18/26/32/56 scale.
       //
-      // The sizes are TOKENS now, so the sweep resolves them first. Without the
-      // resolution the match is EMPTY, and an empty match makes the loop below
-      // assert nothing at all - the sweep would pass on no evidence. The
-      // length check is what makes it non-vacuous.
-      const resolved = resolveTokens(clean, TOKENS);
-      const sizes = [...resolved.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)].map((m) =>
-        Number(m[1]),
-      );
+      // The sizes are TOKENS and note ROLES now, so the sweep resolves the
+      // tokens and counts the role classes the markup uses. Without that the
+      // match is EMPTY, and an empty match makes the loop below assert nothing
+      // at all - the sweep would pass on no evidence. The length check is what
+      // makes it non-vacuous.
+      const sizes = effectiveFontSizes(clean, TOKENS, readFileSync(TYPE_CSS, 'utf8'));
       expect(sizes.length, `${file} declares at least one font-size`).toBeGreaterThan(0);
       for (const size of sizes) expect(SCALE_PX.has(size)).toBe(true);
       // No network API.
@@ -188,5 +186,32 @@ describe('Dashboard.svelte mounts the Device info pane', () => {
     expect(dashboard).toContain("active === 'device-info'");
     expect(dashboard).toContain("sectionProps('device-info', 'device-info')");
     expect(dashboard).toContain('<DeviceInfo {result} client={ingestClient.data} />');
+  });
+});
+
+describe('both components take their type from the note roles (14-D-07)', () => {
+  it('DeviceInfo.svelte: h3 and dt are strong, dd is regular, and no rule restates the type', () => {
+    const clean = stripComments(code(BLOCK_FILE));
+    const html = markup(clean);
+    expect(html).toContain('<h3 class="t-note-strong">');
+    expect(html).toContain('<dt class="t-note-strong">');
+    expect(html).toMatch(/<dd class="t-note" data-testid="device-info-summary-/);
+    for (const selector of ['h3', 'dt', 'dd']) {
+      const declarations = ruleDeclarations(styleText(clean), selector);
+      expect(declarations, `a rule for ${selector}`).not.toBe('');
+      expect(declarations).not.toMatch(/font-(size|weight)|line-height/);
+    }
+  });
+
+  it('DeviceTable.svelte: h3 is strong, the table is regular, and no rule restates the type', () => {
+    const clean = stripComments(code(TABLE_FILE));
+    const html = markup(clean);
+    expect(html).toMatch(/<h3 id="device-info-heading-\{source\}" class="t-note-strong">/);
+    expect(html).toContain('<table class="t-note" data-testid="device-info-table">');
+    for (const selector of ['h3', 'table']) {
+      const declarations = ruleDeclarations(styleText(clean), selector);
+      expect(declarations, `a rule for ${selector}`).not.toBe('');
+      expect(declarations).not.toMatch(/font-(size|weight)|line-height/);
+    }
   });
 });

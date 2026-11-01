@@ -173,18 +173,19 @@
 </script>
 
 {#snippet geoHeader()}
-  <p class="caption">{HEAT_GEO_NOTE}</p>
+  <p class="muted-note">{HEAT_GEO_NOTE}</p>
   {#if canReveal}
     <div class="reveal-row">
       <button
         type="button"
+        class="t-note-strong"
         data-testid="heat-mask-toggle"
         data-masked={revealed ? 'false' : 'true'}
         onclick={onToggle}
       >
         {revealed ? MASK_TOGGLE_HIDE : MASK_TOGGLE_SHOW}
       </button>
-      <p class="caption" data-testid="heat-mask-caption">
+      <p class="muted-note" data-testid="heat-mask-caption">
         {revealed ? MASK_CAPTION_REVEALED : MASK_CAPTION_MASKED}
       </p>
     </div>
@@ -223,7 +224,7 @@
     -->
     <p class="body error" role="alert">{HEAT_ERROR}</p>
   {:else if cards !== null}
-    <p class="caption">{HEAT_INTRO}</p>
+    <p class="muted-note">{HEAT_INTRO}</p>
 
     {#each HEAT_CARD_IDS as id (id)}
       <NewDataCard
@@ -293,9 +294,6 @@
     border-radius: var(--radius-sm);
     background: var(--page);
     color: var(--text);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
 
     &:hover {
       background: var(--hover);

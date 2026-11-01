@@ -2,20 +2,19 @@
 gsd_state_version: "1.0"
 milestone: v1.1
 milestone_name: Multi-account & new data
-current_phase: 14
-current_phase_name: Design unification
-status: verifying
-stopped_at: Completed 14-21-PLAN.md
-last_updated: "2026-10-31T15:57:02.067Z"
-last_activity: 2026-10-31
-last_activity_desc: "Phase 14 shipped as PR #2"
-state_head: de937cfca6d6e464e7d3e5516599683f213e54d4
+current_phase: 15
+status: completed
+stopped_at: Phase 15 complete — all phases complete
+last_updated: "2026-11-01T11:18:14.715Z"
+last_activity: 2026-11-01
+last_activity_desc: "Phase 15 shipped as PR #3"
+state_head: 18079f799b63debd673c206036d0655053625f67
 progress:
-  total_phases: 6
+  total_phases: 7
   completed_phases: 4
-  total_plans: 77
-  completed_plans: 77
-  percent: 67
+  total_plans: 90
+  completed_plans: 90
+  percent: 100
 ---
 
 # Project State
@@ -25,22 +24,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-16)
 
 **Core value:** Your data never leaves your machine. Zero network requests after page load, enforced by CI and a CSP.
-**Current focus:** Phase 14 — Design unification
+**Current focus:** Phase 15 — tech-debt-cleanup
 
 ## Current Position
 
-Phase: 14 (Design unification) — EXECUTING
-Plan: 21 of 21
-Status: Phase complete — ready for verification
-Last activity: 2026-10-31 -- Phase 14 shipped as PR #2
+Phase: 15
+Plan: Not started
+Status: All phases complete
+Last activity: 2026-11-01 -- Phase 15 shipped as PR #3
 
-Progress: [███████░░░] 67% (v1.1: 0 of 4 phases)
+Progress: [██████████] 100% (v1.1: 0 of 3 phases)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 158
+- Total plans completed: 171
 - Average duration: -
 - Total execution time: 0.0 hours
 
@@ -60,6 +59,7 @@ Progress: [███████░░░] 67% (v1.1: 0 of 4 phases)
 | 11 | 11 | - | - |
 | 12 | 13 | - | - |
 | 13 | 15 | - | - |
+| 15 | 13 | - | - |
 
 **Recent Trend:**
 
@@ -219,6 +219,19 @@ Progress: [███████░░░] 67% (v1.1: 0 of 4 phases)
 | Phase 14 P19 | 38min | 1 tasks | 5 files |
 | Phase 14 P20 | 30min | 2 tasks | 8 files |
 | Phase 14 P21 | continuation run | 2 tasks | 13 files |
+| Phase 15 P01 | 26min | 2 tasks | 8 files |
+| Phase 15 P02 | 5min | 2 tasks | 3 files |
+| Phase 15 P03 | 22min | 3 tasks | 17 files |
+| Phase 15 P04 | 8min | 3 tasks | 9 files |
+| Phase 15 P05 | 25min | 3 tasks | 33 files |
+| Phase 15 P06 | 25min | 2 tasks | 9 files |
+| Phase 15 P07 | 45min | 3 tasks | 13 files |
+| Phase 15 P08 | 20min | 2 tasks | 7 files |
+| Phase 15 P09 | 25min | 2 tasks | 8 files |
+| Phase 15 P10 | 25min | 2 tasks | 4 files |
+| Phase 15 P11 | 20min | 2 tasks | 5 files |
+| Phase 15 P12 | 25min | 3 tasks | 14 files |
+| Phase 15 P13 | 85min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -228,6 +241,7 @@ Progress: [███████░░░] 67% (v1.1: 0 of 4 phases)
 - v1.1 roadmap created (2026-10-16): Phases 9-12 continue numbering from v1.0. Phase 9 Multi-account Import & Account Identity (ACCOUNT-01, 02, 03, 05, 08); Phase 10 Merged Dashboard Across Accounts (ACCOUNT-04, 06, 07, SCALE-01); Phase 11 New Game Data (GAMES-01..04, PRIV-01, PRIV-02); Phase 12 Account Timeline & Perks (TIMELINE-01, 02, PERKS-01..03). Cross-cutting PRIV/SCALE requirements are owned by the phase that first needs them and bind every later phase.
 - Phase 13 added: Overview personal insights (2026-10-23). Design from sketches 022-030 (final: 030) and data rules from spikes 001-003; see the sketch-findings and spike-findings skills. Open decisions for discuss-phase: phone two-up, default pins, "Totals" name, heat vs teal class split. The Wargaming Terms of Use must be read before the generated tank table is committed.
 - Phase 14 added: Design unification (2026-10-24). Phase 13 put a new design system on the Overview only (type scale 12/14/32/56, `--ov-*` and `--heat-*` colours); every other pane still uses the Phase 8 look and the older `--ramp-*` tokens, so the app shows two design generations. The type-scale guards exempt `features/overview/` by path. Phase 14 brings the other panes across and replaces the exemption with one shared scale. Open decisions for discuss-phase are in ROADMAP.md.
+- Phase 14.1 inserted after Phase 14: Address v1.1 tech debt from the milestone audit (D-07 roles, D-02 layout move, caption rename, orphaned .btn/.t-body-strong, overview-pins privacy copy) (URGENT)
 
 ### Decisions
 
@@ -699,6 +713,17 @@ CI budget at 07-03: no limit moved. `playwright test --list` counts BOTH project
 - [Phase 14]: 14-20: every role on the bento, group, rows and bars is an exact match, so no fallback was needed and the Overview is BYTE-EQUAL to the pre-phase build at 1040, 880, 479 and 340px (title box masked at 880 and above)
 - [Phase 14]: 14-20: the bento joins the type sweep through a STYLED record, not NAMES, because NAMES also carries the no-state-or-pins import rule the bento breaks by design
 - [Phase 14]: 14-21: the Final re-run was measured with a replacement script after a restart wiped the scratch harness; accepted because it reproduces the four baseline PNG sizes
+- [Phase 15]: Orphans (strong-body role, shared button block) decided REMOVE; G7 ignores weight and exempts only type.css and utilities.css
+- [Phase 15]: Style-equality harness hashes screenshots in rest state only and links the gitignored city dataset into the baseline build
+- [Phase 15]: 15-03: G5 exempts only SHARED_STYLE_HOMES and its sweep now includes tokens.css; app.css keeps only element resets and shell.css holds layout plus the one phone block
+- [Phase 15]: 15-04: App.svelte keeps the true src/app.css pointer for the global main rule and adds shell.css for the layout
+- [Phase 15]: Muted 14px note utility renamed to .muted-note; .t-caption role and --fs-caption keep their names
+- [Phase 15]: 15-07: ChartTooltip root takes .t-note (baseline weight 400); MonthlyDataTable table takes .t-note-strong (baseline 600); harness tooltip state opens wrapping details before focusing the first mark
+- [Phase 15]: 15-09: login tables take .t-note, th/summary/headings/dt/buttons take .t-note-strong; td and .more inherit the table role
+- [Phase 15]: 15-10: Vehicles pane on the note roles; class on every element a bare select/input/button rule matched, table exception for the vehicle table td
+- [Phase 15]: 15-11: spend tables take .t-note-strong (baseline weight 600 inherited from details.breakdown), not .t-note
+- [Phase 15]: 15-12: tables take .t-note on the table element and the td/.more pair is deleted; timeline kind chips are labels and take .t-note-strong
+- [Phase 15]: 15-13: G7 whole-tree sweep and role-consumer guard live with no exemption; style-equality.mjs gained evidence --section final
 
 ### Pending Todos
 
@@ -813,8 +838,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-27T22:13:47.195Z
-Stopped at: Completed 14-21-PLAN.md
+Last session: 2026-11-01T11:05:52.769Z
+Stopped at: Phase 15 complete — all phases complete
 Resume file: None
 
 ## Operator Next Steps

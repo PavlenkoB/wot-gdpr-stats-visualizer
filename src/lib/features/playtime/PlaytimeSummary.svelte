@@ -96,20 +96,20 @@
 <div class="summary playtime-summary">
   <dl data-testid="playtime-tiles">
     <div class="tile">
-      <dt>{TILE_LABEL_TOTAL_PLAYTIME}</dt>
+      <dt class="t-note-strong">{TILE_LABEL_TOTAL_PLAYTIME}</dt>
       <dd class="t-display" data-testid="playtime-total-hours">
         <span class="number">{hours.value}</span>
-        <span class="unit">{hours.unit}</span>
+        <span class="unit t-note-strong">{hours.unit}</span>
       </dd>
     </div>
     <div class="tile">
-      <dt>{TILE_LABEL_SESSIONS}</dt>
+      <dt class="t-note-strong">{TILE_LABEL_SESSIONS}</dt>
       <dd class="t-display" data-testid="playtime-total-sessions">
         {formatNumber(slice.sessions)}
       </dd>
     </div>
     <div class="tile">
-      <dt>{TILE_LABEL_ACTIVE_DAYS}</dt>
+      <dt class="t-note-strong">{TILE_LABEL_ACTIVE_DAYS}</dt>
       <dd class="t-display" data-testid="playtime-active-days">
         {formatNumber(slice.dayIndex.length)}
       </dd>
@@ -125,11 +125,11 @@
       the card at 375px.
     -->
     <table data-testid="playtime-split-table">
-      <caption>{formatSplitCaption(column)}</caption>
+      <caption class="t-note-strong">{formatSplitCaption(column)}</caption>
       <thead>
         <tr>
-          <th scope="col">{SPLIT_COLUMN_LABELS[column]}</th>
-          <th scope="col">{SPLIT_HOURS_HEADER}</th>
+          <th class="t-note-strong" scope="col">{SPLIT_COLUMN_LABELS[column]}</th>
+          <th class="t-note-strong" scope="col">{SPLIT_HOURS_HEADER}</th>
         </tr>
       </thead>
       <tbody>
@@ -141,14 +141,14 @@
             control, so nothing here takes focus.
           -->
           <tr class:selected={row.selected} aria-current={row.selected ? 'true' : undefined}>
-            <td>{rowLabel(row)}</td>
-            <td>{formatHours(row.seconds)}</td>
+            <td class="t-note">{rowLabel(row)}</td>
+            <td class="t-note">{formatHours(row.seconds)}</td>
           </tr>
         {/each}
         {#if table.moreCount > 0}
           <tr>
-            <td>{formatSplitOverflowRow(table.moreCount)}</td>
-            <td></td>
+            <td class="t-note">{formatSplitOverflowRow(table.moreCount)}</td>
+            <td class="t-note"></td>
           </tr>
         {/if}
       </tbody>
@@ -160,7 +160,7 @@
       overlap across values and the parts do not — so it is spelled out rather
       than left for a reader to discover.
     -->
-    <p class="note">{formatSplitOverlapNote(column)}</p>
+    <p class="note t-note">{formatSplitOverlapNote(column)}</p>
   {/if}
 
   <!--
@@ -206,9 +206,6 @@
   }
 
   dt {
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--muted);
   }
 
@@ -246,9 +243,6 @@
   }
 
   .unit {
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--muted);
     /* One word, always: the smallest breakable thing in this component, and
        the part that read as "hour" over "s" before the dd rule above was
@@ -273,9 +267,6 @@
   caption {
     margin-bottom: var(--space-4);
     text-align: left;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--muted);
     min-width: 0;
     overflow-wrap: anywhere;
@@ -292,18 +283,12 @@
   }
 
   th {
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--muted);
   }
 
-  /* Caption role for the numbers, which is what the typography role table
-     assigns to body cells. */
+  /* The note role (`.t-note`, on each cell) is what the typography role table
+     assigns to body cells; this rule keeps the colour. */
   td {
-    font-size: var(--fs-body);
-    font-weight: var(--fw-regular);
-    line-height: var(--lh-tight);
     color: var(--text);
   }
 
@@ -325,9 +310,6 @@
 
   .note {
     margin: 0;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-regular);
-    line-height: var(--lh-tight);
     color: var(--muted);
     min-width: 0;
     overflow-wrap: anywhere;

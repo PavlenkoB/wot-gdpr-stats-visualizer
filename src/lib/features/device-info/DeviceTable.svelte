@@ -45,8 +45,8 @@
   data-status={table.status}
   aria-labelledby="device-info-heading-{source}"
 >
-  <h3 id="device-info-heading-{source}">{heading}</h3>
-  <p class="caption">{formatDeviceFromFile(file)}</p>
+  <h3 id="device-info-heading-{source}" class="t-note-strong">{heading}</h3>
+  <p class="muted-note">{formatDeviceFromFile(file)}</p>
 
   {#if table.status === 'not-in-export'}
     <p class="body" data-testid="device-info-not-in-export">{DEVICE_TABLE_NOT_IN_EXPORT}</p>
@@ -77,7 +77,7 @@
       tabindex="0"
       aria-label={tableLabel}
     >
-      <table data-testid="device-info-table">
+      <table class="t-note" data-testid="device-info-table">
         <caption class="visually-hidden">{tableLabel}</caption>
         <thead>
           <tr>
@@ -109,7 +109,7 @@
     </div>
 
     {#if table.more > 0}
-      <p class="caption" data-testid="device-info-more">{formatDeviceMoreRows(table.more)}</p>
+      <p class="muted-note" data-testid="device-info-more">{formatDeviceMoreRows(table.more)}</p>
     {/if}
 
     <ExcludedNotice
@@ -133,9 +133,6 @@
     margin: 0;
     padding-bottom: var(--space-8);
     border-bottom: 1px solid var(--border);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--ink);
     min-width: 0;
     overflow-wrap: anywhere;
@@ -162,8 +159,6 @@
   table {
     width: 100%;
     border-collapse: collapse;
-    font-size: var(--fs-body);
-    line-height: var(--lh-tight);
   }
 
   th {

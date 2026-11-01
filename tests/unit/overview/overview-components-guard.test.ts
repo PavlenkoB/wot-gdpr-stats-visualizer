@@ -363,7 +363,7 @@ describe('type, spacing and breakpoints', () => {
     expect([...seen].sort()).toEqual([480, 880]);
   });
 
-  it('declares no max-width media query (app.css owns the one phone block)', () => {
+  it('declares no max-width media query (shell.css owns the one phone block)', () => {
     for (const name of NAMES) expect(SOURCES[name], name).not.toMatch(/@media\s*\(max-width/);
   });
 
@@ -555,10 +555,10 @@ describe('OverviewBento: what it may not contain', () => {
   });
 
   it('defines none of the shared text names, and its note, statement and label hooks keep the margin, the wrap and the colour', () => {
-    // `.caption` and `.body` are the shared utility blocks (14px); the
+    // `.muted-note` and `.body` are the shared utility blocks (14px); the
     // bento's 12px caption is NOT the shared one, so neither name is local.
     const css = styleText(BENTO);
-    expect(css).not.toMatch(/(?:^|[\s,}])\.(?:caption|body)\b/);
+    expect(css).not.toMatch(/(?:^|[\s,}])\.(?:muted-note|body)\b/);
     const note = declarationsOf(BENTO, '.note');
     expect(note).toMatch(/margin:\s*0/);
     expect(note).toMatch(/min-width:\s*0/);

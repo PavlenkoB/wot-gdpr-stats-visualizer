@@ -152,7 +152,7 @@
     so neither of them had to move to make room for it.
   -->
   <section class="chart">
-    <h4>{CHART_TITLE_CALENDAR}</h4>
+    <h4 class="t-note-strong">{CHART_TITLE_CALENDAR}</h4>
 
     <!--
       D-01 for the calendar, and the shorter sentence the UI-SPEC asks for
@@ -162,7 +162,7 @@
       the reader who would be misled by it is looking at the chart, not tabbing
       through it.
     -->
-    <p class="caption">{CALENDAR_BASIS_CAPTION}</p>
+    <p class="muted-note">{CALENDAR_BASIS_CAPTION}</p>
 
     <!--
       `onTip` is the container's own `showTip`, so the calendar feeds the SAME
@@ -173,7 +173,7 @@
   </section>
 
   <section class="chart">
-    <h4>{CHART_TITLE_HOUR_GRID}</h4>
+    <h4 class="t-note-strong">{CHART_TITLE_HOUR_GRID}</h4>
 
     <!--
       D-01, and the roadmap's success criterion 3: the hours are as the export
@@ -182,7 +182,7 @@
       the title — not a tooltip, not an aria-label — because the reader who is
       misled by a timezone is looking at the chart, not tabbing through it.
     -->
-    <p class="caption">{HOUR_GRID_BASIS_CAPTION}</p>
+    <p class="muted-note">{HOUR_GRID_BASIS_CAPTION}</p>
 
     <!--
       Only under the start basis. 04-08 accepted this wording and left
@@ -200,9 +200,9 @@
     -->
     <AboutDisclosure name={ABOUT_NAME_HOUR_GRID} testId="about-hour-grid">
       {#if HOUR_GRID_BASIS === 'start'}
-        <p class="caption">{HOUR_GRID_START_BASIS_NOTE}</p>
+        <p class="muted-note">{HOUR_GRID_START_BASIS_NOTE}</p>
       {/if}
-      <p class="caption" id={hintId}>{HOUR_GRID_KEYBOARD_HINT}</p>
+      <p class="muted-note" id={hintId}>{HOUR_GRID_KEYBOARD_HINT}</p>
     </AboutDisclosure>
 
     <HourGrid model={grid} describedBy={hintId} onTip={showTip} />
@@ -222,7 +222,7 @@
     nor forces this one to move.
   -->
   <section class="chart">
-    <h4>{CHART_TITLE_DURATION}</h4>
+    <h4 class="t-note-strong">{CHART_TITLE_DURATION}</h4>
 
     <!--
       D-05, and the reason this chart exists: the bins are logarithmic, so a
@@ -230,7 +230,7 @@
       misread every comparison. The explanation is visible text under the
       title, for the same reason the D-01 basis caption is.
     -->
-    <p class="caption">{DURATION_EXPLANATION}</p>
+    <p class="muted-note">{DURATION_EXPLANATION}</p>
 
     <DurationList rows={durations} sessions={slice.sessions} />
   </section>
@@ -270,13 +270,11 @@
     min-width: 0;
   }
 
-  /* Chart titles are the Label role (UI-SPEC Typography), `var(--ink)`, so the
-     title reads as a level of its own without introducing a fifth size. */
+  /* Chart titles take the strong note role (`.t-note-strong`, on each `h4`),
+     `var(--ink)`, so the title reads as a level of its own without introducing
+     a fifth size. */
   h4 {
     margin: 0;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--ink);
   }
 </style>

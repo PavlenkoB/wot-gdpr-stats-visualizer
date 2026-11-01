@@ -2,6 +2,7 @@ import './styles/tokens.css';
 import './styles/type.css';
 import './styles/utilities.css';
 import './app.css';
+import './styles/shell.css';
 import { mount } from 'svelte';
 import App from './App.svelte';
 

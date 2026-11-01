@@ -84,15 +84,15 @@
   -->
   <dl data-testid="login-summary-counts">
     <div class="tile">
-      <dt>{LOGIN_TILE_IPS}</dt>
+      <dt class="t-note-strong">{LOGIN_TILE_IPS}</dt>
       <dd class="t-display" data-testid="login-tile-ips">{formatNumber(tiles.ips)}</dd>
     </div>
     <div class="tile">
-      <dt>{LOGIN_TILE_COUNTRIES}</dt>
+      <dt class="t-note-strong">{LOGIN_TILE_COUNTRIES}</dt>
       <dd class="t-display" data-testid="login-tile-countries">{formatNumber(tiles.countries)}</dd>
     </div>
     <div class="tile">
-      <dt>{LOGIN_TILE_UNKNOWN}</dt>
+      <dt class="t-note-strong">{LOGIN_TILE_UNKNOWN}</dt>
       <dd class="t-display" data-testid="login-tile-unknown">{formatNumber(tiles.unknownIps)}</dd>
     </div>
   </dl>
@@ -108,12 +108,12 @@
     file no test in this repository can render.
   -->
   {#if tiles.multiFile}
-    <p class="caption" data-testid="login-multi-file-note">{LOGIN_MULTI_FILE_NOTE}</p>
+    <p class="muted-note" data-testid="login-multi-file-note">{LOGIN_MULTI_FILE_NOTE}</p>
   {/if}
 
   <dl data-testid="login-summary-facts">
     <div class="tile">
-      <dt>{LOGIN_TILE_TOP_IP}</dt>
+      <dt class="t-note-strong">{LOGIN_TILE_TOP_IP}</dt>
       <!--
         The ONE place this surface chooses an address string: `displayIp` with
         the block's single mask flag. Never the raw `ip`, never a CSS toggle
@@ -127,14 +127,14 @@
         {/if}
       </dd>
       {#if tiles.topIp !== null}
-        <p class="caption" data-testid="login-tile-top-ip-share">
+        <p class="muted-note" data-testid="login-tile-top-ip-share">
           {formatLoginShareLine(tiles.topIp.logins, tiles.totalLogins)}
         </p>
       {/if}
     </div>
 
     <div class="tile">
-      <dt>{LOGIN_TILE_TOP_COUNTRY}</dt>
+      <dt class="t-note-strong">{LOGIN_TILE_TOP_COUNTRY}</dt>
       <dd data-testid="login-tile-top-country" class="fact t-heading">
         {#if tiles.topCountry !== null}
           {tiles.topCountry.name}
@@ -144,14 +144,14 @@
         {/if}
       </dd>
       {#if tiles.topCountry !== null}
-        <p class="caption" data-testid="login-tile-top-country-share">
+        <p class="muted-note" data-testid="login-tile-top-country-share">
           {formatLoginShareLine(tiles.topCountry.logins, tiles.totalLogins)}
         </p>
       {/if}
     </div>
 
     <div class="tile">
-      <dt>{LOGIN_TILE_RANGE}</dt>
+      <dt class="t-note-strong">{LOGIN_TILE_RANGE}</dt>
       <dd data-testid="login-tile-range" class="fact t-heading">
         {#if range !== null}
           {range}
@@ -204,9 +204,6 @@
   }
 
   dt {
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--muted);
   }
 
@@ -215,7 +212,7 @@
 
      The role owns the size, the weight and the line height, so this rule does
      not declare them: the phone block's `.shell .login-summary dd` rule in
-     `src/app.css` outranks the role and sets 18px at 375px, which is why the
+     `src/styles/shell.css` outranks the role and sets 18px at 375px, which is why the
      rule stays top-level and un-nested (D-08). */
   dd {
     margin: 0;

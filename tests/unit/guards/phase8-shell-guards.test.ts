@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { componentPath } from '../../helpers/components.ts';
-import { readTokenSource } from '../../helpers/styles.ts';
+import { readShellSource, readTokenSource } from '../../helpers/styles.ts';
 import {
   PHONE_MAX_WIDTH_PX,
   SIDE_BY_SIDE_MIN_WIDTH_PX,
@@ -19,7 +19,7 @@ import {
 //     survives only where the UI-SPEC keeps it (focus rings, spinner);
 //   - the detail pane never scrolls on its own (the PAGE scrolls), so a sticky
 //     list and a sticky chart head keep one scrolling ancestor;
-//   - app.css has ONE phone block and it equals the constant the selection state
+//   - the shell stylesheet has ONE phone block and it equals the constant the selection state
 //     uses, and the side-by-side threshold is the same number in both places;
 //   - selection is component state only (D-03): no storage, hash, history or
 //     raw HTML in the shell sources;
@@ -172,8 +172,8 @@ describe('phase 8 shell guards (08-07)', () => {
     expect(css).not.toMatch(blue);
   });
 
-  it('declares no overflow on .pane-detail, in app.css or in DetailPane', () => {
-    const css = stripComments(readFileSync(APP_CSS, 'utf8'));
+  it('declares no overflow on .pane-detail, in the shell stylesheet or in DetailPane', () => {
+    const css = stripComments(readShellSource());
     const detailPane = shellSource('DetailPane.svelte');
 
     const bodies = [
@@ -190,7 +190,8 @@ describe('phase 8 shell guards (08-07)', () => {
   });
 
   it('has exactly one phone block, and the thresholds equal the selection-state constants', () => {
-    const css = stripComments(readFileSync(APP_CSS, 'utf8'));
+    const css = stripComments(readShellSource());
+    expect(css.length, 'the shell stylesheet was read').toBeGreaterThan(0);
 
     const maxWidths = [...css.matchAll(/@media\s*\(max-width:\s*(\d+)px\)/g)].map((match) =>
       Number(match[1]),

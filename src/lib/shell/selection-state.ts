@@ -486,7 +486,7 @@ export function resolvePhoneView(
 
 /**
  * The phone width in CSS pixels. This must match the one `max-width` block in
- * `src/app.css` (a guard test arrives in plan 08-07). It is the SAME width, not
+ * `src/styles/shell.css` (a guard test arrives in plan 08-07). It is the SAME width, not
  * a second breakpoint: the matchMedia query and the stylesheet are two readers
  * of one number.
  */
@@ -498,7 +498,7 @@ export const PHONE_MEDIA_QUERY = `(max-width: ${PHONE_MAX_WIDTH_PX}px)`;
 /**
  * The width from which the list pane is a sticky column beside the detail pane,
  * in CSS pixels. This must match the `min-width` of the sticky-list block in
- * `src/app.css`; below it the panes stack and a pointer selection moves focus to
+ * `src/styles/shell.css`; below it the panes stack and a pointer selection moves focus to
  * the detail pane so the browser scrolls it into view.
  */
 export const SIDE_BY_SIDE_MIN_WIDTH_PX = 900;

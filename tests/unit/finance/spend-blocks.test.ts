@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { componentPath } from '../../helpers/components.ts';
+import { ruleDeclarations, styleText } from '../../helpers/css.ts';
 
 const BLOCK_FILE = 'SpendSummary.svelte';
 
@@ -196,5 +197,49 @@ describe('05-15 SpendSummary component contracts', () => {
     // nothing on the file sums across the list.
     expect(clean).not.toContain('grand');
     expect(clean).not.toMatch(/\.reduce\(/);
+  });
+});
+
+const NO_TYPE = /font-size|font-weight|line-height/;
+
+/** The declarations of one scoped rule in the block, or `''` when there is none. */
+function rule(selector: string): string {
+  return ruleDeclarations(styleText(code(BLOCK_FILE)), selector);
+}
+
+describe('15-11 Task 2 - the spend summary on the note roles', () => {
+  it('headings, terms, disclosures, tables and captions take the strong role; the counts the regular one', () => {
+    const clean = stripComments(code(BLOCK_FILE));
+    expect(clean).not.toBe('');
+    // A `<caption>` stays a `<caption>` element: the specs locate it by name.
+    for (const tag of ['h3', 'h4', 'dt', 'table', 'caption']) {
+      const opened = clean.match(new RegExp(`<${tag}\\b`, 'g')) ?? [];
+      expect(opened.length, `${tag} elements exist`).toBeGreaterThan(0);
+      expect(
+        clean.match(new RegExp(`<${tag}\\s+class="(?:[a-z-]+ )?t-note-strong"`, 'g')) ?? [],
+        tag,
+      ).toHaveLength(opened.length);
+    }
+    const details = clean.match(/<details\b/g) ?? [];
+    expect(details.length).toBeGreaterThan(0);
+    expect(clean.match(/<details class="breakdown t-note-strong"/g) ?? []).toHaveLength(
+      details.length,
+    );
+    const counts = clean.match(/<dd\b/g) ?? [];
+    expect(counts.length).toBeGreaterThan(0);
+    expect(clean.match(/<dd class="t-note"/g) ?? []).toHaveLength(counts.length);
+  });
+
+  it('the seven rules keep their chrome and leave the type out', () => {
+    for (const selector of ['h3', 'h4', 'dt', 'dd', '.breakdown', 'table', 'caption']) {
+      const declarations = rule(selector);
+      expect(declarations, `${selector} rule exists`).not.toBe('');
+      expect(declarations, selector).not.toMatch(NO_TYPE);
+    }
+    expect(rule('h3')).toContain('border-bottom: 1px solid var(--border)');
+    expect(rule('dd')).toContain('text-align: right');
+    expect(rule('.breakdown')).toContain('margin-top: var(--space-8)');
+    expect(rule('table')).toContain('border-collapse: collapse');
+    expect(rule('caption')).toContain('padding-bottom: var(--space-4)');
   });
 });

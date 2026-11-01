@@ -55,10 +55,18 @@
   line-height: var(--lh-body);
 }
 
-.t-body-strong {
+/* The compact 14px pair for secondary lines and labels. */
+.t-note {
+  font-size: var(--fs-body);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-tight);
+}
+
+/* The compact 14px pair for secondary lines and labels, in semibold. */
+.t-note-strong {
   font-size: var(--fs-body);
   font-weight: var(--fw-semibold);
-  line-height: var(--lh-body);
+  line-height: var(--lh-tight);
 }
 
 .t-caption {

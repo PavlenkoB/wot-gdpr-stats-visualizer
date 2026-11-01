@@ -49,9 +49,9 @@
 </script>
 
 <div class="kind-filter" data-testid="timeline-kind-filter">
-  <span class="label" id={`${groupId}-label`}>{TIMELINE_KIND_FILTER_LABEL}</span>
+  <span class="label t-note-strong" id={`${groupId}-label`}>{TIMELINE_KIND_FILTER_LABEL}</span>
   <div class="chips" role="radiogroup" aria-labelledby={`${groupId}-label`}>
-    <label class="chip" data-testid="timeline-kind-chip-all">
+    <label class="chip t-note-strong" data-testid="timeline-kind-chip-all">
       <input
         class="visually-hidden"
         type="radio"
@@ -68,7 +68,7 @@
       `tests/unit/import/multi-account-keys.test.ts` records why.
     -->
     {#each kinds as kind, index (index)}
-      <label class="chip" data-testid={`timeline-kind-chip-${chipId(kind)}`}>
+      <label class="chip t-note-strong" data-testid={`timeline-kind-chip-${chipId(kind)}`}>
         <input
           class="visually-hidden"
           type="radio"
@@ -92,9 +92,6 @@
   }
 
   .label {
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--text);
   }
 
@@ -119,9 +116,6 @@
     border-radius: var(--radius-control);
     background: var(--page);
     color: var(--text);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     white-space: nowrap;
     cursor: pointer;
 

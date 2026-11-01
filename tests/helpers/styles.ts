@@ -48,8 +48,24 @@ export const TYPE_CSS: string = path.join(SRC_DIR, 'styles', 'type.css');
 /** The utility file: the shared classes. */
 export const UTILITIES_CSS: string = path.join(SRC_DIR, 'styles', 'utilities.css');
 
-/** The element resets, the shell layout and the one phone block. */
+/** The element resets: page defaults, body, native controls, links and focus, h1/h2, p, ul. */
 export const APP_CSS: string = path.join(SRC_DIR, 'app.css');
+
+/** The shell stylesheet: the master-detail layout and the one phone block. */
+export const SHELL_CSS: string = path.join(SRC_DIR, 'styles', 'shell.css');
+
+/**
+ * The repo-relative name of the file that holds the shell layout and the one
+ * phone block.
+ */
+export function shellHomeName(): string {
+  return 'src/styles/shell.css';
+}
+
+/** The raw text of the file that holds the shell layout and the phone block. */
+export function readShellSource(): string {
+  return readFileSync(SHELL_CSS, 'utf8');
+}
 
 /**
  * The raw text of the token source.

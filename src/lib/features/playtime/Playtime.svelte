@@ -393,7 +393,7 @@
   data-state={playtimeState}
   aria-busy={playtimeState === 'loading' ? 'true' : 'false'}
 >
-  <h3>{PLAYTIME_HEADING}</h3>
+  <h3 class="t-note-strong">{PLAYTIME_HEADING}</h3>
 
   <!--
     The one live region of the phase, present in EVERY state and empty when
@@ -479,7 +479,7 @@
         name, so nothing here ever claims a game.
       -->
       <div class="selector-row">
-        <label for={selectId}>{SPLIT_COLUMN_LABELS[column]}</label>
+        <label class="t-note-strong" for={selectId}>{SPLIT_COLUMN_LABELS[column]}</label>
         <!--
           The `value` and the per-option `selected` are the same
           `displayedSelection`, so the control cannot disagree with itself: a
@@ -487,6 +487,7 @@
           `effectiveSelection` and both fall back to All.
         -->
         <select
+          class="t-note-strong"
           id={selectId}
           data-testid="playtime-selector"
           value={displayedSelection === null ? ALL_OPTION : String(displayedSelection)}
@@ -521,7 +522,7 @@
         leave byte-identical.
       -->
       <AboutDisclosure name={ABOUT_NAME_PLAYTIME_TOTALS} testId="about-playtime-totals">
-        <p class="caption about-summary">{PLAYTIME_MERGE_ABOUT}</p>
+        <p class="muted-note about-summary">{PLAYTIME_MERGE_ABOUT}</p>
       </AboutDisclosure>
     {/if}
 
@@ -583,7 +584,8 @@
     min-width: 0;
   }
 
-  /* Label role with the group-heading affordance: the sub-heading reads as a
+  /* Strong note role (`.t-note-strong`, on the `h3`) with the group-heading
+     affordance: the sub-heading reads as a
      level of its own inside the card rather than as another 14px line
      (04-UI-SPEC Typography, the sub-heading h3 row). `LoginHistory.svelte`
      repeats this rule in full, because scoped styles cannot be shared. */
@@ -591,9 +593,6 @@
     margin: 0;
     padding-bottom: var(--space-8);
     border-bottom: 1px solid var(--border);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--ink);
   }
 
@@ -661,14 +660,12 @@
     min-width: 0;
 
     & label {
-      font-size: var(--fs-body);
-      font-weight: var(--fw-semibold);
-      line-height: var(--lh-tight);
       color: var(--text);
     }
   }
 
-  /* Label role, the same text treatment as the Phase 3 bar buttons. The
+  /* Strong note role (`.t-note-strong`, on the `select`), the same text
+     treatment as the Phase 3 bar buttons. The
      `:focus-visible` ring is that ring, exactly: the accent is reserved for
      focus, and this is a new member of "every interactive element". */
   select {
@@ -679,9 +676,6 @@
     border-radius: var(--radius-sm);
     background: var(--page);
     color: var(--text);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
 
     &:hover {
       background: var(--hover);

@@ -95,9 +95,9 @@
     -->
     <p class="body error" role="alert">{DEVICE_INFO_ERROR}</p>
   {:else if readyView !== null && summary !== null}
-    <p class="caption">{DEVICE_INFO_INTRO}</p>
+    <p class="muted-note">{DEVICE_INFO_INTRO}</p>
 
-    <h3>{DEVICE_SUMMARY_HEADING}</h3>
+    <h3 class="t-note-strong">{DEVICE_SUMMARY_HEADING}</h3>
     <!--
       The counts summary: one row per source in the fixed order, each with its
       heading and its formatted count. A definition list, so a screen reader
@@ -105,14 +105,14 @@
     -->
     <dl data-testid="device-info-summary">
       {#each summary.sources as source (source.id)}
-        <dt>{DEVICE_HEADINGS[source.id]}</dt>
-        <dd data-testid="device-info-summary-{source.id}">
+        <dt class="t-note-strong">{DEVICE_HEADINGS[source.id]}</dt>
+        <dd class="t-note" data-testid="device-info-summary-{source.id}">
           {formatDeviceSourceCount(source.status, source.rows, source.unreadable)}
         </dd>
       {/each}
     </dl>
 
-    <p class="caption" data-testid="device-info-memory-note">{DEVICE_MEMORY_NOTE}</p>
+    <p class="muted-note" data-testid="device-info-memory-note">{DEVICE_MEMORY_NOTE}</p>
 
     {#each DEVICE_SOURCES as id (id)}
       <DeviceTable source={id} table={readyView[id]} />
@@ -134,9 +134,6 @@
     margin: 0;
     padding-bottom: var(--space-8);
     border-bottom: 1px solid var(--border);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--ink);
   }
 
@@ -149,9 +146,6 @@
   }
 
   dt {
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--muted);
     min-width: 0;
     overflow-wrap: anywhere;
@@ -159,9 +153,6 @@
 
   dd {
     margin: 0;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-regular);
-    line-height: var(--lh-tight);
     color: var(--text);
     text-align: right;
     font-variant-numeric: tabular-nums;

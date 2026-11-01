@@ -46,7 +46,7 @@
     scrolls horizontally to be read is not a legend — the same reason
     `ChartLegend`'s note is real text.
   -->
-  <p class="row">
+  <p class="row t-note">
     <span class="swatch swatch-in" aria-hidden="true"></span>
     <span class="word">{FLOW_LEGEND_DEPOSITED}</span>
     <span class="swatch swatch-out" aria-hidden="true"></span>
@@ -66,11 +66,9 @@
     gap: var(--space-4) var(--space-8);
     margin: 0;
     min-width: 0;
-    /* Caption role, exactly as `ChartLegend`'s row: the whole legend is
-       explanatory text, so the words and the swatches are all metadata. */
-    font-size: var(--fs-body);
-    font-weight: var(--fw-regular);
-    line-height: var(--lh-tight);
+    /* The note role (`.t-note`, in the markup), exactly as `ChartLegend`'s row:
+       the whole legend is explanatory text, so the words and the swatches are
+       all metadata. */
     color: var(--muted);
   }
 

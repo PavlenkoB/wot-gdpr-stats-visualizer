@@ -45,7 +45,7 @@
 </script>
 
 <div class="legend" data-testid={testId}>
-  <p class="row">
+  <p class="row t-note">
     <span class="word">{LEGEND_LESS}</span>
     {#each levels as level (level)}
       <span class="swatch level-{level}" aria-hidden="true"></span>
@@ -78,11 +78,8 @@
     gap: var(--space-8) var(--space-4);
     margin: 0;
     min-width: 0;
-    /* Caption role (14px / 400 / 1.4, var(--muted)) for the words, the swatches
-       and the note alike — the whole legend is explanatory text. */
-    font-size: var(--fs-body);
-    font-weight: var(--fw-regular);
-    line-height: var(--lh-tight);
+    /* The note role (`.t-note`, in the markup) sets the type for the words, the
+       swatches and the note alike — the whole legend is explanatory text. */
     color: var(--muted);
   }
 

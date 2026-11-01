@@ -134,7 +134,7 @@
     {SKIP_TO_DETAIL_LABEL}
   </a>
 
-  <h1 class="product">{PRODUCT_LABEL}</h1>
+  <h1 class="product t-note-strong">{PRODUCT_LABEL}</h1>
 
   <IdentityHeader {result} />
 
@@ -150,7 +150,7 @@
     bind:this={navEl}
     onkeydown={onNavKeyDown}
   >
-    <p class="kbd-hint" data-testid="kbd-hint">{LIST_KEYBOARD_HINT}</p>
+    <p class="kbd-hint t-note" data-testid="kbd-hint">{LIST_KEYBOARD_HINT}</p>
     <ul>
       {#each entries as entry (entry.id)}
         <li>
@@ -163,10 +163,10 @@
             aria-current={entry.id === selected ? 'true' : undefined}
             onclick={() => onselect(entry.id, 'pointer')}
           >
-            <span class="title">{PANE_TITLES[entry.id]}</span>
-            <span class="headline">{entry.headline}</span>
+            <span class="title t-note-strong">{PANE_TITLES[entry.id]}</span>
+            <span class="headline t-note-strong">{entry.headline}</span>
             {#if entry.summary !== ''}
-              <span class="sub">{entry.summary}</span>
+              <span class="sub t-note">{entry.summary}</span>
             {/if}
             <span class="chevron" aria-hidden="true">›</span>
           </button>
@@ -190,7 +190,7 @@
 <style>
   /* Hidden with the clip pattern (not display: none, which would take it out of
      the tab order) until it has focus, when it becomes an ordinary link. The
-     `min-height: 0` is needed because the 480px block in app.css floors every
+     `min-height: 0` is needed because the 480px block in shell.css floors every
      anchor at 44px, which would otherwise stop the 1px box.
 
      The focus state is NESTED under its own block (D-05): `&:focus` flattens
@@ -227,8 +227,6 @@
     margin: 0;
     padding: var(--space-4) var(--layout-gutter) 0;
     min-height: 1.4em;
-    font-size: var(--fs-body);
-    line-height: var(--lh-tight);
     color: var(--muted);
     visibility: hidden;
   }
@@ -240,9 +238,6 @@
   .product {
     margin: 0;
     padding: var(--space-8) var(--layout-gutter) 0;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--muted);
   }
 
@@ -260,10 +255,10 @@
   /* The row pattern from the UI-SPEC. `all: unset` drops the button chrome so
      the grid below is the whole of the row. It also drops the outline, so the
      focus ring is re-stated below with the same values as the global rule in
-     `src/app.css`.
+     `src/styles/shell.css`.
 
      The row's own states are NESTED under it (D-05) and the row stays a
-     TOP-LEVEL rule: the phone block of `src/app.css` overrides the row at
+     TOP-LEVEL rule: the phone block of `src/styles/shell.css` overrides the row at
      480px and below, and a row nested under another parent selector would
      raise its specificity above the phone block's. `&:hover`,
      `&[aria-current='true']` and `&:focus-visible` add no scope class of
@@ -298,9 +293,6 @@
 
   .title,
   .headline {
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--ink);
     min-width: 0;
     overflow-wrap: anywhere;
@@ -312,9 +304,6 @@
 
   .sub {
     grid-column: 1 / -1;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-regular);
-    line-height: var(--lh-tight);
     color: var(--muted);
     min-width: 0;
     overflow-wrap: anywhere;
@@ -328,7 +317,7 @@
   /* The chevron is a phone-only affordance (the row opens the detail screen), so
      it takes no space above phone width. The phone list screen's rules (64px
      rows, the chevron, the 48px import actions) are in the phone block of
-     `src/app.css`. */
+     `src/styles/shell.css`. */
   .chevron {
     display: none;
   }

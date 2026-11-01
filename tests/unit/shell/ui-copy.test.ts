@@ -49,6 +49,14 @@ import {
 import { NEW_DATA_SPEC_FILES } from '../../../src/lib/worker/new-data-specs.ts';
 import { CAPTURED_FILES, PANE_MAPPING } from '../../fixtures/new-data-headers.ts';
 import { wowpAccountColumns } from '../../../src/lib/features/vehicles/vehicle-aggregate.ts';
+import {
+  DEFAULT_PINS,
+  PINS_KEY,
+  readPins,
+  togglePin,
+  writePins,
+  type StorageLike,
+} from '../../../src/lib/features/overview/overview-pins.ts';
 
 /**
  * Every file the new-data label table may name, sorted.
@@ -3003,6 +3011,72 @@ describe('12-05 Account timeline and Perks copy', () => {
       for (const interpolation of template.matchAll(/\$\{([^}]*)\}/g)) {
         expect(interpolation[1]).toMatch(/^formatNumber\(/);
       }
+    }
+  });
+});
+
+// -----------------------------------------------------------------------------
+// 15-02: the Start over / Clear confirmation names the pins (13-D-14)
+// -----------------------------------------------------------------------------
+
+describe('the Start over / Clear confirmation names the pins', () => {
+  // The first two sentences are the regression anchor: every e2e spec that
+  // reads the constant keeps passing only while they are byte-for-byte these.
+  const ANCHOR =
+    "This will permanently delete your cached export data. You'll need to re-upload the zip to view it again.";
+
+  test('begins with the unchanged two sentences', () => {
+    expect(playtimeCopy.CONFIRM_CLEAR_MESSAGE.startsWith(ANCHOR)).toBe(true);
+  });
+
+  test('adds exactly one sentence, and it carries the three claims', () => {
+    const rest = playtimeCopy.CONFIRM_CLEAR_MESSAGE.slice(ANCHOR.length).trim();
+    expect(rest.length).toBeGreaterThan(0);
+    // One sentence: a single terminal full stop, at the very end.
+    expect(rest.endsWith('.')).toBe(true);
+    expect(rest.slice(0, -1)).not.toMatch(/[.!?]/);
+    expect(rest, 'names the pinned tiles').toContain('pinned Overview tiles');
+    expect(rest, 'says they stay').toContain('stay in this browser');
+    expect(rest, 'says they hold no export data').toContain('hold no export data');
+  });
+
+  test('is a single plain-text line', () => {
+    expect(playtimeCopy.CONFIRM_CLEAR_MESSAGE).not.toMatch(/[\r\n]/);
+    expect(playtimeCopy.CONFIRM_CLEAR_MESSAGE).not.toMatch(/[<>]/);
+  });
+
+  // The claim is true. The "only file in src/ that names the storage" tests
+  // live in overview-pins.test.ts and are not repeated here.
+  test('the claim holds: pinning and unpinning only read and write the one key', () => {
+    const calls: string[] = [];
+    const spy = new Proxy(
+      {
+        getItem(key: string): string | null {
+          calls.push(`getItem:${key}`);
+          return null;
+        },
+        setItem(key: string): void {
+          calls.push(`setItem:${key}`);
+        },
+      },
+      {
+        get(target, prop, receiver) {
+          if (prop !== 'getItem' && prop !== 'setItem') calls.push(`other:${String(prop)}`);
+          return Reflect.get(target, prop, receiver);
+        },
+      },
+    ) as StorageLike;
+
+    let pins = readPins(spy);
+    expect(pins).toEqual([...DEFAULT_PINS]);
+    pins = togglePin(pins, 'logged');
+    writePins(pins, spy);
+    pins = togglePin(pins, 'logged');
+    writePins(pins, spy);
+
+    expect(calls.length).toBeGreaterThan(0);
+    for (const call of calls) {
+      expect(call).toMatch(new RegExp(`^(getItem|setItem):${PINS_KEY}$`));
     }
   });
 });

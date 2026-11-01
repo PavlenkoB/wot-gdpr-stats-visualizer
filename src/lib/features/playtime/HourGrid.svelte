@@ -375,7 +375,7 @@
       cheap insurance and costs nothing.
     -->
     {#each model.hourLabels as label (label.hour)}
-      <text class="axis" x={label.x} y={16} text-anchor="middle" aria-hidden="true">
+      <text class="axis t-note" x={label.x} y={16} text-anchor="middle" aria-hidden="true">
         {formatHourLabel(label.hour)}
       </text>
     {/each}
@@ -389,7 +389,7 @@
           label is for a sighted reader scanning the grid.
         -->
         <text
-          class="axis"
+          class="axis t-note"
           x={model.layout.gutter - 8}
           y={row.y + Math.round(model.layout.rowPitch / 2) + 4}
           text-anchor="end"
@@ -526,13 +526,10 @@
     overflow: visible;
   }
 
-  /* Axis text: the Caption role, set in the style block rather than per
-     element so the fourteen labels are one rule. `fill`, not `color` — SVG
-     text takes its paint from `fill`. */
+  /* Axis text: the type comes from the note role (`.t-note`, on each label);
+     this rule keeps the paint. `fill`, not `color` — SVG text takes its paint
+     from `fill`. */
   .axis {
-    font-size: var(--fs-body);
-    font-weight: var(--fw-regular);
-    line-height: var(--lh-tight);
     fill: var(--muted);
   }
 

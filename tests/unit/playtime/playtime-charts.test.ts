@@ -51,7 +51,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { componentPath } from '../../helpers/components.ts';
 import { resolveTokens, ruleDeclarations, styleText, tokenMap } from '../../helpers/css.ts';
-import { readTokenSource } from '../../helpers/styles.ts';
+import { readShellSource, readTokenSource } from '../../helpers/styles.ts';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const LIB = path.join(REPO_ROOT, 'src/lib');
@@ -513,14 +513,14 @@ describe('04-09 Task 3 — the session length list', () => {
     // At phone width the count moves under the label so a long bin range does
     // not wrap into three lines. Asserted as a media query because a duplicated
     // row for the narrow case would be two places for the copy to diverge. The
-    // query lives in the one phone block of `src/app.css` (quick 261009-0qw),
-    // keyed on the list's test id; the component itself declares none.
+    // query lives in the one phone block of the shell stylesheet (quick
+    // 261009-0qw), keyed on the list's test id; the component itself declares
+    // none.
     expect(code(LIST)).not.toMatch(/max-width:\s*480px/);
-    const appCss = readFileSync(path.join(REPO_ROOT, 'src/app.css'), 'utf8').replace(
-      /\/\*[\s\S]*?\*\//g,
-      '',
-    );
-    const phone = appCss.slice(appCss.search(/@media\s*\(max-width:\s*480px\)/));
+    const shellCss = readShellSource().replace(/\/\*[\s\S]*?\*\//g, '');
+    const phoneStart = shellCss.search(/@media\s*\(max-width:\s*480px\)/);
+    expect(phoneStart, 'the phone query was found').not.toBe(-1);
+    const phone = shellCss.slice(phoneStart);
     expect(phone).toMatch(
       /\[data-testid='duration-chart'\]\s+\.row\s*\{[^}]*grid-template-columns:\s*1fr auto/,
     );
@@ -1043,5 +1043,93 @@ describe('04-18: tile and legend layout contracts', () => {
     expect(row, 'the legend row rule').toMatch(/gap:\s*8px\s+4px\b|column-gap:\s*4px\b/);
     // A note that only takes a new line when it does not fit is the defect.
     expect(note, 'the legend .note rule').toContain('flex-basis: 100%');
+  });
+
+  test('the legend row takes the note role and declares no type of its own (14-D-07)', () => {
+    const row = rule(LEGEND, '.row');
+    expect(row, 'the legend row rule exists').not.toBe('');
+    expect(code(LEGEND)).toMatch(/<p class="row t-note">/);
+    expect(row).not.toMatch(/font-size|font-weight|line-height/);
+    expect(row).toContain('color: var(--muted)');
+  });
+
+  test('the tooltip root and its two lines take the note roles (14-D-07)', () => {
+    const body = code(TOOLTIP);
+    expect(body).toMatch(/class="tooltip t-note"/);
+    expect(body).toMatch(/<p class="line-one t-note-strong">/);
+    expect(body.match(/<p class="line-two t-note">/g) ?? []).toHaveLength(2);
+    for (const selector of ['.tooltip', '.line-one', '.line-two']) {
+      const declared = rule(TOOLTIP, selector);
+      expect(declared, `${selector} rule exists`).not.toBe('');
+      expect(declared, `${selector} declares no type`).not.toMatch(
+        /font-size|font-weight|line-height/,
+      );
+    }
+  });
+
+  test('the calendar, hour grid and duration list take the note roles and declare no type (14-D-07)', () => {
+    const calendar = code(CALENDAR);
+    expect(calendar).toMatch(/<h5 class="t-note-strong">\{block\.year\}<\/h5>/);
+    // Both axis label kinds (months and weekdays) carry the role.
+    expect(calendar.match(/class="axis t-note"/g) ?? []).toHaveLength(2);
+    const grid = code(GRID);
+    expect(grid.match(/class="axis t-note"/g) ?? []).toHaveLength(2);
+    const list = code(LIST);
+    expect(list).toMatch(/<span class="label t-note">/);
+    expect(list).toMatch(/<span class="count t-note">/);
+
+    const rules: [string, string][] = [
+      [CALENDAR, '& h5'],
+      [CALENDAR, '.axis'],
+      [GRID, '.axis'],
+      [LIST, '.label,\n  .count'],
+    ];
+    for (const [file, selector] of rules) {
+      const declared = rule(file, selector);
+      expect(declared, `${file} ${selector} rule exists`).not.toBe('');
+      expect(declared, `${file} ${selector} declares no type`).not.toMatch(
+        /font-size|font-weight|line-height/,
+      );
+    }
+  });
+
+  test('the pane controls, chart headings, summary and split table take the note roles (14-D-07)', () => {
+    const block = code(BLOCK);
+    expect(block).toMatch(/<h3 class="t-note-strong">/);
+    expect(block).toMatch(/<label class="t-note-strong" for=/);
+    expect(block).toMatch(/<select\s+class="t-note-strong"/);
+    expect(code(CHARTS).match(/<h4 class="t-note-strong">/g) ?? []).toHaveLength(3);
+
+    const summary = code(SUMMARY);
+    expect(summary.match(/<dt class="t-note-strong">/g) ?? []).toHaveLength(3);
+    expect(summary).toMatch(/<span class="unit t-note-strong">/);
+    expect(summary).toMatch(/<caption class="t-note-strong">/);
+    expect(summary.match(/<th class="t-note-strong" scope="col">/g) ?? []).toHaveLength(2);
+    // Every cell, including the empty one in the overflow row, carries the role.
+    expect(summary.match(/<td\b/g) ?? []).toHaveLength(4);
+    expect(summary.match(/<td class="t-note">/g) ?? []).toHaveLength(4);
+    expect(summary).toMatch(/<p class="note t-note">/);
+
+    const rules: [string, string][] = [
+      [BLOCK, 'h3'],
+      [BLOCK, '& label'],
+      [BLOCK, 'select'],
+      [CHARTS, 'h4'],
+      [SUMMARY, 'dt'],
+      [SUMMARY, '.unit'],
+      [SUMMARY, 'caption'],
+      [SUMMARY, 'th'],
+      [SUMMARY, 'td'],
+      [SUMMARY, '.note'],
+    ];
+    for (const [file, selector] of rules) {
+      const declared = rule(file, selector);
+      expect(declared, `${file} ${selector} rule exists`).not.toBe('');
+      expect(declared, `${file} ${selector} declares no type`).not.toMatch(
+        /font-size|font-weight|line-height/,
+      );
+    }
+    // The selected row still sets its own weight, over the role.
+    expect(rule(SUMMARY, 'tr.selected td')).toContain('font-weight: 600');
   });
 });

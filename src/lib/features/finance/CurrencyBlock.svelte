@@ -266,7 +266,7 @@
   data-state={blockState}
   aria-busy={blockState === 'loading' ? 'true' : 'false'}
 >
-  <h3>{FINANCIAL_CURRENCY_HEADING}</h3>
+  <h3 class="t-note-strong">{FINANCIAL_CURRENCY_HEADING}</h3>
 
   {#if blockState === 'loading'}
     <p class="body" role="status">{FINANCIAL_LOADING}</p>
@@ -279,7 +279,7 @@
   {:else if blockState === 'error'}
     <p class="body error" role="alert">{FINANCIAL_ERROR}</p>
   {:else if readyView !== null}
-    <p class="caption">{CURRENCY_BLOCK_CAPTION}</p>
+    <p class="muted-note">{CURRENCY_BLOCK_CAPTION}</p>
 
     <!--
       The pill goes HERE and not at the foot of the block: a reader is told how
@@ -310,18 +310,18 @@
         data-testid="currency-chart"
         data-currency={chart.entry.code ?? CURRENCY_BLANK_CODE}
       >
-        <h4>{chart.code}</h4>
+        <h4 class="t-note-strong">{chart.code}</h4>
         {#if chart.title !== null}
           <!--
             Its own class, because this caption is the one the tests name: a
             chart block holds a title caption, a summary and a keyboard hint,
-            and `p.caption` alone would match two of the three.
+            and `p.muted-note` alone would match two of the three.
           -->
-          <p class="caption title">{chart.title}</p>
+          <p class="muted-note title">{chart.title}</p>
         {/if}
         <p class="body">{chart.summary}</p>
         <AboutDisclosure name={ABOUT_NAME_CURRENCY} testId="about-currency-{index}">
-          <p class="caption hint" id="currency-keyboard-hint-{index}">
+          <p class="muted-note hint" id="currency-keyboard-hint-{index}">
             {BAR_CHART_KEYBOARD_HINT}
           </p>
         </AboutDisclosure>
@@ -357,7 +357,11 @@
 
         <FlowLegend />
 
-        <details data-testid="monthly-table-disclosure" bind:open={tableOpen[index]}>
+        <details
+          class="t-note-strong"
+          data-testid="monthly-table-disclosure"
+          bind:open={tableOpen[index]}
+        >
           <summary>{MONTHLY_TABLE_DISCLOSURE}</summary>
           {#if tableOpen[index]}
             <MonthlyDataTable columns={CURRENCY_TABLE_HEADERS} rows={chart.tableRows} />
@@ -376,8 +380,8 @@
     -->
     {#if readyView.others.length > 0}
       <section class="other" data-testid="currency-other">
-        <h4>{OTHER_CURRENCIES_HEADING}</h4>
-        <p class="caption">{OTHER_CURRENCIES_CAPTION}</p>
+        <h4 class="t-note-strong">{OTHER_CURRENCIES_HEADING}</h4>
+        <p class="muted-note">{OTHER_CURRENCIES_CAPTION}</p>
         <ul>
           {#each readyView.others as other, otherIndex (otherIndex)}
             <!--
@@ -387,8 +391,8 @@
               as the label it is rather than as the start of a number.
             -->
             <li data-testid="currency-other-row">
-              <p class="code">{codeText(other.code)}</p>
-              <p class="caption">
+              <p class="code t-note-strong">{codeText(other.code)}</p>
+              <p class="muted-note">
                 {formatOtherCurrencyRow({
                   code: other.code,
                   inUnits: BigInt(other.inUnits || '0'),
@@ -434,19 +438,16 @@
     margin: 0;
     padding-bottom: var(--space-8);
     border-bottom: 1px solid var(--border);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--ink);
   }
 
   /* The text blocks come from the shared layer now. The local `.body`,
-     `.caption` and `.error` are deleted, not tokenised: the shared ones in
+     `.muted-note` and `.error` are deleted, not tokenised: the shared ones in
      `src/styles/utilities.css` declare the same values (`.body` margin 0,
-     min-width 0, 14/400/1.5 in `--text`, wrap anywhere; `.caption` the same
+     min-width 0, 14/400/1.5 in `--text`, wrap anywhere; `.muted-note` the same
      at 1.4 in `--muted`; `.error` the danger border, the 6px radius and the
      danger background), and a scoped local copy would outrank the shared one.
-     The markup keeps `class="body"`, `class="body error"` and `class="caption"`. */
+     The markup keeps `class="body"`, `class="body error"` and `class="muted-note"`. */
 
   .chart-container {
     display: flex;
@@ -457,9 +458,6 @@
 
   h4 {
     margin: 0;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--ink);
     overflow-wrap: anywhere;
   }
@@ -490,9 +488,6 @@
      wraps anywhere rather than pushing the card wide. */
   .code {
     margin: 0;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--text);
     min-width: 0;
     overflow-wrap: anywhere;
@@ -500,9 +495,6 @@
 
   details {
     min-width: 0;
-    font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--muted);
   }
 

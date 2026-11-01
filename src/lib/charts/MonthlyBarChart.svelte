@@ -264,16 +264,22 @@
     />
 
     <!-- Y Axis Labels -->
-    <text class="axis y-axis" x={48} y={laid.plotTop + 4} text-anchor="end" aria-hidden="true">
+    <text
+      class="axis y-axis t-note"
+      x={48}
+      y={laid.plotTop + 4}
+      text-anchor="end"
+      aria-hidden="true"
+    >
       {yTop.text}
       <title>{yTop.exact}</title>
     </text>
-    <text class="axis y-axis" x={48} y={laid.zeroY + 4} text-anchor="end" aria-hidden="true">
+    <text class="axis y-axis t-note" x={48} y={laid.zeroY + 4} text-anchor="end" aria-hidden="true">
       0
     </text>
     {#if yBottom}
       <text
-        class="axis y-axis"
+        class="axis y-axis t-note"
         x={48}
         y={laid.plotTop + laid.plotHeight + 4}
         text-anchor="end"
@@ -341,7 +347,7 @@
         aria-hidden="true"
       />
       <text
-        class="axis x-axis"
+        class="axis x-axis t-note"
         x={label.x + tickOffset(label.index)}
         y={laid.plotTop + laid.plotHeight + 18}
         text-anchor="middle"
@@ -419,10 +425,9 @@
     overflow: visible;
   }
 
+  /* The type comes from the note role (`.t-note`, on each axis label); the rule
+     keeps the SVG paint. */
   .axis {
-    font-size: var(--fs-body);
-    font-weight: var(--fw-regular);
-    line-height: var(--lh-tight);
     fill: var(--muted);
   }
 

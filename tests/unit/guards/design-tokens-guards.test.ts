@@ -1,9 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { scanRules } from '../../helpers/css.ts';
+import { resolveTokens, scanRules, stripCssComments, tokenMap } from '../../helpers/css.ts';
 import { TOKENS_CSS, TYPE_CSS, readSrcFiles } from '../../helpers/styles.ts';
 import {
   ROLE_NAMES,
+  SHARED_STYLE_HOMES,
   TOKENS_CSS_NAME,
   colourOffenders,
   cssOf,
@@ -13,6 +14,8 @@ import {
   isSpacingProperty,
   nestingOffenders,
   networkOffenders,
+  noteRoleOffenders,
+  roleConsumerOffenders,
   roleOffenders,
   sharedNameOffenders,
   spacingOffenders,
@@ -34,7 +37,12 @@ import {
 //   G4  no colour literal outside the token file;
 //   G5  the shared names are defined once, in `src/styles/`;
 //   G6a one declaration per line;
-//   G6b a rule that extends a sibling is nested under it with `&`.
+//   G6b a rule that extends a sibling is nested under it with `&`;
+//   G7  the 14px / 1.4 pair is a role (`.t-note`, `.t-note-strong`), never
+//       restated outside `type.css` and `utilities.css`.
+//
+//   Plus the role-consumer guard: every one of the ten roles is used as a
+//   class by at least one `.svelte` file, so no role is shipped unused.
 //
 //   And, in addition:
 //   - no `url()` and no `@import` in any CSS (the zero-network promise);
@@ -43,7 +51,7 @@ import {
 //     there;
 //   - the type scale is exactly 12, 14, 18, 26, 32 and 56px, and no size is
 //     below 12px;
-//   - `src/styles/type.css` holds exactly the nine `.t-*` roles.
+//   - `src/styles/type.css` holds exactly the ten `.t-*` roles.
 //
 // WHY THE OFFENDER LOGIC LIVES IN A HELPER
 //   `tests/helpers/token-guards.ts` holds the offender functions as PURE
@@ -113,6 +121,10 @@ describe('the design-token guards (14-03)', () => {
     expect(
       SRC_FILES.some((file) => file.name === 'src/app.css'),
       'the walk visited src/app.css',
+    ).toBe(true);
+    expect(
+      SRC_FILES.some((file) => file.name === 'src/styles/shell.css'),
+      'the walk visited src/styles/shell.css',
     ).toBe(true);
     const styled = SRC_FILES.filter(
       (file) => file.name.endsWith('.svelte') && /<style[\s>]/.test(file.source),
@@ -301,7 +313,7 @@ describe('G4: the sweep over every file', () => {
 describe('G5: the shared names are defined once', () => {
   it('rejects a local definition of a shared name', () => {
     expect(
-      sharedNameOffenders(svelteFile('src/lib/shell/Shell.svelte', '.caption { margin: 0; }')),
+      sharedNameOffenders(svelteFile('src/lib/shell/Shell.svelte', '.muted-note { margin: 0; }')),
     ).toHaveLength(1);
     expect(
       sharedNameOffenders(svelteFile('src/lib/shell/Shell.svelte', '.t-title { color: red; }')),
@@ -324,17 +336,37 @@ describe('G5: the shared names are defined once', () => {
 
   it('accepts the shared names in `src/styles/`: that is where they live', () => {
     expect(
-      sharedNameOffenders(cssFile('src/styles/utilities.css', '.caption { margin: 0; }')),
+      sharedNameOffenders(cssFile('src/styles/utilities.css', '.muted-note { margin: 0; }')),
     ).toEqual([]);
     expect(sharedNameOffenders(cssFile('src/styles/type.css', '.t-title { color: red; }'))).toEqual(
       [],
     );
   });
+
+  it('rejects a shared name defined in the shell stylesheet or the token file', () => {
+    expect(
+      sharedNameOffenders(cssFile('src/styles/shell.css', '.muted-note { margin: 0; }')),
+    ).toHaveLength(1);
+    expect(
+      sharedNameOffenders(cssFile('src/styles/shell.css', '.t-title { color: red; }')),
+    ).toHaveLength(1);
+    expect(
+      sharedNameOffenders(cssFile('src/styles/tokens.css', '.scroller { margin: 0; }')),
+    ).toHaveLength(1);
+  });
+
+  it('exempts exactly the two defining files', () => {
+    expect(SHARED_STYLE_HOMES).toEqual(['src/styles/type.css', 'src/styles/utilities.css']);
+    for (const name of SHARED_STYLE_HOMES) {
+      expect(sharedNameOffenders(cssFile(name, '.muted-note { margin: 0; }')), name).toEqual([]);
+    }
+  });
 });
 
 describe('G5: the sweep over every file', () => {
   it('reads every file, and no file defines a shared name', () => {
-    const swept = SRC_FILES.filter((file) => file.name !== TOKENS_CSS_NAME);
+    // tokens.css is swept too: only the two defining files are exempt.
+    const swept = SRC_FILES;
     expect(swept.length, 'the sweep visited files').toBeGreaterThan(0);
     const offenders = swept.flatMap((file) => sharedNameOffenders(file));
     expect(offenders, 'delete the local copy; a scoped selector outranks the shared one').toEqual(
@@ -597,26 +629,180 @@ describe('the token scale, read from the token file', () => {
 });
 
 // =============================================================================
-// The nine roles, and the properties a role may set (D-06, D-07).
+// The ten roles, and the properties a role may set (D-06, D-07, 14-D-07).
 // =============================================================================
-describe('the nine roles', () => {
+describe('the ten roles', () => {
   it('rejects a role that sets something a role may not set', () => {
     const css = '.t-body { color: var(--text); }';
     const offenders = roleOffenders(css);
     expect(offenders.join(' ')).toContain('color');
   });
 
-  it('rejects a role file that does not hold exactly the nine roles', () => {
+  it('rejects a role file that does not hold exactly the ten roles', () => {
     const css = '.t-body { font-size: var(--fs-body); }';
     const offenders = roleOffenders(css);
+    expect(ROLE_NAMES).toHaveLength(10);
     expect(offenders.length).toBe(ROLE_NAMES.length - 1);
+  });
+
+  it('reports a missing note role', () => {
+    const css = readFileSync(TYPE_CSS, 'utf8').replace('.t-note-strong', '.t-gone');
+    const offenders = roleOffenders(css).join(' ');
+    expect(offenders).toContain('.t-note-strong is missing');
+    expect(offenders).toContain('.t-gone is not one of the ten roles');
   });
 });
 
-describe('the nine roles, read from the role file', () => {
-  it('holds exactly the nine roles, and each sets only what a role may set', () => {
+describe('the ten roles, read from the role file', () => {
+  it('holds exactly the ten roles, and each sets only what a role may set', () => {
     const css = readFileSync(TYPE_CSS, 'utf8');
     const offenders = roleOffenders(css);
-    expect(offenders, 'the role file holds the nine roles').toEqual([]);
+    expect(offenders, 'the role file holds the ten roles').toEqual([]);
+  });
+});
+
+// =============================================================================
+// G7: the 14px / 1.4 pair is a role (14-D-07, Phase 15).
+// =============================================================================
+//
+// The synthetic tests are here; the whole-tree sweep follows the last of them.
+// It runs over every file with no exemption and no allowlist.
+describe('G7: the 14px/1.4 pair is a role', () => {
+  const PAIR = 'font-size: var(--fs-body); line-height: var(--lh-tight);';
+  const component = 'src/lib/shell/Shell.svelte';
+
+  it('reports the pair at weight 600, at weight 400 and with no weight', () => {
+    for (const weight of [
+      'font-weight: var(--fw-semibold);',
+      'font-weight: var(--fw-regular);',
+      '',
+    ]) {
+      const offenders = noteRoleOffenders(svelteFile(component, `.x { ${PAIR} ${weight} }`));
+      expect(offenders, weight).toHaveLength(1);
+      expect(offenders[0]).toContain(component);
+      expect(offenders[0]).toContain('G7');
+      expect(offenders[0]).toContain('.x');
+    }
+  });
+
+  it('accepts the 14px size with the 1.5 line height', () => {
+    const css = '.x { font-size: var(--fs-body); line-height: var(--lh-body); }';
+    expect(noteRoleOffenders(svelteFile(component, css))).toEqual([]);
+  });
+
+  it('accepts the 12px size with the 1.4 line height', () => {
+    const css = '.x { font-size: var(--fs-caption); line-height: var(--lh-tight); }';
+    expect(noteRoleOffenders(svelteFile(component, css))).toEqual([]);
+  });
+
+  it('accepts the 14px size alone', () => {
+    expect(noteRoleOffenders(svelteFile(component, '.x { font-size: var(--fs-body); }'))).toEqual(
+      [],
+    );
+  });
+
+  it('accepts the pair in the role file and in the utilities file', () => {
+    const css = `.x { ${PAIR} }`;
+    expect(noteRoleOffenders(cssFile('src/styles/type.css', css))).toEqual([]);
+    expect(noteRoleOffenders(cssFile('src/styles/utilities.css', css))).toEqual([]);
+  });
+
+  it('reports the pair in the token file, the shell stylesheet and a component', () => {
+    const css = `.x { ${PAIR} }`;
+    expect(noteRoleOffenders(cssFile('src/styles/shell.css', css))).toHaveLength(1);
+    expect(noteRoleOffenders(cssFile('src/styles/tokens.css', css))).toHaveLength(1);
+    expect(noteRoleOffenders(svelteFile(component, css))).toHaveLength(1);
+  });
+
+  it('reads a nested rule', () => {
+    const css = `.a {\n  color: red;\n  & .child {\n    ${PAIR}\n  }\n}`;
+    const offenders = noteRoleOffenders(svelteFile(component, css));
+    expect(offenders).toHaveLength(1);
+    expect(offenders[0]).toContain('.child');
+  });
+
+  it('is satisfied by the two note roles of the role file', () => {
+    const css = readFileSync(TYPE_CSS, 'utf8');
+    const map = tokenMap(readFileSync(TOKENS_CSS, 'utf8'));
+    const rules = scanRules(stripCssComments(css));
+    for (const [name, weight] of [
+      ['.t-note', '400'],
+      ['.t-note-strong', '600'],
+    ] as const) {
+      const rule = rules.find((candidate) => candidate.selector.trim() === name);
+      expect(rule, name).toBeDefined();
+      const resolved = resolveTokens(rule!.declarations.join(';'), map);
+      expect(resolved, name).toContain('font-size: 14px');
+      expect(resolved, name).toContain(`font-weight: ${weight}`);
+      expect(resolved, name).toContain('line-height: 1.4');
+    }
+  });
+});
+
+describe('G7: the sweep over every file', () => {
+  it('visits the whole tree, and no file declares the 14px/1.4 pair', () => {
+    expect(SRC_FILES.length, 'the sweep visited at least 50 files').toBeGreaterThanOrEqual(50);
+    expect(
+      SRC_FILES.some((file) => file.name === 'src/styles/shell.css'),
+      'the sweep visited the shell stylesheet',
+    ).toBe(true);
+    const styled = SRC_FILES.filter(
+      (file) => file.name.endsWith('.svelte') && /<style[\s>]/.test(file.source),
+    );
+    expect(styled.length, 'the sweep visited at least 40 styled components').toBeGreaterThanOrEqual(
+      40,
+    );
+    const offenders = SRC_FILES.flatMap((file) => noteRoleOffenders(file));
+    expect(offenders, 'take .t-note or .t-note-strong instead of restating the pair').toEqual([]);
+  });
+});
+
+// =============================================================================
+// The role-consumer guard: no role is shipped unused.
+// =============================================================================
+describe('the role-consumer guard', () => {
+  const markup = (name: string, body: string): SourceEntry => ({ name, source: body });
+
+  it('reports a role no .svelte file uses', () => {
+    const entries = [markup('src/lib/A.svelte', '<p class="t-note">x</p>')];
+    expect(roleConsumerOffenders(['.t-note', '.t-note-strong'], entries)).toEqual([
+      'role t-note-strong - no .svelte file uses it as a class',
+    ]);
+  });
+
+  it('accepts a class attribute, a class: directive and a string literal in an expression', () => {
+    const entries = [
+      markup('src/lib/A.svelte', '<p class="t-note">x</p>'),
+      markup('src/lib/B.svelte', '<p class:t-note-strong={strong}>x</p>'),
+      markup('src/lib/C.svelte', "<p class={on ? 't-label' : ''}>x</p>"),
+    ];
+    expect(roleConsumerOffenders(['.t-note', '.t-note-strong', '.t-label'], entries)).toEqual([]);
+  });
+
+  it('does not count a comment or a selector in a style block as a use', () => {
+    const entries = [
+      markup(
+        'src/lib/A.svelte',
+        '<!-- class="t-note" -->\n<p>x</p>\n<style>\n.t-note { color: red; }\n</style>',
+      ),
+      markup('src/styles/type.css', '.t-note { font-size: 14px; }'),
+    ];
+    expect(roleConsumerOffenders(['.t-note'], entries)).toHaveLength(1);
+  });
+
+  it('does not count a longer name that merely contains the role', () => {
+    const entries = [markup('src/lib/A.svelte', '<p class="row-t-note t-note-strong">x</p>')];
+    expect(roleConsumerOffenders(['.t-note'], entries)).toHaveLength(1);
+  });
+
+  it('finds a consumer for every one of the ten roles in the real tree', () => {
+    expect(ROLE_NAMES).toContain('.t-note');
+    expect(ROLE_NAMES).toContain('.t-note-strong');
+    expect(ROLE_NAMES).toHaveLength(10);
+    expect(
+      SRC_FILES.filter((file) => file.name.endsWith('.svelte')).length,
+      'the sweep visited the components',
+    ).toBeGreaterThanOrEqual(40);
+    expect(roleConsumerOffenders(ROLE_NAMES, SRC_FILES), 'a role with no consumer').toEqual([]);
   });
 });
