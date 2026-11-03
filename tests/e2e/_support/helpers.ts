@@ -546,10 +546,13 @@ export async function expectSelected(page: Page, pane: PaneId): Promise<void> {
  */
 export async function openSection(page: Page, pane: PaneId): Promise<void> {
   await ensureListScreen(page);
-  // A click that lands while the previous pane is still settling can be ignored
-  // on a slow runner (seen on GitHub's hosted x64 runner, never locally), so the
-  // click is retried until the detail pane names the pane.
+  // On a short window with a wider font, the last rows sit under the list pane's
+  // sticky import footer, and Playwright's own scroll leaves a row half covered
+  // so the click lands on the footer (seen on GitHub's hosted runner, never on a
+  // Mac). Centring the row first keeps it clear of the footer; the click is
+  // retried until the detail pane names the pane.
   await expect(async () => {
+    await listRow(page, pane).evaluate((el) => el.scrollIntoView({ block: 'center' }));
     await listRow(page, pane).click();
     await expect(detailPane(page)).toHaveAttribute('data-pane', pane, { timeout: 2_000 });
   }).toPass({ timeout: 15_000 });
