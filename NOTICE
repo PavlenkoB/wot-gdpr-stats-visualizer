@@ -1,0 +1,18 @@
+Third-party notices
+
+Wargaming.net data
+  src/lib/features/overview/vehicle-table.generated.ts holds vehicle names,
+  nations, classes and tiers taken from the Wargaming.net public API
+  (encyclopedia/vehicles). That data is (c) Wargaming.net, All rights reserved.
+  It is NOT covered by this repository's MIT licence (see LICENSE); Wargaming
+  keeps ownership of it and its use is governed by the Wargaming.net API Terms of
+  Use. It is a snapshot kept for display only. Regenerate it with
+  `pnpm run vehicles:table` (needs your own application id in WG_APPLICATION_ID).
+
+  World of Tanks, World of Tanks Blitz, World of Warships and World of Warplanes
+  are trademarks of Wargaming.net. This is an unofficial fan tool, not affiliated
+  with or endorsed by Wargaming.net.
+
+DB-IP Lite
+  The geolocation tables are derived from the DB-IP Lite databases, licensed
+  CC BY 4.0 by DB-IP.com (https://db-ip.com).

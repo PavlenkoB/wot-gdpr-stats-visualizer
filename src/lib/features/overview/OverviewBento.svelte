@@ -10,7 +10,10 @@
     OVERVIEW_ATTRIBUTION_LINK_HREF,
     OVERVIEW_ATTRIBUTION_LINK_TEXT,
     OVERVIEW_ATTRIBUTION_NOTICE,
+    OVERVIEW_ATTRIBUTION_OWNER,
     OVERVIEW_ATTRIBUTION_TEXT,
+    OVERVIEW_SUPPORT_LINK_HREF,
+    OVERVIEW_SUPPORT_LINK_TEXT,
     OVERVIEW_EMPTY,
     OVERVIEW_ERROR,
     OVERVIEW_GROUP_HEADINGS,
@@ -401,6 +404,13 @@
         target="_blank"
         rel="noreferrer noopener"
         data-testid="ov-attribution-link">{OVERVIEW_ATTRIBUTION_LINK_TEXT}</a
+      >
+      {OVERVIEW_ATTRIBUTION_OWNER}
+      <a
+        href={OVERVIEW_SUPPORT_LINK_HREF}
+        target="_blank"
+        rel="noreferrer noopener"
+        data-testid="ov-support-link">{OVERVIEW_SUPPORT_LINK_TEXT}</a
       >
     </p>
   {:else}

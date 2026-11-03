@@ -384,6 +384,9 @@ export function renderModule(rows: readonly VehicleTableRow[], generatedAt: stri
 // shown in the Overview footer (OVERVIEW_ATTRIBUTION_* in src/lib/ui-copy.ts),
 // as approved at the Terms-of-Use gate (13-CONTEXT D-07 and D-23).
 //
+// Licence: the rows below are Wargaming.net API data (c) Wargaming.net. They are
+// NOT covered by this repository's MIT licence; see NOTICE. This is a snapshot.
+//
 // Rows: a tank this file does not hold falls back to the tag-derived name and
 // an unknown class (D-09), and the Overview states its class coverage.
 //

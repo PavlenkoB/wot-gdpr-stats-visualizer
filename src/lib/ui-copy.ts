@@ -4049,6 +4049,16 @@ export const OVERVIEW_ATTRIBUTION_LINK_TEXT = 'World of Tanks';
 /** The attribution link's target. An ordinary anchor: no request until clicked. */
 export const OVERVIEW_ATTRIBUTION_LINK_HREF = 'https://worldoftanks.eu/';
 
+/** The developer's own copyright line, which the Wargaming API policy asks for. */
+export const OVERVIEW_ATTRIBUTION_OWNER =
+  '© 2026 Bohdan Pavlenko. MIT licensed, tank data excluded.';
+
+/** The text of the link to Wargaming's support site (API policy, section 1.10). */
+export const OVERVIEW_SUPPORT_LINK_TEXT = 'Wargaming Support Center';
+
+/** The support link's target. An ordinary anchor: no request until clicked. */
+export const OVERVIEW_SUPPORT_LINK_HREF = 'https://support.wargaming.net/';
+
 /**
  * A tank class as the reader sees it.
  *

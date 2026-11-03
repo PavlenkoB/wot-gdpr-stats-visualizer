@@ -96,6 +96,14 @@ enforces the promise:
   every flow including a 10,000-row import; and
 - the city opt-in specs, which assert WHICH asset the one request fetched.
 
+## Licence and third-party data
+
+The code is MIT licensed (`LICENSE`). The vehicle table
+`src/lib/features/overview/vehicle-table.generated.ts` is Wargaming.net API data,
+a display-only snapshot that is **not** covered by that licence; see `NOTICE`.
+Refresh it with `pnpm run vehicles:table` using your own Wargaming application id
+in `WG_APPLICATION_ID` (never commit it).
+
 ## Offline geolocation
 
 Addresses are placed on a country (and, if you opt in, a city) from DB-IP Lite
