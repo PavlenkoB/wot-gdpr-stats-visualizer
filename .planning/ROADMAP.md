@@ -3,7 +3,7 @@
 ## Milestones
 
 - ✅ **v1.0 MVP** — Phases 1-8 (shipped 2026-10-12; live GitHub Pages deploy deferred, see audit tech debt)
-- 🚧 **v1.1 Multi-account & new data** — Phases 9-12 (in progress)
+- 🚧 **v1.1 Multi-account & new data** — Phases 9-15 (in progress)
 
 ## Phases
 
@@ -31,6 +31,9 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md). Audit: [
 - [x] **Phase 10: Merged Dashboard Across Accounts** - Playtime, finance, vehicles and login history read as one combined history, with a game filter, no double-counting and a source account on every row (completed 2026-10-18)
 - [x] **Phase 11: New Game Data** - HEAT, WoT Console, World of Warplanes account and plane stats, and WoWS crews and storage, each through the fail-closed PII strip (completed 2026-10-19)
 - [x] **Phase 12: Account Timeline & Perks** - Name, service, language/country history, bans, authorized third parties, subscriptions, coupons, bonus codes and surveys, with emails, IPs and codes masked (completed 2026-10-20)
+- [x] **Phase 13: Overview personal insights** - A grouped bento of on-device insight tiles with inline rules, pins and expand-in-place (completed 2026-10-24)
+- [x] **Phase 14: Design unification** - One type scale, token set and heat scale across every pane (completed 2026-10-31)
+- [x] **Phase 15: tech-debt-cleanup** - Closes the v1.1 audit debt: note roles, shell CSS split, `.muted-note` rename, orphans removed, pins privacy copy (completed 2026-11-01)
 
 ## Phase Details
 
@@ -195,7 +198,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 9 → 10 → 11 → 12
+Phases execute in numeric order: 9 → 10 → 11 → 12 → 13 → 14 → 15
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -203,6 +206,9 @@ Phases execute in numeric order: 9 → 10 → 11 → 12
 | 10. Merged Dashboard Across Accounts | v1.1 | 6/6 | Complete    | 2026-10-18 |
 | 11. New Game Data | v1.1 | 11/11 | Complete    | 2026-10-19 |
 | 12. Account Timeline & Perks | v1.1 | 13/13 | Complete    | 2026-10-20 |
+| 13. Overview personal insights | v1.1 | 15/15 | Complete | 2026-10-24 |
+| 14. Design unification | v1.1 | 21/21 | Complete | 2026-10-31 |
+| 15. tech-debt-cleanup | v1.1 | 13/13 | Complete | 2026-11-01 |
 
 ### Phase 13: Overview personal insights
 
