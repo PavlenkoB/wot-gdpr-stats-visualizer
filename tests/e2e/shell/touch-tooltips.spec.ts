@@ -192,9 +192,11 @@ test('a second tap MOVES the pinned tooltip, changes its text and its place, and
   await openPlaytime(page);
 
   const tip = tooltip(page);
-  // Two ADJACENT cells in the first visible columns, so the second tap does
-  // not have to scroll the page — a scroll between the two taps would dismiss
-  // the tooltip and this would be testing the wrong thing.
+  // Two cells one ROW apart (the same hour on the next day), both in view, so the
+  // second tap does not have to scroll the page — a scroll between the two taps
+  // would dismiss the tooltip and this would be testing the wrong thing. Not two
+  // neighbours in a row: near the left edge the tooltip is clamped to the edge,
+  // so on a wider font both would be placed at the same left and the same top.
   await hourCell(page, 0).tap();
   await expect(tip).toBeVisible();
   await expect(chartStatus(page)).toHaveText('Tooltip pinned.');
@@ -202,7 +204,7 @@ test('a second tap MOVES the pinned tooltip, changes its text and its place, and
   const firstLine = await tip.locator('p').first().textContent();
   const firstAt = await placedAt(tip);
 
-  await hourCell(page, 1).tap();
+  await hourCell(page, 24).tap();
 
   // Still pinned and still open — a move is not a dismissal, and the tooltip
   // is not re-created: the same element carried new text.
