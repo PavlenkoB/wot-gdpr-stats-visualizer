@@ -10,15 +10,18 @@ A browser-only, zero-backend tool that turns a Wargaming GDPR personal-data expo
 
 Your data never leaves your machine. Every other decision — architecture, library choices, feature scope — is subordinate to keeping this verifiably true (zero network requests post-load, with one sanctioned exception: the opt-in city-level file; enforced by CI and an ESLint network ban, with a CSP as defence in depth).
 
-## Current Milestone: v1.1 Multi-account & new data
+## Current State
 
-**Goal:** Accept a real multi-account export (several account-ID folders from region migrations and extra accounts) and show it as one merged dashboard, then surface the data categories the app still ignores.
+**Shipped: v1.1 Multi-account & new data (2026-11-03)**, on top of v1.0 MVP (2026-10-12). Phases 1-15, 90 plans in v1.1, about 55k lines of TypeScript and Svelte in `src/`.
 
-**Target features:**
-- Multi-account zips: detect N account roots, classify and parse each, store all in one dataset, render a single merged dashboard (no picker)
-- New games: HEAT, WoT Console, World of Warplanes sessions and stats; WoWS crews and storage
-- Account timeline: name history, external services, language/country history, bans, authorized third parties
-- Subscriptions, personal coupons, bonus codes, surveys
+- A zip with several account-ID folders imports as one dataset and renders as one merged dashboard, with a source-account chip on every row and a game filter.
+- HEAT, WoT Console, Warplanes, WoWS crews/storage, the Account timeline and Perks are shown, each through the fail-closed PII strip.
+- The Overview is a personal-insights page of on-device tiles with inline rules and pins; the whole app shares one type scale, token set and heat scale, enforced by whole-tree guards.
+- Still zero network requests after load, apart from the opt-in same-origin city file.
+
+## Next Milestone Goals
+
+Not yet defined. Run `/gsd-new-milestone`. Candidates carried over: live GitHub Pages deploy observation (deferred since v1.0), Chat_history and Clans dashboards, a fix for the self-hosted CI runner's npm, and a go-public pass (scrub files and history, then a fresh repository).
 
 ## Requirements
 
@@ -41,13 +44,16 @@ Your data never leaves your machine. Every other decision — architecture, libr
 - ✓ Account identity header at the top of the dashboard (nickname, region, account-created date from `User_Info`) — email address (the `LOGIN` field) is deliberately omitted from display even though it never leaves the device — v1.0
 - ✓ Financial_data includes a real-money spend summary from `Payment_history`, totaled **per currency** (the real data spans USD/RUB/UAH in one account) — never blended into one converted number, since any conversion needs a live or hardcoded FX rate, both rejected — v1.0
 - ✓ A discoverable "clear my cached data" control ships in the same phase as IndexedDB caching, not bolted on later — nothing currently wipes the unencrypted-on-disk cache otherwise — v1.0
+- ✓ A zip with several account-ID folders imports instead of failing, and all accounts are shown merged in one dashboard — v1.1
+- ✓ New game data (HEAT, WoT Console, World of Warplanes, WoWS crews/storage) is shown — v1.1
+- ✓ Account timeline categories are shown (name history, external services, language/country, bans, authorized third parties) — v1.1
+- ✓ Subscriptions, personal coupons, bonus codes and surveys are shown, with codes and IPs masked — v1.1
+- ✓ The Overview is a personal-insights page (INSIGHT-01..08); pinned tiles persist as ids only in localStorage and the Clear / Start over copy says so — v1.1
+- ✓ One design system across every pane (type scale, tokens, heat scale), with no visible change from the Phase 15 cleanup — v1.1
 
 ### Active
 
-- [ ] A zip with several account-ID folders imports instead of failing, and all accounts are shown merged in one dashboard
-- [ ] New game data (HEAT, WoT Console, World of Warplanes, WoWS crews/storage) is shown
-- [ ] Account timeline categories are shown (name history, external services, language/country, bans, authorized third parties)
-- [ ] Subscriptions, personal coupons, bonus codes and surveys are shown
+(None. Define with `/gsd-new-milestone`.)
 
 ### Out of Scope
 
@@ -55,7 +61,7 @@ Your data never leaves your machine. Every other decision — architecture, libr
 - i18n / Ukrainian translation — English-only for v1
 - Chat_history, Clans dashboards — real data categories, deliberately deferred past v1
 - City-level IP geolocation *bundled by default* — ruled out as a default-load cost (databases run tens of MB); available instead as an explicit opt-in lazy-load the user must trigger
-- Multiple simultaneously-stored exports / switching between accounts — single active dataset only; re-architecting to a keyed multi-export store is a possible future direction, not v1
+- Multiple simultaneously-stored exports / switching between exports — single active dataset only (one export may hold several accounts since v1.1); re-architecting to a keyed multi-export store is a possible future direction, not v1
 - Accessibility work beyond incidental — no WCAG target for hand-rolled SVG charts in v1
 - Safari/Firefox active verification — Chrome-first target; other browsers get best-effort compatibility, not dedicated testing
 
@@ -133,4 +139,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-10-16 after v1.1 milestone start*
+*Last updated: 2026-11-03 after v1.1 milestone*

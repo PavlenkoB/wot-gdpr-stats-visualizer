@@ -22,12 +22,27 @@
       "number": "12",
       "name": "Account Timeline & Perks",
       "status": "complete"
+    },
+    {
+      "number": "13",
+      "name": "Overview personal insights",
+      "status": "complete"
+    },
+    {
+      "number": "14",
+      "name": "Design unification",
+      "status": "complete"
+    },
+    {
+      "number": "15",
+      "name": "tech-debt-cleanup",
+      "status": "complete"
     }
   ],
   "next": {
-    "command": "/gsd-new-milestone",
-    "label": "Start a new milestone",
-    "reason": "All phases complete — start a new milestone"
+    "command": "/gsd-progress",
+    "label": "Show progress",
+    "reason": "Unsure of state — showing progress"
   },
-  "updated_at": "2026-11-01T11:15:13.409Z"
+  "updated_at": "2026-11-03T13:37:37.671Z"
 }

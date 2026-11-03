@@ -1,5 +1,23 @@
 # Milestones
 
+## v1.1 Multi-account & new data (Shipped: 2026-11-03)
+
+**Phases completed:** 7 phases, 90 plans, 116 tasks
+
+**Delivered:** A multi-account export now imports as one merged dashboard, the previously ignored data categories have panes, the Overview is a personal-insights page, and the whole app shares one design system.
+
+**Key accomplishments:**
+- Multi-account import: a zip with several account-ID folders imports, caches as one dataset and lists every account (ID, games, activity years) in the identity header; Clear and Start over leave no export rows in IndexedDB.
+- Merged dashboard: playtime, finance, vehicles and login history read as one combined history with a game filter, no double-counting and a source-account chip on every row.
+- New data, fail-closed: HEAT, WoT Console, Warplanes and WoWS crews/storage, plus an Account timeline and Perks (subscriptions, coupons, bonus codes, surveys) with emails, IPs and codes masked behind one reveal.
+- Overview personal insights: sixteen on-device tiles with inline rules, pins and expand-in-place, backed by a committed vehicle table and a hand-derived oracle proved through the real worker.
+- Design unification: one type scale (12 / 14 / 32 / 56), one token set and one heat scale across every pane, enforced by whole-tree guards, then closed out in Phase 15 (note roles, `shell.css` split, `.muted-note`, orphans removed) with 120,142 elements and 152 screenshots equal to the baseline.
+- Privacy held: zero requests after load (one sanctioned opt-in city file), e2e suite at 273 tests, and the confirmation copy now covers the `wg-overview-pins` localStorage key.
+
+**Known verification override:** closed as `override_closeout`. Phases 9-14 read `stale` in `verification.status` (covered files were edited by later verified phases); every report says `passed` and the v1.1 audit (status tech_debt, all closed in Phase 15) found integration 27/28 with the one PRIV-02 note since fixed.
+
+---
+
 ## v1.0 MVP (Shipped: 2026-10-12)
 
 **Phases completed:** 8 phases, 115 plans, 251 tasks
