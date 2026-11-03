@@ -2,13 +2,12 @@
 // it is current with `pnpm run vehicles:table:check`.
 //
 // Source: the Wargaming.net public API, encyclopedia vehicles data.
-// Attribution: pending the Wargaming Terms-of-Use checkpoint (13-CONTEXT D-07
-// and D-23). The copyright line and the link to the official game site that
-// the API Policy asks for are added by the plan that passes that checkpoint.
+// Attribution: the copyright notice and the link to the official game site are
+// shown in the Overview footer (OVERVIEW_ATTRIBUTION_* in src/lib/ui-copy.ts),
+// as approved at the Terms-of-Use gate (13-CONTEXT D-07 and D-23).
 //
-// Rows: this file holds NO vehicle rows until that checkpoint passes. While it
-// holds none, every lookup falls back to the tag-derived name and an unknown
-// class (D-09), and the Overview states that class coverage.
+// Rows: a tank this file does not hold falls back to the tag-derived name and
+// an unknown class (D-09), and the Overview states its class coverage.
 //
 // This file is plain data and imports NOTHING. It is worker-only: the table is
 // inlined into the worker chunk like the geo country table, and the browser

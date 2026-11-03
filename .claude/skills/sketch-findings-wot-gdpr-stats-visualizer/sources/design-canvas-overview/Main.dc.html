@@ -204,7 +204,7 @@ class Component extends DCLogic {
         hasBars: i.viz === 'years' || i.viz === 'hours', hasRows: i.viz === 'top', hasSeg: i.viz === 'seg',
         bars: i.viz === 'years' ? bars(years, h.ramp) : i.viz === 'hours' ? bars(hours, h.ramp) : [],
         peakLabel: i.viz === 'years' ? '1,180 h · 2015' : '20:00', peakStyle: i.viz === 'years' ? peakStyle(years) : peakStyle(hours),
-        a1: i.viz === 'years' ? '2013' : '00:00', a2: i.viz === 'years' ? '' : '12:00', a3: i.viz === 'years' ? '2026' : '23:00',
+        a1: i.viz === 'years' ? '2015' : '00:00', a2: i.viz === 'years' ? '' : '12:00', a3: i.viz === 'years' ? '2026' : '23:00',
         rows: i.viz === 'top' ? rows : [], seg: i.viz === 'seg' ? seg : [],
         starFill: pinned ? '#e0a020' : 'none', starStroke: pinned ? '#a8710a' : '#8c8c8c', starLabel: 'Pin ' + i.k,
         toggle: () => this.setState({ open: Object.assign({}, this.state.open, { [i.id]: !this.state.open[i.id] }) }),

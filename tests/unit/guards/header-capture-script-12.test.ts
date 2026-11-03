@@ -11,7 +11,7 @@ import { zipSync } from '../../fixtures/pinned-zip.ts';
 // =============================================================================
 //
 // WHAT THIS FILE IS
-// One guard over `.planning/phases/12-account-timeline-perks/header_capture_12.py`
+// One guard over `.planning/milestones/v1.1-phases/12-account-timeline-perks/header_capture_12.py`
 // — the script THE USER runs, by hand, on their own Wargaming export zip. It is
 // the only thing in Phase 12 that touches real personal data (CONTEXT D-04), so
 // its safety is not an assumption: this file runs it over a synthetic archive
@@ -43,7 +43,7 @@ import { zipSync } from '../../fixtures/pinned-zip.ts';
 
 const SCRIPT_PATH = fileURLToPath(
   new URL(
-    '../../../.planning/phases/12-account-timeline-perks/header_capture_12.py',
+    '../../../.planning/milestones/v1.1-phases/12-account-timeline-perks/header_capture_12.py',
     import.meta.url,
   ),
 );

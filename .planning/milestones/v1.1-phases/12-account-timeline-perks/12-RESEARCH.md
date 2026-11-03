@@ -187,7 +187,7 @@ A header allowlist stops an `EMAIL` column. It does not stop an email that is th
 
 ### Finding 8: file names inside four folders, and every header but one, are unknown
 
-Names cited from the Phase 9 sample: `Subscriptions.csv`, `External_Services_History.csv`, `Language_And_Country_History.csv`, `Account_Name_History.csv` `[CITED: 09-RESEARCH.md:368-369, 384]`; `HEAT_Surveys.csv` `[VERIFIED: 11-HEADERS.txt line 31]`. File names in `Bans`, `Authorized_Third_Parties`, `Personal_Coupons`, `Bonus_Codes` are unknown (the earlier phases printed a full entry listing but it was not recorded for these). This session's attempt to list the extracted export directory (`~/Downloads/export`) was denied by the permission classifier `[VERIFIED: tool denial this session]`; no workaround was attempted. Do not guess names: they must come from the Wave 0 capture.
+Names cited from the Phase 9 sample: `Subscriptions.csv`, `External_Services_History.csv`, `Language_And_Country_History.csv`, `Account_Name_History.csv` `[CITED: 09-RESEARCH.md:368-369, 384]`; `HEAT_Surveys.csv` `[VERIFIED: 11-HEADERS.txt line 31]`. File names in `Bans`, `Authorized_Third_Parties`, `Personal_Coupons`, `Bonus_Codes` are unknown (the earlier phases printed a full entry listing but it was not recorded for these). This session's attempt to list the extracted export directory (`path/to/export.zip was denied by the permission classifier `[VERIFIED: tool denial this session]`; no workaround was attempted. Do not guess names: they must come from the Wave 0 capture.
 
 ### Finding 9: the one verified header (Surveys)
 

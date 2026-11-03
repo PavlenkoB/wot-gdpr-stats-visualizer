@@ -11,6 +11,14 @@ under "What the page requests".
 **Your data never leaves your machine.** This is the whole point — see
 `AGENTS.md` for the constraints that follow from it.
 
+## Using it
+
+1. Request your personal-data export from Wargaming (the GDPR "Data Export" for your account; Wargaming emails you a zip).
+2. Open the live page at <https://pavlenkob.github.io/wot-gdpr-stats-visualizer/> and drop the zip on it. Nothing is uploaded: the zip is unpacked, parsed and stored in your own browser.
+3. Open DevTools > Network to check: after the page loads there are no requests (the one exception is the optional city-level IP detail you can switch on yourself).
+
+Unofficial fan tool. It is not affiliated with or endorsed by Wargaming.net; World of Tanks and related marks are trademarks of Wargaming.net.
+
 ## Quick start
 
 Requires Node 22.12+ and pnpm 12.6+.
@@ -140,20 +148,12 @@ order:
 
 None of these can be set from the repository or checked from CI.
 
-- [ ] The repository's visibility permits GitHub Pages. On the free plan that means
-      a public repository. The repository was private when this was written, and
-      whether to make it public is the owner's decision. It is not made, prepared
-      or audited by this project (no pre-publication review of the committed
-      files has been scheduled).
+- [ ] The repository is public (on the free plan GitHub Pages requires it).
 - [ ] Settings > Pages > Build and deployment > Source is **GitHub Actions**.
 - [ ] Optional: Settings > Environments > `github-pages` is restricted to the
       `main` branch.
 - [ ] The work is merged to `main` and CI is green there. The workflow cannot run
       before that, because a dispatch uses the workflow file on the default branch.
-
-The owner's recorded answer (plan 07-01) is `deferred: repo stays private for
-now`: neither of the first two settings is satisfied, and publishing is
-consciously deferred until they are.
 
 ### Dispatching, the live URL and rollback
 

@@ -325,7 +325,7 @@ describe('formatLoginDate', () => {
     // The last second of a leap day stays ON that day: floor, not round.
     [951782400 + 86399, '2000-02-29'],
     [951782400, '2000-02-29'],
-    [Date.UTC(2013, 2, 14) / 1000, '2015-05-06'],
+    [Date.UTC(2015, 4, 6) / 1000, '2015-05-06'],
   ];
 
   test.each(cases)('(%i) reads %s', (seconds, expected) => {

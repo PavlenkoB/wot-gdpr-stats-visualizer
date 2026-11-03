@@ -8,4 +8,4 @@ Plain Node ESM scripts (`.mjs`) reusing the repo's `fflate` and `papaparse` from
 Real numbers go to `out.local/` (covered by the `*.local` gitignore rule) and are never committed.
 
 ## Patterns
-Print aggregates only (no nickname, IP, email, chat text). Real exports live outside the repo (`~/Downloads/export/`).
+Print aggregates only (no nickname, IP, email, chat text). Real exports live outside the repo (`path/to/export.zip

@@ -11,7 +11,7 @@ import { zipSync } from '../../fixtures/pinned-zip.ts';
 // =============================================================================
 //
 // WHAT THIS FILE IS
-// One guard over `.planning/phases/11-new-game-data/header_capture.py` — the
+// One guard over `.planning/milestones/v1.1-phases/11-new-game-data/header_capture.py` — the
 // script THE USER runs, by hand, on their own Wargaming export zip. It is the
 // only thing in Phase 11 that touches real personal data (CONTEXT D-10, D-12),
 // so its safety is not an assumption: this file runs it over a synthetic
@@ -43,7 +43,10 @@ import { zipSync } from '../../fixtures/pinned-zip.ts';
 // the repository, and the temp directory is per-test-run, not per-machine.
 
 const SCRIPT_PATH = fileURLToPath(
-  new URL('../../../.planning/phases/11-new-game-data/header_capture.py', import.meta.url),
+  new URL(
+    '../../../.planning/milestones/v1.1-phases/11-new-game-data/header_capture.py',
+    import.meta.url,
+  ),
 );
 
 // Every value the script must refuse to print. `WOT_Game_Sessions.csv` is the

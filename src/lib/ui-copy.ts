@@ -4040,7 +4040,8 @@ export function formatProvenanceRange(first: string, last: string): string {
 export const OVERVIEW_ATTRIBUTION_TEXT = 'Tank names, nations and classes: Wargaming.net API data.';
 
 /** The notice that follows the attribution text. */
-export const OVERVIEW_ATTRIBUTION_NOTICE = '© Wargaming.net. All rights reserved.';
+export const OVERVIEW_ATTRIBUTION_NOTICE =
+  '© Wargaming.net. All rights reserved. Unofficial fan tool, not affiliated with or endorsed by Wargaming.net.';
 
 /** The text of the outbound attribution link. */
 export const OVERVIEW_ATTRIBUTION_LINK_TEXT = 'World of Tanks';

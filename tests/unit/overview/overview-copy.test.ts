@@ -369,7 +369,9 @@ describe('the composed page copy (13-12)', () => {
     expect(OVERVIEW_ATTRIBUTION_TEXT).toBe(
       'Tank names, nations and classes: Wargaming.net API data.',
     );
-    expect(OVERVIEW_ATTRIBUTION_NOTICE).toBe('© Wargaming.net. All rights reserved.');
+    expect(OVERVIEW_ATTRIBUTION_NOTICE).toBe(
+      '© Wargaming.net. All rights reserved. Unofficial fan tool, not affiliated with or endorsed by Wargaming.net.',
+    );
     expect(OVERVIEW_ATTRIBUTION_LINK_TEXT).toBe('World of Tanks');
     expect(OVERVIEW_ATTRIBUTION_LINK_HREF).toBe('https://worldoftanks.eu/');
   });

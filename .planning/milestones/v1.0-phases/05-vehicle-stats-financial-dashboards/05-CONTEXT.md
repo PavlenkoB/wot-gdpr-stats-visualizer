@@ -13,7 +13,7 @@ Fill two dashboard sections from the real export layout:
 
 Not in this phase: login-IP history and the world map (Phase 6), phone-width and touch polish (Phase 7), account balances (credits/gold/free XP) from `*_Account_Statistics.csv`, naming battle-type codes or vehicles (no spec or name map in the export).
 
-**Findings from inspecting the real 2021 export (`~/Downloads/export/1234567_2021-10-12.zip`) that shape this phase — the roadmap and fixtures did not anticipate them:**
+**Findings from inspecting the real 2021 export (`path/to/export.zip that shape this phase — the roadmap and fixtures did not anticipate them:**
 
 - `Financial_data/` is a real top-level folder with two files: `Operations_with_Premium_Days.csv` (`PREMIUM;CURR_PREMIUM;CREATED;UPDATED`, 128 rows) and `Virtual_Currencies_Operations.csv` (`CREATED;CURRENCY_CODE;CURRENCY_TITLE;AMOUNT;TYPE;ORDER`, 7,830 rows). It is **not** in `SUPPORTED` in `src/lib/worker/categories.ts`, so today it classifies as `unknown`, and Phase 3 D-02's section order has no slot for it. Wargaming's own `Readme_en.pdf` describes it as deposit/withdrawal operations on virtual currencies and "delta premium status and premium balances at the time of the transaction".
 - The existing `Player_statistics` fixtures (`WOT_stats.csv`, `WOTB_stats.csv`, `WOWS_stats.csv`, `WOWP_19_stats.csv`, one shared invented header) match no real file. The real files are `WOT_Vehicle_Statistics.csv` (268 vehicles, 47 columns), `WOTB_Vehicle_Statistics.csv`, `WOWS_Ship_Statistics.csv`, `WOWS_Ship_Statistics_by_Type.csv`, `WOWP_19_Plane_Statistics.csv`, `WOWP_20_Plane_Statistics.csv`, plus `*_Vehicle_Statistics_by_Type.csv`, `*_Battle_Types_Statistics.csv`, `*_Account_Statistics.csv`, `WOT_Fallout_*`, `WOWS_Crews.csv`, `WOWS_Account_Storage.csv`.
@@ -102,7 +102,7 @@ Not in this phase: login-IP history and the world map (Phase 6), phone-width and
 - `.planning/phases/02-defensive-parsing-persistent-dataset/02-UI-SPEC.md` and `03-UI-SPEC.md` — spacing scale, typography roles, palette, contrast rules
 
 ### Real-export evidence
-- `~/Downloads/export/1234567_2021-10-12.zip` — the real 2021 sample inspected for this phase (local only; never commit it or its rows). Its `Readme_en.pdf` documents `Financial_data` and the `N/D` / `N/A` / `F` / `T` abbreviations.
+- `path/to/export.zip — the real 2021 sample inspected for this phase (local only; never commit it or its rows). Its `Readme_en.pdf` documents `Financial_data` and the `N/D` / `N/A` / `F` / `T` abbreviations.
 
 </canonical_refs>
 

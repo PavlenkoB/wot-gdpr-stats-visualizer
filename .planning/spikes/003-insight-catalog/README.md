@@ -21,7 +21,7 @@ open .planning/spikes/003-insight-catalog/out.local/catalog.html          # real
 ```
 
 ## Results (35 insights; groups: Time, Totals, Hall of Fame, Favourites, Modes, Economy, Social, Wargaming life)
-Ready from the export alone: days logged in (51 d), years with the game (13.5), longest session (12.8 h), busiest day,
+Ready from the export alone: days logged in (51 d), years with the game (10.8), longest session (9.3 h), busiest day,
 longest streak (52 d), peak hour/weekday, busiest years, days in battle (117 d), battles/damage/frags/XP totals,
 damage blocked by armor, trees cut, series records, most-played tank (by battles/share/hours/win rate), top 5, best win
 rate and best average damage (100+ battles), favourite nation, garage reach, credits earned, orders count, chat message

@@ -24,7 +24,7 @@ permissions:
 jobs:
   verify:
     name: Lint, typecheck, unit + e2e (incl. zero-network)
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     # The outermost of the three e2e limits, and the only one that cancels
     # The whole job. It must outlast the shell wrapper (30 min) by enough to
     # cover the steps before it (install, lint, typecheck, unit, browser
@@ -177,10 +177,9 @@ jobs:
         run: pnpm run test:unit
 
       # Cache Playwright browsers (~150MB download per run otherwise).
-      # Both paths listed because the self-hosted runner's OS is not pinned in
-      # this workflow: ~/Library/Caches is macOS, ~/.cache is Linux. Playwright
-      # writes to whichever exists on the runner, and `actions/cache` happily
-      # no-ops on a missing path.
+      # Both paths listed so the cache also works if the runner OS changes:
+      # ~/Library/Caches is macOS, ~/.cache is Linux. `actions/cache` no-ops on a
+      # missing path.
       - name: Cache Playwright browsers
         uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
         with:

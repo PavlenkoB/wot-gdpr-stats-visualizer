@@ -55,7 +55,7 @@ expected: Header does not present a regional/geographic code as if it were a gam
 result: pass
 note: "Re-verified by headless drive of the rebuilt app with the real export; matches the expected figures in this test (no real figures recorded here)."
 previous_result: issue
-reported: "Header shows 'Region (per export) 30' - value is Account_Info.REGION, a numeric regional code (city a city), not a game realm"
+reported: "Header shows 'Region (per export) 30' - value is Account_Info.REGION, a numeric regional code, not a game realm"
 severity: cosmetic
 fixed_by: "05-19 — IDENTITY_REGION_LABEL is now 'Location code (per export)'; value unchanged, never mapped"
 

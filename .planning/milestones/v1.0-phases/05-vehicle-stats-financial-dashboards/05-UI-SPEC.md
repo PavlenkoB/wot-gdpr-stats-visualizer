@@ -15,7 +15,7 @@ created: "2026-10-01"
 >
 > Scope: the `Player_statistics` section body (vehicle table), a **new** sixth `Financial_data` section (premium-time chart, virtual-currency charts), and the `Payment_history` section body (real-money spend summary). Login history and the world map are Phase 6; phone-width and touch polish is Phase 7 (section 14 lists what this phase must not preclude and what must not break at 375px).
 >
-> Evidence base for column names: the header lines of the real 2021 sample export (`~/Downloads/export/1234567_2021-10-12.zip`, local only). No row data was read or is quoted. Parsing is by header name and tolerant of missing columns (CONTEXT, Defensive parsing).
+> Evidence base for column names: the header lines of the real 2021 sample export (`path/to/export.zip local only). No row data was read or is quoted. Parsing is by header name and tolerant of missing columns (CONTEXT, Defensive parsing).
 
 ---
 

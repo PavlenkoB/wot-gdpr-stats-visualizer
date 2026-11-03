@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { unzipSync, strFromU8 } from '../../../node_modules/fflate/esm/index.mjs';
 import Papa from '../../../node_modules/papaparse/papaparse.js';
 
-export const DEFAULT_ZIP = `${process.env.HOME}/Downloads/path/to/export.zip`;
+export const DEFAULT_ZIP = process.env.WG_EXPORT_ZIP ?? 'export.zip';
 
 export function readExport(zipPath = DEFAULT_ZIP) {
   const files = unzipSync(new Uint8Array(readFileSync(zipPath)));

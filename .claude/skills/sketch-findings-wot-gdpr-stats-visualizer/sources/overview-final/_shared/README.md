@@ -6,6 +6,6 @@
 
 ```bash
 node .planning/spikes/001-vehicle-lookup-table/run.mjs      # needs WG_APPLICATION_ID in .env.local
-node .planning/sketches/_shared/gen-data.mjs [export.zip]   # default ~/Downloads/path/to/export.zip
+node .planning/sketches/_shared/gen-data.mjs [export.zip]   # default path/to/export.zip
 ```
 Without `out.local/data.js` the sketches show a "No data" message.

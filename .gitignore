@@ -92,3 +92,6 @@ graphify-out/*/GRAPH_REPORT.md
 .claude/hooks/managed-hooks-registry.cjs
 .claude/hooks/package.json
 .claude/worktrees/
+
+# graphify output is generated locally, not published
+graphify-out/

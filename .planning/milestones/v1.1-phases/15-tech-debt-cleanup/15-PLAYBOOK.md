@@ -13,7 +13,7 @@
 - No new Playwright test: the listed count stays 273 (`tests/unit/guards/ci-budget.test.ts`).
 - Guards pass with no exemption list and no allowlist. A guard that cannot go live yet is written as a pure function with synthetic tests and wired into the whole-tree sweep only in plan 15-13, when its subject is gone.
 - Commits carry no Co-Authored-By trailer (project rule). Commit per task with a `refactor(15-NN): ...` / `docs(15-NN): ...` message.
-- Every path in a committed file is repo-relative. No absolute home-directory path (the real-data guard `tests/unit/guards/no-real-data.test.ts` rejects them), and never read `~/Downloads/export`: that is a real export (PII). The harness takes its exports only from `tests/fixtures/`.
+- Every path in a committed file is repo-relative. No absolute home-directory path (the real-data guard `tests/unit/guards/no-real-data.test.ts` rejects them), and never read `path/to/export.zip that is a real export (PII). The harness takes its exports only from `tests/fixtures/`.
 - After code files change, `graphify update .` runs once, in plan 15-13.
 
 ## 2. The two tools (created by plan 15-01, committed under `.planning/phases/15-tech-debt-cleanup/tools/`)

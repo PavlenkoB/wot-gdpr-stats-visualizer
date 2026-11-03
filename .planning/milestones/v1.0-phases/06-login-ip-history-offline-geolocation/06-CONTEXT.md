@@ -97,7 +97,7 @@ Resolved as **option-a**: the city file is fetched on the **main thread** (`src/
 - `.planning/research/FEATURES.md` — login-IP map and city-level notes
 
 ### Real export
-- `/Users/you/Downloads/export/1234567_2021-10-12.zip` — real 2021 sample (local only, never commit); `Activity_history/*_Game_Sessions.csv`, `User_Info/Account_Info.csv`
+- `/Users/you/Downloads/path/to/export.zip` — real 2021 sample (local only, never commit); `Activity_history/*_Game_Sessions.csv`, `User_Info/Account_Info.csv`
 
 </canonical_refs>
 
