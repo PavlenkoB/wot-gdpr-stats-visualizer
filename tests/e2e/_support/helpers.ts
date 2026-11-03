@@ -546,8 +546,13 @@ export async function expectSelected(page: Page, pane: PaneId): Promise<void> {
  */
 export async function openSection(page: Page, pane: PaneId): Promise<void> {
   await ensureListScreen(page);
-  await listRow(page, pane).click();
-  await expect(detailPane(page)).toHaveAttribute('data-pane', pane);
+  // A click that lands while the previous pane is still settling can be ignored
+  // on a slow runner (seen on GitHub's hosted x64 runner, never locally), so the
+  // click is retried until the detail pane names the pane.
+  await expect(async () => {
+    await listRow(page, pane).click();
+    await expect(detailPane(page)).toHaveAttribute('data-pane', pane, { timeout: 2_000 });
+  }).toPass({ timeout: 15_000 });
   const section = PANE_SECTION[pane];
   if (section !== null) {
     await expect(page.getByTestId('dashboard-section-' + section)).toHaveCount(1);
