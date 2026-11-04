@@ -6,7 +6,12 @@ import {
 } from '../../scripts/geo/lib/city-manifest.ts';
 import { buildSampleExport, SAMPLE_NICKNAME } from '../fixtures/export-fixtures.ts';
 import { buildLoginsHandExport } from '../fixtures/logins-fixtures.ts';
-import { SYNTHETIC_ZIP_NAME, importExport, loginHistoryBlock } from '../e2e/_support/helpers.ts';
+import {
+  SYNTHETIC_ZIP_NAME,
+  importExport,
+  loginHistoryBlock,
+  openSection,
+} from '../e2e/_support/helpers.ts';
 
 /**
  * The deployed-build proof (phase 07, plans 07-01 and 07-02, D-11, D-14,
@@ -294,6 +299,9 @@ test.describe('the built app served under its base path', () => {
 
     await openApp(page);
     await importExport(page, SYNTHETIC_ZIP_NAME, buildLoginsHandExport());
+    // Overview is the landing view since phase 8, so the Login history block is
+    // not mounted until its pane is opened.
+    await openSection(page, 'login-history');
     await expect(loginHistoryBlock(page)).toHaveAttribute('data-state', 'ready', {
       timeout: 60_000,
     });
