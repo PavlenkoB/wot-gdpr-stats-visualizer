@@ -556,6 +556,11 @@ export async function openSection(page: Page, pane: PaneId): Promise<void> {
     await listRow(page, pane).click();
     await expect(detailPane(page)).toHaveAttribute('data-pane', pane, { timeout: 2_000 });
   }).toPass({ timeout: 15_000 });
+  // The click leaves the mouse where the list row was, and at phone width the
+  // detail screen that replaces the list can put a chart bar under it, so the
+  // bar's hover opens its tooltip before the test taps anything (seen once on
+  // GitHub's hosted runner). Park the pointer in the corner.
+  await page.mouse.move(0, 0);
   const section = PANE_SECTION[pane];
   if (section !== null) {
     await expect(page.getByTestId('dashboard-section-' + section)).toHaveCount(1);
