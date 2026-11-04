@@ -19,6 +19,7 @@
   import ConfirmPanel from './lib/shell/ConfirmPanel.svelte';
   import Dashboard from './lib/shell/Dashboard.svelte';
   import ImportBar from './lib/shell/ImportBar.svelte';
+  import SiteFooter from './lib/shell/SiteFooter.svelte';
 
   let importBar: ReturnType<typeof ImportBar> | undefined = $state();
 
@@ -334,6 +335,8 @@
     <Dashboard result={ingestClient.result} {importRegion} />
   {/if}
 </main>
+
+<SiteFooter />
 
 <style>
   /* The app root is a plain block: the shell owns the page layout and each

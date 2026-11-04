@@ -22,7 +22,9 @@
 .shell {
   display: flex;
   flex-wrap: wrap;
-  min-height: 100vh;
+  /* The site footer takes the rest of the first screen, so it is on screen
+     without scrolling when the page is short. */
+  min-height: calc(100vh - var(--footer-height));
 }
 
 .pane-list {
@@ -50,7 +52,7 @@
   .pane-list {
     position: sticky;
     top: 0;
-    height: 100vh;
+    height: calc(100vh - var(--footer-height));
     overflow: auto;
 
     /* The pane scrolls internally on desktop, so the import footer holds the

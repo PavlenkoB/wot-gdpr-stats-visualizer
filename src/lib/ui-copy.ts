@@ -4049,6 +4049,16 @@ export const OVERVIEW_ATTRIBUTION_LINK_TEXT = 'World of Tanks';
 /** The attribution link's target. An ordinary anchor: no request until clicked. */
 export const OVERVIEW_ATTRIBUTION_LINK_HREF = 'https://worldoftanks.eu/';
 
+/** The site footer's disclaimer, shown on every screen including the empty one. */
+export const SITE_FOOTER_TEXT =
+  'Unofficial fan tool, not affiliated with or endorsed by Wargaming.net.';
+
+/** The text of the footer's link to the source repository. */
+export const SITE_FOOTER_REPO_LINK_TEXT = 'Source on GitHub';
+
+/** The repository link's target. An ordinary anchor: no request until clicked. */
+export const SITE_FOOTER_REPO_LINK_HREF = 'https://github.com/PavlenkoB/wot-gdpr-stats-visualizer';
+
 /** The developer's own copyright line, which the Wargaming API policy asks for. */
 export const OVERVIEW_ATTRIBUTION_OWNER =
   '© 2026 Bohdan Pavlenko. MIT licensed, tank data excluded.';

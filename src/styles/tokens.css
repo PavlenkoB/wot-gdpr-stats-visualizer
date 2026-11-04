@@ -63,6 +63,7 @@
   --layout-page-x: 40px;
   --layout-page-y: 48px;
   --layout-page-bottom: 64px;
+  --footer-height: 56px;
 
   /* The one radius the scale snaps to (OI-6): the 6px control radius. */
   --radius-sm: 6px;
